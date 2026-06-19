@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: sans-serif; padding: 16px; color: #333; }
+#debug { color: red; font-size: 12px; white-space: pre-wrap; display: block; margin-top: 8px; padding: 8px; border: 1px solid red; min-height: 20px; }
+input, select { padding: 4px 8px; margin: 2px; }
+button { padding: 4px 12px; margin: 2px; cursor: pointer; }
+.param-row { margin: 4px 0; }
+.param-row input, .param-row select { width: 80px; }
+</style>
+</head>
+<body>
+<h2>Test Webview</h2>
+<div>
+  <label>Name: <input type="text" id="name" value="TestMethod"></label>
+</div>
+<div>
+  <label>Return: <input type="text" id="returnType" value="void"></label>
+</div>
+<div>
+  <h3>Parameters</h3>
+  <div id="paramsContainer"></div>
+  <button id="btnAddParam">+ Add Parameter</button>
+</div>
+<div>
+  <button id="btnCreate">Create</button>
+  <button id="btnCancel">Cancel</button>
+</div>
+<div id="debug">Waiting...</div>
+
+<script>
+(function() {
+  var paramCount = 0;
+  var debugEl = document.getElementById('debug');
+
+  function dbg(msg) {
+    debugEl.textContent += '\n' + msg;
+  }
+
+  function addParameter() {
+    paramCount++;
+    var container = document.getElementById('paramsContainer');
+    var row = document.createElement('div');
+    row.className = 'param-row';
+
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'param' + paramCount;
+    row.appendChild(nameInput);
+
+    var typeInput = document.createElement('input');
+    typeInput.type = 'text';
+    typeInput.placeholder = 'Integer';
+    row.appendChild(typeInput);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.textContent = 'x';
+    removeBtn.addEventListener('click', function() {
+      row.remove();
+      dbg('removed param');
+    });
+    row.appendChild(removeBtn);
+
+    container.appendChild(row);
+    dbg('added param ' + paramCount);
+  }
+
+  document.getElementById('btnAddParam').addEventListener('click', function() {
+    dbg('Add Param clicked!');
+    addParameter();
+  });
+
+  document.getElementById('btnCreate').addEventListener('click', function() {
+    dbg('Create clicked!');
+  });
+
+  document.getElementById('btnCancel').addEventListener('click', function() {
+    dbg('Cancel clicked!');
+  });
+
+  debugEl.textContent = 'init OK';
+})();
+</script>
+</body>
+</html>

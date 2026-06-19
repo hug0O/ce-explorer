@@ -1,0 +1,379 @@
+import * as vscode from 'vscode';
+import { ILanguageProvider } from '../providers/ILanguageProvider';
+import { ClassInfo, ClassMember, MemberKind, Visibility, ParsedDocument } from '../models/types';
+import { compileFilter, nameMatchesFilter, sortMembersForDisplay as sortMembersUtil, GroupMode } from '../utils/memberNavigation';
+
+export class CodeExplorerTreeItem extends vscode.TreeItem {
+    constructor(
+        public readonly itemData: ClassInfo | ClassMember,
+        public readonly parentClass?: ClassInfo,
+        public readonly provider?: ILanguageProvider
+    ) {
+        const isClassData = 'members' in itemData;
+        super(
+            itemData.name,
+            isClassData
+                ? vscode.TreeItemCollapsibleState.Collapsed
+                : vscode.TreeItemCollapsibleState.None
+        );
+
+        if (this.isClass()) {
+            const cls = itemData as ClassInfo;
+            this.iconPath = new vscode.ThemeIcon(cls.isInterface ? 'interface' : 'symbol-class');
+            this.contextValue = cls.isInterface ? 'interface' : (cls.isRecord ? 'record' : 'class');
+            this.description = cls.classType
+                ? `${cls.classType}${cls.parentClass ? ' → ' + cls.parentClass : ''}`
+                : (cls.parentClass ? `(${cls.parentClass})` : undefined);
+            this.tooltip = this.buildClassTooltip(cls);
+            this.command = {
+                command: 'mmx.navigateToMember',
+                title: 'Navigate',
+                arguments: [cls.range.start],
+            };
+            this.resourceUri = cls.fileUri;
+        } else {
+            const member = itemData as ClassMember;
+            this.iconPath = this.getMemberIcon(member);
+            this.contextValue = member.kind;
+            this.description = this.buildMemberDescription(member);
+            this.tooltip = this.buildMemberTooltip(member);
+            const navPos = member.implementationRange?.start ?? member.range.start;
+            this.command = {
+                command: 'mmx.navigateToMember',
+                title: 'Navigate',
+                arguments: [navPos],
+            };
+        }
+    }
+
+    private isClass(): boolean {
+        return 'members' in this.itemData;
+    }
+
+    private getMemberIcon(member: ClassMember): vscode.ThemeIcon {
+        switch (member.kind) {
+            case MemberKind.Constructor:
+                return new vscode.ThemeIcon('zap');
+            case MemberKind.Destructor:
+                return new vscode.ThemeIcon('trash');
+            case MemberKind.Field:
+                return new vscode.ThemeIcon('symbol-field');
+            case MemberKind.Property:
+                return new vscode.ThemeIcon('symbol-property');
+            case MemberKind.Method:
+            default:
+                if (member.isStatic) {
+                    return new vscode.ThemeIcon('symbol-method');
+                }
+                if (member.isAbstract) {
+                    return new vscode.ThemeIcon('symbol-method');
+                }
+                return new vscode.ThemeIcon('symbol-method');
+        }
+    }
+
+    private buildMemberDescription(member: ClassMember): string {
+        const parts: string[] = [];
+        if (member.returnType) {
+            parts.push(`: ${member.returnType}`);
+        } else if (member.type) {
+            parts.push(`: ${member.type}`);
+        }
+        if (member.parameters.length > 0) {
+            parts.push(`(${member.parameters.length})`);
+        }
+        if (member.implementationRange) {
+            parts.push('impl');
+        }
+        return parts.join(' ');
+    }
+
+    private buildMemberTooltip(member: ClassMember): string {
+        const lines: string[] = [`${member.visibility} ${member.kind}: ${member.name}`];
+        if (member.returnType) {
+            lines.push(`Return: ${member.returnType}`);
+        }
+        if (member.type) {
+            lines.push(`Type: ${member.type}`);
+        }
+        if (member.parameters.length > 0) {
+            lines.push('Parameters:');
+            for (const p of member.parameters) {
+                const dir = p.isVar ? 'var ' : p.isOut ? 'out ' : p.isConst ? 'const ' : '';
+                lines.push(`  ${dir}${p.name}: ${p.type}`);
+            }
+        }
+        if (member.modifiers.length > 0) {
+            lines.push(`Modifiers: ${member.modifiers.join(', ')}`);
+        }
+        return lines.join('\n');
+    }
+
+    private buildClassTooltip(cls: ClassInfo): string {
+        const lines: string[] = [];
+        lines.push(`${cls.isInterface ? 'interface' : cls.isRecord ? 'record' : 'class'} ${cls.name}`);
+        if (cls.parentClass) {
+            lines.push(`  inherits: ${cls.parentClass}`);
+        }
+        if (cls.interfaces.length > 0) {
+            lines.push(`  implements: ${cls.interfaces.join(', ')}`);
+        }
+        lines.push(`  ${cls.members.length} members`);
+        return lines.join('\n');
+    }
+}
+
+class ClassInfoSymbol {
+    constructor(public readonly name: string) {}
+}
+
+function isClassInfo(obj: unknown): obj is ClassInfo {
+    return typeof obj === 'object' && obj !== null && 'members' in obj;
+}
+
+export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorerTreeItem> {
+    private _onDidChangeTreeData = new vscode.EventEmitter<CodeExplorerTreeItem | undefined | null>();
+    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+    private providers: Map<string, ILanguageProvider> = new Map();
+    private providersByExtension: Map<string, ILanguageProvider> = new Map();
+    private currentDocument: vscode.TextDocument | undefined;
+    private parsedCache: Map<string, ParsedDocument> = new Map();
+    private parsedVersion: Map<string, number> = new Map();
+
+    // Navigation state (Step 4): live regex filter + pluggable grouping.
+    private filterPattern: string = '';
+    private groupBy: GroupMode = 'visibility';
+
+    private matchesFilter(name: string): boolean {
+        return nameMatchesFilter(name, compileFilter(this.filterPattern));
+    }
+
+    setFilter(pattern: string): void {
+        this.filterPattern = pattern;
+        this._onDidChangeTreeData.fire(null);
+    }
+
+    getFilter(): string {
+        return this.filterPattern;
+    }
+
+    cycleGroupBy(): GroupMode {
+        this.groupBy = this.groupBy === 'visibility' ? 'kind' : this.groupBy === 'kind' ? 'alpha' : 'visibility';
+        this._onDidChangeTreeData.fire(null);
+        return this.groupBy;
+    }
+
+    setGroupBy(mode: GroupMode): void {
+        this.groupBy = mode;
+        this._onDidChangeTreeData.fire(null);
+    }
+
+    getGroupBy(): GroupMode {
+        return this.groupBy;
+    }
+
+    /**
+     * Flat list of every navigable symbol in the active document (classes,
+     * their members, and standalone procedures) for the "Go to Member" palette.
+     */
+    listAllSymbols(): { label: string; description: string; position: vscode.Position; kind: string }[] {
+        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
+        if (!doc) {
+            return [];
+        }
+        const parsed = this.getParsedDocument(doc);
+        if (!parsed) {
+            return [];
+        }
+        const out: { label: string; description: string; position: vscode.Position; kind: string }[] = [];
+        for (const cls of parsed.classes) {
+            out.push({ label: cls.name, description: cls.classType ?? 'class', position: cls.range.start, kind: 'class' });
+            for (const m of cls.members) {
+                const pos = m.implementationRange?.start ?? m.range.start;
+                out.push({ label: m.name, description: `${cls.name} • ${m.kind}`, position: pos, kind: m.kind });
+            }
+        }
+        for (const proc of parsed.standaloneProcedures) {
+            const pos = proc.implementationRange?.start ?? proc.range.start;
+            out.push({ label: proc.name, description: 'function', position: pos, kind: 'function' });
+        }
+        return out;
+    }
+
+    constructor() {
+        vscode.window.onDidChangeActiveTextEditor(() => this.onActiveEditorChanged());
+        vscode.workspace.onDidChangeTextDocument((e) => this.onDocumentChanged(e));
+    }
+
+    registerProvider(provider: ILanguageProvider): void {
+        this.providers.set(provider.languageId, provider);
+        for (const ext of provider.fileExtensions) {
+            this.providersByExtension.set(ext, provider);
+        }
+    }
+
+    private providerForDocument(doc: vscode.TextDocument): ILanguageProvider | undefined {
+        const byLang = this.providers.get(doc.languageId);
+        if (byLang) {
+            return byLang;
+        }
+        const ext = doc.uri.fsPath.substring(doc.uri.fsPath.lastIndexOf('.'));
+        return this.providersByExtension.get(ext);
+    }
+
+    private onActiveEditorChanged(): void {
+        const editor = vscode.window.activeTextEditor;
+        if (editor && this.isSupportedDocument(editor.document)) {
+            this.currentDocument = editor.document;
+            this.parsedCache.delete(editor.document.uri.toString());
+            this.parsedVersion.delete(editor.document.uri.toString());
+            this._onDidChangeTreeData.fire(null);
+        }
+    }
+
+    private onDocumentChanged(e: vscode.TextDocumentChangeEvent): void {
+        if (e.document === this.currentDocument) {
+            this.parsedCache.delete(e.document.uri.toString());
+            this.parsedVersion.delete(e.document.uri.toString());
+            this._onDidChangeTreeData.fire(null);
+        }
+    }
+
+    private isSupportedDocument(doc: vscode.TextDocument): boolean {
+        if (this.providers.has(doc.languageId)) {
+            return true;
+        }
+        const ext = doc.uri.fsPath.substring(doc.uri.fsPath.lastIndexOf('.'));
+        return this.providersByExtension.has(ext);
+    }
+
+    refresh(): void {
+        this.parsedCache.clear();
+        this.parsedVersion.clear();
+        this._onDidChangeTreeData.fire(null);
+    }
+
+    getParsedDocument(doc: vscode.TextDocument): ParsedDocument | undefined {
+        const provider = this.providerForDocument(doc);
+        if (!provider) {
+            return undefined;
+        }
+        const key = doc.uri.toString();
+        const cachedVersion = this.parsedVersion.get(key);
+        if (cachedVersion === doc.version) {
+            const cached = this.parsedCache.get(key);
+            if (cached) {
+                return cached;
+            }
+        }
+        const parsed = provider.parseDocument(doc);
+        this.parsedCache.set(key, parsed);
+        this.parsedVersion.set(key, doc.version);
+        return parsed;
+    }
+
+    getTreeItem(element: CodeExplorerTreeItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(element?: CodeExplorerTreeItem): CodeExplorerTreeItem[] {
+        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
+        if (!doc || !this.isSupportedDocument(doc)) {
+            return [];
+        }
+
+        const provider = this.providerForDocument(doc);
+        if (!provider) {
+            return [];
+        }
+
+        const cacheKey = doc.uri.toString();
+        let parsed = this.parsedCache.get(cacheKey);
+        if (!parsed) {
+            parsed = provider.parseDocument(doc);
+            this.parsedCache.set(cacheKey, parsed);
+        }
+
+        if (!element) {
+            const classItems = parsed.classes
+                .filter(cls => {
+                    if (!this.filterPattern) {
+                        return true;
+                    }
+                    if (this.matchesFilter(cls.name)) {
+                        return true;
+                    }
+                    return cls.members.some(m => this.matchesFilter(m.name));
+                })
+                .map(cls => new CodeExplorerTreeItem(cls, undefined, provider));
+            const procItems = parsed.standaloneProcedures
+                .filter(proc => this.matchesFilter(proc.name))
+                .map(proc => new CodeExplorerTreeItem(proc, undefined, provider));
+            return [...classItems, ...procItems];
+        }
+
+        if (isClassInfo(element.itemData)) {
+            const cls = element.itemData as ClassInfo;
+            const members = cls.members.filter(m => this.matchesFilter(m.name));
+            const sorted = this.sortMembersForDisplay(members);
+            return sorted.map(member => new CodeExplorerTreeItem(member, cls, provider));
+        }
+
+        return [];
+    }
+
+    private sortMembersForDisplay(members: ClassMember[]): ClassMember[] {
+        return sortMembersUtil(members, this.groupBy);
+    }
+
+    getParent(_element: CodeExplorerTreeItem): vscode.ProviderResult<CodeExplorerTreeItem> {
+        return null;
+    }
+
+    resolveTreeItem(item: CodeExplorerTreeItem, _element: CodeExplorerTreeItem): vscode.ProviderResult<CodeExplorerTreeItem> {
+        return item;
+    }
+
+    getSelectedClass(): ClassInfo | undefined {
+        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
+        if (!doc || !this.isSupportedDocument(doc)) {
+            return undefined;
+        }
+
+        const provider = this.providerForDocument(doc);
+        if (!provider) {
+            return undefined;
+        }
+
+        const parsed = provider.parseDocument(doc);
+        return parsed.classes.length > 0 ? parsed.classes[0] : undefined;
+    }
+
+    getClassByName(name: string): ClassInfo | undefined {
+        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
+        if (!doc || !this.isSupportedDocument(doc)) {
+            return undefined;
+        }
+
+        const provider = this.providerForDocument(doc);
+        if (!provider) {
+            return undefined;
+        }
+
+        const parsed = provider.parseDocument(doc);
+        return parsed.classes.find(c => c.name === name);
+    }
+
+    getCurrentProvider(): ILanguageProvider | undefined {
+        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
+        if (!doc) {
+            return undefined;
+        }
+        return this.providerForDocument(doc);
+    }
+
+    getProvider(languageId: string): ILanguageProvider | undefined {
+        return this.providers.get(languageId);
+    }
+}

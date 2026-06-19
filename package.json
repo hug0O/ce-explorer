@@ -1,0 +1,430 @@
+{
+  "name": "mmx-code-explorer",
+  "displayName": "Code Explorer",
+  "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management — inspired by Code Explorer for Delphi",
+  "version": "0.1.0",
+  "publisher": "mmx",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Refactoring",
+    "Other"
+  ],
+  "keywords": [
+    "class explorer",
+    "code explorer",
+    "method creator",
+    "refactoring",
+    "header source",
+    "pascal",
+    "delphi",
+    "c++",
+    "multi-language"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mmx-explorer",
+          "title": "Code Explorer",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mmx-explorer": [
+        {
+          "id": "mmxCodeExplorer",
+          "name": "Classes",
+          "when": "mmx:isActive"
+        },
+        {
+          "id": "mmxDashboard",
+          "name": "Dashboard",
+          "when": "mmx:isActive",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mmx.testMinimal",
+        "title": "MMX: Test - Parse & Insert Comment"
+      },
+      {
+        "command": "mmx.addMethod",
+        "title": "MMX: Add Method...",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mmx.addField",
+        "title": "MMX: Add Field...",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mmx.addProperty",
+        "title": "MMX: Add Property...",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mmx.addConstructor",
+        "title": "MMX: Add Constructor...",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mmx.refreshExplorer",
+        "title": "MMX: Refresh Explorer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mmx.navigateToMember",
+        "title": "MMX: Navigate to Member"
+      },
+      {
+        "command": "mmx.synchronizeDeclImpl",
+        "title": "MMX: Synchronize Declaration/Implementation"
+      },
+      {
+        "command": "mmx.sortMembers",
+        "title": "MMX: Sort Members"
+      },
+      {
+        "command": "mmx.editMember",
+        "title": "MMX: Edit Member...",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mmx.deleteMember",
+        "title": "MMX: Delete Member",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mmx.moveMember",
+        "title": "MMX: Move Member to..."
+      },
+      {
+        "command": "mmx.extractMethod",
+        "title": "MMX: Extract Method"
+      },
+      {
+        "command": "mmx.renameMember",
+        "title": "MMX: Rename Member"
+      },
+      {
+        "command": "mmx.openMemberEditor",
+        "title": "MMX: Open Member Editor",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mmx.showActions",
+        "title": "MMX: Show Actions"
+      },
+      {
+        "command": "mmx.insertTemplate",
+        "title": "MMX: Insert Template..."
+      },
+      {
+        "command": "mmx.manageTemplates",
+        "title": "MMX: Manage Templates...",
+        "icon": "$(symbol-snippet)"
+      },
+      {
+        "command": "mmx.implementInterface",
+        "title": "MMX: Implement Interface / Override Methods...",
+        "icon": "$(symbol-interface)"
+      },
+      {
+        "command": "mmx.filterTree",
+        "title": "MMX: Filter Members...",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "mmx.clearFilter",
+        "title": "MMX: Clear Member Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "mmx.toggleGroupBy",
+        "title": "MMX: Toggle Member Grouping",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "mmx.goToMember",
+        "title": "MMX: Go to Member..."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mmx.refreshExplorer",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "mmx.filterTree",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "mmx.toggleGroupBy",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "mmx.manageTemplates",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "mmx.addMethod",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mmx.addMethod",
+          "when": "view == mmxCodeExplorer && viewItem == class",
+          "group": "inline@1"
+        },
+        {
+          "command": "mmx.addField",
+          "when": "view == mmxCodeExplorer && viewItem == class",
+          "group": "inline@2"
+        },
+        {
+          "command": "mmx.addProperty",
+          "when": "view == mmxCodeExplorer && viewItem == class",
+          "group": "inline@3"
+        },
+        {
+          "command": "mmx.editMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "mmx.editMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "inline@1"
+        },
+        {
+          "command": "mmx.deleteMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "mmx.deleteMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "inline@2"
+        },
+        {
+          "command": "mmx.navigateToMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "2_nav@1"
+        },
+        {
+          "command": "mmx.renameMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "1_edit@4"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "mmx.extractMethod",
+          "group": "mmx@1"
+        },
+        {
+          "command": "mmx.synchronizeDeclImpl",
+          "group": "mmx@2"
+        },
+        {
+          "command": "mmx.editMember",
+          "group": "mmx@3"
+        },
+        {
+          "command": "mmx.deleteMember",
+          "group": "mmx@4"
+        },
+        {
+          "command": "mmx.renameMember",
+          "group": "mmx@5"
+        },
+        {
+          "command": "mmx.insertTemplate",
+          "group": "mmx@6"
+        },
+        {
+          "command": "mmx.showActions",
+          "group": "mmx@0"
+        },
+        {
+          "command": "mmx.implementInterface",
+          "when": "editorTextFocus",
+          "group": "mmx@7"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mmx.synchronizeDeclImpl",
+        "key": "ctrl+alt+y",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.extractMethod",
+        "key": "ctrl+shift+x",
+        "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "mmx.editMember",
+        "key": "ctrl+alt+e",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.renameMember",
+        "key": "ctrl+alt+r",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.deleteMember",
+        "key": "ctrl+alt+d",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.showActions",
+        "key": "ctrl+;",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.addMethod",
+        "key": "ctrl+alt+m",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.addField",
+        "key": "ctrl+alt+f",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.addProperty",
+        "key": "ctrl+alt+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.addConstructor",
+        "key": "ctrl+alt+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.insertTemplate",
+        "key": "ctrl+alt+t",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.sortMembers",
+        "key": "ctrl+alt+s",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.goToMember",
+        "key": "ctrl+alt+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.filterTree",
+        "key": "ctrl+alt+l",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Code Explorer",
+      "properties": {
+        "mmx.pascal.indentSize": {
+          "type": "number",
+          "default": 2,
+          "description": "Indentation size for generated Pascal code"
+        },
+        "mmx.cpp.indentSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Indentation size for generated C++ code"
+        },
+        "mmx.cpp.braceStyle": {
+          "type": "string",
+          "enum": [
+            "sameLine",
+            "newLine"
+          ],
+          "default": "newLine",
+          "description": "Brace placement style for generated C++ code"
+        },
+        "mmx.pascal.defaultVisibility": {
+          "type": "string",
+          "enum": [
+            "private",
+            "protected",
+            "public",
+            "published"
+          ],
+          "default": "private",
+          "description": "Default visibility for new Pascal members"
+        },
+        "mmx.cpp.defaultVisibility": {
+          "type": "string",
+          "enum": [
+            "private",
+            "protected",
+            "public"
+          ],
+          "default": "private",
+          "description": "Default visibility for new C++ members"
+        },
+        "mmx.sorting.scheme": {
+          "type": "string",
+          "enum": [
+            "fieldsFirst",
+            "methodsFirst",
+            "visibilityGrouped"
+          ],
+          "default": "fieldsFirst",
+          "description": "Default sorting scheme for class members"
+        },
+        "mmx.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically synchronize declaration/implementation on save"
+        },
+        "mmx.previewEdits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "lint": "eslint src --ext ts",
+    "compile": "tsc --noEmit",
+    "test": "node --import tsx --test src/test/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.3.0"
+  }
+}

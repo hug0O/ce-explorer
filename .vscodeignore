@@ -1,0 +1,13 @@
+.vscode/**
+.kilo/**
+.omo/**
+node_modules/**
+src/**
+test-fixtures/**
+docs/**
+**/*.map
+**/*.test.ts
+tmp_*
+*.vsix
+tsconfig.json
+.eslintrc.json

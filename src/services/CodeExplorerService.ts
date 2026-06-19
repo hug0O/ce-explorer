@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassInfo, ClassMember, MemberKind, Visibility, ParsedDocument } from '../models/types';
-import { compileFilter, nameMatchesFilter, sortMembersForDisplay as sortMembersUtil, GroupMode } from '../utils/memberNavigation';
+import { compileFilter, nameMatchesFilter, sortMembersForDisplay as sortMembersUtil, GroupMode, CompiledFilter } from '../utils/memberNavigation';
 
 export class CodeExplorerTreeItem extends vscode.TreeItem {
     constructor(
@@ -142,15 +142,19 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
     private parsedVersion: Map<string, number> = new Map();
 
     // Navigation state (Step 4): live regex filter + pluggable grouping.
+    // The compiled filter is cached and only rebuilt when setFilter changes the
+    // pattern, so the tree-view hot path never recompiles a RegExp per name.
     private filterPattern: string = '';
+    private compiledFilter: CompiledFilter = compileFilter('');
     private groupBy: GroupMode = 'visibility';
 
     private matchesFilter(name: string): boolean {
-        return nameMatchesFilter(name, compileFilter(this.filterPattern));
+        return nameMatchesFilter(name, this.compiledFilter);
     }
 
     setFilter(pattern: string): void {
         this.filterPattern = pattern;
+        this.compiledFilter = compileFilter(pattern);
         this._onDidChangeTreeData.fire(null);
     }
 
@@ -161,15 +165,6 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
     cycleGroupBy(): GroupMode {
         this.groupBy = this.groupBy === 'visibility' ? 'kind' : this.groupBy === 'kind' ? 'alpha' : 'visibility';
         this._onDidChangeTreeData.fire(null);
-        return this.groupBy;
-    }
-
-    setGroupBy(mode: GroupMode): void {
-        this.groupBy = mode;
-        this._onDidChangeTreeData.fire(null);
-    }
-
-    getGroupBy(): GroupMode {
         return this.groupBy;
     }
 

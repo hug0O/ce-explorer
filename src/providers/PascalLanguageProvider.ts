@@ -317,6 +317,14 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         return Visibility.Published;
     }
 
+    // Pascal splits a method's declaration (in the class body) from its
+    // implementation (in the implementation section). The generic stub generator
+    // only emits declarations, which would produce methods with no body, so
+    // interface stubs are disabled until split-body support is added.
+    generateMissingStubs(_className: string, _interfaceInfo: ClassInfo, _classInfo: ClassInfo): string | undefined {
+        return undefined;
+    }
+
     findPairedFile(uri: vscode.Uri): vscode.Uri | undefined {
         const ext = '.pas';
         const path = uri.fsPath;

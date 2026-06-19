@@ -194,25 +194,39 @@ export abstract class BaseLanguageProvider implements ILanguageProvider {
             if (existing.has(m.name)) {
                 continue;
             }
-            if (m.kind !== MemberKind.Method) {
-                continue;
-            }
-            const spec: MemberSpec = {
-                kind: MemberKind.Method,
-                name: m.name,
-                returnType: m.returnType || undefined,
-                visibility: m.visibility,
-                parameters: m.parameters,
-                modifiers: [],
-                isStatic: m.isStatic,
-                isVirtual: false,
-                isAbstract: false,
-                isOverride: false,
-                isFinal: false,
-            };
-            const gen = this.generateMethod(className, spec, classInfo);
-            if (gen.declaration) {
-                parts.push(gen.declaration);
+            if (m.kind === MemberKind.Method) {
+                const spec: MemberSpec = {
+                    kind: MemberKind.Method,
+                    name: m.name,
+                    returnType: m.returnType || undefined,
+                    visibility: m.visibility,
+                    parameters: m.parameters,
+                    modifiers: [],
+                    isStatic: m.isStatic,
+                    isVirtual: false,
+                    isAbstract: false,
+                    isOverride: false,
+                    isFinal: false,
+                };
+                const gen = this.generateMethod(className, spec, classInfo);
+                if (gen.declaration) {
+                    parts.push(gen.declaration);
+                }
+            } else if (m.kind === MemberKind.Property) {
+                const spec: PropertySpec = {
+                    kind: MemberKind.Property,
+                    name: m.name,
+                    type: m.type || m.returnType || 'object',
+                    visibility: m.visibility,
+                    hasGetter: true,
+                    hasSetter: true,
+                    isDefault: false,
+                    isReadOnly: false,
+                };
+                const gen = this.generateProperty(className, spec, classInfo);
+                if (gen.declaration) {
+                    parts.push(gen.declaration);
+                }
             }
         }
         return parts.length > 0 ? parts.join('\n') : undefined;

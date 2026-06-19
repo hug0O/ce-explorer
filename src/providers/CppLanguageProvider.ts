@@ -170,6 +170,14 @@ export class CppLanguageProvider extends BaseLanguageProvider {
         return `${ret} ${spec.name}(${params}) {${body}}\n`;
     }
 
+    // C++ splits declarations (header) from implementations (source). The generic
+    // stub generator only emits declarations, which would leave methods without a
+    // body and fail to link, so interface stubs are disabled until split-body
+    // support is added.
+    generateMissingStubs(_className: string, _interfaceInfo: ClassInfo, _classInfo: ClassInfo): string | undefined {
+        return undefined;
+    }
+
     private extractStandaloneFunctions(lines: string[], classes: ClassInfo[]): ClassMember[] {
         const result: ClassMember[] = [];
         // Only real class bodies (from class/struct blocks) constrain free functions.

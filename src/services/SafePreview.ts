@@ -19,13 +19,15 @@ interface PlannedEdit {
 
 const proposedContent = new Map<string, string>();
 
-let registered = false;
+let registration: vscode.Disposable | undefined;
 
 export function registerSafePreview(context: vscode.ExtensionContext): void {
-    if (registered) {
-        return;
+    // Register unconditionally on each activation: VS Code disposes the previous
+    // provider on deactivation, so a leftover `registered` boolean would prevent
+    // re-registration and blank out previews after a reactivate cycle.
+    if (registration) {
+        registration.dispose();
     }
-    registered = true;
     const provider = new class implements vscode.TextDocumentContentProvider {
         provideTextDocumentContent(uri: vscode.Uri): string {
             const id = uri.query ? new URLSearchParams(uri.query).get('id') : null;
@@ -35,9 +37,8 @@ export function registerSafePreview(context: vscode.ExtensionContext): void {
             return proposedContent.get(uri.path) ?? '';
         }
     };
-    context.subscriptions.push(
-        vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, provider),
-    );
+    registration = vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, provider);
+    context.subscriptions.push(registration);
 }
 
 function previewEnabled(): boolean {
@@ -107,49 +108,47 @@ export async function previewAndConfirm(
     }
 
     const shownLabels: string[] = [];
-    for (const entry of documents) {
-        const proposed = simulateEdits(entry.originalText, entry.edits);
-        if (proposed === entry.originalText) {
-            continue;
+    const shownIds: string[] = [];
+    try {
+        for (const entry of documents) {
+            const proposed = simulateEdits(entry.originalText, entry.edits);
+            if (proposed === entry.originalText) {
+                continue;
+            }
+            const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            proposedContent.set(id, proposed);
+            const previewUri = vscode.Uri.parse(`${PREVIEW_SCHEME}:${entry.uri.fsPath}?id=${id}`);
+            try {
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    entry.uri,
+                    previewUri,
+                    `MMX Preview — ${title} (${entry.label})`,
+                );
+                shownLabels.push(entry.label);
+                shownIds.push(id);
+            } catch {
+                proposedContent.delete(id);
+            }
         }
-        const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        proposedContent.set(id, proposed);
-        const previewUri = vscode.Uri.parse(`${PREVIEW_SCHEME}:${entry.uri.fsPath}?id=${id}`);
-        try {
-            await vscode.commands.executeCommand(
-                'vscode.diff',
-                entry.uri,
-                previewUri,
-                `MMX Preview — ${title} (${entry.label})`,
-            );
-            shownLabels.push(entry.label);
-        } catch {
+
+        const scope = shownLabels.length > 0
+            ? shownLabels.join(', ')
+            : 'the target file';
+
+        const choice = await vscode.window.showWarningMessage(
+            `Apply these changes to ${scope}?`,
+            { modal: false },
+            'Apply',
+            'Cancel',
+        );
+
+        return choice === 'Apply';
+    } finally {
+        // Release the proposed-content payloads once a decision has been made
+        // so the module-level map does not grow unbounded across the session.
+        for (const id of shownIds) {
             proposedContent.delete(id);
         }
     }
-
-    const scope = shownLabels.length > 0
-        ? shownLabels.join(', ')
-        : 'the target file';
-
-    const choice = await vscode.window.showWarningMessage(
-        `Apply these changes to ${scope}?`,
-        { modal: false },
-        'Apply',
-        'Cancel',
-    );
-
-    return choice === 'Apply';
-}
-
-/**
- * Convenience helper for the common single-document case.
- */
-export async function previewSingleDoc(
-    uri: vscode.Uri,
-    originalText: string,
-    edits: PlannedEdit[],
-    title: string,
-): Promise<boolean> {
-    return previewAndConfirm([{ label: vscode.workspace.asRelativePath(uri), uri, originalText, edits }], title);
 }

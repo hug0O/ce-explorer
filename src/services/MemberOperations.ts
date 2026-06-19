@@ -46,7 +46,10 @@ export async function applyGeneratedCode(
     };
 
     let pairedUri: vscode.Uri | undefined;
-    let pairedOriginal: string | undefined;
+    // Cache of already-opened document texts keyed by URI string, so the Safe
+    // Preview loop can reuse them instead of reopening each file a second time.
+    const originalTextCache = new Map<string, string>();
+    originalTextCache.set(doc.uri.toString(), doc.getText());
 
     if (gen.declaration) {
         wsEdit.insert(doc.uri, gen.declarationPosition, gen.declaration);
@@ -58,7 +61,7 @@ export async function applyGeneratedCode(
         pairedUri = provider.findPairedFile(doc.uri);
         if (pairedUri) {
             const pd = await vscode.workspace.openTextDocument(pairedUri);
-            pairedOriginal = pd.getText();
+            originalTextCache.set(pairedUri.toString(), pd.getText());
             const pos = new vscode.Position(pd.lineCount, 0);
             wsEdit.insert(pairedUri, pos, '\n' + gen.pairedFileImplementation);
             plan(pairedUri, pos, '\n' + gen.pairedFileImplementation);
@@ -80,12 +83,12 @@ export async function applyGeneratedCode(
     // is disabled, in which case previewAndConfirm returns true immediately.
     const previewDocs: { label: string; uri: vscode.Uri; originalText: string; edits: PlannedEdit[] }[] = [];
     for (const [uri, edits] of plannedByUri) {
-        let originalText: string;
-        if (uri.toString() === doc.uri.toString()) {
-            originalText = doc.getText();
-        } else {
+        const key = uri.toString();
+        let originalText = originalTextCache.get(key);
+        if (originalText === undefined) {
             const pd = await vscode.workspace.openTextDocument(uri);
             originalText = pd.getText();
+            originalTextCache.set(key, originalText);
         }
         previewDocs.push({ label: vscode.workspace.asRelativePath(uri), uri, originalText, edits });
     }

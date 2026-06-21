@@ -5,7 +5,8 @@ import { CodeGeneratorService } from './services/CodeGeneratorService';
 import { MemberEditorPanel } from './webview/MemberEditorPanel';
 import { MemberViewerPanel } from './webview/MemberViewerPanel';
 import { DashboardPanel } from './webview/DashboardPanel';
-import { ClassInfo, ClassMember, MemberKind, Visibility, MemberSpec, FieldSpec, PropertySpec } from './models/types';
+import { MetricsDashboardPanel } from './webview/MetricsDashboardPanel';
+import { ClassInfo, ClassMember, MemberKind, Visibility, MemberSpec, FieldSpec, PropertySpec, GeneratedCode } from './models/types';
 import { ILanguageProvider } from './providers/ILanguageProvider';
 import { Template } from './models/Template';
 import { TemplateService } from './services/TemplateService';
@@ -13,8 +14,16 @@ import { TemplateStore } from './services/TemplateStore';
 import { TemplateCompletionProvider } from './providers/TemplateCompletionProvider';
 import { TemplateManagerPanel } from './webview/TemplateManagerPanel';
 import { MmxCodeActionProvider } from './providers/MmxCodeActionProvider';
+import { MmxCodeLensProvider } from './services/CodeLensProvider';
+import { MemberDragAndDropController } from './services/DragAndDropController';
 import * as ops from './services/MemberOperations';
 import { registerSafePreview } from './services/SafePreview';
+import { detectDeadCode } from './services/DeadCodeDetector';
+import { QuickFixProvider } from './providers/QuickFixProvider';
+import { batchMove, batchGenerateGettersSetters } from './services/BatchOperations';
+import { exportStructure } from './services/ExportService';
+import { generateDocumentation } from './services/DocumentationGenerator';
+import { runCodeReview } from './services/CodeReviewService';
 
 let providerRegistry: ProviderRegistry;
 let codeExplorer: CodeExplorerService;
@@ -86,14 +95,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }),
         );
 
+        const quickFixProvider = new QuickFixProvider(providerRegistry);
+        const quickFixSelectors: vscode.DocumentFilter[] = [];
+        for (const ext of providerRegistry.getSupportedExtensions()) {
+            quickFixSelectors.push({ scheme: 'file', pattern: '**/*' + ext });
+        }
+        context.subscriptions.push(
+            vscode.languages.registerCodeActionsProvider(quickFixSelectors, quickFixProvider, {
+                providedCodeActionKinds: QuickFixProvider.providedCodeActionKinds,
+            }),
+        );
+
         vscode.commands.executeCommand('setContext', 'mmx:isActive', true);
 
         console.log('[MMX] Creating tree views...');
+        const dragDropController = new MemberDragAndDropController(() => codeExplorer.refresh());
         const classesTree = vscode.window.createTreeView('mmxCodeExplorer', {
             treeDataProvider: codeExplorer,
             showCollapseAll: true,
+            dragAndDropController: dragDropController,
         });
         console.log('[MMX] Tree views created');
+
+        const codeLensProvider = new MmxCodeLensProvider(providerRegistry);
+        const codeLensRegistration = vscode.languages.registerCodeLensProvider(
+            { scheme: 'file' },
+            codeLensProvider
+        );
+        context.subscriptions.push(codeLensRegistration);
 
         context.subscriptions.push(classesTree);
 
@@ -157,14 +186,14 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const classNames = parsed.classes.map(c => c.name).join(', ');
 
             vscode.window.showInformationMessage(
-                'MMX Test: Found ' + classCount + ' class(es): ' + classNames
+                'CE Test: Found ' + classCount + ' class(es): ' + classNames
             );
 
             if (classCount > 0) {
                 const cls = parsed.classes[0];
                 const insertPos = new vscode.Position(editor.document.lineCount, 0);
                 const edit = new vscode.WorkspaceEdit();
-                edit.insert(editor.document.uri, insertPos, '\n// MMX Test: parsed class ' + cls.name + ' with ' + cls.members.length + ' members\n');
+                edit.insert(editor.document.uri, insertPos, '\n// CE Test: parsed class ' + cls.name + ' with ' + cls.members.length + ' members\n');
                 const ok = await vscode.workspace.applyEdit(edit);
                 vscode.window.showInformationMessage('Insert test result: ' + ok);
             }
@@ -241,7 +270,101 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.moveMember', async (item?: CodeExplorerTreeItem) => {
-            vscode.window.showInformationMessage('Move member (coming in Phase 2)');
+            if (!item || !('kind' in item.itemData)) {
+                vscode.window.showWarningMessage('Select a member in the explorer to move.');
+                return;
+            }
+            const member = item.itemData as ClassMember;
+            const sourceClass = item.parentClass;
+            if (!sourceClass) {
+                vscode.window.showWarningMessage('Move Member requires a class member from the explorer.');
+                return;
+            }
+
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showWarningMessage('No active editor.');
+                return;
+            }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) {
+                vscode.window.showWarningMessage('No language provider for this file type.');
+                return;
+            }
+
+            const parsed = provider.parseDocument(doc);
+            const destinations = parsed.classes.filter(c => c.name !== sourceClass.name);
+            if (destinations.length === 0) {
+                vscode.window.showWarningMessage('No other classes to move to.');
+                return;
+            }
+
+            const destItems = destinations.map(c => {
+                const typeLabel = c.classType ? ` (${c.classType})` : (c.isInterface ? ' (interface)' : c.isRecord ? ' (record)' : '');
+                return { label: c.name + typeLabel, className: c.name };
+            });
+            const picked = await vscode.window.showQuickPick(
+                destItems.map(d => d.label),
+                { placeHolder: `Move "${member.name}" to which class?` }
+            );
+            if (!picked) return;
+            const pickedItem = destItems.find(d => d.label === picked);
+            if (!pickedItem) return;
+            const destName = pickedItem.className;
+
+            const confirm = await vscode.window.showWarningMessage(
+                `Move "${member.name}" from ${sourceClass.name} to ${destName}?`,
+                { modal: true },
+                'Move'
+            );
+            if (confirm !== 'Move') return;
+
+            const deleted = await codeGenerator.deleteMember(doc, sourceClass, member);
+            if (!deleted) {
+                vscode.window.showErrorMessage('CE: Failed to delete member from source class.');
+                return;
+            }
+
+            const reparsed = provider.parseDocument(doc);
+            const destClass = reparsed.classes.find(c => c.name === destName);
+            if (!destClass) {
+                vscode.window.showErrorMessage('CE: Destination class not found after re-parse.');
+                codeExplorer.refresh();
+                return;
+            }
+
+            let success = false;
+            if (member.kind === MemberKind.Method || member.kind === MemberKind.Constructor || member.kind === MemberKind.Destructor) {
+                const spec: MemberSpec = {
+                    kind: member.kind, name: member.name, returnType: member.returnType || undefined,
+                    visibility: member.visibility, parameters: member.parameters,
+                    modifiers: [], isStatic: member.isStatic, isVirtual: member.isVirtual,
+                    isAbstract: member.isAbstract, isOverride: member.isOverride, isFinal: false,
+                };
+                const gen = provider.generateMethod(destClass.name, spec, destClass);
+                success = await applyGeneratedCode(doc, provider, gen);
+            } else if (member.kind === MemberKind.Field) {
+                const spec: FieldSpec = { kind: MemberKind.Field, name: member.name, type: member.type || provider.getTypeDefaults().defaultFieldType, visibility: member.visibility };
+                const gen = provider.generateField(destClass.name, spec, destClass);
+                success = await applyGeneratedCode(doc, provider, gen);
+            } else if (member.kind === MemberKind.Property) {
+                const spec: PropertySpec = {
+                    kind: MemberKind.Property, name: member.name, type: member.type || provider.getTypeDefaults().defaultPropertyType,
+                    visibility: member.visibility, hasGetter: true, hasSetter: true,
+                    isDefault: false, isReadOnly: false,
+                };
+                const gen = provider.generateProperty(destClass.name, spec, destClass);
+                success = await applyGeneratedCode(doc, provider, gen);
+            }
+
+            if (success) {
+                codeExplorer.refresh();
+                vscode.window.showInformationMessage(`Moved "${member.name}" from ${sourceClass.name} to ${destClass.name}`);
+            } else {
+                codeExplorer.refresh();
+                vscode.window.showErrorMessage('CE: Failed to insert member into destination class.');
+            }
         }),
 
         vscode.commands.registerCommand('mmx.renameMember', async (item?: CodeExplorerTreeItem) => {
@@ -295,43 +418,6 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.sortMembers', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                return;
-            }
-
-            const provider = providerRegistry.getByDocument(editor.document);
-            if (!provider) {
-                return;
-            }
-
-            const parsed = provider.parseDocument(editor.document);
-            if (parsed.classes.length === 0) {
-                return;
-            }
-
-            const schemes = ['Fields First', 'Methods First', 'Visibility Grouped'];
-            const selected = await vscode.window.showQuickPick(schemes, {
-                placeHolder: 'Select sorting scheme',
-            });
-            if (!selected) {
-                return;
-            }
-
-            const schemeMap: Record<string, string> = {
-                'Fields First': 'fieldsFirst',
-                'Methods First': 'methodsFirst',
-                'Visibility Grouped': 'visibilityGrouped',
-            };
-
-            const schemeName = schemeMap[selected];
-            for (const cls of parsed.classes) {
-                await codeGenerator.sortMembers(editor.document, cls, schemeName);
-            }
-            codeExplorer.refresh();
-        }),
-
         vscode.commands.registerCommand('mmx.extractMethod', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor || editor.selection.isEmpty) {
@@ -357,13 +443,31 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 prompt: 'Return type:',
                 placeHolder: provider.languageId === 'pascal' ? '' : 'void',
             });
+            if (returnType === undefined) {
+                return;
+            }
 
-            await codeGenerator.extractMethod(
+            const paramsInput = await vscode.window.showInputBox({
+                prompt: 'Parameters (name:type, comma-separated, empty = none):',
+                placeHolder: 'x:int, name:string',
+            });
+            if (paramsInput === undefined) {
+                return;
+            }
+            const parameters = paramsInput.trim()
+                ? paramsInput.split(',').map(s => s.trim()).filter(Boolean)
+                : [];
+
+            const ok = await codeGenerator.extractMethod(
                 editor.document,
                 editor.selection,
                 methodName,
+                parameters,
                 returnType || (provider.languageId === 'pascal' ? '' : 'void')
             );
+            if (!ok) {
+                vscode.window.showWarningMessage('CE: Could not extract method for this language.');
+            }
         }),
 
         vscode.commands.registerCommand('mmx.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
@@ -372,25 +476,24 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('mmx.showActions', async () => {
             const actions = [
-                { label: '$(symbol-method) Add Method', description: 'Ctrl+Alt+M', cmd: 'mmx.addMethod' },
-                { label: '$(symbol-field) Add Field', description: 'Ctrl+Alt+F', cmd: 'mmx.addField' },
-                { label: '$(symbol-property) Add Property', description: 'Ctrl+Alt+P', cmd: 'mmx.addProperty' },
-                { label: '$(symbol-constructor) Add Constructor', description: 'Ctrl+Alt+C', cmd: 'mmx.addConstructor' },
-                { label: '$(edit) Edit Member', description: 'Ctrl+Alt+E', cmd: 'mmx.editMember' },
-                { label: '$(references) Rename Member', description: 'Ctrl+Alt+R', cmd: 'mmx.renameMember' },
-                { label: '$(trash) Delete Member', description: 'Ctrl+Alt+D', cmd: 'mmx.deleteMember' },
-                { label: '$(fold) Extract Method', description: 'Ctrl+Shift+X', cmd: 'mmx.extractMethod' },
-                { label: '$(code) Insert Template', description: 'Ctrl+Alt+T', cmd: 'mmx.insertTemplate' },
-                { label: '$(list-ordered) Sort Members', description: 'Ctrl+Alt+S', cmd: 'mmx.sortMembers' },
-                { label: '$(sync) Synchronize Decl/Impl', description: 'Ctrl+Alt+Y', cmd: 'mmx.synchronizeDeclImpl' },
+                { label: '$(symbol-method) Add Method', description: '', cmd: 'mmx.addMethod' },
+                { label: '$(symbol-field) Add Field', description: '', cmd: 'mmx.addField' },
+                { label: '$(symbol-property) Add Property', description: '', cmd: 'mmx.addProperty' },
+                { label: '$(symbol-constructor) Add Constructor', description: '', cmd: 'mmx.addConstructor' },
+                { label: '$(edit) Edit Member', description: '', cmd: 'mmx.editMember' },
+                { label: '$(references) Rename Member', description: '', cmd: 'mmx.renameMember' },
+                { label: '$(trash) Delete Member', description: '', cmd: 'mmx.deleteMember' },
+                { label: '$(fold) Extract Method', description: '', cmd: 'mmx.extractMethod' },
+                { label: '$(code) Insert Template', description: '', cmd: 'mmx.insertTemplate' },
+                { label: '$(sync) Synchronize Decl/Impl', description: '', cmd: 'mmx.synchronizeDeclImpl' },
                 { label: '$(symbol-interface) Implement Interface', description: '', cmd: 'mmx.implementInterface' },
-                { label: '$(filter) Filter Members', description: 'Ctrl+Alt+L', cmd: 'mmx.filterTree' },
-                { label: '$(go-to-file) Go to Member', description: 'Ctrl+Alt+G', cmd: 'mmx.goToMember' },
+                { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
+                { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
                 { label: '$(refresh) Refresh Explorer', description: '', cmd: 'mmx.refreshExplorer' },
             ];
             const picked = await vscode.window.showQuickPick(actions, {
-                placeHolder: 'MMX Actions — select an action',
+                placeHolder: 'CE Actions — select an action',
             });
             if (picked) {
                 await vscode.commands.executeCommand(picked.cmd);
@@ -406,7 +509,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const languageId = providerRegistry.getByDocument(editor.document)?.languageId ?? editor.document.languageId;
             const templates = templateService.getForLanguage(languageId);
             if (templates.length === 0) {
-                vscode.window.showInformationMessage('No MMX templates available for language: ' + languageId);
+                vscode.window.showInformationMessage('No CE templates available for language: ' + languageId);
                 return;
             }
             const items: { label: string; description: string; detail: string; template: Template }[] = templates.map(t => ({
@@ -466,9 +569,153 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.implementInterface(doc, prov, cls, codeExplorer);
         }),
 
+        vscode.commands.registerCommand('mmx.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
+            log.appendLine('=== mmx.generateGettersSetters FIRED ===');
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showWarningMessage('No active editor.');
+                return;
+            }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) {
+                vscode.window.showWarningMessage('No language provider for this file type.');
+                return;
+            }
+
+            interface FieldTarget { cls: ClassInfo; field: ClassMember; }
+            let targets: FieldTarget[] = [];
+
+            if (item && 'kind' in item.itemData) {
+                const member = item.itemData as ClassMember;
+                if (member.kind === MemberKind.Field && item.parentClass) {
+                    targets.push({ cls: item.parentClass, field: member });
+                }
+            }
+
+            if (targets.length === 0) {
+                const parsed = provider.parseDocument(doc);
+                if (parsed.classes.length === 0) {
+                    vscode.window.showInformationMessage('No classes found in the current document.');
+                    return;
+                }
+
+                const items: (vscode.QuickPickItem & { target: FieldTarget })[] = [];
+                for (const cls of parsed.classes) {
+                    for (const m of cls.members) {
+                        if (m.kind === MemberKind.Field) {
+                            items.push({
+                                label: m.name,
+                                description: m.type ? ': ' + m.type : '',
+                                detail: cls.name,
+                                picked: true,
+                                target: { cls, field: m },
+                            });
+                        }
+                    }
+                }
+
+                if (items.length === 0) {
+                    vscode.window.showInformationMessage('No fields found in the current document.');
+                    return;
+                }
+
+                const picked = await vscode.window.showQuickPick(items, {
+                    canPickMany: true,
+                    title: 'CE: Generate Getters/Setters',
+                    placeHolder: 'Select fields to generate accessors for',
+                });
+                if (!picked || picked.length === 0) {
+                    return;
+                }
+                targets = picked.map(p => p.target);
+            }
+
+            const modeItems = [
+                { label: 'Getter and Setter', mode: 'both' as const },
+                { label: 'Getter only', mode: 'getter' as const },
+                { label: 'Setter only', mode: 'setter' as const },
+            ];
+            const modePicked = await vscode.window.showQuickPick(modeItems, {
+                title: 'CE: Generate Getters/Setters',
+                placeHolder: 'What should be generated?',
+            });
+            if (!modePicked) {
+                return;
+            }
+            const hasGetter = modePicked.mode !== 'setter';
+            const hasSetter = modePicked.mode !== 'getter';
+
+            const capitalizeLangs = ['java', 'csharp', 'typescript', 'javascript', 'javascriptreact'];
+            const buildPropertyName = (raw: string): string => {
+                if (capitalizeLangs.includes(provider.languageId)) {
+                    const stripped = raw.replace(/^_+/, '');
+                    if (!stripped) {
+                        return raw;
+                    }
+                    return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+                }
+                return raw;
+            };
+
+            const byClass = new Map<string, FieldTarget[]>();
+            for (const t of targets) {
+                const arr = byClass.get(t.cls.name) ?? [];
+                arr.push(t);
+                byClass.set(t.cls.name, arr);
+            }
+
+            let totalGenerated = 0;
+            for (const [className, fieldTargets] of byClass) {
+                const parts: string[] = [];
+                let cls: ClassInfo | undefined;
+                for (const t of fieldTargets) {
+                    cls = t.cls;
+                    const spec: PropertySpec = {
+                        kind: MemberKind.Property,
+                        name: buildPropertyName(t.field.name),
+                        type: t.field.type || provider.getTypeDefaults().defaultPropertyType,
+                        visibility: Visibility.Public,
+                        hasGetter,
+                        hasSetter,
+                        isDefault: false,
+                        isReadOnly: !hasSetter,
+                    };
+                    const gen = provider.generateProperty(className, spec, t.cls);
+                    if (gen.declaration) {
+                        parts.push(gen.declaration.replace(/\n$/, ''));
+                        totalGenerated++;
+                    }
+                }
+                if (parts.length === 0 || !cls) {
+                    continue;
+                }
+
+                const insertPos = provider.getInsertPosition(doc, cls, 'property').declaration;
+                const combined: GeneratedCode = {
+                    declaration: '\n' + parts.join('\n') + '\n',
+                    implementation: '',
+                    declarationPosition: insertPos,
+                    implementationPosition: insertPos,
+                };
+                const success = await ops.applyGeneratedCode(doc, provider, combined);
+                if (!success) {
+                    log.appendLine('  [generateGettersSetters] applyGeneratedCode returned false — aborting');
+                    return;
+                }
+            }
+
+            if (totalGenerated > 0) {
+                codeExplorer.refresh();
+                vscode.window.showInformationMessage('CE: Generated ' + totalGenerated + ' accessor(s).');
+            } else {
+                vscode.window.showInformationMessage('CE: No accessors were generated.');
+            }
+        }),
+
         vscode.commands.registerCommand('mmx.filterTree', async () => {
             const value = await vscode.window.showInputBox({
-                title: 'MMX: Filter Members',
+                title: 'CE: Filter Members',
                 prompt: 'Filter the explorer by name (regex supported). Empty clears the filter.',
                 value: codeExplorer.getFilter(),
                 placeHolder: 'e.g. get|set',
@@ -486,7 +733,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('mmx.toggleGroupBy', () => {
             const mode = codeExplorer.cycleGroupBy();
             const label = mode === 'visibility' ? 'Visibility' : mode === 'kind' ? 'Member kind' : 'Alphabetical';
-            vscode.window.showInformationMessage('MMX: Grouping by ' + label);
+            vscode.window.showInformationMessage('CE: Grouping by ' + label);
         }),
 
         vscode.commands.registerCommand('mmx.goToMember', async () => {
@@ -513,6 +760,97 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 editor.selection = new vscode.Selection(picked.position, picked.position);
                 editor.revealRange(new vscode.Range(picked.position, picked.position), vscode.TextEditorRevealType.InCenter);
             }
+        }),
+
+        vscode.commands.registerCommand('ce.codeMetrics', () => {
+            MetricsDashboardPanel.createOrShow(context.extensionUri, providerRegistry);
+        }),
+
+        vscode.commands.registerCommand('ce.detectDeadCode', async () => {
+            await detectDeadCode(providerRegistry);
+        }),
+
+        vscode.commands.registerCommand('ce.batchMove', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
+
+            const parsed = provider.parseDocument(doc);
+            interface PickItem extends vscode.QuickPickItem { member: ClassMember; cls: ClassInfo; }
+            const pickItems: PickItem[] = [];
+            for (const cls of parsed.classes) {
+                for (const m of cls.members) {
+                    pickItems.push({
+                        label: m.name,
+                        description: `${cls.name} • ${m.kind}`,
+                        member: m,
+                        cls,
+                    });
+                }
+            }
+            if (pickItems.length === 0) {
+                vscode.window.showInformationMessage('No members found in the current file.');
+                return;
+            }
+            const selected = await vscode.window.showQuickPick(pickItems, {
+                canPickMany: true,
+                title: 'CE: Batch Move — Select members to move',
+                placeHolder: 'Select one or more members',
+            });
+            if (!selected || selected.length === 0) { return; }
+
+            const treeItems = selected.map(s => new CodeExplorerTreeItem(s.member, s.cls, provider));
+            await batchMove(treeItems, providerRegistry, codeGenerator, codeExplorer);
+        }),
+
+        vscode.commands.registerCommand('ce.batchGenerateGettersSetters', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
+
+            const parsed = provider.parseDocument(doc);
+            interface PickItem extends vscode.QuickPickItem { member: ClassMember; cls: ClassInfo; }
+            const pickItems: PickItem[] = [];
+            for (const cls of parsed.classes) {
+                for (const m of cls.members) {
+                    if (m.kind !== MemberKind.Field) { continue; }
+                    pickItems.push({
+                        label: m.name,
+                        description: `${cls.name} • ${m.type || 'unknown'}`,
+                        member: m,
+                        cls,
+                    });
+                }
+            }
+            if (pickItems.length === 0) {
+                vscode.window.showInformationMessage('No fields found in the current file.');
+                return;
+            }
+            const selected = await vscode.window.showQuickPick(pickItems, {
+                canPickMany: true,
+                title: 'CE: Batch Generate Getters/Setters — Select fields',
+                placeHolder: 'Select one or more fields',
+            });
+            if (!selected || selected.length === 0) { return; }
+
+            const treeItems = selected.map(s => new CodeExplorerTreeItem(s.member, s.cls, provider));
+            await batchGenerateGettersSetters(treeItems, providerRegistry, codeGenerator, codeExplorer);
+        }),
+
+        vscode.commands.registerCommand('ce.exportStructure', async () => {
+            await exportStructure(providerRegistry);
+        }),
+
+        vscode.commands.registerCommand('ce.generateDocumentation', async () => {
+            await generateDocumentation(providerRegistry);
+        }),
+
+        vscode.commands.registerCommand('ce.codeReview', async () => {
+            await runCodeReview(providerRegistry);
         }),
     );
 }
@@ -642,7 +980,7 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
             const ok2 = await vscode.workspace.applyEdit(wsEdit2);
             if (ok2) {
                 codeExplorer.refresh();
-                vscode.window.showInformationMessage(`MMX: Added function "${name}" ✓`);
+                vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
             }
             return;
         } else if (provider.languageId === 'cpp') {
@@ -659,7 +997,7 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
         const ok = await vscode.workspace.applyEdit(wsEdit);
         if (ok) {
             codeExplorer.refresh();
-            vscode.window.showInformationMessage(`MMX: Added function "${name}" ✓`);
+            vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
         }
         return;
     }
@@ -700,9 +1038,9 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
 
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('MMX: Added "' + result.name + '" to ' + classInfo.name + ' ✓');
+        vscode.window.showInformationMessage('CE: Added "' + result.name + '" to ' + classInfo.name + ' ✓');
     } else {
-        vscode.window.showErrorMessage('MMX: Failed to add "' + result.name + '"');
+        vscode.window.showErrorMessage('CE: Failed to add "' + result.name + '"');
     }
 }
 

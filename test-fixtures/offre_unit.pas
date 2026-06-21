@@ -381,13 +381,14 @@ function fRechercheMontantOffre(piOFFPR_ID: Integer): string;
 
   function fCalculPRIX_VENTE(iOFFRE_ID: Integer): String;
 
-  function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; Integer: string): Extended;
+
+function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; toto: string): Extended;
 
 
-procedure mj();
 
 
-function fcalc(): integer;
+
+
 
 implementation
 uses
@@ -3148,9 +3149,9 @@ begin
 
 end;
 
-function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; Integer: string): Extended;
+
+function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; toto: string): Extended;
 begin
   Result := 0;
 end;
-
 end.

@@ -1007,49 +1007,57 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             const trimmed = seg.trim();
             if (!trimmed) continue;
 
-            const constMatch = trimmed.match(/^const\s+(\w+)\s*:\s*(.+)$/i);
+            const constMatch = trimmed.match(/^const\s+(.+)$/i);
             if (constMatch) {
-                params.push({
-                    name: constMatch[1],
-                    type: constMatch[2].trim(),
-                    isConst: true,
-                    direction: 'in',
-                });
+                const inner = constMatch[1].trim();
+                const innerParams = this.parseParamGroup(inner);
+                for (const p of innerParams) {
+                    params.push({ ...p, isConst: true, direction: 'in' });
+                }
                 continue;
             }
 
-            const varMatch = trimmed.match(/^var\s+(\w+)\s*:\s*(.+)$/i);
+            const varMatch = trimmed.match(/^var\s+(.+)$/i);
             if (varMatch) {
-                params.push({
-                    name: varMatch[1],
-                    type: varMatch[2].trim(),
-                    isVar: true,
-                    direction: 'inout',
-                });
+                const inner = varMatch[1].trim();
+                const innerParams = this.parseParamGroup(inner);
+                for (const p of innerParams) {
+                    params.push({ ...p, isVar: true, direction: 'inout' });
+                }
                 continue;
             }
 
-            const outMatch = trimmed.match(/^out\s+(\w+)\s*:\s*(.+)$/i);
+            const outMatch = trimmed.match(/^out\s+(.+)$/i);
             if (outMatch) {
-                params.push({
-                    name: outMatch[1],
-                    type: outMatch[2].trim(),
-                    isOut: true,
-                    direction: 'out',
-                });
+                const inner = outMatch[1].trim();
+                const innerParams = this.parseParamGroup(inner);
+                for (const p of innerParams) {
+                    params.push({ ...p, isOut: true, direction: 'out' });
+                }
                 continue;
             }
 
-            const simpleMatch = trimmed.match(/^(\w+)\s*:\s*(.+)$/);
-            if (simpleMatch) {
-                params.push({
-                    name: simpleMatch[1],
-                    type: simpleMatch[2].trim(),
-                });
-            }
+            const innerParams = this.parseParamGroup(trimmed);
+            params.push(...innerParams);
         }
 
         return params;
+    }
+
+    private parseParamGroup(group: string): Parameter[] {
+        const result: Parameter[] = [];
+        const colonIdx = group.lastIndexOf(':');
+        if (colonIdx < 0) {
+            return result;
+        }
+        const namesPart = group.substring(0, colonIdx).trim();
+        const type = group.substring(colonIdx + 1).trim();
+        if (!type) return result;
+        const names = namesPart.split(',').map(n => n.trim()).filter(n => n.length > 0);
+        for (const name of names) {
+            result.push({ name, type });
+        }
+        return result;
     }
 
     private splitParams(paramsStr: string): string[] {

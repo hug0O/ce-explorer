@@ -11,6 +11,7 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -280,6 +281,27 @@ export class RustLanguageProvider extends BaseLanguageProvider {
                 const visibility = visStr.startsWith('pub') ? Visibility.Public : Visibility.Private;
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+
+                const sigLine = i;
+                let braceDepth = 0;
+                let foundOpen = false;
+                let endBody = -1;
+                for (let j = i; j < endLine; j++) {
+                    for (const ch of lines[j]) {
+                        if (ch === '{') { braceDepth++; foundOpen = true; }
+                        if (ch === '}') { braceDepth--; }
+                    }
+                    if (foundOpen && braceDepth <= 0) {
+                        endBody = j;
+                        i = j;
+                        break;
+                    }
+                }
+
+                const implRange = endBody > sigLine
+                    ? new vscode.Range(sigLine, 0, endBody, lines[endBody]?.length ?? 0)
+                    : undefined;
+
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Method,
@@ -293,20 +315,8 @@ export class RustLanguageProvider extends BaseLanguageProvider {
                     isAbstract: false,
                     isOverride: false,
                     range,
+                    implementationRange: implRange,
                 });
-
-                let braceDepth = 0;
-                let foundOpen = false;
-                for (let j = i; j < endLine; j++) {
-                    for (const ch of lines[j]) {
-                        if (ch === '{') { braceDepth++; foundOpen = true; }
-                        if (ch === '}') { braceDepth--; }
-                    }
-                    if (foundOpen && braceDepth <= 0) {
-                        i = j;
-                        break;
-                    }
-                }
 
                 continue;
             }
@@ -367,19 +377,21 @@ export class RustLanguageProvider extends BaseLanguageProvider {
         return params;
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '    ';
         const params = spec.parameters.map(p => `${p.name}: ${p.type}`).join(', ');
         const returnType = spec.returnType ? ` -> ${spec.returnType}` : '';
         const vis = spec.visibility === Visibility.Public ? 'pub ' : '';
 
+        const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}${indent}todo!()\n${indent}`;
+
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `${indent}${vis}fn new(${params}) -> Self {\n${indent}${indent}todo!()\n${indent}}\n`;
+            declaration = `${indent}${vis}fn new(${params}) -> Self {${body}}\n`;
         } else {
             const selfParam = spec.isStatic ? '' : '&self';
             const allParams = selfParam ? (params ? `${selfParam}, ${params}` : selfParam) : params;
-            declaration = `${indent}${vis}fn ${spec.name}(${allParams})${returnType} {\n${indent}${indent}todo!()\n${indent}}\n`;
+            declaration = `${indent}${vis}fn ${spec.name}(${allParams})${returnType} {${body}}\n`;
         }
 
         const insertPos = this.getInsertPositionForClass(classInfo, 'method');
@@ -453,5 +465,39 @@ export class RustLanguageProvider extends BaseLanguageProvider {
             declaration: pos,
             implementation: pos,
         };
+    }
+
+    extractMethod(
+        context: RefactoringContext,
+        methodName: string,
+        parameters: string[],
+        returnType: string
+    ): vscode.TextEdit[] {
+        const sel = context.selection ?? context.range;
+        if (!sel) return [];
+        const document = context.document;
+        const selectedText = document.getText(sel);
+        const snakeName = methodName.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+
+        const params = parameters.map(p => {
+            const ci = p.indexOf(':');
+            return ci > 0 ? p : `${p}: ()`;
+        }).join(', ');
+        const args = parameters.map(p => {
+            const ci = p.indexOf(':');
+            return ci > 0 ? p.substring(0, ci).trim() : p;
+        }).join(', ');
+
+        const ret = returnType && returnType !== 'void' && returnType !== '()'
+            ? ` -> ${returnType}` : '';
+        const bodyLines = selectedText.split(/\r?\n/);
+        const indentedBody = bodyLines.map(l => l.length ? `    ${l}` : l).join('\n');
+        const newMethod = `\nfn ${snakeName}(${params})${ret} {\n${indentedBody}\n}\n`;
+        const insertPos = new vscode.Position(document.lineCount, 0);
+
+        return [
+            new vscode.TextEdit(sel, `${snakeName}(${args})`),
+            new vscode.TextEdit(new vscode.Range(insertPos, insertPos), newMethod),
+        ];
     }
 }

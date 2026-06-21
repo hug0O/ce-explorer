@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Template, parseTemplateFile, mergeTemplates, ParseResult } from '../models/Template';
+import { DEFAULT_TEMPLATES } from '../data/defaultTemplates';
 
 export class TemplateService {
     private templates: Template[] = [];
@@ -20,7 +21,7 @@ export class TemplateService {
     async load(): Promise<void> {
         const global = await this.loadFile(this.globalUri);
         const workspace = await this.loadFile(this.workspaceUri);
-        this.templates = mergeTemplates(global, workspace);
+        this.templates = mergeTemplates(DEFAULT_TEMPLATES, mergeTemplates(global, workspace));
         console.log('[MMX] [TemplateService] loaded ' + this.templates.length + ' templates');
     }
 

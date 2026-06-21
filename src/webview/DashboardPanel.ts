@@ -50,7 +50,6 @@ const MEMBER_ACTIONS: ActionButton[] = [
 ];
 
 const DOC_ACTIONS: ActionButton[] = [
-    { id: 'sort', label: 'Sort', svg: ICONS.sort, cmd: 'mmx.sortMembers', needsDocument: true },
     { id: 'sync', label: 'Sync', svg: ICONS.sync, cmd: 'mmx.synchronizeDeclImpl', needsDocument: true },
     { id: 'template', label: 'Template', svg: ICONS.template, cmd: 'mmx.insertTemplate', needsDocument: true },
 ];

@@ -116,6 +116,7 @@ export class GoLanguageProvider extends BaseLanguageProvider {
                             const visibility = isExported ? Visibility.Public : Visibility.Private;
 
                             const range = new vscode.Range(i, 0, i, line.length);
+                            const methodEnd = this.findBraceEnd(lines, i, lines.length);
                             cls.members.push({
                                 id: uniqueId(),
                                 kind: MemberKind.Method,
@@ -129,6 +130,9 @@ export class GoLanguageProvider extends BaseLanguageProvider {
                                 isAbstract: false,
                                 isOverride: false,
                                 range,
+                                implementationRange: methodEnd > i
+                                    ? new vscode.Range(i, 0, methodEnd, lines[methodEnd]?.length ?? 0)
+                                    : undefined,
                             });
                         }
                     }
@@ -341,11 +345,24 @@ export class GoLanguageProvider extends BaseLanguageProvider {
         return { name: trimmed, type: 'interface{}' };
     }
 
+    private findBraceEnd(lines: string[], start: number, endLine: number): number {
+        let depth = 0;
+        let found = false;
+        for (let i = start; i < endLine; i++) {
+            for (const ch of lines[i]) {
+                if (ch === '{') { depth++; found = true; }
+                else if (ch === '}') { depth--; }
+            }
+            if (found && depth <= 0) return i;
+        }
+        return -1;
+    }
+
     private getReceiverVar(typeName: string): string {
         return typeName.charAt(0).toLowerCase();
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '\t';
         const recv = this.getReceiverVar(className);
         const params = spec.parameters.map(p => `${p.name} ${p.type}`).join(', ');
@@ -353,9 +370,11 @@ export class GoLanguageProvider extends BaseLanguageProvider {
 
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `func New${className}(${params}) *${className} {\n${indent}// TODO: implement\n${indent}return &${className}{}\n}\n`;
+            const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}// TODO: implement\n${indent}return &${className}{}\n`;
+            declaration = `func New${className}(${params}) *${className} {${body}}\n`;
         } else {
-            declaration = `func (${recv} *${className}) ${spec.name}(${params})${returnType} {\n${indent}// TODO: implement\n}\n`;
+            const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}// TODO: implement\n`;
+            declaration = `func (${recv} *${className}) ${spec.name}(${params})${returnType} {${body}}\n`;
         }
 
         const insertPos = new vscode.Position(classInfo.range.end.line + 1, 0);

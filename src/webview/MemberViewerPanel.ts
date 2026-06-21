@@ -311,23 +311,6 @@ kbd { display: inline-block; padding: 1px 5px; font-size: 10px; font-family: var
 <div class="icon">$(symbol-misc)</div>
 <p>Place cursor on a class member in the editor to view its details</p>
 </div>
-<div class="shortcuts">
-<div class="section-title">Keyboard Shortcuts</div>
-<div class="shortcut-grid">
-<span class="sc-action">Edit</span><kbd>Ctrl+Alt+E</kbd>
-<span class="sc-action">Rename</span><kbd>Ctrl+Alt+R</kbd>
-<span class="sc-action">Delete</span><kbd>Ctrl+Alt+D</kbd>
-<span class="sc-action">Show Actions</span><kbd>Ctrl+;</kbd>
-<span class="sc-action">Add Method</span><kbd>Ctrl+Alt+M</kbd>
-<span class="sc-action">Add Field</span><kbd>Ctrl+Alt+F</kbd>
-<span class="sc-action">Add Property</span><kbd>Ctrl+Alt+P</kbd>
-<span class="sc-action">Add Constructor</span><kbd>Ctrl+Alt+C</kbd>
-<span class="sc-action">Insert Template</span><kbd>Ctrl+Alt+T</kbd>
-<span class="sc-action">Sort Members</span><kbd>Ctrl+Alt+S</kbd>
-<span class="sc-action">Synchronize</span><kbd>Ctrl+Alt+Y</kbd>
-<span class="sc-action">Extract Method</span><kbd>Ctrl+Shift+X</kbd>
-</div>
-</div>
 </body>
 </html>`;
     }
@@ -444,31 +427,13 @@ kbd { display: inline-block; padding: 1px 5px; margin-left: 4px; font-size: 10px
 
             html += `<div class="divider"></div>`;
             html += `<div class="actions">
-<button class="btn btn-edit" id="btnEdit">Edit <kbd>Ctrl+Alt+E</kbd></button>
-<button class="btn btn-rename" id="btnRename">Rename <kbd>Ctrl+Alt+R</kbd></button>
-<button class="btn btn-delete" id="btnDelete">Delete <kbd>Ctrl+Alt+D</kbd></button>
+<button class="btn btn-edit" id="btnEdit">Edit</button>
+<button class="btn btn-rename" id="btnRename">Rename</button>
+<button class="btn btn-delete" id="btnDelete">Delete</button>
 </div>`;
         } else {
             html += `<p class="empty-section">No member selected. Place cursor on a method, field, or property.</p>`;
         }
-
-        html += `<div class="shortcuts">
-<div class="section-title">Keyboard Shortcuts</div>
-<div class="shortcut-grid">
-<span class="sc-action">Edit</span><kbd>Ctrl+Alt+E</kbd>
-<span class="sc-action">Rename</span><kbd>Ctrl+Alt+R</kbd>
-<span class="sc-action">Delete</span><kbd>Ctrl+Alt+D</kbd>
-<span class="sc-action">Show Actions</span><kbd>Ctrl+;</kbd>
-<span class="sc-action">Add Method</span><kbd>Ctrl+Alt+M</kbd>
-<span class="sc-action">Add Field</span><kbd>Ctrl+Alt+F</kbd>
-<span class="sc-action">Add Property</span><kbd>Ctrl+Alt+P</kbd>
-<span class="sc-action">Add Constructor</span><kbd>Ctrl+Alt+C</kbd>
-<span class="sc-action">Insert Template</span><kbd>Ctrl+Alt+T</kbd>
-<span class="sc-action">Sort Members</span><kbd>Ctrl+Alt+S</kbd>
-<span class="sc-action">Synchronize</span><kbd>Ctrl+Alt+Y</kbd>
-<span class="sc-action">Extract Method</span><kbd>Ctrl+Shift+X</kbd>
-</div>
-</div>`;
 
         html += `<script nonce="${nonce}">
 (function() {

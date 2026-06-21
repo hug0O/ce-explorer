@@ -60,7 +60,7 @@ export class CodeGeneratorService {
         if (!generated.declaration && !generated.implementation) {
             log.appendLine('ERROR: Both declaration and implementation are empty!');
             log.show();
-            vscode.window.showErrorMessage('MMX: generateMethod returned empty code');
+            vscode.window.showErrorMessage('CE: generateMethod returned empty code');
             return false;
         }
 
@@ -338,6 +338,7 @@ export class CodeGeneratorService {
         document: vscode.TextDocument,
         range: vscode.Range,
         methodName: string,
+        parameters: string[],
         returnType: string
     ): Promise<boolean> {
         const provider = this.getProvider(document);
@@ -345,7 +346,6 @@ export class CodeGeneratorService {
             return false;
         }
 
-        const selectedText = document.getText(range);
         const position = range.start;
 
         const context = {
@@ -355,7 +355,7 @@ export class CodeGeneratorService {
             selection: new vscode.Selection(range.start, range.end),
         };
 
-        const edits = provider.extractMethod(context, methodName, [], returnType);
+        const edits = provider.extractMethod(context, methodName, parameters, returnType);
         if (edits.length === 0) {
             return false;
         }

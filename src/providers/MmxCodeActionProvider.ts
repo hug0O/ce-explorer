@@ -53,34 +53,33 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
 
         if (onMember) {
             actions.push(
-                { title: 'MMX: Edit Member', cmd: 'mmx.editMember', group: 'mmx-member' },
-                { title: 'MMX: Rename Member', cmd: 'mmx.renameMember', group: 'mmx-member' },
-                { title: 'MMX: Delete Member', cmd: 'mmx.deleteMember', group: 'mmx-member' },
+                { title: 'CE: Edit Member', cmd: 'mmx.editMember', group: 'mmx-member' },
+                { title: 'CE: Rename Member', cmd: 'mmx.renameMember', group: 'mmx-member' },
+                { title: 'CE: Delete Member', cmd: 'mmx.deleteMember', group: 'mmx-member' },
             );
         }
 
         if (onClass) {
             actions.push(
-                { title: 'MMX: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
-                { title: 'MMX: Add Field', cmd: 'mmx.addField', group: 'mmx-add' },
-                { title: 'MMX: Add Property', cmd: 'mmx.addProperty', group: 'mmx-add' },
-                { title: 'MMX: Add Constructor', cmd: 'mmx.addConstructor', group: 'mmx-add' },
+                { title: 'CE: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
+                { title: 'CE: Add Field', cmd: 'mmx.addField', group: 'mmx-add' },
+                { title: 'CE: Add Property', cmd: 'mmx.addProperty', group: 'mmx-add' },
+                { title: 'CE: Add Constructor', cmd: 'mmx.addConstructor', group: 'mmx-add' },
             );
         } else {
             actions.push(
-                { title: 'MMX: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
+                { title: 'CE: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
             );
         }
 
         actions.push(
-            { title: 'MMX: Insert Template', cmd: 'mmx.insertTemplate', group: 'mmx-general' },
-            { title: 'MMX: Sort Members', cmd: 'mmx.sortMembers', group: 'mmx-general' },
-            { title: 'MMX: Synchronize Decl/Impl', cmd: 'mmx.synchronizeDeclImpl', group: 'mmx-general' },
+            { title: 'CE: Insert Template', cmd: 'mmx.insertTemplate', group: 'mmx-general' },
+            { title: 'CE: Synchronize Decl/Impl', cmd: 'mmx.synchronizeDeclImpl', group: 'mmx-general' },
         );
 
         if (!range.isEmpty) {
             actions.push(
-                { title: 'MMX: Extract Method', cmd: 'mmx.extractMethod', group: 'mmx-general' },
+                { title: 'CE: Extract Method', cmd: 'mmx.extractMethod', group: 'mmx-general' },
             );
         }
 

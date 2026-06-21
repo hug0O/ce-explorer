@@ -19,7 +19,7 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
 
         if (this.isClass()) {
             const cls = itemData as ClassInfo;
-            this.iconPath = new vscode.ThemeIcon(cls.isInterface ? 'interface' : 'symbol-class');
+            this.iconPath = this.getClassIcon(cls);
             this.contextValue = cls.isInterface ? 'interface' : (cls.isRecord ? 'record' : 'class');
             this.description = cls.classType
                 ? `${cls.classType}${cls.parentClass ? ' → ' + cls.parentClass : ''}`
@@ -48,6 +48,26 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
 
     private isClass(): boolean {
         return 'members' in this.itemData;
+    }
+
+    private getClassIcon(cls: ClassInfo): vscode.ThemeIcon {
+        const type = cls.classType;
+        if (type === 'struct' || type === 'record') {
+            return new vscode.ThemeIcon('symbol-struct', new vscode.ThemeColor('symbolIcon.structForeground'));
+        }
+        if (type === 'enum') {
+            return new vscode.ThemeIcon('symbol-enum', new vscode.ThemeColor('symbolIcon.enumForeground'));
+        }
+        if (type === 'impl' || type === 'impl for') {
+            return new vscode.ThemeIcon('rocket', new vscode.ThemeColor('symbolIcon.functionForeground'));
+        }
+        if (type === 'trait' || cls.isInterface) {
+            return new vscode.ThemeIcon('symbol-interface', new vscode.ThemeColor('symbolIcon.interfaceForeground'));
+        }
+        if (type === 'abstract class') {
+            return new vscode.ThemeIcon('symbol-class', new vscode.ThemeColor('symbolIcon.abstractForeground'));
+        }
+        return new vscode.ThemeIcon('symbol-class', new vscode.ThemeColor('symbolIcon.classForeground'));
     }
 
     private getMemberIcon(member: ClassMember): vscode.ThemeIcon {

@@ -159,7 +159,7 @@ export async function editMember(
             mmxLog('[editMember] standalone rewrite result: ' + ok);
             if (ok) {
                 codeExplorer.refresh();
-                vscode.window.showInformationMessage('MMX: Updated "' + result.name + '"');
+                vscode.window.showInformationMessage('CE: Updated "' + result.name + '"');
             }
             return ok;
         }
@@ -223,17 +223,86 @@ export async function editMember(
     mmxLog('[editMember] final success: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('MMX: Updated "' + result.name + '" in ' + updatedCls.name);
+        vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + updatedCls.name);
     }
 
     return success;
 }
 
+async function findSourceDefinitions(
+    doc: vscode.TextDocument,
+    provider: ILanguageProvider,
+    names: string[]
+): Promise<{ name: string; info: ClassInfo }[]> {
+    const found = new Map<string, ClassInfo>();
+    const parsed = provider.parseDocument(doc);
+    for (const name of names) {
+        const info = parsed.classes.find(c => c.name === name);
+        if (info) {
+            found.set(name, info);
+        }
+    }
+
+    const missing = names.filter(n => !found.has(n));
+    if (missing.length === 0) {
+        return Array.from(found, ([name, info]) => ({ name, info }));
+    }
+
+    const stillMissing = new Set(missing);
+    const extensions = provider.fileExtensions.map(e => e.replace(/^\./, ''));
+    if (extensions.length === 0) {
+        return Array.from(found, ([name, info]) => ({ name, info }));
+    }
+    const includePattern = '**/*{' + extensions.join(',') + '}';
+    const files = await vscode.workspace.findFiles(includePattern, '**/node_modules/**');
+    const docUriStr = doc.uri.toString();
+    for (const fileUri of files) {
+        if (stillMissing.size === 0) break;
+        if (fileUri.toString() === docUriStr) continue;
+        const fileDoc = await vscode.workspace.openTextDocument(fileUri);
+        const fileParsed = provider.parseDocument(fileDoc);
+        for (const clsInfo of fileParsed.classes) {
+            if (stillMissing.has(clsInfo.name)) {
+                found.set(clsInfo.name, clsInfo);
+                stillMissing.delete(clsInfo.name);
+                if (stillMissing.size === 0) break;
+            }
+        }
+    }
+
+    return Array.from(found, ([name, info]) => ({ name, info }));
+}
+
+function classMemberToMethodSpec(m: ClassMember): MemberSpec {
+    return {
+        kind: m.kind === MemberKind.Constructor ? MemberKind.Constructor : MemberKind.Method,
+        name: m.name,
+        returnType: m.returnType || undefined,
+        visibility: m.visibility,
+        parameters: m.parameters,
+        modifiers: [],
+        isStatic: m.isStatic,
+        isVirtual: false,
+        isAbstract: false,
+        isOverride: false,
+        isFinal: false,
+    };
+}
+
+function formatMethodLabel(m: ClassMember): string {
+    const params = m.parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+    const ret = m.returnType ? `: ${m.returnType}` : '';
+    return `${m.name}(${params})${ret}`;
+}
+
 /**
- * Implement interface / override abstract methods: for the class at the cursor,
- * collect every method declared on its interfaces (defined in the same
- * document) that the class does not yet implement, and generate stubs for them.
- * The generated code flows through applyGeneratedCode (Safe Preview).
+ * Implement interface / override methods: for the given class, locate the
+ * definitions of its declared interfaces and parent class (searching the
+ * current document first, then every workspace file of the same language),
+ * collect every method that the class does not yet declare, and let the user
+ * pick which ones to stub via a multi-select QuickPick. Each selected method is
+ * generated through provider.generateMethod and applied through
+ * applyGeneratedCode (Safe Preview).
  */
 export async function implementInterface(
     doc: vscode.TextDocument,
@@ -241,41 +310,86 @@ export async function implementInterface(
     cls: ClassInfo,
     codeExplorer: CodeExplorerService
 ): Promise<boolean> {
-    mmxLog('[implementInterface] class=' + cls.name + ' interfaces=[' + cls.interfaces.join(', ') + ']');
+    const sourceNames: string[] = [];
+    for (const i of cls.interfaces) {
+        if (!sourceNames.includes(i)) { sourceNames.push(i); }
+    }
+    if (cls.parentClass && !sourceNames.includes(cls.parentClass)) {
+        sourceNames.push(cls.parentClass);
+    }
 
-    if (cls.interfaces.length === 0) {
-        vscode.window.showInformationMessage('MMX: "' + cls.name + '" does not declare any interface.');
+    mmxLog('[implementInterface] class=' + cls.name + ' sources=[' + sourceNames.join(', ') + ']');
+
+    if (sourceNames.length === 0) {
+        vscode.window.showInformationMessage('CE: "' + cls.name + '" has no interface or parent class to implement.');
         return false;
     }
 
-    const parsed = provider.parseDocument(doc);
-    const stubParts: string[] = [];
-    const resolvedNames: string[] = [];
+    const sources = await findSourceDefinitions(doc, provider, sourceNames);
+    const resolvedNames = sources.map(s => s.name);
+    const unresolved = sourceNames.filter(n => !resolvedNames.includes(n));
+    if (unresolved.length > 0) {
+        mmxLog('[implementInterface] not found in workspace: ' + unresolved.join(', '));
+    }
+    if (sources.length === 0) {
+        vscode.window.showInformationMessage('CE: Could not find definitions for ' + sourceNames.join(', ') + ' in the workspace.');
+        return false;
+    }
 
-    for (const ifaceName of cls.interfaces) {
-        const interfaceInfo = parsed.classes.find(c => c.name === ifaceName);
-        if (!interfaceInfo) {
-            mmxLog('[implementInterface] interface ' + ifaceName + ' not found in document — skipping');
-            continue;
-        }
-        const stubs = provider.generateMissingStubs(cls.name, interfaceInfo, cls);
-        if (stubs) {
-            stubParts.push(stubs);
-            resolvedNames.push(ifaceName);
-            mmxLog('[implementInterface] generated stubs for ' + ifaceName);
-        } else {
-            mmxLog('[implementInterface] no missing members for ' + ifaceName);
+    const existing = new Set(cls.members.map(m => m.name));
+    const seenMethod = new Set<string>();
+    interface PickItem extends vscode.QuickPickItem { method: ClassMember; }
+    const pickItems: PickItem[] = [];
+
+    for (const source of sources) {
+        for (const m of source.info.members) {
+            if (m.kind !== MemberKind.Method && m.kind !== MemberKind.Constructor) {
+                continue;
+            }
+            if (existing.has(m.name)) { continue; }
+            if (m.isStatic) { continue; }
+            if (seenMethod.has(m.name)) { continue; }
+            seenMethod.add(m.name);
+            pickItems.push({
+                label: formatMethodLabel(m),
+                description: source.info.isInterface ? 'interface ' + source.name : 'parent ' + source.name,
+                detail: m.documentation,
+                picked: true,
+                method: m,
+            });
         }
     }
 
+    if (pickItems.length === 0) {
+        vscode.window.showInformationMessage('CE: "' + cls.name + '" already implements all known methods.');
+        return false;
+    }
+
+    const selected = await vscode.window.showQuickPick(pickItems, {
+        canPickMany: true,
+        title: 'CE: Implement Interface / Override Methods',
+        placeHolder: 'Select methods to generate stubs for in ' + cls.name,
+    });
+    if (!selected || selected.length === 0) {
+        return false;
+    }
+
+    const stubParts: string[] = [];
+    for (const pick of selected) {
+        const spec = classMemberToMethodSpec(pick.method);
+        const gen = provider.generateMethod(cls.name, spec, cls);
+        if (gen.declaration) {
+            stubParts.push(gen.declaration.replace(/\n$/, ''));
+        }
+    }
     if (stubParts.length === 0) {
-        vscode.window.showInformationMessage('MMX: "' + cls.name + '" already implements all known interface methods.');
+        vscode.window.showInformationMessage('CE: No stubs were generated for the selected methods.');
         return false;
     }
 
     const insertPos = provider.getInsertPosition(doc, cls, 'method').declaration;
-    const gen = {
-        declaration: '\n' + stubParts.join('\n'),
+    const gen: GeneratedCode = {
+        declaration: '\n' + stubParts.join('\n') + '\n',
         implementation: '',
         declarationPosition: insertPos,
         implementationPosition: insertPos,
@@ -285,7 +399,7 @@ export async function implementInterface(
     mmxLog('[implementInterface] success: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('MMX: Implemented ' + resolvedNames.join(', ') + ' in ' + cls.name);
+        vscode.window.showInformationMessage('CE: Implemented ' + selected.length + ' method(s) in ' + cls.name);
     }
     return success;
 }
@@ -339,7 +453,7 @@ export async function renameMember(
     await new Promise<void>(resolve => setTimeout(resolve, 100));
 
     const newName = await vscode.window.showInputBox({
-        title: 'MMX: Rename Member',
+        title: 'CE: Rename Member',
         prompt: `Rename "${member.name}" to:`,
         value: member.name,
         ignoreFocusOut: true,
@@ -453,6 +567,14 @@ function extractImplBody(implText: string): string | undefined {
         const braceClose = implText.lastIndexOf('}');
         if (braceClose > afterBrace) {
             return implText.substring(afterBrace, braceClose);
+        }
+    }
+    // Python: body is everything after the `def ...:` line, indented
+    const pyHeaderMatch = implText.match(/^\s*def\s+\w+\s*\([^)]*\)\s*(?:->\s*[^\n]+)?:/m);
+    if (pyHeaderMatch) {
+        const afterHeader = implText.indexOf('\n', pyHeaderMatch.index!) + 1;
+        if (afterHeader > 0 && afterHeader < implText.length) {
+            return implText.substring(afterHeader);
         }
     }
     return undefined;

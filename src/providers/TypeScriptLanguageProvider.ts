@@ -11,6 +11,7 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -253,6 +254,7 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
                 const visibility = this.mapVisibility(visStr);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const ctorEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Constructor,
@@ -265,6 +267,9 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
                     isAbstract: false,
                     isOverride: false,
                     range,
+                    implementationRange: ctorEnd > i
+                        ? new vscode.Range(i, 0, ctorEnd, lines[ctorEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -286,6 +291,7 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
                 const modifiers = modStr.trim().split(/\s+/).filter(Boolean);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const methodEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Method,
@@ -299,6 +305,9 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
                     isAbstract: modStr.includes('abstract'),
                     isOverride: modStr.includes('override'),
                     range,
+                    implementationRange: methodEnd > i
+                        ? new vscode.Range(i, 0, methodEnd, lines[methodEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -370,6 +379,19 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
         return members;
     }
 
+    private findBraceEnd(lines: string[], start: number, endLine: number): number {
+        let depth = 0;
+        let found = false;
+        for (let i = start; i < endLine; i++) {
+            for (const ch of lines[i]) {
+                if (ch === '{') { depth++; found = true; }
+                else if (ch === '}') { depth--; }
+            }
+            if (found && depth <= 0) return i;
+        }
+        return -1;
+    }
+
     private mapVisibility(vis: string): Visibility {
         switch (vis) {
             case 'public': return Visibility.Public;
@@ -429,7 +451,7 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
         return { name: trimmed, type: 'any', defaultValue };
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '  ';
         const noTypes = this.isJsForClass(classInfo);
 
@@ -454,11 +476,13 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
 
         const returnType = (!noTypes && spec.returnType) ? `: ${spec.returnType}` : '';
 
+        const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}${indent}// TODO: implement\n${indent}`;
+
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `${indent}${vis}constructor(${params}) {\n${indent}${indent}// TODO: implement\n${indent}}\n`;
+            declaration = `${indent}${vis}constructor(${params}) {${body}}\n`;
         } else {
-            declaration = `${indent}${vis}${modStr}${spec.name}(${params})${returnType} {\n${indent}${indent}// TODO: implement\n${indent}}\n`;
+            declaration = `${indent}${vis}${modStr}${spec.name}(${params})${returnType} {${body}}\n`;
         }
 
         const insertPos = this.getInsertPositionForClass(classInfo, 'method');
@@ -547,5 +571,41 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
             declaration: pos,
             implementation: pos,
         };
+    }
+
+    extractMethod(
+        context: RefactoringContext,
+        methodName: string,
+        parameters: string[],
+        returnType: string
+    ): vscode.TextEdit[] {
+        const sel = context.selection ?? context.range;
+        if (!sel) return [];
+        const document = context.document;
+        const selectedText = document.getText(sel);
+        const noTypes = document.languageId === 'javascript' || document.languageId === 'javascriptreact';
+
+        const params = parameters.map(p => {
+            const ci = p.indexOf(':');
+            if (ci > 0) {
+                return noTypes ? p.substring(0, ci).trim() : p;
+            }
+            return noTypes ? p : `${p}: any`;
+        }).join(', ');
+        const args = parameters.map(p => {
+            const ci = p.indexOf(':');
+            return ci > 0 ? p.substring(0, ci).trim() : p;
+        }).join(', ');
+
+        const ret = (!noTypes && returnType && returnType !== 'void') ? `: ${returnType}` : '';
+        const bodyLines = selectedText.split(/\r?\n/);
+        const indentedBody = bodyLines.map(l => l.length ? `  ${l}` : l).join('\n');
+        const newMethod = `\nfunction ${methodName}(${params})${ret} {\n${indentedBody}\n}\n`;
+        const insertPos = new vscode.Position(document.lineCount, 0);
+
+        return [
+            new vscode.TextEdit(sel, `${methodName}(${args})`),
+            new vscode.TextEdit(new vscode.Range(insertPos, insertPos), newMethod),
+        ];
     }
 }

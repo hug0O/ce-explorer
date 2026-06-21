@@ -173,6 +173,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
                 const modifiers = modStr.trim().split(/\s+/).filter(Boolean);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const ctorEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Constructor,
@@ -185,6 +186,9 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
                     isAbstract: false,
                     isOverride: false,
                     range,
+                    implementationRange: ctorEnd > i
+                        ? new vscode.Range(i, 0, ctorEnd, lines[ctorEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -202,6 +206,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
                 const modifiers = modStr.trim().split(/\s+/).filter(Boolean);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const methodEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Method,
@@ -215,6 +220,9 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
                     isAbstract: modStr.includes('abstract'),
                     isOverride: false,
                     range,
+                    implementationRange: methodEnd > i
+                        ? new vscode.Range(i, 0, methodEnd, lines[methodEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -249,6 +257,19 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
         }
 
         return members;
+    }
+
+    private findBraceEnd(lines: string[], start: number, endLine: number): number {
+        let depth = 0;
+        let found = false;
+        for (let i = start; i < endLine; i++) {
+            for (const ch of lines[i]) {
+                if (ch === '{') { depth++; found = true; }
+                else if (ch === '}') { depth--; }
+            }
+            if (found && depth <= 0) return i;
+        }
+        return -1;
     }
 
     private mapVisibility(vis: string): Visibility {
@@ -295,7 +316,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
         return { name: trimmed, type: 'Object' };
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '    ';
         const params = spec.parameters.map(p => `${p.type} ${p.name}`).join(', ');
         const vis = this.visibilityString(spec.visibility);
@@ -304,12 +325,14 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
         const modPrefix = modStr ? modStr + ' ' : '';
         const staticPrefix = spec.isStatic ? 'static ' : '';
 
+        const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}${indent}// TODO: implement\n${indent}`;
+
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `${indent}${vis}${modPrefix}${className}(${params}) {\n${indent}${indent}// TODO: implement\n${indent}}\n`;
+            declaration = `${indent}${vis}${modPrefix}${className}(${params}) {${body}}\n`;
         } else {
             const returnType = spec.returnType ?? 'void';
-            declaration = `${indent}${vis}${modPrefix}${staticPrefix}${returnType} ${spec.name}(${params}) {\n${indent}${indent}// TODO: implement\n${indent}}\n`;
+            declaration = `${indent}${vis}${modPrefix}${staticPrefix}${returnType} ${spec.name}(${params}) {${body}}\n`;
         }
 
         const insertPos = this.getInsertPositionForClass(classInfo, 'method');

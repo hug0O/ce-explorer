@@ -207,6 +207,7 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
                 const modifiers = modStr.trim().split(/\s+/).filter(Boolean);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const ctorEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Constructor,
@@ -219,6 +220,9 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
                     isAbstract: false,
                     isOverride: false,
                     range,
+                    implementationRange: ctorEnd > i
+                        ? new vscode.Range(i, 0, ctorEnd, lines[ctorEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -236,6 +240,7 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
                 const modifiers = modStr.trim().split(/\s+/).filter(Boolean);
 
                 const range = new vscode.Range(i, line.indexOf(trimmed), i, line.length);
+                const methodEnd = this.findBraceEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: MemberKind.Method,
@@ -249,6 +254,9 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
                     isAbstract: modStr.includes('abstract'),
                     isOverride: modStr.includes('override'),
                     range,
+                    implementationRange: methodEnd > i
+                        ? new vscode.Range(i, 0, methodEnd, lines[methodEnd]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -283,6 +291,19 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
         }
 
         return members;
+    }
+
+    private findBraceEnd(lines: string[], start: number, endLine: number): number {
+        let depth = 0;
+        let found = false;
+        for (let i = start; i < endLine; i++) {
+            for (const ch of lines[i]) {
+                if (ch === '{') { depth++; found = true; }
+                else if (ch === '}') { depth--; }
+            }
+            if (found && depth <= 0) return i;
+        }
+        return -1;
     }
 
     private mapVisibility(vis: string): Visibility {
@@ -347,7 +368,7 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
         return { name: trimmed, type: 'var', defaultValue };
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '    ';
         const params = spec.parameters.map(p => {
             let s = '';
@@ -369,12 +390,14 @@ export class CSharpLanguageProvider extends BaseLanguageProvider {
         }
         const modStr = modParts.length ? modParts.join(' ') + ' ' : '';
 
+        const body = existingBody !== undefined ? `\n${existingBody}` : `\n${indent}${indent}throw new NotImplementedException();\n${indent}`;
+
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `${indent}${vis}${modStr}${className}(${params})\n${indent}{\n${indent}${indent}throw new NotImplementedException();\n${indent}}\n`;
+            declaration = `${indent}${vis}${modStr}${className}(${params})\n${indent}{${body}}\n`;
         } else {
             const returnType = spec.returnType ?? 'void';
-            declaration = `${indent}${vis}${modStr}${returnType} ${spec.name}(${params})\n${indent}{\n${indent}${indent}throw new NotImplementedException();\n${indent}}\n`;
+            declaration = `${indent}${vis}${modStr}${returnType} ${spec.name}(${params})\n${indent}{${body}}\n`;
         }
 
         const insertPos = this.getInsertPositionForClass(classInfo, 'method');

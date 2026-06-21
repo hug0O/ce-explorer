@@ -11,6 +11,7 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -159,6 +160,22 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
         return lines.length - 1;
     }
 
+    private findIndentedBodyEnd(lines: string[], defLine: number, endLine: number): number {
+        const defIndent = lines[defLine].match(/^(\s*)/)?.[1].length ?? 0;
+        let last = defLine;
+        for (let i = defLine + 1; i < endLine; i++) {
+            const l = lines[i];
+            if (l.trim() === '') continue;
+            const ind = l.match(/^(\s*)/)?.[1].length ?? 0;
+            if (ind > defIndent) {
+                last = i;
+            } else {
+                break;
+            }
+        }
+        return last;
+    }
+
     private parseClasses(lines: string[], uri: vscode.Uri, classes: ClassInfo[]): void {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -274,6 +291,7 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
                 }
 
                 const range = new vscode.Range(i, 0, i, line.length);
+                const endBody = this.findIndentedBodyEnd(lines, i, endLine);
                 members.push({
                     id: uniqueId(),
                     kind: memberKind,
@@ -287,6 +305,9 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
                     isAbstract: false,
                     isOverride: false,
                     range,
+                    implementationRange: endBody > i
+                        ? new vscode.Range(i, 0, endBody, lines[endBody]?.length ?? 0)
+                        : undefined,
                 });
                 continue;
             }
@@ -399,7 +420,7 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
         return 'Any';
     }
 
-    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo): GeneratedCode {
+    generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
         const indent = '    ';
         const params = spec.parameters.map(p => {
             let s = p.name;
@@ -411,13 +432,15 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
         const returnType = spec.returnType && spec.returnType !== 'None'
             ? ` -> ${spec.returnType}` : '';
 
+        const body = existingBody !== undefined ? existingBody : `${indent}${indent}pass`;
+
         let declaration: string;
         if (spec.kind === MemberKind.Constructor) {
-            declaration = `${indent}def __init__(self${params ? ', ' + params : ''})${returnType}:\n${indent}${indent}pass\n`;
+            declaration = `${indent}def __init__(self${params ? ', ' + params : ''})${returnType}:\n${body}\n`;
         } else if (spec.isStatic) {
-            declaration = `${indent}@staticmethod\n${indent}def ${spec.name}(${params})${returnType}:\n${indent}${indent}pass\n`;
+            declaration = `${indent}@staticmethod\n${indent}def ${spec.name}(${params})${returnType}:\n${body}\n`;
         } else {
-            declaration = `${indent}def ${spec.name}(self${params ? ', ' + params : ''})${returnType}:\n${indent}${indent}pass\n`;
+            declaration = `${indent}def ${spec.name}(self${params ? ', ' + params : ''})${returnType}:\n${body}\n`;
         }
 
         const insertPos = this.getInsertPositionForClass(classInfo, 'method');
@@ -495,5 +518,38 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
             declaration: pos,
             implementation: pos,
         };
+    }
+
+    extractMethod(
+        context: RefactoringContext,
+        methodName: string,
+        parameters: string[],
+        returnType: string
+    ): vscode.TextEdit[] {
+        const sel = context.selection ?? context.range;
+        if (!sel) return [];
+        const document = context.document;
+        const selectedText = document.getText(sel);
+
+        const params = parameters.map(p => {
+            const ci = p.indexOf(':');
+            return ci > 0 ? p : `${p}: Any`;
+        }).join(', ');
+        const args = parameters.map(p => {
+            const ci = p.indexOf(':');
+            return ci > 0 ? p.substring(0, ci).trim() : p;
+        }).join(', ');
+
+        const ret = returnType && returnType !== 'None' && returnType !== 'void'
+            ? ` -> ${returnType}` : '';
+        const bodyLines = selectedText.split(/\r?\n/);
+        const indentedBody = bodyLines.map(l => l.trim().length ? `    ${l.trim()}` : '').join('\n');
+        const newMethod = `\ndef ${methodName}(${params})${ret}:\n${indentedBody}\n`;
+        const insertPos = new vscode.Position(document.lineCount, 0);
+
+        return [
+            new vscode.TextEdit(sel, `${methodName}(${args})`),
+            new vscode.TextEdit(new vscode.Range(insertPos, insertPos), newMethod),
+        ];
     }
 }

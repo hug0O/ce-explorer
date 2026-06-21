@@ -39,6 +39,9 @@ procedure Swap(var A, B: Integer);
 procedure QuickSort(var Values: TVector);
 procedure LogInfo(const Msg: string);
 
+
+function azer(): integer;
+
 implementation
 
 function Add(A, B: Double): Double;
@@ -199,5 +202,6 @@ procedure LogInfo(const Msg: string);
 begin
   WriteLn('[INFO] ' + Msg);
 end;
+
 
 end.

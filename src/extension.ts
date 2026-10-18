@@ -23,6 +23,7 @@ import { registerSafePreview } from './services/SafePreview';
 import { QuickFixProvider } from './providers/QuickFixProvider';
 import { resolveVariableAt } from './services/VariableResolver';
 import { VariableRefactorService } from './services/VariableRefactorService';
+import { WorkspaceIndex } from './services/WorkspaceIndex';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
 
 let providerRegistry: ProviderRegistry;
@@ -34,6 +35,7 @@ let memberViewer: MemberViewerPanel;
 let localScopeAnalyzer: LocalScopeAnalyzer;
 let variableRefactor: VariableRefactorService;
 let log: vscode.OutputChannel;
+let workspaceIndex: WorkspaceIndex;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const outputChannel = vscode.window.createOutputChannel('Code Explorer');
@@ -49,6 +51,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         codeExplorer = new CodeExplorerService();
         codeGenerator = new CodeGeneratorService();
         variableRefactor = new VariableRefactorService(codeGenerator, codeExplorer);
+        workspaceIndex = new WorkspaceIndex(providerRegistry);
+        context.subscriptions.push(workspaceIndex);
+        ops.setWorkspaceIndex(workspaceIndex);
 
         templateService = new TemplateService(context);
         await templateService.load();
@@ -461,6 +466,22 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
+        vscode.commands.registerCommand('mmx.manageMembers', async () => {
+            await memberViewer.showManageTab();
+        }),
+
+        // Code-lens entry point: put the cursor on the lens's member first, so
+        // the cursor-based commands act on the member the user clicked.
+        vscode.commands.registerCommand('mmx.lensRun', async (cmd: string, line: number) => {
+            if (!['mmx.manageMembers', 'mmx.editMember', 'mmx.deleteMember'].includes(cmd)) { return; }
+            const editor = vscode.window.activeTextEditor;
+            if (editor && typeof line === 'number') {
+                const pos = new vscode.Position(line, 0);
+                editor.selection = new vscode.Selection(pos, pos);
+            }
+            await vscode.commands.executeCommand(cmd);
+        }),
+
         vscode.commands.registerCommand('mmx.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Method, item);
         }),
@@ -486,6 +507,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'mmx.generateGettersSetters' },
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
+                { label: '$(search) Go to Member in Workspace', description: '', cmd: 'mmx.goToWorkspaceMember' },
+                { label: '$(list-tree) Add / Delete Members', description: '', cmd: 'mmx.manageMembers' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
                 { label: '$(refresh) Refresh Explorer', description: '', cmd: 'mmx.refreshExplorer' },
             ];
@@ -734,6 +757,29 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const mode = codeExplorer.cycleGroupBy();
             const label = mode === 'visibility' ? 'Visibility' : mode === 'kind' ? 'Member kind' : 'Alphabetical';
             vscode.window.showInformationMessage('CE: Grouping by ' + label);
+        }),
+
+        vscode.commands.registerCommand('mmx.goToWorkspaceMember', async () => {
+            await workspaceIndex.ensureBuilt();
+            const symbols = workspaceIndex.allSymbols();
+            if (symbols.length === 0) {
+                vscode.window.showInformationMessage('CE: No symbols found in the workspace.');
+                return;
+            }
+            const items = symbols.map(s => ({
+                label: s.name,
+                description: s.container ? `${s.container} • ${s.kind}` : s.kind,
+                detail: vscode.workspace.asRelativePath(s.uri),
+                symbol: s,
+            }));
+            const picked = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Go to member in workspace…',
+                matchOnDescription: true,
+                matchOnDetail: true,
+            });
+            if (!picked) { return; }
+            const pos = new vscode.Position(picked.symbol.line, 0);
+            await vscode.window.showTextDocument(picked.symbol.uri, { selection: new vscode.Range(pos, pos) });
         }),
 
         vscode.commands.registerCommand('mmx.goToMember', async () => {

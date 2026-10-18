@@ -27,7 +27,7 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
             return [];
         }
 
-        const parsed = provider.parseDocument(document);
+        const parsed = this.providerRegistry.parse(document) ?? provider.parseDocument(document);
         const position = range instanceof vscode.Selection ? range.active : range.start;
 
         let onMember = false;

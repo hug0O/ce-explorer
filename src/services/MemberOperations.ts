@@ -6,6 +6,12 @@ import { CodeExplorerService } from '../services/CodeExplorerService';
 import { EditPipeline } from './EditPipeline';
 import { memberFormToSpec, generateFromSpec } from './memberForm';
 import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
+import type { WorkspaceIndex } from './WorkspaceIndex';
+
+let _workspaceIndex: WorkspaceIndex | undefined;
+export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
+    _workspaceIndex = index;
+}
 
 let _log: vscode.OutputChannel | undefined;
 function getLog(): vscode.OutputChannel {
@@ -533,6 +539,36 @@ export async function deleteMember(
     return success;
 }
 
+/**
+ * Ask the language server (TypeScript, Java, C#, Go, Rust, Python, clangd…)
+ * to rename the symbol. It resolves scopes, comments and cross-file
+ * references that a textual search cannot. Returns undefined when no server
+ * handles this document, so the caller falls back to the textual rename.
+ */
+async function languageServerRename(
+    doc: vscode.TextDocument,
+    member: ClassMember,
+    newName: string
+): Promise<vscode.WorkspaceEdit | undefined> {
+    try {
+        const nameRe = new RegExp('\\b' + member.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+        for (const range of [member.range, member.implementationRange]) {
+            if (!range) { continue; }
+            for (let line = range.start.line; line <= Math.min(range.end.line, range.start.line + 3); line++) {
+                const from = line === range.start.line ? range.start.character : 0;
+                const m = nameRe.exec(doc.lineAt(line).text.substring(from));
+                if (!m) { continue; }
+                const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit | undefined>(
+                    'vscode.executeDocumentRenameProvider', doc.uri, new vscode.Position(line, from + m.index), newName);
+                return edit && edit.size > 0 ? edit : undefined;
+            }
+        }
+    } catch {
+        // No rename provider for this language, or the symbol is not renamable.
+    }
+    return undefined;
+}
+
 export async function renameMember(
     doc: vscode.TextDocument,
     cls: ClassInfo,
@@ -550,6 +586,17 @@ export async function renameMember(
     }
 
     mmxLog('[renameMember] new name: ' + newName);
+
+    const lsEdit = await languageServerRename(doc, member, newName);
+    if (lsEdit) {
+        const applied = await vscode.workspace.applyEdit(lsEdit);
+        mmxLog('[renameMember] language-server rename applied: ' + applied);
+        if (applied) {
+            codeExplorer.refresh();
+            vscode.window.showInformationMessage(`Renamed "${member.name}" to "${newName}" (language server)`);
+            return true;
+        }
+    }
 
     const pipeline = new EditPipeline();
     pipeline.recordOriginal(doc.uri, doc.getText());
@@ -599,8 +646,10 @@ export async function renameMember(
         return false;
     }
 
+    const touched: vscode.Uri[] = [doc.uri];
     if (provider) {
         const pairedUri = provider.findPairedFile(doc.uri);
+        if (pairedUri) { touched.push(pairedUri); }
         mmxLog('[renameMember] paired file: ' + (pairedUri?.fsPath || 'none'));
         if (pairedUri) {
             const pairedDoc = await vscode.workspace.openTextDocument(pairedUri);
@@ -622,6 +671,35 @@ export async function renameMember(
                 count++;
             }
             mmxLog('[renameMember] replaced ' + count + ' occurrences in paired file');
+        }
+    }
+
+    // The text search above only covers this file (and its header/source pair).
+    // Other workspace files may reference the member too: offer, never impose.
+    if (_workspaceIndex && provider) {
+        try {
+            const others = await _workspaceIndex.filesMentioning(member.name, provider.fileExtensions, touched);
+            if (others.length > 0) {
+                const names = others.slice(0, 3).map(u => u.fsPath.split(/[\\/]/).pop()).join(', ') + (others.length > 3 ? ', …' : '');
+                const choice = await vscode.window.showInformationMessage(
+                    `"${member.name}" also appears in ${others.length} other file(s) (${names}). Rename there too?`,
+                    'Rename there too', 'Only this file');
+                if (choice === 'Rename there too') {
+                    const wordRe = new RegExp('\\b' + escapedName + '\\b', 'g');
+                    for (const uri of others) {
+                        const other = await vscode.workspace.openTextDocument(uri);
+                        pipeline.recordOriginal(uri, other.getText());
+                        const text = other.getText();
+                        let hit: RegExpExecArray | null;
+                        wordRe.lastIndex = 0;
+                        while ((hit = wordRe.exec(text)) !== null) {
+                            pipeline.replace(uri, new vscode.Range(other.positionAt(hit.index), other.positionAt(hit.index + nameLen)), newName);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            mmxLog('[renameMember] workspace scan failed: ' + (e instanceof Error ? e.message : String(e)));
         }
     }
 

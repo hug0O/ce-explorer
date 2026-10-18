@@ -12,7 +12,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
         if (!provider) return [];
 
         const actions: vscode.CodeAction[] = [];
-        const parsed = provider.parseDocument(document);
+        const parsed = this.registry.parse(document) ?? provider.parseDocument(document);
 
         for (const cls of parsed.classes) {
             for (const member of cls.members) {

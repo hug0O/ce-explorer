@@ -235,6 +235,19 @@
       {
         "command": "ce.batchGenerateGettersSetters",
         "title": "CE: Batch Generate Getters/Setters..."
+      },
+      {
+        "command": "mmx.manageMembers",
+        "title": "CE: Manage Members (Add / Delete)",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "mmx.lensRun",
+        "title": "CE: Run on Code Lens target"
+      },
+      {
+        "command": "mmx.goToWorkspaceMember",
+        "title": "CE: Go to Member in Workspace..."
       }
     ],
     "menus": {
@@ -353,6 +366,11 @@
           "group": "mmx@0"
         },
         {
+          "command": "mmx.manageMembers",
+          "when": "editorTextFocus",
+          "group": "mmx@0"
+        },
+        {
           "command": "mmx.editMember",
           "when": "editorTextFocus",
           "group": "mmx@1"
@@ -386,6 +404,10 @@
       "commandPalette": [
         {
           "command": "mmx.navigateToMember",
+          "when": "false"
+        },
+        {
+          "command": "mmx.lensRun",
           "when": "false"
         }
       ]
@@ -457,9 +479,31 @@
           "type": "boolean",
           "default": false,
           "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
+        },
+        "mmx.codeLensMemberActions": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Add / Delete lens)"
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "mmx.manageMembers",
+        "key": "ctrl+k ctrl+m",
+        "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
+      },
+      {
+        "command": "mmx.showActions",
+        "key": "ctrl+k ctrl+a",
+        "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
+      },
+      {
+        "command": "mmx.editMember",
+        "key": "ctrl+k ctrl+e",
+        "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run build",

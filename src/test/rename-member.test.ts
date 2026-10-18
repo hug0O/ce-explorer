@@ -29,7 +29,14 @@ class FakeWorkspaceEdit {
 }
 const mkUri = (fsPath: string) => ({ fsPath, path: fsPath, toString: () => fsPath });
 
+let languageServerEdit: any;
+let infoChoice: string | undefined;
+const executedCommands: any[][] = [];
+
 const vscodeMock = {
+    commands: {
+        executeCommand: async (...args: any[]) => { executedCommands.push(args); return languageServerEdit; },
+    },
     Uri: { file: mkUri, parse: (u: string) => mkUri(u) },
     Position: FakePosition,
     Range: FakeRange,
@@ -37,7 +44,7 @@ const vscodeMock = {
     window: {
         createOutputChannel: () => ({ appendLine() {}, show() {} }),
         showWarningMessage: async (...args: any[]) => { warnings.push(String(args[0])); return undefined; },
-        showInformationMessage: async () => undefined,
+        showInformationMessage: async () => infoChoice,
     },
     workspace: {
         getConfiguration: () => ({ get: (_k: string, d?: boolean) => d ?? false }),
@@ -51,7 +58,7 @@ const vscodeMock = {
 };
 m._load = (r: string, parent: unknown, isMain: boolean) => (r === 'vscode' ? vscodeMock : originalLoad(r, parent, isMain));
 
-const { renameMember, setLogChannel } = require('../services/MemberOperations') as typeof import('../services/MemberOperations');
+const { renameMember, setLogChannel, setWorkspaceIndex } = require('../services/MemberOperations') as typeof import('../services/MemberOperations');
 
 setLogChannel({ appendLine() {} } as any);
 
@@ -185,4 +192,52 @@ test('renameMember leaves a same-named method of ANOTHER class untouched', async
     assert.equal(ok, true);
     const lines = appliedEdits[0].edits.map((e: any) => e.range.start.line).sort((a: number, b: number) => a - b);
     assert.deepEqual(lines, [4, 10], 'only TA.Process (declaration + implementation) is renamed');
+});
+
+test('renameMember delegates to the language server rename provider when one answers', async () => {
+    appliedEdits.length = 0;
+    executedCommands.length = 0;
+    const lsEdit = { size: 3, marker: 'ls' };
+    languageServerEdit = lsEdit;
+    try {
+        const doc = makeDoc(PASCAL_FILE);
+        const cls = { name: 'TFoo', classType: 'class', range: new FakeRange(3, 0, 6, 7) } as any;
+        const member = { name: 'DoStuff', kind: 'method', parameters: [], range: new FakeRange(5, 4, 5, 39) } as any;
+
+        const ok = await renameMember(doc, cls, member, { findPairedFile: () => undefined } as any, { refresh() {} } as any, 'Execute');
+
+        assert.equal(ok, true);
+        assert.equal(executedCommands[0][0], 'vscode.executeDocumentRenameProvider');
+        assert.equal(executedCommands[0][2].line, 5, 'asked at the declaration line');
+        assert.equal(executedCommands[0][2].character, 14, 'asked on the member name');
+        assert.deepEqual(appliedEdits, [lsEdit], 'the server edit is applied as is, no textual replacement');
+    } finally {
+        languageServerEdit = undefined;
+    }
+});
+
+test('renameMember offers to rename in other workspace files and only does so on request', async () => {
+    docTexts.set('/proj/other.pas', ['begin', '  TFoo.Create.DoStuff(1);', 'end.', ''].join('\n'));
+    const index = { filesMentioning: async () => [mkUri('/proj/other.pas')] } as any;
+    setWorkspaceIndex(index);
+    try {
+        const run = async (choice: string | undefined) => {
+            appliedEdits.length = 0;
+            infoChoice = choice;
+            const doc = makeDoc(PASCAL_FILE);
+            const cls = { name: 'TFoo', classType: 'class', range: new FakeRange(3, 0, 6, 7) } as any;
+            const member = {
+                name: 'DoStuff', kind: 'method', parameters: [],
+                range: new FakeRange(5, 4, 5, 39), implementationRange: new FakeRange(10, 0, 13, 3),
+            } as any;
+            await renameMember(doc, cls, member, { findPairedFile: () => undefined } as any, { refresh() {} } as any, 'Execute');
+            return appliedEdits[0].edits.filter((e: any) => e.uri.fsPath === '/proj/other.pas').length;
+        };
+        assert.equal(await run('Only this file'), 0, 'declined: other file untouched');
+        assert.equal(await run(undefined), 0, 'dismissed: other file untouched');
+        assert.equal(await run('Rename there too'), 1, 'accepted: the reference in the other file is renamed');
+    } finally {
+        setWorkspaceIndex(undefined);
+        infoChoice = undefined;
+    }
 });

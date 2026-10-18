@@ -126,3 +126,15 @@ the file being edited.
 ## License
 
 MIT
+
+## Keyboard shortcuts & navigation
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+K Ctrl+M` | Open the **Add / Delete** tab of the Member sidebar |
+| `Ctrl+K Ctrl+A` | Show the Code Explorer action menu |
+| `Ctrl+K Ctrl+E` | Edit the member under the cursor |
+
+- **CE: Go to Member in Workspace…** searches the symbols of every file (index kept up to date by a file watcher).
+- Renaming a member uses the language server when one is available (TypeScript, Java, C#, Go, Rust, Python, C++ with clangd), and otherwise falls back to a text search. The fallback offers to rename the references found in other workspace files.
+- `mmx.codeLensMemberActions` adds Edit / Delete code lenses above every member.

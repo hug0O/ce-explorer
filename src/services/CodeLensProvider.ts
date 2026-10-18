@@ -20,7 +20,7 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
         const provider = this.registry.getByDocument(document);
         if (!provider) return [];
 
-        const parsed = provider.parseDocument(document);
+        const parsed = this.registry.parse(document) ?? provider.parseDocument(document);
         const lenses: vscode.CodeLens[] = [];
 
         for (const cls of parsed.classes) {
@@ -43,9 +43,26 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
                 }
             ));
 
+            lenses.push(new vscode.CodeLens(
+                new vscode.Range(cls.range.start.line, 0, cls.range.start.line, 0),
+                {
+                    command: 'mmx.lensRun',
+                    title: '$(add) Add / Delete members',
+                    arguments: ['mmx.manageMembers', cls.range.start.line],
+                }
+            ));
+
+            const memberActions = vscode.workspace.getConfiguration('mmx').get<boolean>('codeLensMemberActions', false);
             for (const member of cls.members) {
                 const lens = this.buildMemberLens(member, cls);
                 if (lens) lenses.push(lens);
+                if (memberActions) {
+                    const r = new vscode.Range(member.range.start.line, 0, member.range.start.line, 0);
+                    lenses.push(
+                        new vscode.CodeLens(r, { command: 'mmx.lensRun', title: '$(edit) Edit', arguments: ['mmx.editMember', member.range.start.line] }),
+                        new vscode.CodeLens(r, { command: 'mmx.lensRun', title: '$(trash) Delete', arguments: ['mmx.deleteMember', member.range.start.line] }),
+                    );
+                }
             }
         }
 

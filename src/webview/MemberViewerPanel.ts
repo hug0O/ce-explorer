@@ -89,10 +89,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     this.scheduleCursorUpdate(editor);
                 }
             }),
-            vscode.workspace.onDidChangeTextDocument(() => {
+            vscode.workspace.onDidChangeTextDocument(e => {
                 const editor = vscode.window.activeTextEditor;
-                if (editor) {
-                    this.scheduleCursorUpdate(editor);
+                // Only edits of the document being shown matter (output-channel
+                // and other documents also fire this event), and typing is
+                // debounced longer than a cursor move to avoid re-parsing per key.
+                if (editor && e.document === editor.document) {
+                    this.scheduleCursorUpdate(editor, 300);
                 }
             })
         );
@@ -156,12 +159,12 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
     }
 
-    private scheduleCursorUpdate(editor: vscode.TextEditor): void {
+    private scheduleCursorUpdate(editor: vscode.TextEditor, delayMs = 75): void {
         if (this._mode !== 'view') { return; }
         if (this._debounceTimer) {
             clearTimeout(this._debounceTimer);
         }
-        this._debounceTimer = setTimeout(() => this.onCursorChanged(editor), 75);
+        this._debounceTimer = setTimeout(() => this.onCursorChanged(editor), delayMs);
     }
 
     private onCursorChanged(editor: vscode.TextEditor): void {
@@ -356,6 +359,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
      * member CURRENTLY DISPLAYED in the panel — no cursor re-resolution, so the
      * buttons always act on exactly what the user sees.
      */
+    /** Reveals the sidebar on the Add / Delete tab (command, keybinding and code lens entry point). */
+    public async showManageTab(): Promise<void> {
+        this._tab = 'manage';
+        try { await vscode.commands.executeCommand(`${MemberViewerPanel.viewType}.focus`); } catch { /* view unavailable */ }
+        this.setTab('manage');
+    }
+
     private setTab(tab: 'detail' | 'manage'): void {
         this._tab = tab;
         this._stateKey = '';

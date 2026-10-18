@@ -16,6 +16,8 @@ export interface DfmNode {
     startLine: number;
     endLine: number;
     props: Record<string, string>;
+    /** Line index of each direct property (to rewrite its value in place). */
+    propLines: Record<string, number>;
     children: DfmNode[];
     parent?: DfmNode;
     left?: number;
@@ -26,7 +28,8 @@ export interface DfmNode {
     align?: string;
 }
 
-const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Box)$/i;
+// Standard and third-party containers (TcxGroupBox, TAdvPanel, TRzPanel, TJvPageControl, TsPanel…).
+const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Box|Pnl|Pane|Group|Container|Page|Sheet)$/i;
 
 export function isContainer(node: DfmNode): boolean {
     return node.depth === 0 || node.children.length > 0 || CONTAINER_RE.test(node.className);
@@ -58,7 +61,7 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
         if (obj) {
             const node: DfmNode = {
                 name: obj[2], className: obj[3], depth: stack.length, startLine: i, endLine: i,
-                props: {}, children: [], parent: stack[stack.length - 1],
+                props: {}, propLines: {}, children: [], parent: stack[stack.length - 1],
             };
             if (node.parent) { node.parent.children.push(node); } else if (!root) { root = node; }
             stack.push(node);
@@ -77,7 +80,7 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
         if (/^\($/.test(value.trim()) || (value.trim().startsWith('(') && !value.trim().endsWith(')'))) { skipUntil = /\)\s*$/; }
         else if (value.trim().startsWith('{') && !value.trim().endsWith('}')) { skipUntil = /\}\s*$/; }
         else if (value.trim().endsWith('<')) { collectionDepth = 1; }
-        if (indent.length === (top.depth + 1) * 2) { top.props[name] = value.trim(); }
+        if (indent.length === (top.depth + 1) * 2) { top.props[name] = value.trim(); top.propLines[name] = i; }
     }
 
     const num = (v: string | undefined) => (v !== undefined && /^-?\d+$/.test(v) ? Number(v) : undefined);
@@ -213,6 +216,12 @@ export interface AddComponentRequest {
     /** Existing component to place the new one against; defaults to the lowest free sibling. */
     refName?: string;
     side: Side;
+    /** Pixels between the new component and its reference (default 8). */
+    gap?: number;
+    /** Pre-resolved definition (custom / learned third-party component); default: catalog or generic. */
+    def?: ComponentDef;
+    /** The field is already declared in the unit (added by hand): only wire the .dfm and the handler. */
+    fieldExists?: boolean;
 }
 
 export type AddComponentPlan =
@@ -231,7 +240,9 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
     const root = parseDfmTree(dfm);
     if (!root) { return { error: 'This .dfm is not in text format.' }; }
     if (!isValidIdentifier(req.name)) { return { error: `"${req.name}" is not a valid Pascal identifier.` }; }
-    if (existingNames(dfm, pas).has(req.name.toLowerCase())) { return { error: `The name "${req.name}" is already used on this form.` }; }
+    const used = existingNames(dfm, pas);
+    if (req.fieldExists) { used.delete(req.name.toLowerCase()); for (const m of dfm.matchAll(/^\s*(?:object|inherited|inline)\s+(\w+)\s*:/gim)) { used.add(m[1].toLowerCase()); } }
+    if (used.has(req.name.toLowerCase())) { return { error: `The name "${req.name}" is already used on this form.` }; }
     if (!/^[A-Za-z_][\w.]*$/.test(req.className)) { return { error: `"${req.className}" is not a valid class name.` }; }
 
     const parent = req.parentName ? findNode(root, req.parentName) : root;
@@ -242,16 +253,16 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
         if (!ref) { return { error: `Component "${req.refName}" not found in the .dfm.` }; }
     }
 
-    const def = resolveComponentDef(req.className, req.unit);
+    const def = req.def ?? resolveComponentDef(req.className, req.unit);
     const event = req.eventName && req.eventName.trim() ? eventDefFor(req.eventName.trim()) : undefined;
     if (event && !/^On\w+$/.test(event.name)) { return { error: `"${event.name}" is not an event name (expected OnXxx).` }; }
     const method = event ? handlerName(req.name, event.name) : undefined;
 
     // A reference in another container: position relative to it inside ITS container.
     const container = ref && ref.parent && ref.parent !== parent && !req.parentName ? ref.parent : parent;
-    const place = computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side);
+    const place = computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side, req.gap ?? MARGIN);
 
-    const unit = buildUnitEdits(pas, { formClass: root.className, componentName: req.name, def, event });
+    const unit = buildUnitEdits(pas, { formClass: root.className, componentName: req.name, def, event, skipField: req.fieldExists });
     if (!unit) { return { error: `Could not find the form class ${root.className} in the unit.` }; }
     const object = buildComponentObject(def, req.name, event && method ? { event: event.name, method } : undefined, place, container, dfm.includes('\r\n') ? '\r\n' : '\n');
     return { pasEdits: unit.edits, dfmEdit: insertIntoNode(dfm, container, object), handler: unit.handler, placement: place, def };

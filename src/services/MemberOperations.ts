@@ -7,6 +7,7 @@ import { EditPipeline } from './EditPipeline';
 import { memberFormToSpec, generateFromSpec } from './memberForm';
 import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
 import type { WorkspaceIndex } from './WorkspaceIndex';
+import { queueDfmRename, syncFormAfterDelete } from './FormSync';
 
 let _workspaceIndex: WorkspaceIndex | undefined;
 export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
@@ -535,6 +536,8 @@ export async function deleteMember(
     if (success) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage(`Deleted member: ${member.name}`);
+        // A component field of a Delphi form: remove its .dfm object (and empty handlers) too.
+        await syncFormAfterDelete(doc, cls.name, member);
     }
     return success;
 }
@@ -643,6 +646,13 @@ export async function renameMember(
     if (totalReplacements === 0) {
         mmxLog('[renameMember] FAIL: no occurrences found');
         vscode.window.showWarningMessage(`Could not locate "${member.name}" in the class body. Rename aborted.`);
+        return false;
+    }
+
+    // A component field of a Delphi form: the .dfm object and its handlers follow the rename.
+    const dfmError = await queueDfmRename(pipeline, doc, member, newName);
+    if (dfmError) {
+        vscode.window.showWarningMessage('CE: ' + dfmError + ' Rename aborted.');
         return false;
     }
 

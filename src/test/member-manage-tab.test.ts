@@ -100,3 +100,24 @@ test('Tools tab shows the align form and the Delphi component form; both pages c
     assert.match(empty, /id="alignToken"/, 'align is reachable even with the cursor outside any member');
     assert.match(empty, /initTools\(api\)/);
 });
+
+test('Tools tab: saved align shortcuts, gap field, spacing and event blocks are present', () => {
+    const panel = makePanel();
+    panel._tab = 'tools';
+    const html: string = panel.getHtml();
+    assert.match(html, /id="chips"[^>]*data-chips="\[&quot;:=&quot;/, 'default shortcuts are rendered as data');
+    assert.match(html, /command: 'saveAlignChips'/, 'shortcuts can be added and removed, then persisted');
+    for (const id of ['dGap', 'sComp', 'sDir', 'sGap', 'sCascade', 'sApply', 'sCont', 'sH', 'sV', 'sDist', 'eComp', 'eEvent', 'eAdd', 'dHint']) {
+        assert.ok(html.includes(`id="${id}"`), id);
+    }
+    assert.match(html, /command: 'classInfo'/);
+    assert.match(html, /command: 'setSpacing'/);
+    assert.match(html, /command: 'distribute'/);
+});
+
+test('sanitizeChips keeps any number of custom strings but drops junk and duplicates', async () => {
+    const { sanitizeChips } = await import('../webview/toolsSection');
+    assert.deepEqual(sanitizeChips([':=', ' => ', ':=', '', 3, 'x'.repeat(30), '|']), [':=', '=>', '|']);
+    assert.deepEqual(sanitizeChips('nope').slice(0, 2), [':=', ':']);
+    assert.equal(sanitizeChips(Array.from({ length: 80 }, (_, i) => 'c' + i)).length, 40);
+});

@@ -10,9 +10,12 @@ import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { addComponentToForm, addEventToComponent, alignSelection, buildFormModel, getLastAlignToken, suggestComponentName } from '../services/FormCommands';
 import type { Side } from '../services/DelphiLayout';
+import type { Direction } from '../services/DelphiSpacing';
+import { describeClass } from '../services/FormCommands';
+import { distributeSpacing, setSpacing } from '../services/FormSync';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -58,6 +61,7 @@ const ALLOWED_RUN_COMMANDS = new Set<string>([
 
 export class MemberViewerPanel implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mmxViewer';
+    private static readonly CHIPS_KEY = 'mmx.alignChips';
     private _view?: vscode.WebviewView;
     private _state: MemberViewerState = { member: undefined, classInfo: undefined, provider: undefined };
     private _stateKey: string = '';
@@ -140,9 +144,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
                 case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : 'detail'); break;
                 case 'alignSelection': await alignSelection(typeof msg.token === 'string' ? msg.token : ''); break;
+                case 'saveAlignChips': void this._extensionContext.globalState.update(MemberViewerPanel.CHIPS_KEY, sanitizeChips(msg.chips)); break;
                 case 'toolsReady': await this.sendFormModel(); break;
                 case 'suggestName': await this.sendSuggestedName(String(msg.className ?? '')); break;
                 case 'addComponent': await this.handleAddComponent(msg.req); break;
+                case 'classInfo': await this.sendClassInfo(String(msg.className ?? '')); break;
+                case 'setSpacing': await this.handleSetSpacing(msg); break;
+                case 'distribute': await this.handleDistribute(msg); break;
                 case 'addEvent':
                     if (typeof msg.componentName === 'string' && typeof msg.eventName === 'string' && msg.componentName && msg.eventName) {
                         if (await addEventToComponent(vscode.window.activeTextEditor?.document, msg.componentName, msg.eventName)) { await this.sendFormModel(); }
@@ -380,6 +388,42 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         this.setTab('manage');
     }
 
+    private async sendClassInfo(className: string): Promise<void> {
+        if (!/^[A-Za-z_][\w.]*$/.test(className)) { return; }
+        const info = await describeClass(className);
+        await this._view?.webview.postMessage({ command: 'classInfo', info });
+    }
+
+    private async handleSetSpacing(msg: Record<string, unknown>): Promise<void> {
+        const dirs: Direction[] = ['right', 'below', 'left', 'above'];
+        const direction = dirs.find(d => d === msg.direction);
+        const gap = Number(msg.gap);
+        if (typeof msg.componentName !== 'string' || !msg.componentName || !direction || !Number.isFinite(gap)) {
+            vscode.window.showWarningMessage('CE: Pick a component, a direction and a gap in pixels.');
+            return;
+        }
+        if (await setSpacing(vscode.window.activeTextEditor?.document, { componentName: msg.componentName, direction, gap, cascade: msg.cascade !== false })) {
+            await this.sendFormModel();
+        }
+    }
+
+    private async handleDistribute(msg: Record<string, unknown>): Promise<void> {
+        const horizontal = Number(msg.horizontal);
+        const vertical = Number(msg.vertical);
+        if (typeof msg.containerName !== 'string' || !msg.containerName || !Number.isFinite(horizontal) || !Number.isFinite(vertical)) {
+            vscode.window.showWarningMessage('CE: Pick a container and the horizontal / vertical gaps in pixels.');
+            return;
+        }
+        if (await distributeSpacing(vscode.window.activeTextEditor?.document, { containerName: msg.containerName, horizontal, vertical })) {
+            await this.sendFormModel();
+        }
+    }
+
+    private alignChips(): string[] {
+        const saved = this._extensionContext.globalState?.get<unknown>(MemberViewerPanel.CHIPS_KEY);
+        return saved === undefined ? sanitizeChips(undefined) : sanitizeChips(saved);
+    }
+
     private async sendFormModel(): Promise<void> {
         const model = await buildFormModel(vscode.window.activeTextEditor?.document);
         await this._view?.webview.postMessage({ command: 'formModel', model });
@@ -406,6 +450,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const ok = await addComponentToForm(vscode.window.activeTextEditor?.document, {
             className, name, side,
             unit: str(r.unit) || undefined,
+            gap: Number.isFinite(Number(r.gap)) ? Math.max(-50, Math.min(500, Number(r.gap))) : undefined,
             eventName: str(r.eventName) || undefined,
             parentName: str(r.parentName) || undefined,
             refName: str(r.refName) || undefined,
@@ -1026,7 +1071,7 @@ ${toolsCss()}
 <p>Place cursor on a class member to view &amp; edit it.</p>
 </div>
 ${groupsHtml}
-${toolsHtml(getLastAlignToken())}
+${toolsHtml(getLastAlignToken(), this.alignChips())}
 <script nonce="${nonce}">
 ${toolsScript()}
 (function() {
@@ -1218,7 +1263,7 @@ ${toolsCss()}
         }
 
         if (this._tab === 'tools') {
-            html += toolsHtml(getLastAlignToken());
+            html += toolsHtml(getLastAlignToken(), this.alignChips());
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
         } else if (member) {

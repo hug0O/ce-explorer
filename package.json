@@ -501,6 +501,54 @@
           "type": "boolean",
           "default": false,
           "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Add / Delete lens)"
+        },
+        "mmx.delphi.customComponents": {
+          "type": "array",
+          "default": [],
+          "description": "Third-party Delphi components (DevExpress, TMS, JVCL, Raize…) the Add Component tool should know: className, unit, width, height, namePrefix, events, props, tabOrder. Classes not listed here are learned from the .dfm files of the workspace.",
+          "items": {
+            "type": "object",
+            "required": [
+              "className"
+            ],
+            "properties": {
+              "className": {
+                "type": "string",
+                "description": "e.g. TcxButton"
+              },
+              "unit": {
+                "type": "string",
+                "description": "Unit added to uses, e.g. cxButtons"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "namePrefix": {
+                "type": "string",
+                "description": "Default name prefix, e.g. cxButton"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Events offered, e.g. [\"OnClick\"]"
+              },
+              "props": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Extra DFM property lines, e.g. [\"Caption = '%NAME%'\"]"
+              },
+              "tabOrder": {
+                "type": "boolean"
+              }
+            }
+          }
         }
       }
     },

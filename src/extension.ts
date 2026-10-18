@@ -24,6 +24,8 @@ import { QuickFixProvider } from './providers/QuickFixProvider';
 import { resolveVariableAt } from './services/VariableResolver';
 import { VariableRefactorService } from './services/VariableRefactorService';
 import { WorkspaceIndex } from './services/WorkspaceIndex';
+import { setFormStorage } from './services/FormLibrary';
+import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
 
@@ -55,6 +57,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         workspaceIndex = new WorkspaceIndex(providerRegistry);
         context.subscriptions.push(workspaceIndex);
         ops.setWorkspaceIndex(workspaceIndex);
+        setFormStorage(context.globalState);
 
         templateService = new TemplateService(context);
         await templateService.load();
@@ -1003,6 +1006,9 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
     if (success) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage('CE: Added "' + result.name + '" to ' + targetClass.name + ' ✓');
+        if (result.kind === MemberKind.Field && provider.languageId === 'pascal') {
+            await offerDfmForNewField(doc, result.name, result.type || result.returnType);
+        }
     } else {
         vscode.window.showErrorMessage('CE: Failed to add "' + result.name + '"');
     }

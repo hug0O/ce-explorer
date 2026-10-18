@@ -11,6 +11,8 @@ export interface TextEdit {
     /** Offset in the original text where `text` is inserted. */
     offset: number;
     text: string;
+    /** Characters of the original text replaced by `text` (default 0 = pure insertion). */
+    length?: number;
 }
 
 export interface EventDef {
@@ -125,7 +127,7 @@ export function resolveComponentDef(className: string, unit?: string): Component
 export function applyTextEdits(text: string, edits: TextEdit[]): string {
     const sorted = [...edits].sort((a, b) => b.offset - a.offset);
     let out = text;
-    for (const e of sorted) { out = out.slice(0, e.offset) + e.text + out.slice(e.offset); }
+    for (const e of sorted) { out = out.slice(0, e.offset) + e.text + out.slice(e.offset + (e.length ?? 0)); }
     return out;
 }
 
@@ -227,6 +229,11 @@ function lineOffsets(text: string): number[] {
     return offsets;
 }
 
+const VCL_UNITS = new Set([
+    'stdctrls', 'extctrls', 'buttons', 'grids', 'comctrls', 'checklst', 'mask', 'forms', 'controls', 'dialogs',
+    'graphics', 'menus', 'imglist', 'actnlist', 'dbctrls', 'dbgrids', 'tabs', 'tabnotbk', 'valedit', 'wincontrols',
+]);
+
 export interface UnitEditOptions {
     formClass: string;
     componentName: string;
@@ -304,8 +311,9 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     const uses = head.match(/\buses\b([^;]*);/i);
     if (uses && uses.index !== undefined && opt.def.unit) {
         const dotted = /\bVcl\./i.test(uses[1]) || !/\bForms\b/i.test(uses[1]);
-        const unitName = (dotted && !opt.def.unit.includes('.') ? 'Vcl.' : '') + opt.def.unit;
-        const present = new RegExp('\\b(?:Vcl\\.)?' + opt.def.unit + '\\b', 'i').test(uses[1]);
+        // Only the VCL's own units take the Vcl. scope; third-party units keep their name.
+        const unitName = (dotted && VCL_UNITS.has(opt.def.unit.toLowerCase()) ? 'Vcl.' : '') + opt.def.unit;
+        const present = new RegExp('\\b(?:Vcl\\.)?' + opt.def.unit.replace(/\./g, '\\.') + '\\b', 'i').test(uses[1]);
         if (!present) {
             const semicolon = uses.index + uses[0].length - 1;
             const before = pas.slice(0, semicolon).replace(/\s+$/, '');

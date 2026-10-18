@@ -5,6 +5,7 @@ import {
     AddComponentRequest, Side, listContainers, parseDfmTree, planAddComponent,
 } from './DelphiLayout';
 import { EditPipeline } from './EditPipeline';
+import { loadComponentDef, rememberClassUnit } from './FormLibrary';
 import { eventsForClass, planAddEvent, wiredEvents } from './DelphiEvents';
 import type { DfmNode } from './DelphiLayout';
 
@@ -92,6 +93,16 @@ export async function resolveFormPair(doc: vscode.TextDocument | undefined): Pro
     return (await exists(pas)) && (await exists(dfm)) ? { pas, dfm } : undefined;
 }
 
+export interface ClassInfoReply {
+    className: string;
+    unit: string;
+    events: string[];
+    width?: number;
+    height?: number;
+    /** Where the definition came from, for the sidebar hint. */
+    source: 'catalog' | 'setting' | 'project' | 'generic';
+}
+
 export interface FormModel {
     ok: boolean;
     reason?: string;
@@ -162,7 +173,8 @@ export async function addComponentToForm(doc: vscode.TextDocument | undefined, r
         vscode.workspace.openTextDocument(pair.pas),
         vscode.workspace.openTextDocument(pair.dfm),
     ]);
-    const plan = planAddComponent(pasDoc.getText(), dfmDoc.getText(), req);
+    const def = req.def ?? await loadComponentDef(req.className, req.unit);
+    const plan = planAddComponent(pasDoc.getText(), dfmDoc.getText(), { ...req, def });
     if ('error' in plan) {
         vscode.window.showErrorMessage('CE: ' + plan.error);
         return false;
@@ -174,6 +186,7 @@ export async function addComponentToForm(doc: vscode.TextDocument | undefined, r
     for (const e of plan.pasEdits) { pipeline.insert(pair.pas, pasDoc.positionAt(e.offset), e.text); }
     pipeline.insert(pair.dfm, dfmDoc.positionAt(plan.dfmEdit.offset), plan.dfmEdit.text);
     if (!await pipeline.apply(`Add ${req.className} ${req.name}`)) { return false; }
+    if (req.unit && req.unit.trim()) { await rememberClassUnit(req.className, req.unit); }
 
     const where = req.refName ? ` (${req.side} of ${req.refName})` : '';
     vscode.window.showInformationMessage(`CE: Added ${req.name}: ${req.className}${where}.`);
@@ -318,4 +331,17 @@ export async function addEventHandler(): Promise<void> {
     );
     if (!ev) { return; }
     await addEventToComponent(doc, comp.c.name, ev.label);
+}
+
+/** What the sidebar shows for a class typed by the user: unit, events, size (catalog, settings, project usage). */
+export async function describeClass(className: string): Promise<ClassInfoReply> {
+    const def = await loadComponentDef(className);
+    const inCatalog = COMPONENTS.some(c => c.className.toLowerCase() === className.toLowerCase());
+    const custom = vscode.workspace.getConfiguration('mmx').get<Array<{ className?: string }>>('delphi.customComponents') ?? [];
+    const inSetting = custom.some(c => (c.className ?? '').toLowerCase() === className.toLowerCase());
+    const isGeneric = !inCatalog && !inSetting && def.events.length === 2 && def.events[0].name === 'OnClick' && def.width === 75 && def.height === 25;
+    return {
+        className, unit: def.unit, events: def.events.map(e => e.name), width: def.width, height: def.height,
+        source: inCatalog ? 'catalog' : inSetting ? 'setting' : isGeneric ? 'generic' : 'project',
+    };
 }

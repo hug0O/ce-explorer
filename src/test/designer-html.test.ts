@@ -75,3 +75,24 @@ test('add a DevExpress edit with its Properties.OnChange handler and the units t
     assert.match(applyTextEdits(dfm, [e.dfmEdit]), /Properties\.OnChange = cxComboBox1PropertiesChange/);
     assert.match(applyTextEdits(pas, e.pasEdits), /procedure cxComboBox1PropertiesChange\(Sender: TObject\);/);
 });
+
+test('components list: filter by name and type, sort, flat / tree; palette: collapsible families with filters', () => {
+    const html = designerHtml('N');
+    for (const id of ['cfname', 'cftype', 'cfsort', 'cfflat', 'compcount', 'palfilter', 'palgroup', 'palcount']) { assert.ok(html.includes(`id="${id}"`), id); }
+    for (const v of ['@container', '@nonvisual', '@events', '@unknown', '@dx', '@tms']) { assert.ok(html.includes(`'${v}'`), 'type filter ' + v); }
+    assert.match(html, /function revealNode/, 'a component on a hidden page is revealed from the list');
+    assert.match(html, /createElement\('details'|el\('details'/, 'palette families collapse');
+    assert.match(html, /key === 'F12'/, 'F12 goes back to the code');
+});
+
+test('designer ⇄ code navigation and empty-handler clean-up are wired in package.json', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = require('../../package.json');
+    const props = pkg.contributes.configuration.properties;
+    assert.equal(props['mmx.delphi.removeEmptyHandlers'].default, true);
+    assert.deepEqual(props['mmx.delphi.designerColumn'].enum, ['active', 'beside']);
+    assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'mmx.delphi.toggleDesigner'));
+    const key = pkg.contributes.keybindings.find((k: { command: string }) => k.command === 'mmx.delphi.toggleDesigner');
+    assert.match(key.when, /activeWebviewPanelId == 'mmxFormDesigner'/, 'the shortcut also works from inside the designer');
+    assert.ok(pkg.contributes.menus['editor/title'].some((m: { command: string }) => m.command === 'mmx.delphi.designer'), 'a title-bar button leads back to the designer');
+});

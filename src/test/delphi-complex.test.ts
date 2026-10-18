@@ -10,8 +10,8 @@ import { planDfmDelete, planDfmRename } from '../services/DelphiSync';
 import { learnFromDfmTexts, parseCustomComponents, resolveWithLibrary } from '../services/DelphiLibrary';
 
 const dir = path.join(__dirname, '..', '..', 'test-fixtures', 'delphi');
-const dfm = fs.readFileSync(path.join(dir, 'ComplexForm.dfm'), 'utf8');
-const pas = fs.readFileSync(path.join(dir, 'ComplexForm.pas'), 'utf8');
+const dfm = fs.readFileSync(path.join(dir, 'golden', 'ComplexForm.dfm'), 'utf8');
+const pas = fs.readFileSync(path.join(dir, 'golden', 'ComplexForm.pas'), 'utf8');
 const root = parseDfmTree(dfm)!;
 
 test('complex form: deep hierarchy with docked panels, page control, third-party controls and collections', () => {

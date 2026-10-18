@@ -57,6 +57,7 @@ export class FormDesignerPanel {
     ) {
         panel.webview.html = designerHtml(nonce());
         this.disposables.push(
+            panel.onDidChangeViewState(e => { if (e.webviewPanel.visible) { this.sendModel(); } }),
             panel.onDidDispose(() => this.dispose()),
             panel.webview.onDidReceiveMessage(m => { void this.onMessage(m); }),
             vscode.workspace.onDidChangeTextDocument(e => {
@@ -81,16 +82,26 @@ export class FormDesignerPanel {
         }
         const key = pair.dfm.toString();
         const existing = FormDesignerPanel.open.get(key);
-        if (existing) { existing.panel.reveal(vscode.ViewColumn.Beside); return; }
+        if (existing) { existing.panel.reveal(existing.panel.viewColumn ?? vscode.ViewColumn.Active); return; }
         const [pasDoc, dfmDoc] = await Promise.all([vscode.workspace.openTextDocument(pair.pas), vscode.workspace.openTextDocument(pair.dfm)]);
         if (!buildDesignModel(dfmDoc.getText())) {
             vscode.window.showWarningMessage('CE: The .dfm is not in text format (in Delphi: right-click the form → Text DFM).');
             return;
         }
-        const panel = vscode.window.createWebviewPanel('mmxFormDesigner', 'Designer: ' + pair.dfm.fsPath.split(/[\\/]/).pop(), vscode.ViewColumn.Beside, {
+        // Same editor group by default: the designer and the code are two tabs of one place, like F12 in Delphi.
+        const column = vscode.workspace.getConfiguration('mmx').get<string>('delphi.designerColumn', 'active') === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+        const panel = vscode.window.createWebviewPanel('mmxFormDesigner', 'Designer: ' + pair.dfm.fsPath.split(/[\\/]/).pop(), column, {
             enableScripts: true, retainContextWhenHidden: true,
         });
         FormDesignerPanel.open.set(key, new FormDesignerPanel(panel, pasDoc, dfmDoc));
+    }
+
+    /** Delphi's F12: from the designer to the code, from the code (or the .dfm) back to the designer. */
+    static async toggle(doc: vscode.TextDocument | undefined): Promise<void> {
+        for (const d of FormDesignerPanel.open.values()) {
+            if (d.panel.active) { await vscode.window.showTextDocument(d.pasDoc, { viewColumn: d.panel.viewColumn }); return; }
+        }
+        await FormDesignerPanel.createOrShow(doc);
     }
 
     private dispose(): void {
@@ -210,8 +221,8 @@ export class FormDesignerPanel {
             case 'ready': this.sendModel(); return;
             case 'undo': await this.step('undo'); return;
             case 'redo': await this.step('redo'); return;
-            case 'openCode': await vscode.window.showTextDocument(this.pasDoc, { viewColumn: vscode.ViewColumn.Beside }); return;
-            case 'openDfm': await vscode.window.showTextDocument(this.dfmDoc, { viewColumn: vscode.ViewColumn.Beside }); return;
+            case 'openCode': await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn }); return;
+            case 'openDfm': await vscode.window.showTextDocument(this.dfmDoc, { viewColumn: this.panel.viewColumn }); return;
             default: break;
         }
         if (!root) { this.sendModel(undefined, 'The .dfm is not valid text DFM right now.'); return; }
@@ -277,7 +288,9 @@ export class FormDesignerPanel {
                 const requested = str(m.event);
                 const event = EVENT_PROP_RE.test(requested) ? requested
                     : node.depth === 0 ? 'OnCreate' : (resolveComponentDef(node.className).events[0]?.name ?? 'OnClick');
-                await addEventToComponent(this.pasDoc, name, event);
+                // The code opens in the designer's own editor group: its tab stays there to come back to.
+                await addEventToComponent(this.pasDoc, name, event, this.panel.viewColumn);
+                void this.panel.webview.postMessage({ type: 'notice', text: `Handler of ${name}.${event} opened in code. Come back with the designer tab, the 🎨 button or Ctrl+K Ctrl+B.` });
                 return;
             }
             default: return;

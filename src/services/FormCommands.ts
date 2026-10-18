@@ -274,7 +274,7 @@ export async function addComponent(): Promise<void> {
  * Creates (or reaches) the handler of an event on an EXISTING component:
  * links it in the .dfm, declares + stubs it in the .pas, then jumps into it.
  */
-export async function addEventToComponent(doc: vscode.TextDocument | undefined, componentName: string, eventName: string): Promise<boolean> {
+export async function addEventToComponent(doc: vscode.TextDocument | undefined, componentName: string, eventName: string, viewColumn?: vscode.ViewColumn): Promise<boolean> {
     const pair = await resolveFormPair(doc);
     if (!pair) {
         vscode.window.showWarningMessage('CE: Add Event needs a .pas unit with a text .dfm of the same name next to it.');
@@ -307,7 +307,7 @@ export async function addEventToComponent(doc: vscode.TextDocument | undefined, 
     if (line >= 0) {
         const row = Math.min(line + 2, doc2.lineCount - 1);
         const pos = new vscode.Position(row, text[row]?.length ?? 0);
-        await vscode.window.showTextDocument(doc2, { selection: new vscode.Range(pos, pos) });
+        await vscode.window.showTextDocument(doc2, { selection: new vscode.Range(pos, pos), viewColumn });
     }
     return true;
 }

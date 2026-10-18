@@ -63,6 +63,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         setFormStorage(context.globalState);
         plsql.setPlSqlContext(providerRegistry, workspaceIndex);
         delphi.setDelphiContext(providerRegistry);
+        delphi.registerEmptyHandlerCleanup(context);
 
         templateService = new TemplateService(context);
         await templateService.load();
@@ -477,6 +478,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
         vscode.commands.registerCommand('mmx.delphi.designer', () => FormDesignerPanel.createOrShow(vscode.window.activeTextEditor?.document)),
+        vscode.commands.registerCommand('mmx.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('mmx.delphi.align', delphi.alignComponentsCommand),
         vscode.commands.registerCommand('mmx.delphi.anchors', delphi.anchorsCommand),
         vscode.commands.registerCommand('mmx.delphi.tabOrder', delphi.tabOrderCommand),

@@ -343,7 +343,12 @@
       },
       {
         "command": "mmx.delphi.designer",
-        "title": "CE Delphi: Open Form Designer",
+        "title": "CE Delphi: Open Form Designer / Back to the Designer",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "mmx.delphi.toggleDesigner",
+        "title": "CE Delphi: Toggle Form Designer / Code (like F12 in Delphi)",
         "icon": "$(symbol-misc)"
       }
     ],
@@ -650,6 +655,20 @@
           "type": "string",
           "default": "",
           "description": "Author written in generated PL/SQL headers (default: the OS user name)."
+        },
+        "mmx.delphi.removeEmptyHandlers": {
+          "type": "boolean",
+          "default": true,
+          "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty."
+        },
+        "mmx.delphi.designerColumn": {
+          "type": "string",
+          "enum": [
+            "active",
+            "beside"
+          ],
+          "default": "active",
+          "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
         }
       }
     },
@@ -668,6 +687,11 @@
         "command": "mmx.editMember",
         "key": "ctrl+k ctrl+e",
         "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
+      },
+      {
+        "command": "mmx.delphi.toggleDesigner",
+        "key": "ctrl+k ctrl+b",
+        "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'mmxFormDesigner'"
       }
     ]
   },

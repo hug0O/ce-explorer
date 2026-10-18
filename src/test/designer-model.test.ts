@@ -10,8 +10,8 @@ import {
 } from '../services/DesignerModel';
 
 const dir = path.join(__dirname, '..', '..', 'test-fixtures', 'delphi');
-const dfm = fs.readFileSync(path.join(dir, 'ComplexForm.dfm'), 'utf8');
-const pas = fs.readFileSync(path.join(dir, 'ComplexForm.pas'), 'utf8');
+const dfm = fs.readFileSync(path.join(dir, 'golden', 'ComplexForm.dfm'), 'utf8');
+const pas = fs.readFileSync(path.join(dir, 'golden', 'ComplexForm.pas'), 'utf8');
 const model = buildDesignModel(dfm)!;
 const find = (n: DNode, name: string): DNode | undefined => (n.name === name ? n : n.children.map(c => find(c, name)).find(Boolean));
 const rect = (name: string) => { const n = find(model.root, name)!; return [n.x, n.y, n.w, n.h]; };

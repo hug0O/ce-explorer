@@ -10,6 +10,7 @@ import { fieldListFromMembers, generateFormFields, parseFieldList, planChangeCla
 import { resolveFormPair } from './FormCommands';
 import { loadComponentDef } from './FormLibrary';
 import { queueTextEdits } from './FormSync';
+import { emptyHandlerCleanup } from './DelphiClean';
 
 let registry: ProviderRegistry | undefined;
 export function setDelphiContext(r: ProviderRegistry): void {
@@ -290,4 +291,42 @@ export async function changeClassCommand(): Promise<void> {
     if (await apply(l, `${node.name}: ${node.className} → ${newClass}`, r.dfmEdits, r.pasEdits)) {
         vscode.window.showInformationMessage(`CE: ${node.name} is now a ${newClass}${r.unchecked ? ' — properties were not verified (class outside the VCL catalog): compile and check the form.' : ''}.`);
     }
+}
+
+/* ─────────────── empty handlers disappear on save, like in the IDE ─────────────── */
+
+async function cleanEmptyHandlersOnSave(doc: vscode.TextDocument): Promise<vscode.TextEdit[]> {
+    const pair = await resolveFormPair(doc);
+    if (!pair || pair.pas.fsPath.toLowerCase() !== doc.uri.fsPath.toLowerCase()) { return []; }
+    const dfmDoc = await vscode.workspace.openTextDocument(pair.dfm);
+    const plan = emptyHandlerCleanup(doc.getText(), dfmDoc.getText());
+    if (!plan) { return []; }
+    if (plan.dfmEdits.length > 0) {
+        const wasDirty = dfmDoc.isDirty;
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of plan.dfmEdits) {
+            const start = dfmDoc.positionAt(e.offset);
+            edit.replace(dfmDoc.uri, new vscode.Range(start, dfmDoc.positionAt(e.offset + (e.length ?? 0))), e.text);
+        }
+        if (await vscode.workspace.applyEdit(edit) && !wasDirty) { await dfmDoc.save(); }
+    }
+    vscode.window.showInformationMessage(`CE: ${plan.removed.length} empty event handler(s) removed: ${plan.removed.join(', ')}.`);
+    return plan.pasEdits.map(e => {
+        const start = doc.positionAt(e.offset);
+        return e.length ? vscode.TextEdit.replace(new vscode.Range(start, doc.positionAt(e.offset + e.length)), e.text) : vscode.TextEdit.insert(start, e.text);
+    });
+}
+
+/**
+ * On a manual save of a form unit, handlers whose body is empty are removed
+ * (method, declaration and .dfm link), exactly like the Delphi IDE does.
+ * Autosave is left alone so a handler that was just created is not deleted
+ * while the user is about to type in it. Setting: mmx.delphi.removeEmptyHandlers.
+ */
+export function registerEmptyHandlerCleanup(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(e => {
+        if (e.reason !== vscode.TextDocumentSaveReason.Manual || !/\.pas$/i.test(e.document.uri.fsPath)) { return; }
+        if (!vscode.workspace.getConfiguration('mmx').get<boolean>('delphi.removeEmptyHandlers', true)) { return; }
+        e.waitUntil(cleanEmptyHandlersOnSave(e.document).catch(() => []));
+    }));
 }

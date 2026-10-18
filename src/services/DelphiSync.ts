@@ -116,7 +116,7 @@ export function handlerImplementation(pas: string, formClass: string, handler: s
     const end = endRe.exec(rest);
     if (!end) { return undefined; }
     const body = rest.slice(0, end.index);
-    const code = body.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(l => l && !/^begin$/i.test(l) && !/^\/\//.test(l));
+    const code = body.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(l => l && !/^begin$/i.test(l));
     let stop = bodyStart + end.index + end[0].length;
     const blank = /^[ \t]*\r?\n/.exec(pas.slice(stop));
     if (blank) { stop += blank[0].length; }

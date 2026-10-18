@@ -65,6 +65,12 @@ button.active { background: var(--vscode-button-background); color: var(--vscode
 h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); }
 .pal { display: flex; flex-wrap: wrap; gap: 3px; }
 .pal button { padding: 2px 5px; font-size: 11px; }
+.sec > summary { cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 4px; }
+.pal-group > summary { cursor: pointer; font-size: 10px; color: var(--vscode-descriptionForeground); margin: 4px 0 2px; }
+#outline { max-height: 340px; overflow: auto; }
+.outline .ico { display: inline-block; width: 16px; text-align: center; }
+.outline .cls { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; }
+.outline .par { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; opacity: 0.7; }
 .outline div { padding: 1px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px; font-size: 11px; }
 .outline div:hover { background: var(--vscode-list-hoverBackground); }
 .outline div.sel { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
@@ -158,16 +164,22 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   <span class="sep"></span>
   <select id="alignop" title="Select two or more components first"></select><button id="alignbtn">Apply</button>
   <span class="sep"></span>
-  <button id="opencode">&lt;/&gt; Code</button><button id="opendfm">.dfm</button>
+  <button id="opencode" title="Switch to the code of the unit (F12); come back with the Designer tab, the title-bar button or Ctrl+K Ctrl+B">&lt;/&gt; Code (F12)</button><button id="opendfm">.dfm</button>
 </div>
 <div id="main">
   <div id="left">
-    <h4>Palette <span class="hint">(pick, then click or drag on the form)</span></h4>
-    <input type="text" id="palfilter" placeholder="Filter: cx, Adv, Grid…" style="width:100%;margin-bottom:4px">
-    <div id="palette"></div>
-    <div class="row"><input type="text" id="otherclass" placeholder="Other class, e.g. TcxButton"><button id="otherbtn" title="Use this class as the tool">＋</button></div>
-    <h4>Structure</h4>
-    <div id="outline" class="outline"></div>
+    <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
+      <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
+      <div class="row"><select id="palgroup" title="Filter by family"></select></div>
+      <div id="palette"></div>
+      <div class="row"><input type="text" id="otherclass" placeholder="Other class, e.g. TcxButton"><button id="otherbtn" title="Use this class as the tool">＋</button></div>
+    </details>
+    <details open class="sec" id="compsec"><summary>Components <span class="hint" id="compcount"></span></summary>
+      <div class="row"><input type="text" id="cfname" placeholder="Filter by name or class…"></div>
+      <div class="row"><select id="cftype" title="Filter by type"></select></div>
+      <div class="row"><select id="cfsort" title="Sort"><option value="form">Form order</option><option value="name">By name</option><option value="type">By type</option><option value="pos">By position</option></select><label title="One flat list instead of the tree"><input type="checkbox" id="cfflat"> flat</label></div>
+      <div id="outline" class="outline"></div>
+    </details>
   </div>
   <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div></div></div></div></div>
   <div id="right"><div id="inspector"></div></div>
@@ -176,7 +188,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -377,32 +389,133 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   }
 
   /* ───────── side panels ───────── */
+  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  function iconOf(n) { return n.nonVisual ? '⚙' : (ICONS[kind(n.cls)] || '◻'); }
   function renderPalette() {
     var p = $('palette'); while (p.firstChild) { p.removeChild(p.firstChild); }
-    var group = '';
-    var flt = (state.filter || '').toLowerCase();
+    var flt = (state.filter || '').toLowerCase(), grp = state.palGroup || '';
+    var groups = [], byGroup = {}, shown = 0;
     state.palette.forEach(function (it) {
-      if (flt && it.cls.toLowerCase().indexOf(flt) < 0 && it.group.toLowerCase().indexOf(flt) < 0) { return; }
-      if (it.group !== group) { group = it.group; p.appendChild(el('h4', '', group)); }
-      var b = el('button', state.tool === it.cls ? 'active' : '', it.icon + ' ' + it.cls.slice(1));
-      b.title = it.cls; b.setAttribute('data-tool', it.cls);
-      var box = p.lastChild && p.lastChild.className === 'pal' ? p.lastChild : null;
-      if (!box) { box = el('div', 'pal'); p.appendChild(box); }
-      box.appendChild(b);
+      if (!byGroup[it.group]) { byGroup[it.group] = []; groups.push(it.group); }
+      if (grp && it.group !== grp) { return; }
+      if (flt && it.cls.toLowerCase().indexOf(flt) < 0) { return; }
+      byGroup[it.group].push(it); shown++;
     });
+    groups.forEach(function (g) {
+      var items = byGroup[g];
+      if (!items.length) { return; }
+      var d = el('details', 'pal-group');
+      d.open = flt || grp ? true : state.palOpen[g] !== false;
+      d.addEventListener('toggle', function () { if (!flt && !grp) { state.palOpen[g] = d.open; } });
+      d.appendChild(el('summary', '', g + ' (' + items.length + ')'));
+      var box = el('div', 'pal');
+      items.forEach(function (it) {
+        var b = el('button', state.tool === it.cls ? 'active' : '', it.icon + ' ' + it.cls.slice(1));
+        b.title = it.cls; b.setAttribute('data-tool', it.cls); box.appendChild(b);
+      });
+      d.appendChild(box); p.appendChild(d);
+    });
+    $('palcount').textContent = shown + '/' + state.palette.length;
     document.body.classList.toggle('tool-on', !!state.tool);
+  }
+  function fillPalGroups() {
+    var sel = $('palgroup'); while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+    var seen = {}; var all = el('option', '', 'All families'); all.value = ''; sel.appendChild(all);
+    state.palette.forEach(function (it) { if (!seen[it.group]) { seen[it.group] = 1; var o = el('option', '', it.group); o.value = it.group; sel.appendChild(o); } });
+  }
+
+  /* ───────── components list: filter by name and type, sort, tree or flat ───────── */
+  function allNodes() {
+    var out = [];
+    (function walk(n) { out.push(n); n.children.forEach(walk); })(state.model.root);
+    return out.slice(1);
+  }
+  function typeKey(n) { return 'c:' + n.cls; }
+  function matchesType(n, t) {
+    if (!t) { return true; }
+    if (t === '@container') { return n.container; }
+    if (t === '@nonvisual') { return n.nonVisual; }
+    if (t === '@events') { return Object.keys(n.events).length > 0; }
+    if (t === '@unknown') { return kind(n.cls) === 'generic' && !n.nonVisual; }
+    if (t === '@dx') { return n.family === 'devexpress'; }
+    if (t === '@tms') { return n.family === 'tms'; }
+    return typeKey(n) === t;
+  }
+  function matchesText(n, text) {
+    if (!text) { return true; }
+    var hay = (n.name + ' ' + n.cls + ' ' + (n.caption || '')).toLowerCase();
+    return text.toLowerCase().split(' ').filter(Boolean).every(function (tok) { return hay.indexOf(tok) >= 0; });
+  }
+  function fillTypeSelect(nodes) {
+    var sel = $('cftype'), keep = state.cf.type;
+    while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+    var count = function (fn) { return nodes.filter(fn).length; };
+    var add = function (v, label) { var o = el('option', '', label); o.value = v; sel.appendChild(o); };
+    add('', 'All types (' + nodes.length + ')');
+    add('@container', 'Containers (' + count(function (n) { return n.container; }) + ')');
+    add('@nonvisual', 'Non-visual (' + count(function (n) { return n.nonVisual; }) + ')');
+    add('@events', 'With event handlers (' + count(function (n) { return Object.keys(n.events).length > 0; }) + ')');
+    add('@unknown', 'Unknown classes (' + count(function (n) { return matchesType(n, '@unknown'); }) + ')');
+    var dx = count(function (n) { return n.family === 'devexpress'; }), tms = count(function (n) { return n.family === 'tms'; });
+    if (dx) { add('@dx', 'DevExpress (' + dx + ')'); }
+    if (tms) { add('@tms', 'TMS (' + tms + ')'); }
+    var classes = {};
+    nodes.forEach(function (n) { classes[n.cls] = (classes[n.cls] || 0) + 1; });
+    Object.keys(classes).sort().forEach(function (c) { add('c:' + c, c + ' (' + classes[c] + ')'); });
+    sel.value = keep; if (sel.value !== keep) { sel.value = ''; state.cf.type = ''; }
   }
   function renderOutline() {
     var o = $('outline'); while (o.firstChild) { o.removeChild(o.firstChild); }
-    function walk(n) {
-      var d = el('div', state.sel.indexOf(n.name) >= 0 ? 'sel' : '', n.name + ' : ' + n.cls);
-      if (n.family) { d.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DX' : 'TMS')); }
-      d.style.paddingLeft = (n.depth * 10 + 4) + 'px';
+    if (!state.model) { return; }
+    var nodes = allNodes();
+    fillTypeSelect(nodes);
+    var f = state.cf;
+    var rows = nodes.filter(function (n) { return matchesType(n, f.type) && matchesText(n, f.text); });
+    var filtered = !!(f.text || f.type);
+    if (f.sort === 'name') { rows.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; }); }
+    else if (f.sort === 'type') { rows.sort(function (a, b) { return a.cls === b.cls ? (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1) : (a.cls < b.cls ? -1 : 1); }); }
+    else if (f.sort === 'pos') { rows.sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); }); }
+    var tree = !f.flat && !filtered && f.sort === 'form';
+    state.listOrder = rows.map(function (n) { return n.name; });
+    $('compcount').textContent = rows.length + '/' + nodes.length;
+    rows.forEach(function (n) {
+      var d = el('div', state.sel.indexOf(n.name) >= 0 ? 'sel' : '');
       d.setAttribute('data-pick', n.name);
+      d.title = n.name + ' : ' + n.cls + (n.caption ? ' — ' + n.caption : '');
+      d.style.paddingLeft = (tree ? n.depth * 10 : 4) + 'px';
+      d.appendChild(el('span', 'ico', iconOf(n)));
+      d.appendChild(document.createTextNode(n.name));
+      d.appendChild(el('span', 'cls', n.cls));
+      if (n.family) { d.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DX' : 'TMS')); }
+      if (!tree && parentOf[n.name] && parentOf[n.name] !== state.model.root.name) { d.appendChild(el('span', 'par', '↳ ' + parentOf[n.name])); }
       o.appendChild(d);
-      n.children.forEach(walk);
+    });
+    if (!rows.length) { o.appendChild(el('div', 'hint', 'No component matches.')); }
+  }
+  /* A component on a hidden page: switch the page tabs so that it can be seen, then scroll to it. */
+  function revealNode(name) {
+    var child = name, changed = false;
+    while (parentOf[child]) {
+      var p = parentOf[child];
+      if (kind(byName[child].cls) === 'sheet' && byName[p] && kind(byName[p].cls) === 'pages' && state.tabs[p] !== child) { state.tabs[p] = child; changed = true; }
+      child = p;
     }
-    if (state.model) { walk(state.model.root); }
+    return changed;
+  }
+  function listClick(name, ev) {
+    var sel;
+    if (ev.shiftKey && state.lastPick && state.listOrder.indexOf(state.lastPick) >= 0) {
+      var a = state.listOrder.indexOf(state.lastPick), b = state.listOrder.indexOf(name);
+      sel = state.listOrder.slice(Math.min(a, b), Math.max(a, b) + 1);
+    } else if (ev.ctrlKey || ev.metaKey) {
+      sel = state.sel.slice(); var i = sel.indexOf(name);
+      if (i >= 0) { sel.splice(i, 1); } else { sel.push(name); }
+    } else { sel = [name]; }
+    state.lastPick = name;
+    var tabsChanged = revealNode(name);
+    if (tabsChanged) { state.sel = sel; render(); } else { select(sel); }
+    var e = els[name];
+    if (e && e.scrollIntoView) { e.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   }
   function field(label, node) { var r = el('div', 'row'); r.appendChild(el('span', '', label)); r.appendChild(node); return r; }
   function textInput(value, onCommit, type) {
@@ -524,7 +637,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var pal = t.closest && t.closest('[data-tool]');
     if (pal) { state.tool = state.tool === pal.getAttribute('data-tool') ? null : pal.getAttribute('data-tool'); renderPalette(); renderStatus(); return; }
     var pick = t.closest && t.closest('[data-pick]');
-    if (pick) { var nm = pick.getAttribute('data-pick'); select(nm === state.model.root.name ? [] : [nm]); return; }
+    if (pick) { listClick(pick.getAttribute('data-pick'), ev); return; }
     if (!inClient) { return; }
     $('client').focus();
     state.notice = '';
@@ -663,6 +776,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   document.addEventListener('keydown', function (ev) {
     var tag = ev.target && ev.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
+    if (ev.key === 'F12') { post({ type: 'openCode' }); ev.preventDefault(); return; }
     if (ev.key === 'Escape') { state.tool = null; renderPalette(); select([]); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
@@ -693,6 +807,11 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     post({ type: 'align', op: $('alignop').value, names: state.sel.slice() });
   });
   $('palfilter').addEventListener('input', function () { state.filter = $('palfilter').value.trim(); renderPalette(); });
+  $('palgroup').addEventListener('change', function () { state.palGroup = $('palgroup').value; renderPalette(); });
+  $('cfname').addEventListener('input', function () { state.cf.text = $('cfname').value.trim(); renderOutline(); });
+  $('cftype').addEventListener('change', function () { state.cf.type = $('cftype').value; renderOutline(); });
+  $('cfsort').addEventListener('change', function () { state.cf.sort = $('cfsort').value; renderOutline(); });
+  $('cfflat').addEventListener('change', function () { state.cf.flat = $('cfflat').checked; renderOutline(); });
   $('otherbtn').addEventListener('click', function () {
     var v = $('otherclass').value.trim();
     if (v) { state.tool = v; renderPalette(); renderStatus(); }
@@ -707,7 +826,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   function onMessage(m) {
     if (m.type === 'model') {
       state.model = m.model;
-      if (m.palette && !state.palette.length) { state.palette = m.palette; renderPalette(); }
+      if (m.palette && !state.palette.length) { state.palette = m.palette; fillPalGroups(); renderPalette(); }
       if (m.ops && !state.ops.length) {
         state.ops = m.ops;
         m.ops.forEach(function (o) { var op = el('option', '', o.label); op.value = o.id; $('alignop').appendChild(op); });

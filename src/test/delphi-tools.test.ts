@@ -11,8 +11,8 @@ import { fieldListFromMembers, generateFormFields, parseFieldList, planChangeCla
 
 const dir = path.join(__dirname, '..', '..', 'test-fixtures', 'delphi');
 const read = (f: string) => fs.readFileSync(path.join(dir, f), 'utf8');
-const cDfm = read('ComplexForm.dfm');
-const cPas = read('ComplexForm.pas');
+const cDfm = read('golden/ComplexForm.dfm');
+const cPas = read('golden/ComplexForm.pas');
 const lDfm = read('LayoutForm.dfm');
 const lPas = read('LayoutForm.pas');
 const trees = new Map<string, ReturnType<typeof parseDfmTree>>();
@@ -256,4 +256,26 @@ test('change class: compatible properties and events survive, the rest is report
 
     assert.match((planChangeClass(lPas, lDfm, 'btnOk', 'TButton') as { error: string }).error, /already/);
     assert.match((planChangeClass(lPas, lDfm, 'nope', 'TEdit') as { error: string }).error, /not found/);
+});
+
+import { emptyHandlerCleanup } from '../services/DelphiClean';
+
+test('empty handlers are removed like the IDE does: method, declaration and .dfm link; code and comments keep a handler', () => {
+    const plan = emptyHandlerCleanup(cPas, cDfm)!;
+    assert.deepEqual([...plan.removed].sort(), ['btnAjouterClick', 'btnImporterClick', 'btnSupprimerClick', 'edtRechercheChange', 'lbxCategoriesClick', 'tmrStatutTimer']);
+    const pas2 = applyTextEdits(cPas, plan.pasEdits);
+    const dfm2 = applyTextEdits(cDfm, plan.dfmEdits);
+    for (const h of plan.removed) {
+        assert.doesNotMatch(pas2, new RegExp(h), h + ' gone from the unit');
+        assert.doesNotMatch(dfm2, new RegExp(h), h + ' unlinked in the .dfm');
+    }
+    assert.match(pas2, /procedure TComplexForm\.btnNouveauClick/, 'a handler with code stays');
+    assert.match(dfm2, /OnClick = btnNouveauClick/);
+    assert.equal(checkForm(pas2, dfm2).filter(i => i.severity !== 'info').length, 0, 'the form is still consistent');
+
+    const withComment = cPas.replace('procedure TComplexForm.btnImporterClick(Sender: TObject);\nbegin\nend;', 'procedure TComplexForm.btnImporterClick(Sender: TObject);\nbegin\n  // TODO\nend;');
+    assert.ok(!emptyHandlerCleanup(withComment, cDfm)!.removed.includes('btnImporterClick'), 'a comment is content');
+
+    const clean = applyTextEdits(cPas, plan.pasEdits);
+    assert.equal(emptyHandlerCleanup(clean, applyTextEdits(cDfm, plan.dfmEdits)), undefined, 'nothing left to clean');
 });

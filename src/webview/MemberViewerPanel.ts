@@ -10,7 +10,7 @@ import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { addComponentToForm, addEventToComponent, alignSelection, buildFormModel, getLastAlignToken, suggestComponentName } from '../services/FormCommands';
 import type { Side } from '../services/DelphiLayout';
 import type { Direction } from '../services/DelphiSpacing';
@@ -72,6 +72,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     // Active tab of the member view: 'detail' (selected member) or 'manage'
     // (add / edit / rename / delete any member of the current type at any time).
     private _tab: 'detail' | 'manage' | 'tools' = 'detail';
+    // Sub-tab of the Tools tab (form / components / spacing / plsql / align); '' = the first one that applies.
+    private _toolsTab = '';
     private _sessionCtx?: EditSessionContext;
     private _resolveSession?: (result: MemberFormResult | ExtractSpec | undefined) => void;
     // The local variable currently being edited inline (mode 'variable').
@@ -154,6 +156,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'plsqlAlign':
                     if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('mmx.plsql.alignPreset', msg.id); }
                     break;
+                case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'toolsReady': await this.sendFormModel(); break;
                 case 'suggestName': await this.sendSuggestedName(String(msg.className ?? '')); break;
                 case 'addComponent': await this.handleAddComponent(msg.req); break;
@@ -1064,7 +1067,7 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
 
         // Same three tabs as the member view, so the tools are never stacked under the quick actions.
         const body = this._tab === 'tools'
-            ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi())
+            ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab)
             : this._tab === 'manage'
                 ? this.getManageHtml()
                 : `<div class="empty">
@@ -1306,7 +1309,7 @@ ${toolsCss()}
         }
 
         if (this._tab === 'tools') {
-            html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi());
+            html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab);
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
         } else if (member) {

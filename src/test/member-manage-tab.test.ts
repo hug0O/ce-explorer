@@ -88,6 +88,7 @@ test('Manage tab ignores actions on a member that no longer exists', async () =>
 test('Tools tab shows the align form and the Delphi component form; both pages can drive them', () => {
     const panel = makePanel();
     panel._tab = 'tools';
+    panel.isDelphi = () => true;
     const html: string = panel.getHtml();
     assert.match(html, /data-tab="tools"/);
     assert.match(html, /id="alignToken"/);
@@ -104,6 +105,7 @@ test('Tools tab shows the align form and the Delphi component form; both pages c
 test('Tools tab: saved align shortcuts, gap field, spacing and event blocks are present', () => {
     const panel = makePanel();
     panel._tab = 'tools';
+    panel.isDelphi = () => true;
     const html: string = panel.getHtml();
     assert.match(html, /id="chips"[^>]*data-chips="\[&quot;:=&quot;/, 'default shortcuts are rendered as data');
     assert.match(html, /command: 'saveAlignChips'/, 'shortcuts can be added and removed, then persisted');
@@ -166,4 +168,34 @@ test('Tools tab shows the Delphi layout block only for Delphi units', () => {
         assert.ok(html.includes(`data-dl="mmx.delphi.${c}"`), c);
     }
     assert.match(html, /command: 'delphiCmd'/);
+});
+
+test('Tools are split into sub-tabs; only the pages that apply to the file are offered', () => {
+    const panel = makePanel();
+    panel._tab = 'tools';
+    const subs = (html: string) => [...html.matchAll(/data-sub-tab="(\w+)"/g)].map(m => m[1]);
+    const shown = (html: string) => [...html.matchAll(/data-sub="(\w+)"( style="display:none")?/g)].filter(m => !m[2]).map(m => m[1]);
+
+    const plain: string = panel.getHtml();
+    assert.deepEqual(subs(plain), [], 'a plain file has only the Align tools: no sub-tab bar');
+    assert.deepEqual(shown(plain), ['align']);
+
+    panel.isDelphi = () => true;
+    const delphi: string = panel.getHtml();
+    assert.deepEqual(subs(delphi), ['form', 'components', 'spacing', 'align']);
+    assert.deepEqual(shown(delphi), ['form'], 'the designer / layout page first');
+    assert.ok(delphi.includes('id="dlBlock"') && delphi.includes('id="sFields"') && delphi.includes('id="dAdd"') && delphi.includes('id="alignToken"'));
+    assert.doesNotMatch(delphi, /id="plBlock"/);
+
+    panel._toolsTab = 'spacing';
+    assert.deepEqual(shown(panel.getHtml()), ['spacing'], 'the chosen sub-tab is remembered across redraws');
+
+    panel.isDelphi = () => false;
+    panel.isPlSql = () => true;
+    panel._toolsTab = 'spacing';
+    const sql: string = panel.getHtml();
+    assert.deepEqual(subs(sql), ['plsql', 'align']);
+    assert.deepEqual(shown(sql), ['plsql'], 'a remembered tab that does not apply falls back to the first one');
+    assert.doesNotMatch(sql, /id="sFields"|id="dlBlock"/, 'Delphi tools are absent from a SQL file');
+    assert.match(sql, /command: 'toolsTab'/);
 });

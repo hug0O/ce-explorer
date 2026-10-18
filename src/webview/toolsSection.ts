@@ -63,6 +63,10 @@ export function toolsCss(): string {
 .tool-primary { width: 100%; margin-top: 8px; padding: 5px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-family: inherit; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .tool-primary:hover { background: var(--vscode-button-hoverBackground); }
 .tools-block { margin-bottom: 14px; }
+.subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.subtab { padding: 2px 11px; border-radius: 12px; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.45)); background: transparent; color: var(--vscode-foreground); font-size: 11px; cursor: pointer; }
+.subtab:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
+.subtab.active { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); border-color: transparent; font-weight: 600; }
 `;
 }
 
@@ -134,10 +138,24 @@ ${btn('mmx.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and em
 `;
 }
 
-export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false): string {
-    const chipsJson = escapeAttr(JSON.stringify(chipList));
+export type ToolsSub = 'form' | 'components' | 'spacing' | 'plsql' | 'align';
+
+export const TOOLS_SUBS: ToolsSub[] = ['form', 'components', 'spacing', 'plsql', 'align'];
+
+/** The sub-tabs relevant to the active file: Delphi tools only for a Delphi unit, PL/SQL tools only for PL/SQL. */
+export function availableSubs(plsql: boolean, delphi: boolean): { id: ToolsSub; label: string }[] {
+    const subs: { id: ToolsSub; label: string }[] = [];
+    if (delphi) {
+        subs.push({ id: 'form', label: 'Form' }, { id: 'components', label: 'Components' }, { id: 'spacing', label: 'Spacing' });
+    }
+    if (plsql) { subs.push({ id: 'plsql', label: 'PL/SQL' }); }
+    subs.push({ id: 'align', label: 'Align' });
+    return subs;
+}
+
+function alignBlock(alignToken: string, chipsJson: string): string {
     return `
-${plsql ? plsqlBlock() : ''}${delphi ? delphiBlock() : ''}<div class="tools-block">
+<div class="tools-block">
 <div class="section-title">Align selection</div>
 <div class="tool-row">
 <input id="alignToken" class="inp" value="${escapeAttr(alignToken)}" placeholder="text to align on, e.g. :=" spellcheck="false">
@@ -145,8 +163,11 @@ ${plsql ? plsqlBlock() : ''}${delphi ? delphiBlock() : ''}<div class="tools-bloc
 </div>
 <div class="chips" id="chips" data-chips="${chipsJson}"></div>
 <div class="tool-note">Click a string to use it, <b>+</b> saves the one typed above, <b>×</b> removes it. Select the lines in the editor, then click Align. Without a selection, the block of lines around the cursor is aligned.</div>
-</div>
+</div>`;
+}
 
+function componentsBlock(): string {
+    return `
 <div class="tools-block" id="dForm">
 <div class="section-title">Delphi component</div>
 <div class="tool-note" id="dMsg">Loading form…</div>
@@ -176,8 +197,25 @@ ${plsql ? plsqlBlock() : ''}${delphi ? delphiBlock() : ''}<div class="tools-bloc
 <input id="dGap" class="inp" type="number" min="0" max="500" value="8" style="max-width:64px" title="Space between the new component and its reference"></div>
 <button id="dAdd" class="tool-primary">Add to form</button>
 </div>
+<div id="eFields" style="display:none">
+<div class="section-title" style="margin-top:14px">Event on an existing component</div>
+<div class="tool-label">Component</div>
+<select id="eComp" class="tool-select"></select>
+<div class="tool-label">Event <span class="hint">(pick or type)</span></div>
+<input id="eEvent" class="inp" list="eEvents" spellcheck="false" style="width:100%">
+<datalist id="eEvents"></datalist>
+<div class="tool-note" id="eNote"></div>
+<button id="eAdd" class="tool-primary">Create / open handler</button>
+</div>
+</div>`;
+}
+
+function spacingBlock(): string {
+    return `
+<div class="tools-block" id="sForm">
+<div class="section-title">Spacing between components</div>
+<div class="tool-note" id="sMsg">Loading form…</div>
 <div id="sFields" style="display:none">
-<div class="section-title" style="margin-top:14px">Spacing between components</div>
 <div class="tool-label">Gap between a component and the next one…</div>
 <select id="sComp" class="tool-select"></select>
 <div class="tool-row" style="margin-top:4px">
@@ -195,18 +233,30 @@ ${plsql ? plsqlBlock() : ''}${delphi ? delphiBlock() : ''}<div class="tools-bloc
 <div class="tool-note">Horizontal / vertical gaps. Rows are detected automatically and columns are aligned across rows.</div>
 <button id="sDist" class="tool-primary">Distribute</button>
 </div>
-<div id="eFields" style="display:none">
-<div class="section-title" style="margin-top:14px">Event on an existing component</div>
-<div class="tool-label">Component</div>
-<select id="eComp" class="tool-select"></select>
-<div class="tool-label">Event <span class="hint">(pick or type)</span></div>
-<input id="eEvent" class="inp" list="eEvents" spellcheck="false" style="width:100%">
-<datalist id="eEvents"></datalist>
-<div class="tool-note" id="eNote"></div>
-<button id="eAdd" class="tool-primary">Create / open handler</button>
-</div>
-</div>
-`;
+</div>`;
+}
+
+/**
+ * The Tools tab, split into sub-tabs so that each set of tools has its own page:
+ * Form · Components · Spacing (Delphi), PL/SQL, Align. Only the pages that make
+ * sense for the active file are offered; `activeSub` is the one shown.
+ */
+export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false, activeSub = ''): string {
+    const chipsJson = escapeAttr(JSON.stringify(chipList));
+    const subs = availableSubs(plsql, delphi);
+    const active = subs.some(s => s.id === activeSub) ? activeSub : subs[0].id;
+    const pages: Record<ToolsSub, string> = {
+        form: delphi ? delphiBlock() : '',
+        components: delphi ? componentsBlock() : '',
+        spacing: delphi ? spacingBlock() : '',
+        plsql: plsql ? plsqlBlock() : '',
+        align: alignBlock(alignToken, chipsJson),
+    };
+    const bar = subs.length > 1
+        ? `<div class="subtabs">${subs.map(s => `<button class="subtab${s.id === active ? ' active' : ''}" data-sub-tab="${s.id}">${s.label}</button>`).join('')}</div>`
+        : '';
+    const body = subs.map(s => `<div data-sub="${s.id}"${s.id === active ? '' : ' style="display:none"'}>${pages[s.id]}</div>`).join('\n');
+    return `\n${bar}\n${body}\n`;
 }
 
 /**
@@ -217,6 +267,14 @@ export function toolsScript(): string {
     return `
 function initTools(api) {
     function $(id) { return document.getElementById(id); }
+    document.querySelectorAll('[data-sub-tab]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var id = b.getAttribute('data-sub-tab');
+            document.querySelectorAll('[data-sub]').forEach(function (p) { p.style.display = p.getAttribute('data-sub') === id ? '' : 'none'; });
+            document.querySelectorAll('[data-sub-tab]').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sub-tab') === id); });
+            api.postMessage({ command: 'toolsTab', tab: id });
+        });
+    });
     document.querySelectorAll('[data-pl]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'plsql', cmd: b.getAttribute('data-pl') }); });
     });
@@ -364,12 +422,14 @@ function initTools(api) {
     function fillModel() {
         if (!model || !model.ok) {
             $('dMsg').textContent = (model && model.reason) || 'No Delphi form here.';
+            if ($('sMsg')) { $('sMsg').textContent = $('dMsg').textContent; }
             $('dFields').style.display = 'none';
             $('eFields').style.display = 'none';
             $('sFields').style.display = 'none';
             return;
         }
         $('dMsg').textContent = 'Form ' + model.formName;
+        if ($('sMsg')) { $('sMsg').textContent = 'Form ' + model.formName; }
         $('dFields').style.display = 'block';
         $('eFields').style.display = 'block';
         $('sFields').style.display = 'block';

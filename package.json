@@ -256,6 +256,10 @@
       {
         "command": "mmx.addComponent",
         "title": "CE: Add Delphi Component (.pas + .dfm)..."
+      },
+      {
+        "command": "mmx.addEventHandler",
+        "title": "CE: Add Event Handler to Delphi Component..."
       }
     ],
     "menus": {

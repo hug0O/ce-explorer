@@ -143,3 +143,9 @@ MIT
 
 - **CE: Align Selection on Text…** (right-click a selection, or the `Ctrl+K Ctrl+A` menu) pads the selected lines so the first occurrence of a string you type (`:=`, `:`, `=`, `//`…) starts in the same column. Works in every language; with no selection it aligns the contiguous block around the cursor. Occurrences inside string literals are ignored.
 - **CE: Add Delphi Component (.pas + .dfm)…** works like dropping a component on a form: pick a class (TButton, TEdit, TLabel, TCheckBox, TMemo, TPanel, TTimer…), a name and an event. The component is added to the text `.dfm`, its field and an empty handler to the `.pas` (and the needed unit to `uses`) in one undoable edit, then the cursor lands inside the new handler. An example form is in `test-fixtures/delphi/`.
+
+### Sidebar tools (Member view → Tools tab)
+
+- **Align selection**: type a string (or click `:=`, `:`, `=`, `=>`, `//`, `,`), select lines in the editor, click *Align*. Also shown when the cursor is outside any member.
+- **Delphi component**: for a `.pas` with a text `.dfm`, add *any* class (pick from the list or type e.g. `TSpinEdit`, optional unit for `uses`), choose the container (form, panel, group box…), a reference control and the side (right of / below / left of / above). The component is aligned with it (vertically centred beside, left edges aligned above/below; docked siblings such as `alTop` are continued) and the event handler is created.
+- **Event on an existing component**: pick a component of the form (or the form itself) and an event (`OnClick`, `OnChange`, `OnClose`…): the link is added to the `.dfm`, the handler declared and stubbed in the `.pas`, and the cursor jumps into it. If the event is already wired, the existing handler is opened instead. Also available as **CE: Add Event Handler to Delphi Component…**.

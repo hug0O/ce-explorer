@@ -24,7 +24,7 @@ import { QuickFixProvider } from './providers/QuickFixProvider';
 import { resolveVariableAt } from './services/VariableResolver';
 import { VariableRefactorService } from './services/VariableRefactorService';
 import { WorkspaceIndex } from './services/WorkspaceIndex';
-import { alignSelection, addComponent } from './services/FormCommands';
+import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
 
 let providerRegistry: ProviderRegistry;
@@ -469,6 +469,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
         vscode.commands.registerCommand('mmx.addComponent', addComponent),
+        vscode.commands.registerCommand('mmx.addEventHandler', addEventHandler),
 
         vscode.commands.registerCommand('mmx.manageMembers', async () => {
             await memberViewer.showManageTab();
@@ -512,6 +513,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
                 { label: '$(list-flat) Align Selection on Text', description: 'any language', cmd: 'mmx.alignSelection' },
+                { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'mmx.addEventHandler' },
                 { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'mmx.addComponent' },
                 { label: '$(search) Go to Member in Workspace', description: '', cmd: 'mmx.goToWorkspaceMember' },
                 { label: '$(list-tree) Add / Delete Members', description: '', cmd: 'mmx.manageMembers' },

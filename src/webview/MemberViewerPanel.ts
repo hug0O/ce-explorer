@@ -10,6 +10,9 @@ import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
+import { toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { addComponentToForm, addEventToComponent, alignSelection, buildFormModel, getLastAlignToken, suggestComponentName } from '../services/FormCommands';
+import type { Side } from '../services/DelphiLayout';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -64,7 +67,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _mode: ViewerMode = 'view';
     // Active tab of the member view: 'detail' (selected member) or 'manage'
     // (add / edit / rename / delete any member of the current type at any time).
-    private _tab: 'detail' | 'manage' = 'detail';
+    private _tab: 'detail' | 'manage' | 'tools' = 'detail';
     private _sessionCtx?: EditSessionContext;
     private _resolveSession?: (result: MemberFormResult | ExtractSpec | undefined) => void;
     // The local variable currently being edited inline (mode 'variable').
@@ -135,7 +138,18 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : 'detail'); break;
+                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : 'detail'); break;
+                case 'alignSelection': await alignSelection(typeof msg.token === 'string' ? msg.token : ''); break;
+                case 'toolsReady': await this.sendFormModel(); break;
+                case 'suggestName': await this.sendSuggestedName(String(msg.className ?? '')); break;
+                case 'addComponent': await this.handleAddComponent(msg.req); break;
+                case 'addEvent':
+                    if (typeof msg.componentName === 'string' && typeof msg.eventName === 'string' && msg.componentName && msg.eventName) {
+                        if (await addEventToComponent(vscode.window.activeTextEditor?.document, msg.componentName, msg.eventName)) { await this.sendFormModel(); }
+                    } else {
+                        vscode.window.showWarningMessage('CE: Pick a component and an event.');
+                    }
+                    break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
                 case 'memberAction': await this.handleMemberAction(msg.act as string); break;
@@ -366,7 +380,40 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         this.setTab('manage');
     }
 
-    private setTab(tab: 'detail' | 'manage'): void {
+    private async sendFormModel(): Promise<void> {
+        const model = await buildFormModel(vscode.window.activeTextEditor?.document);
+        await this._view?.webview.postMessage({ command: 'formModel', model });
+    }
+
+    private async sendSuggestedName(className: string): Promise<void> {
+        if (!/^[A-Za-z_][\w.]*$/.test(className)) { return; }
+        const name = await suggestComponentName(vscode.window.activeTextEditor?.document, className);
+        await this._view?.webview.postMessage({ command: 'suggestedName', name });
+    }
+
+    /** Validates the untrusted webview payload, then drops the component on the form. */
+    private async handleAddComponent(raw: unknown): Promise<void> {
+        const r = (raw ?? {}) as Record<string, unknown>;
+        const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+        const sides: Side[] = ['auto', 'right', 'below', 'left', 'above'];
+        const side = sides.find(x => x === r.side) ?? 'auto';
+        const className = str(r.className);
+        const name = str(r.name);
+        if (!className || !name) {
+            vscode.window.showWarningMessage('CE: Enter a class and a name for the component.');
+            return;
+        }
+        const ok = await addComponentToForm(vscode.window.activeTextEditor?.document, {
+            className, name, side,
+            unit: str(r.unit) || undefined,
+            eventName: str(r.eventName) || undefined,
+            parentName: str(r.parentName) || undefined,
+            refName: str(r.refName) || undefined,
+        });
+        if (ok) { await this.sendFormModel(); }
+    }
+
+    private setTab(tab: 'detail' | 'manage' | 'tools'): void {
         this._tab = tab;
         this._stateKey = '';
         const editor = vscode.window.activeTextEditor;
@@ -967,6 +1014,10 @@ body { font-family: var(--vscode-font-family, -apple-system, sans-serif); font-s
 .qa-grid { display: flex; flex-direction: column; gap: 3px; }
 .qa { display: block; width: 100%; text-align: left; padding: 6px 10px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit; background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.12)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .qa:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.2)); }
+.ana { display: block; width: 100%; text-align: left; padding: 5px 8px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.12)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vscode-descriptionForeground); margin-bottom: 6px; letter-spacing: 0.5px; }
+.hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--vscode-descriptionForeground); }
+${toolsCss()}
 </style>
 </head>
 <body>
@@ -975,9 +1026,12 @@ body { font-family: var(--vscode-font-family, -apple-system, sans-serif); font-s
 <p>Place cursor on a class member to view &amp; edit it.</p>
 </div>
 ${groupsHtml}
+${toolsHtml(getLastAlignToken())}
 <script nonce="${nonce}">
+${toolsScript()}
 (function() {
     var api = acquireVsCodeApi();
+    initTools(api);
     document.querySelectorAll('.qa').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-cmd') }); });
     });
@@ -1127,6 +1181,7 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 .var-actions { margin-left: auto; display: flex; gap: 2px; }
 .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
 .var-btn:hover { filter: brightness(1.3); }
+${toolsCss()}
 .tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
 .tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
@@ -1147,6 +1202,7 @@ li.param-item:hover .param-edit { opacity: 0.8; }
         html += `<div class="tabs">
 <button class="tab${this._tab === 'detail' ? ' active' : ''}" data-tab="detail">Details</button>
 <button class="tab${this._tab === 'manage' ? ' active' : ''}" data-tab="manage">Add / Delete</button>
+<button class="tab${this._tab === 'tools' ? ' active' : ''}" data-tab="tools">Tools</button>
 </div>`;
 
         if (classInfo) {
@@ -1161,7 +1217,9 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 </div>`;
         }
 
-        if (this._tab === 'manage') {
+        if (this._tab === 'tools') {
+            html += toolsHtml(getLastAlignToken());
+        } else if (this._tab === 'manage') {
             html += this.getManageHtml();
         } else if (member) {
             const kindLabel = member.kind === MemberKind.Constructor ? 'Constructor'
@@ -1259,8 +1317,10 @@ li.param-item:hover .param-edit { opacity: 0.8; }
         }
 
         html += `<script nonce="${nonce}">
+${toolsScript()}
 (function() {
     var vscodeApi = acquireVsCodeApi();
+    initTools(vscodeApi);
     document.querySelectorAll('.ana').forEach(function(b) {
         b.addEventListener('click', function() {
             var ak = b.getAttribute('data-ak');

@@ -547,14 +547,14 @@ begin
   Result.Item1 := tDmdDerogVNDansLaTranche;
   Result.Item2 := cstRien;
 
-  MessageContext.Module := 'Gclog';
+  MessageContext.Module      := 'Gclog';
   MessageContext.Transaction := 'OFFPR';
-  MessageContext.Context := 'Fiche';
+  MessageContext.Context     := 'Fiche';
 
   // scanner les postes d'offre
-  bDerogation := False;
-  List_LOFPR_Infos := TList_LOFPR_Infos.Create;
-  List_LOFPR_Infos := fRemplirListeLOFPR_InfosBIS(iOFFPR_ID);
+  bDerogation                := False;
+  List_LOFPR_Infos           := TList_LOFPR_Infos.Create;
+  List_LOFPR_Infos           := fRemplirListeLOFPR_InfosBIS(iOFFPR_ID);
   List_LOFPR_Infos.First;
 
   for inc := 0 to List_LOFPR_Infos.Count - 1 do

@@ -36,6 +36,7 @@ export interface ComponentDef {
 }
 
 const SENDER = 'Sender: TObject';
+const MOUSE = `${SENDER}; Button: TMouseButton; Shift: TShiftState; X, Y: Integer`;
 const ev = (name: string, params = SENDER): EventDef => ({ name, params });
 const KEY_EVENTS = [
     ev('OnKeyPress', `${SENDER}; var Key: Char`),
@@ -62,7 +63,63 @@ export const COMPONENTS: ComponentDef[] = [
     { className: 'TPanel', namePrefix: 'Panel', unit: 'ExtCtrls', width: 185, height: 41, props: ["Caption = '%NAME%'"], tabOrder: true,
         events: [ev('OnClick'), ev('OnResize')] },
     { className: 'TTimer', namePrefix: 'Timer', unit: 'ExtCtrls', props: [], tabOrder: false, events: [ev('OnTimer')] },
+    { className: 'TGroupBox', namePrefix: 'GroupBox', unit: 'StdCtrls', width: 185, height: 105, props: ["Caption = '%NAME%'"], tabOrder: true,
+        events: [ev('OnClick'), ev('OnEnter'), ev('OnExit')] },
+    { className: 'TBitBtn', namePrefix: 'BitBtn', unit: 'Buttons', width: 75, height: 25, props: ["Caption = '%NAME%'"], tabOrder: true,
+        events: [ev('OnClick'), ev('OnEnter'), ev('OnExit')] },
+    { className: 'TSpeedButton', namePrefix: 'SpeedButton', unit: 'Buttons', width: 23, height: 22, props: [], tabOrder: false,
+        events: [ev('OnClick')] },
+    { className: 'TImage', namePrefix: 'Image', unit: 'ExtCtrls', width: 105, height: 105, props: [], tabOrder: false,
+        events: [ev('OnClick'), ev('OnDblClick')] },
+    { className: 'TShape', namePrefix: 'Shape', unit: 'ExtCtrls', width: 65, height: 65, props: [], tabOrder: false, events: [ev('OnMouseDown', MOUSE)] },
+    { className: 'TBevel', namePrefix: 'Bevel', unit: 'ExtCtrls', width: 50, height: 50, props: [], tabOrder: false, events: [] },
+    { className: 'TSplitter', namePrefix: 'Splitter', unit: 'ExtCtrls', width: 8, height: 100, props: [], tabOrder: false, events: [ev('OnMoved')] },
+    { className: 'TLabeledEdit', namePrefix: 'LabeledEdit', unit: 'ExtCtrls', width: 121, height: 23, props: ["EditLabel.Caption = '%NAME%'", "Text = ''"], tabOrder: true,
+        events: [ev('OnChange'), ev('OnEnter'), ev('OnExit')] },
+    { className: 'TStringGrid', namePrefix: 'StringGrid', unit: 'Grids', width: 320, height: 120, props: [], tabOrder: true,
+        events: [ev('OnClick'), ev('OnDblClick'), ev('OnSelectCell', `${SENDER}; ACol, ARow: LongInt; var CanSelect: Boolean`)] },
+    { className: 'TProgressBar', namePrefix: 'ProgressBar', unit: 'ComCtrls', width: 150, height: 17, props: [], tabOrder: false, events: [] },
+    { className: 'TTrackBar', namePrefix: 'TrackBar', unit: 'ComCtrls', width: 150, height: 45, props: [], tabOrder: true, events: [ev('OnChange')] },
+    { className: 'TDateTimePicker', namePrefix: 'DateTimePicker', unit: 'ComCtrls', width: 186, height: 23, props: [], tabOrder: true,
+        events: [ev('OnChange'), ev('OnCloseUp')] },
+    { className: 'TRichEdit', namePrefix: 'RichEdit', unit: 'ComCtrls', width: 185, height: 89, props: [], tabOrder: true, events: [ev('OnChange')] },
+    { className: 'TCheckListBox', namePrefix: 'CheckListBox', unit: 'CheckLst', width: 121, height: 97, props: ['ItemHeight = 17'], tabOrder: true,
+        events: [ev('OnClick'), ev('OnClickCheck')] },
+    { className: 'TMaskEdit', namePrefix: 'MaskEdit', unit: 'Mask', width: 121, height: 21, props: ["Text = ''"], tabOrder: true, events: [ev('OnChange')] },
+    { className: 'TScrollBox', namePrefix: 'ScrollBox', unit: 'Forms', width: 185, height: 105, props: [], tabOrder: true, events: [ev('OnResize')] },
 ];
+
+/** Parameter lists of the usual VCL events; anything else defaults to `Sender: TObject`. */
+export const EVENT_PARAMS: Record<string, string> = {
+    OnKeyPress: `${SENDER}; var Key: Char`,
+    OnKeyDown: `${SENDER}; var Key: Word; Shift: TShiftState`,
+    OnKeyUp: `${SENDER}; var Key: Word; Shift: TShiftState`,
+    OnMouseDown: MOUSE,
+    OnMouseUp: MOUSE,
+    OnMouseMove: `${SENDER}; Shift: TShiftState; X, Y: Integer`,
+    OnSelectCell: `${SENDER}; ACol, ARow: LongInt; var CanSelect: Boolean`,
+    OnClose: `${SENDER}; var Action: TCloseAction`,
+    OnCloseQuery: `${SENDER}; var CanClose: Boolean`,
+};
+
+export function eventDefFor(eventName: string): EventDef {
+    return { name: eventName, params: EVENT_PARAMS[eventName] ?? SENDER };
+}
+
+/**
+ * Definition of ANY component class: the catalog entry when known, otherwise a
+ * generic visual control (75 × 25, tab stop). `unit` overrides / supplies the
+ * unit to add to `uses` (empty = none added); `prefix` derives the default name.
+ */
+export function resolveComponentDef(className: string, unit?: string): ComponentDef {
+    const known = COMPONENTS.find(c => c.className.toLowerCase() === className.toLowerCase());
+    if (known) { return unit !== undefined && unit.trim() ? { ...known, unit: unit.trim().replace(/^Vcl\./i, '') } : known; }
+    const prefix = className.replace(/^T/, '') || 'Component';
+    return {
+        className, namePrefix: prefix, unit: (unit ?? '').trim().replace(/^Vcl\./i, ''),
+        width: 75, height: 25, props: [], tabOrder: true, events: [ev('OnClick'), ev('OnChange')],
+    };
+}
 
 /** Applies offset edits (all expressed against the original text). */
 export function applyTextEdits(text: string, edits: TextEdit[]): string {
@@ -175,6 +232,10 @@ export interface UnitEditOptions {
     componentName: string;
     def: ComponentDef;
     event?: EventDef;
+    /** The component already exists on the form: do not declare its field (nor touch `uses`). */
+    skipField?: boolean;
+    /** Handler name override (default: <Component><Event without "On">). */
+    methodName?: string;
 }
 
 /**
@@ -202,7 +263,7 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     }
 
     const edits: TextEdit[] = [];
-    const method = opt.event ? handlerName(opt.componentName, opt.event.name) : undefined;
+    const method = opt.event ? (opt.methodName || handlerName(opt.componentName, opt.event.name)) : undefined;
 
     let lastField = -1;
     let lastProc = -1;
@@ -212,17 +273,21 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     }
     const fieldAt = lastField >= 0 ? lastField + 1 : form.startLine + 1;
     const procAt = lastProc >= 0 ? lastProc + 1 : sectionEnd;
-    const fieldText = `    ${opt.componentName}: ${opt.def.className};${eol}`;
-    const declText = method && opt.event ? `    procedure ${method}(${opt.event.params});${eol}` : '';
-    if (declText && fieldAt === procAt) {
+    // Wiring an event on an EXISTING component: the field is already there, and the
+    // handler may already be declared / implemented (then only the .dfm needs the link).
+    const handlerDeclared = !!method && new RegExp('\\bprocedure\\s+' + method + '\\s*\\(', 'i').test(pas);
+    const handlerImplemented = !!method && new RegExp('\\bprocedure\\s+' + form.name + '\\.' + method + '\\b', 'i').test(pas);
+    const fieldText = opt.skipField ? '' : `    ${opt.componentName}: ${opt.def.className};${eol}`;
+    const declText = method && opt.event && !handlerDeclared ? `    procedure ${method}(${opt.event.params});${eol}` : '';
+    if (fieldText && declText && fieldAt === procAt) {
         edits.push({ offset: offs[fieldAt], text: fieldText + declText });
     } else {
-        edits.push({ offset: offs[fieldAt], text: fieldText });
+        if (fieldText) { edits.push({ offset: offs[fieldAt], text: fieldText }); }
         if (declText) { edits.push({ offset: offs[procAt], text: declText }); }
     }
 
     // Implementation: before initialization / finalization, else before the final `end.`.
-    if (method && opt.event) {
+    if (method && opt.event && !handlerImplemented) {
         let implLine = lines.findIndex(l => /^\s*(initialization|finalization)\b/i.test(l));
         if (implLine < 0) {
             for (let i = lines.length - 1; i >= 0; i--) {
@@ -237,9 +302,9 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     const implementationAt = pas.search(/^\s*implementation\b/im);
     const head = implementationAt >= 0 ? pas.slice(0, implementationAt) : pas;
     const uses = head.match(/\buses\b([^;]*);/i);
-    if (uses && uses.index !== undefined) {
+    if (uses && uses.index !== undefined && opt.def.unit) {
         const dotted = /\bVcl\./i.test(uses[1]) || !/\bForms\b/i.test(uses[1]);
-        const unitName = (dotted ? 'Vcl.' : '') + opt.def.unit;
+        const unitName = (dotted && !opt.def.unit.includes('.') ? 'Vcl.' : '') + opt.def.unit;
         const present = new RegExp('\\b(?:Vcl\\.)?' + opt.def.unit + '\\b', 'i').test(uses[1]);
         if (!present) {
             const semicolon = uses.index + uses[0].length - 1;

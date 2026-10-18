@@ -84,3 +84,19 @@ test('Manage tab ignores actions on a member that no longer exists', async () =>
     await panel.handleManageAction('delete', 'gone');
     assert.equal(refreshed, true);
 });
+
+test('Tools tab shows the align form and the Delphi component form; both pages can drive them', () => {
+    const panel = makePanel();
+    panel._tab = 'tools';
+    const html: string = panel.getHtml();
+    assert.match(html, /data-tab="tools"/);
+    assert.match(html, /id="alignToken"/);
+    assert.match(html, /id="dForm"/);
+    assert.match(html, /function initTools\(api\)/);
+    assert.match(html, /initTools\(vscodeApi\)/);
+    assert.doesNotMatch(html, /data-m-act="delete"/, 'no manage rows on the Tools tab');
+
+    const empty: string = panel.getEmptyHtml();
+    assert.match(empty, /id="alignToken"/, 'align is reachable even with the cursor outside any member');
+    assert.match(empty, /initTools\(api\)/);
+});

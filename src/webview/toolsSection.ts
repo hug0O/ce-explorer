@@ -28,6 +28,25 @@ export function sanitizeChips(value: unknown): string[] {
 
 export function toolsCss(): string {
     return `
+.tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
+.tab:hover { color: var(--vscode-foreground); }
+.section { margin-bottom: 12px; }
+.analyze-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.divider { height: 1px; background: var(--vscode-input-border, rgba(128,128,128,0.3)); margin: 10px 0; }
+.empty-section { color: var(--vscode-descriptionForeground); font-style: italic; }
+.mlist, .var-list { list-style: none; padding: 0; }
+.mrow { display: flex; align-items: center; gap: 5px; padding: 3px 4px; border-radius: 3px; font-size: 12px; }
+.mrow:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15)); }
+.mrow.sel { background: var(--vscode-list-activeSelectionBackground, rgba(0,127,212,0.25)); }
+.mrow .mname { cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); }
+.mrow .mname:hover { text-decoration: underline; }
+.mrow .mtype { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.var-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; }
+.var-actions { margin-left: auto; display: flex; gap: 2px; }
+.var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
+.var-btn:hover { filter: brightness(1.3); }
 .tool-row { display: flex; gap: 4px; margin-bottom: 4px; }
 .tool-row.wrap { flex-wrap: wrap; }
 .inp { flex: 1; min-width: 0; padding: 3px 6px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; }

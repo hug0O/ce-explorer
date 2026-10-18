@@ -121,3 +121,22 @@ test('sanitizeChips keeps any number of custom strings but drops junk and duplic
     assert.deepEqual(sanitizeChips('nope').slice(0, 2), [':=', ':']);
     assert.equal(sanitizeChips(Array.from({ length: 80 }, (_, i) => 'c' + i)).length, 40);
 });
+
+test('cursor outside any member: tabs instead of tools stacked under the quick actions', () => {
+    const panel = makePanel();
+    panel._state = { member: undefined, classInfo: undefined, provider: undefined };
+    const actions: string = panel.getEmptyHtml();
+    assert.match(actions, /data-tab="tools"/);
+    assert.match(actions, /class="qa"/, 'quick actions on the Actions tab');
+    assert.doesNotMatch(actions, /id="alignToken"/, 'tools are not below the actions');
+
+    panel._tab = 'tools';
+    const tools: string = panel.getEmptyHtml();
+    assert.match(tools, /id="alignToken"/);
+    assert.doesNotMatch(tools, /class="qa"/, 'quick actions hidden on the Tools tab');
+
+    panel._tab = 'manage';
+    const manage: string = panel.getEmptyHtml();
+    assert.match(manage, /Routines|Members/);
+    assert.match(manage, /class="tab active" data-tab="manage"/);
+});

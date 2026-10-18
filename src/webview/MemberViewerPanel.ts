@@ -1042,6 +1042,17 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
             `<div class="qa-group"><div class="qa-title">${escapeHtml(g.title)}</div><div class="qa-grid">${g.items.join('')}</div></div>`
         ).join('');
 
+        // Same three tabs as the member view, so the tools are never stacked under the quick actions.
+        const body = this._tab === 'tools'
+            ? toolsHtml(getLastAlignToken(), this.alignChips())
+            : this._tab === 'manage'
+                ? this.getManageHtml()
+                : `<div class="empty">
+<div class="icon">🔍</div>
+<p>Place cursor on a class member to view &amp; edit it.</p>
+</div>
+${groupsHtml}`;
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1066,12 +1077,8 @@ ${toolsCss()}
 </style>
 </head>
 <body>
-<div class="empty">
-<div class="icon">🔍</div>
-<p>Place cursor on a class member to view &amp; edit it.</p>
-</div>
-${groupsHtml}
-${toolsHtml(getLastAlignToken(), this.alignChips())}
+${this.tabsHtml('Actions')}
+${body}
 <script nonce="${nonce}">
 ${toolsScript()}
 (function() {
@@ -1080,10 +1087,30 @@ ${toolsScript()}
     document.querySelectorAll('.qa').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-cmd') }); });
     });
+    document.querySelectorAll('.tab').forEach(function(b) {
+        b.addEventListener('click', function() { api.postMessage({ command: 'setTab', tab: b.getAttribute('data-tab') }); });
+    });
+    document.querySelectorAll('[data-m-act]').forEach(function(b) {
+        b.addEventListener('click', function() {
+            api.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });
+        });
+    });
+    document.querySelectorAll('.ana[data-run]').forEach(function(b) {
+        b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-run') }); });
+    });
+    document.querySelectorAll('.ana[data-addvar]').forEach(function(b) {
+        b.addEventListener('click', function() { api.postMessage({ command: 'addVariable' }); });
+    });
 })();
 </script>
 </body>
 </html>`;
+    }
+
+    private tabsHtml(firstLabel: string): string {
+        const tab = (id: 'detail' | 'manage' | 'tools', label: string) =>
+            `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}">${label}</button>`;
+        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Add / Delete')}\n${tab('tools', 'Tools')}\n</div>`;
     }
 
     /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
@@ -1244,11 +1271,7 @@ ${toolsCss()}
 </head>
 <body>`;
 
-        html += `<div class="tabs">
-<button class="tab${this._tab === 'detail' ? ' active' : ''}" data-tab="detail">Details</button>
-<button class="tab${this._tab === 'manage' ? ' active' : ''}" data-tab="manage">Add / Delete</button>
-<button class="tab${this._tab === 'tools' ? ' active' : ''}" data-tab="tools">Tools</button>
-</div>`;
+        html += this.tabsHtml('Details');
 
         if (classInfo) {
             html += `<div class="class-header">

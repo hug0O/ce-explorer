@@ -138,3 +138,8 @@ MIT
 - **CE: Go to Member in Workspace…** searches the symbols of every file (index kept up to date by a file watcher).
 - Renaming a member uses the language server when one is available (TypeScript, Java, C#, Go, Rust, Python, C++ with clangd), and otherwise falls back to a text search. The fallback offers to rename the references found in other workspace files.
 - `mmx.codeLensMemberActions` adds Edit / Delete code lenses above every member.
+
+## Align selection & Delphi components
+
+- **CE: Align Selection on Text…** (right-click a selection, or the `Ctrl+K Ctrl+A` menu) pads the selected lines so the first occurrence of a string you type (`:=`, `:`, `=`, `//`…) starts in the same column. Works in every language; with no selection it aligns the contiguous block around the cursor. Occurrences inside string literals are ignored.
+- **CE: Add Delphi Component (.pas + .dfm)…** works like dropping a component on a form: pick a class (TButton, TEdit, TLabel, TCheckBox, TMemo, TPanel, TTimer…), a name and an event. The component is added to the text `.dfm`, its field and an empty handler to the `.pas` (and the needed unit to `uses`) in one undoable edit, then the cursor lands inside the new handler. An example form is in `test-fixtures/delphi/`.

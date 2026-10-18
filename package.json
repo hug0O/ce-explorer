@@ -248,6 +248,14 @@
       {
         "command": "mmx.goToWorkspaceMember",
         "title": "CE: Go to Member in Workspace..."
+      },
+      {
+        "command": "mmx.alignSelection",
+        "title": "CE: Align Selection on Text..."
+      },
+      {
+        "command": "mmx.addComponent",
+        "title": "CE: Add Delphi Component (.pas + .dfm)..."
       }
     ],
     "menus": {
@@ -399,6 +407,11 @@
           "command": "mmx.implementInterface",
           "when": "editorTextFocus",
           "group": "mmx@6"
+        },
+        {
+          "command": "mmx.alignSelection",
+          "when": "editorHasSelection",
+          "group": "mmx@7"
         }
       ],
       "commandPalette": [

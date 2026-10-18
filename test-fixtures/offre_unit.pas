@@ -141,6 +141,7 @@ type
     PCOTD_SEQ            : String;
     QTGAM_QTE            : String;
     QTGAM_PV_REF         : String;
+    toto                 : string;
   end;
 
   TOFFPR_Infos = Record

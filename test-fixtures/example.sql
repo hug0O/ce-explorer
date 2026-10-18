@@ -1,3 +1,14 @@
+CREATE OR REPLACE PACKAGE PKG_ORDER IS
+
+
+  PROCEDURE process_order(p_order_id IN NUMBER);
+
+  FUNCTION get_status(p_order_id IN NUMBER) RETURN VARCHAR2;
+
+  PROCEDURE reset_total;
+
+END PKG_ORDER;
+
 CREATE OR REPLACE PACKAGE BODY PKG_ORDER IS
 
   g_total   NUMBER;
@@ -17,6 +28,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_ORDER IS
   BEGIN
     l_result := 'PROCESSED';
     RETURN l_result;
+  END;
+
+  PROCEDURE reset_total IS
+  BEGIN
+    g_total := 0;
   END;
 
 

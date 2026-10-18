@@ -107,7 +107,7 @@ export interface DeletePlan {
 }
 
 /** Range [start, end) of the handler implementation `procedure TForm.Name(...); ... end;` incl. a trailing blank line. */
-function handlerImplementation(pas: string, formClass: string, handler: string): { start: number; end: number; empty: boolean } | undefined {
+export function handlerImplementation(pas: string, formClass: string, handler: string): { start: number; end: number; empty: boolean } | undefined {
     const head = new RegExp('^[ \\t]*procedure\\s+' + escapeRe(formClass) + '\\.' + escapeRe(handler) + '\\b[^\\n]*\\n', 'im').exec(pas);
     if (!head) { return undefined; }
     const bodyStart = head.index + head[0].length;

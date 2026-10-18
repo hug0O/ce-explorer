@@ -323,3 +323,68 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
 
     return { edits, handler: method ? `${form.name}.${method}` : undefined };
 }
+
+export interface InsertionPoints {
+    formName: string;
+    /** Where new component fields go (after the last IDE-managed field). */
+    fieldAt: number;
+    /** Where new handler declarations go (after the last handler of the IDE-managed section). */
+    procAt: number;
+    /** Where new handler implementations go (before initialization / end.). */
+    implAt: number;
+    eol: string;
+}
+
+/** Offsets of a form unit where fields, handler declarations and handler bodies are inserted. */
+export function unitInsertionPoints(pas: string, formClass: string): InsertionPoints | undefined {
+    const eol = pas.includes('\r\n') ? '\r\n' : '\n';
+    const lines = pas.split(/\r?\n/);
+    const offs = lineOffsets(pas);
+    const form = findFormClass(pas, formClass);
+    if (!form) { return undefined; }
+    let endLine = -1;
+    for (let i = form.startLine + 1; i < lines.length; i++) {
+        if (/^\s*end\s*;/i.test(lines[i])) { endLine = i; break; }
+    }
+    if (endLine < 0) { return undefined; }
+    let sectionEnd = endLine;
+    for (let i = form.startLine + 1; i < endLine; i++) {
+        if (/^\s*(strict\s+)?(private|protected|public|published)\b/i.test(lines[i])) { sectionEnd = i; break; }
+    }
+    let lastField = -1;
+    let lastProc = -1;
+    for (let i = form.startLine + 1; i < sectionEnd; i++) {
+        if (/^\s*\w+\s*:\s*[\w.]+\s*;/.test(lines[i])) { lastField = i; }
+        if (/^\s*procedure\s+\w+\s*\(.*\)\s*;/i.test(lines[i])) { lastProc = i; }
+    }
+    let implLine = lines.findIndex(l => /^\s*(initialization|finalization)\b/i.test(l));
+    if (implLine < 0) {
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (/^\s*end\.\s*$/i.test(lines[i])) { implLine = i; break; }
+        }
+    }
+    return {
+        formName: form.name,
+        fieldAt: offs[lastField >= 0 ? lastField + 1 : form.startLine + 1],
+        procAt: offs[lastProc >= 0 ? lastProc + 1 : sectionEnd],
+        implAt: implLine >= 0 ? offs[implLine] : pas.length,
+        eol,
+    };
+}
+
+/** Edits adding the given units to the interface `uses` (VCL units get the Vcl. scope when the unit already uses it). */
+export function usesEdits(pas: string, units: string[]): TextEdit[] {
+    const implementationAt = pas.search(/^\s*implementation\b/im);
+    const head = implementationAt >= 0 ? pas.slice(0, implementationAt) : pas;
+    const uses = head.match(/\buses\b([^;]*);/i);
+    if (!uses || uses.index === undefined) { return []; }
+    const dotted = /\bVcl\./i.test(uses[1]) || !/\bForms\b/i.test(uses[1]);
+    const add: string[] = [];
+    for (const unit of new Set(units.filter(Boolean))) {
+        const present = new RegExp('\\b(?:Vcl\\.)?' + unit.replace(/\./g, '\\.') + '\\b', 'i').test(uses[1]);
+        if (!present) { add.push((dotted && VCL_UNITS.has(unit.toLowerCase()) ? 'Vcl.' : '') + unit); }
+    }
+    if (add.length === 0) { return []; }
+    const semicolon = uses.index + uses[0].length - 1;
+    return [{ offset: pas.slice(0, semicolon).replace(/\s+$/, '').length, text: add.map(u => ', ' + u).join('') }];
+}

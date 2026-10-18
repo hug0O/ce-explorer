@@ -26,6 +26,7 @@ import { VariableRefactorService } from './services/VariableRefactorService';
 import { WorkspaceIndex } from './services/WorkspaceIndex';
 import { setFormStorage } from './services/FormLibrary';
 import * as plsql from './services/PlSqlCommands';
+import * as delphi from './services/DelphiCommands';
 import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
@@ -60,6 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ops.setWorkspaceIndex(workspaceIndex);
         setFormStorage(context.globalState);
         plsql.setPlSqlContext(providerRegistry, workspaceIndex);
+        delphi.setDelphiContext(providerRegistry);
 
         templateService = new TemplateService(context);
         await templateService.load();
@@ -473,6 +475,17 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
+        vscode.commands.registerCommand('mmx.delphi.align', delphi.alignComponentsCommand),
+        vscode.commands.registerCommand('mmx.delphi.anchors', delphi.anchorsCommand),
+        vscode.commands.registerCommand('mmx.delphi.tabOrder', delphi.tabOrderCommand),
+        vscode.commands.registerCommand('mmx.delphi.check', () => delphi.checkFormCommand()),
+        vscode.commands.registerCommand('mmx.delphi.cleanHandlers', delphi.cleanHandlersCommand),
+        vscode.commands.registerCommand('mmx.delphi.copy', delphi.copyCommand),
+        vscode.commands.registerCommand('mmx.delphi.paste', delphi.pasteCommand),
+        vscode.commands.registerCommand('mmx.delphi.duplicate', delphi.duplicateCommand),
+        vscode.commands.registerCommand('mmx.delphi.formFromFields', delphi.formFromFieldsCommand),
+        vscode.commands.registerCommand('mmx.delphi.formFromClass', delphi.formFromClassCommand),
+        vscode.commands.registerCommand('mmx.delphi.changeClass', delphi.changeClassCommand),
         vscode.commands.registerCommand('mmx.plsql.syncPackage', plsql.syncPackage),
         vscode.commands.registerCommand('mmx.plsql.newPackage', plsql.newPackage),
         vscode.commands.registerCommand('mmx.plsql.crudFromTable', plsql.crudFromTable),
@@ -533,6 +546,19 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'mmx.generateGettersSetters' },
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
+                ...(/\.(pas|dfm)$/i.test(activeDoc?.uri.fsPath ?? '') ? [
+                    { label: '$(layout) Delphi: Align Components…', description: '', cmd: 'mmx.delphi.align' },
+                    { label: '$(pin) Delphi: Anchors / Docking…', description: '', cmd: 'mmx.delphi.anchors' },
+                    { label: '$(list-ordered) Delphi: TabOrder by Position…', description: '', cmd: 'mmx.delphi.tabOrder' },
+                    { label: '$(checklist) Delphi: Check Form', description: '', cmd: 'mmx.delphi.check' },
+                    { label: '$(trash) Delphi: Clean Handlers', description: '', cmd: 'mmx.delphi.cleanHandlers' },
+                    { label: '$(copy) Delphi: Copy Components…', description: '', cmd: 'mmx.delphi.copy' },
+                    { label: '$(clippy) Delphi: Paste Components…', description: '', cmd: 'mmx.delphi.paste' },
+                    { label: '$(files) Delphi: Duplicate Components…', description: '', cmd: 'mmx.delphi.duplicate' },
+                    { label: '$(symbol-field) Delphi: Form from Fields…', description: '', cmd: 'mmx.delphi.formFromFields' },
+                    { label: '$(symbol-class) Delphi: Form from a Class…', description: '', cmd: 'mmx.delphi.formFromClass' },
+                    { label: '$(replace) Delphi: Change Component Class…', description: '', cmd: 'mmx.delphi.changeClass' },
+                ] : []),
                 ...(activeProv?.languageId === 'plsql' ? [
                     { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'mmx.plsql.syncPackage' },
                     { label: '$(package) PL/SQL: New Package…', description: '', cmd: 'mmx.plsql.newPackage' },

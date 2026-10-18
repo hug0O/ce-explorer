@@ -70,6 +70,19 @@ export const PLSQL_COMMANDS = [
     'mmx.plsql.syncPackage', 'mmx.plsql.newPackage', 'mmx.plsql.crudFromTable', 'mmx.plsql.utplsql',
     'mmx.plsql.exceptionBlock', 'mmx.plsql.extractProcedure', 'mmx.plsql.docHeader', 'mmx.plsql.findCallers',
 ];
+export const DELPHI_COMMANDS = [
+    'mmx.delphi.align',
+    'mmx.delphi.anchors',
+    'mmx.delphi.tabOrder',
+    'mmx.delphi.check',
+    'mmx.delphi.cleanHandlers',
+    'mmx.delphi.copy',
+    'mmx.delphi.paste',
+    'mmx.delphi.duplicate',
+    'mmx.delphi.formFromFields',
+    'mmx.delphi.formFromClass',
+    'mmx.delphi.changeClass',
+];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -97,10 +110,32 @@ ${chip('params', 'Parameters', 'name | IN / OUT | type')}${chip('values', 'Decla
 `;
 }
 
-export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false): string {
+function delphiBlock(): string {
+    const btn = (cmd: string, label: string, title: string) => `<button class="ana" data-dl="${cmd}" title="${escapeAttr(title)}">${label}</button>`;
+    return `
+<div class="tools-block" id="dlBlock">
+<div class="section-title">Delphi layout &amp; checks</div>
+<div class="analyze-grid">
+${btn('mmx.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
+${btn('mmx.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}
+${btn('mmx.delphi.tabOrder', '🔢 TabOrder by position', 'Reading order on screen')}
+${btn('mmx.delphi.copy', '📋 Copy components', 'With their handlers and code')}
+${btn('mmx.delphi.paste', '📥 Paste components', 'Into any container, renamed if needed')}
+${btn('mmx.delphi.duplicate', '🧬 Duplicate', 'Copy + paste next to the original')}
+${btn('mmx.delphi.formFromFields', '🧱 Form from fields', 'Label + input rows, aligned')}
+${btn('mmx.delphi.formFromClass', '🏷️ Form from a class', 'Fields of a class of the unit')}
+${btn('mmx.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit… keeping compatible properties')}
+${btn('mmx.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
+${btn('mmx.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
+</div>
+</div>
+`;
+}
+
+export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false): string {
     const chipsJson = escapeAttr(JSON.stringify(chipList));
     return `
-${plsql ? plsqlBlock() : ''}<div class="tools-block">
+${plsql ? plsqlBlock() : ''}${delphi ? delphiBlock() : ''}<div class="tools-block">
 <div class="section-title">Align selection</div>
 <div class="tool-row">
 <input id="alignToken" class="inp" value="${escapeAttr(alignToken)}" placeholder="text to align on, e.g. :=" spellcheck="false">
@@ -182,6 +217,9 @@ function initTools(api) {
     function $(id) { return document.getElementById(id); }
     document.querySelectorAll('[data-pl]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'plsql', cmd: b.getAttribute('data-pl') }); });
+    });
+    document.querySelectorAll('[data-dl]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'delphiCmd', cmd: b.getAttribute('data-dl') }); });
     });
     document.querySelectorAll('[data-pa]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'plsqlAlign', id: b.getAttribute('data-pa') }); });

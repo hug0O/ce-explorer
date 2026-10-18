@@ -179,3 +179,16 @@ Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the c
 | Align presets | Parameters (name \| mode \| type), declarations, `:=`, `=>`, `--`, `AS` |
 
 Setting `mmx.plsql.author` is written in generated headers. Nothing connects to a database: everything works on the source text.
+
+### Delphi layout & checks (Tools → "Delphi layout & checks", and `CE Delphi: …` in the palette)
+
+| Command | What it does |
+|---------|--------------|
+| Align components | The IDE's Align / Size / Space: left, right, top, bottom edges, centres, same width / height / size, equal horizontal / vertical spacing (first and last stay in place) |
+| Anchors / docking | *Anchors from current position* (near the right / bottom edge → anchored there, spanning → stretched), presets (top-right, bottom-left, stretch…), `alClient` / `alTop` / … / undock |
+| TabOrder by position | Reading order on screen (rows, then left to right), per container or for the whole form |
+| Copy / Paste / Duplicate | Components with their children, event handlers **and their code**, across forms: renamed on clashes (`btnOk` → `btnOk1`, handler included), shifted, units added to `uses` |
+| Form from fields / from a class | `Nom:string, Age:integer, Actif:boolean, Date:date, Notes:memo` → label / input rows in aligned columns (edt / chk / dtp / mem / cbo naming), the container grows if needed; "from a class" proposes the fields of a class of the unit |
+| Change class | `TEdit` → `TcxTextEdit`, `TButton` → `TBitBtn`…: keeps compatible properties and events, lists what is dropped, updates the field and `uses` |
+| Check form | `.dfm` ⇄ `.pas`: event link to a missing method (the form would not load), field without component (nil at runtime), wrong field type, duplicate names / TabOrder, controls beyond their container, overlaps, empty or orphan handlers — with one-click fixes and an "apply the safe fixes" action |
+| Clean handlers | The "Handlers" findings of the check only |

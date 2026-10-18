@@ -154,3 +154,16 @@ test('Tools tab shows the PL/SQL block only for PL/SQL documents', () => {
     for (const id of ['params', 'values', 'assign', 'arrow', 'comment', 'alias']) { assert.ok(html.includes(`data-pa="${id}"`), id); }
     assert.match(html, /command: 'plsqlAlign'/);
 });
+
+test('Tools tab shows the Delphi layout block only for Delphi units', () => {
+    const panel = makePanel();
+    panel._tab = 'tools';
+    assert.doesNotMatch(panel.getHtml(), /id="dlBlock"/);
+    panel.isDelphi = () => true;
+    const html: string = panel.getHtml();
+    assert.match(html, /id="dlBlock"/);
+    for (const c of ['align', 'anchors', 'tabOrder', 'copy', 'paste', 'duplicate', 'formFromFields', 'formFromClass', 'changeClass', 'check', 'cleanHandlers']) {
+        assert.ok(html.includes(`data-dl="mmx.delphi.${c}"`), c);
+    }
+    assert.match(html, /command: 'delphiCmd'/);
+});

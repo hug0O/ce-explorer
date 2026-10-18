@@ -296,6 +296,50 @@
       {
         "command": "mmx.plsql.alignPreset",
         "title": "CE PL/SQL: Align Selection (preset)"
+      },
+      {
+        "command": "mmx.delphi.align",
+        "title": "CE Delphi: Align / Size / Space Components..."
+      },
+      {
+        "command": "mmx.delphi.anchors",
+        "title": "CE Delphi: Anchors / Docking..."
+      },
+      {
+        "command": "mmx.delphi.tabOrder",
+        "title": "CE Delphi: TabOrder by Screen Position..."
+      },
+      {
+        "command": "mmx.delphi.check",
+        "title": "CE Delphi: Check Form (.dfm vs .pas)"
+      },
+      {
+        "command": "mmx.delphi.cleanHandlers",
+        "title": "CE Delphi: Clean Event Handlers"
+      },
+      {
+        "command": "mmx.delphi.copy",
+        "title": "CE Delphi: Copy Components..."
+      },
+      {
+        "command": "mmx.delphi.paste",
+        "title": "CE Delphi: Paste Components..."
+      },
+      {
+        "command": "mmx.delphi.duplicate",
+        "title": "CE Delphi: Duplicate Components..."
+      },
+      {
+        "command": "mmx.delphi.formFromFields",
+        "title": "CE Delphi: Form from Fields..."
+      },
+      {
+        "command": "mmx.delphi.formFromClass",
+        "title": "CE Delphi: Form from a Class..."
+      },
+      {
+        "command": "mmx.delphi.changeClass",
+        "title": "CE Delphi: Change Component Class..."
       }
     ],
     "menus": {

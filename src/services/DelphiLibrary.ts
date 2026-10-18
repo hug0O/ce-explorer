@@ -7,7 +7,7 @@
  * 3. the unit remembered from a previous use,
  * on top of the VCL catalog / a generic control.
  */
-import { ComponentDef, EventDef, eventDefFor, resolveComponentDef } from './DelphiForm';
+import { ComponentDef, EVENT_PROP_RE, EventDef, eventDefFor, resolveComponentDef } from './DelphiForm';
 import { parseDfmTree, DfmNode } from './DelphiLayout';
 
 export interface CustomComponent {
@@ -36,7 +36,7 @@ export function parseCustomComponents(raw: unknown): CustomComponent[] {
             width: num(o.width),
             height: num(o.height),
             namePrefix: typeof o.namePrefix === 'string' && /^[A-Za-z_]\w*$/.test(o.namePrefix) ? o.namePrefix : undefined,
-            events: Array.isArray(o.events) ? o.events.filter((e): e is string => typeof e === 'string' && /^On[A-Z]\w*$/.test(e)) : undefined,
+            events: Array.isArray(o.events) ? o.events.filter((e): e is string => typeof e === 'string' && EVENT_PROP_RE.test(e)) : undefined,
             props: Array.isArray(o.props) ? o.props.filter((p): p is string => typeof p === 'string' && /^[A-Za-z_][\w.]*\s*=/.test(p)) : undefined,
             tabOrder: typeof o.tabOrder === 'boolean' ? o.tabOrder : undefined,
         });
@@ -73,7 +73,7 @@ export function learnFromDfmTexts(className: string, texts: string[]): LearnedCo
             if (n.depth === 0 || n.className.toLowerCase() !== className.toLowerCase()) { return; }
             instances++;
             if (width === undefined && n.width !== undefined && n.height !== undefined) { width = n.width; height = n.height; }
-            Object.keys(n.props).filter(k => /^On[A-Z]\w*$/.test(k)).forEach(k => events.add(k));
+            Object.keys(n.props).filter(k => EVENT_PROP_RE.test(k)).forEach(k => events.add(k));
             if (n.props['Caption'] !== undefined) { caption = true; }
             if (n.props['TabOrder'] !== undefined) { tab = true; }
         });

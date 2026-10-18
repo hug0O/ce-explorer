@@ -192,3 +192,15 @@ Setting `mmx.plsql.author` is written in generated headers. Nothing connects to 
 | Change class | `TEdit` → `TcxTextEdit`, `TButton` → `TBitBtn`…: keeps compatible properties and events, lists what is dropped, updates the field and `uses` |
 | Check form | `.dfm` ⇄ `.pas`: event link to a missing method (the form would not load), field without component (nil at runtime), wrong field type, duplicate names / TabOrder, controls beyond their container, overlaps, empty or orphan handlers — with one-click fixes and an "apply the safe fixes" action |
 | Clean handlers | The "Handlers" findings of the check only |
+
+### Visual form designer (Delphi) — `CE Delphi: Open Form Designer`, the 🎨 button of Tools, or the icon in the title bar of a `.pas` / `.dfm`
+
+The text `.dfm` drawn as a form, next to the code. The VCL docking rules are applied (`alTop`, `alBottom`, `alLeft`, `alRight`, `alClient`, panels' bevels, page controls, splitters), so what you see is the layout Delphi would give.
+
+- **Select** (click, Shift+click, drag a rectangle, outline list), **move** (drag, arrow keys, snapped to a grid), **resize** (handles; docked controls only expose the handle of their docking side), **drag into another container** (panel, group box, page…), **Delete**.
+- **Palette**: VCL, **DevExpress** and **TMS** components with a filter, or any class by name (`Other class…`). Click for the default size, or draw the rectangle. Fields and `uses` (including the units the IDE adds for DevExpress / TMS) go into the `.pas`.
+- **Inspector**: name (renames the field and its handlers too), position, size, caption / text (written the Delphi way, accents as `#233`), `Align`, `Anchors`, `TabOrder`, visibility, events. **Double-click** a component to create / open its default handler.
+- **Align** menu (edges, centres, same size, equal spacing), zoom, grid, component names, undo / redo of the designer's own actions.
+- **Two-way**: edits made in the text editor redraw the form at once, and putting the cursor on an `object` in the `.dfm` selects it in the designer.
+- **Third-party components**: DevExpress (`Tcx…`, `Tdx…`) and TMS (`TAdv…`, `TTMSFNC…`) are drawn with a family look, their editors, radio groups, page controls (`TcxPageControl`, `TAdvOfficePager`), grids and non-visual controllers included; nested events such as `Properties.OnChange` are supported.
+- **Classes it does not know are never altered.** They are drawn as a labelled placeholder (`?`), the rest of the form is unaffected if one of them cannot be drawn, and every action is checked before it is applied: if it would change anything other than what you asked for in the `.dfm`, it is **refused** and nothing is modified.

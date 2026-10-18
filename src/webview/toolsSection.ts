@@ -71,6 +71,7 @@ export const PLSQL_COMMANDS = [
     'mmx.plsql.exceptionBlock', 'mmx.plsql.extractProcedure', 'mmx.plsql.docHeader', 'mmx.plsql.findCallers',
 ];
 export const DELPHI_COMMANDS = [
+    'mmx.delphi.designer',
     'mmx.delphi.align',
     'mmx.delphi.anchors',
     'mmx.delphi.tabOrder',
@@ -115,6 +116,7 @@ function delphiBlock(): string {
     return `
 <div class="tools-block" id="dlBlock">
 <div class="section-title">Delphi layout &amp; checks</div>
+<button class="ana" data-dl="mmx.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components" style="margin-bottom:6px;font-weight:600">🎨 Open the visual form designer</button>
 <div class="analyze-grid">
 ${btn('mmx.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
 ${btn('mmx.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}

@@ -27,6 +27,7 @@ import { WorkspaceIndex } from './services/WorkspaceIndex';
 import { setFormStorage } from './services/FormLibrary';
 import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
+import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
@@ -475,6 +476,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
+        vscode.commands.registerCommand('mmx.delphi.designer', () => FormDesignerPanel.createOrShow(vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('mmx.delphi.align', delphi.alignComponentsCommand),
         vscode.commands.registerCommand('mmx.delphi.anchors', delphi.anchorsCommand),
         vscode.commands.registerCommand('mmx.delphi.tabOrder', delphi.tabOrderCommand),
@@ -547,6 +549,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
                 ...(/\.(pas|dfm)$/i.test(activeDoc?.uri.fsPath ?? '') ? [
+                    { label: '$(symbol-misc) Delphi: Open Form Designer', description: 'visual', cmd: 'mmx.delphi.designer' },
                     { label: '$(layout) Delphi: Align Components…', description: '', cmd: 'mmx.delphi.align' },
                     { label: '$(pin) Delphi: Anchors / Docking…', description: '', cmd: 'mmx.delphi.anchors' },
                     { label: '$(list-ordered) Delphi: TabOrder by Position…', description: '', cmd: 'mmx.delphi.tabOrder' },

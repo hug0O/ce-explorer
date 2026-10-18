@@ -224,7 +224,8 @@ export function planChangeClass(pas: string, dfm: string, name: string, newClass
 
     const lines = dfm.split('\n');
     const starts = lineStartOffsets(dfm);
-    const known = (c: string): boolean => !!SPECIFIC[c.toLowerCase()] || COMPONENTS.some(k => k.className.toLowerCase() === c.toLowerCase());
+    // Only classes with a property table are verified; third-party families (DevExpress, TMS…) are kept as they are.
+    const known = (c: string): boolean => !!SPECIFIC[c.toLowerCase()];
     const unchecked = !known(newClass) || !known(node.className);
     const edits: TextEdit[] = [];
     const droppedProps: string[] = [];
@@ -238,7 +239,7 @@ export function planChangeClass(pas: string, dfm: string, name: string, newClass
     if (!unchecked) {
         const events = KNOWN_EVENTS.get(newClass.toLowerCase());
         for (const [prop, line] of Object.entries(node.propLines)) {
-            const isEvent = /^On[A-Z]/.test(prop);
+            const isEvent = /^(?:[A-Za-z]\w*\.)?On[A-Z]/.test(prop);
             const keep = isEvent ? (events ? events.has(prop) : true) : propAllowed(prop, newClass);
             if (keep) { continue; }
             const end = propBlockEnd(lines, line);

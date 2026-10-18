@@ -340,6 +340,11 @@
       {
         "command": "mmx.delphi.changeClass",
         "title": "CE Delphi: Change Component Class..."
+      },
+      {
+        "command": "mmx.delphi.designer",
+        "title": "CE Delphi: Open Form Designer",
+        "icon": "$(symbol-misc)"
       }
     ],
     "menus": {
@@ -510,6 +515,13 @@
         {
           "command": "mmx.plsql.alignPreset",
           "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mmx.delphi.designer",
+          "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
+          "group": "navigation"
         }
       ]
     },

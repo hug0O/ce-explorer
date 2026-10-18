@@ -4,7 +4,7 @@
  * `<Component><Event>` handlers); deleting one removes the object, its
  * children and the handlers nobody uses any more.
  */
-import { TextEdit } from './DelphiForm';
+import { EVENT_PROP_RE, TextEdit } from './DelphiForm';
 import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
 
 export interface RenamePlan {
@@ -49,7 +49,7 @@ function allNodes(root: DfmNode): DfmNode[] {
 /** Event links (OnXxx = Handler) of a node. */
 function eventLinks(node: DfmNode): { event: string; handler: string; line: number }[] {
     return Object.entries(node.props)
-        .filter(([k, v]) => /^On[A-Z]\w*$/.test(k) && /^[A-Za-z_]\w*$/.test(v))
+        .filter(([k, v]) => EVENT_PROP_RE.test(k) && /^[A-Za-z_]\w*$/.test(v))
         .map(([k, v]) => ({ event: k, handler: v, line: node.propLines[k] }));
 }
 

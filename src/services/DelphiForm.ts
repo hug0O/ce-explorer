@@ -6,6 +6,7 @@
  * Everything here works on plain text and returns offset-based edits, so it is
  * unit-testable without VS Code.
  */
+import { THIRD_PARTY } from './DelphiThirdParty';
 
 export interface TextEdit {
     /** Offset in the original text where `text` is inserted. */
@@ -27,6 +28,8 @@ export interface ComponentDef {
     namePrefix: string;
     /** Unit (without Vcl. prefix) that declares the class. */
     unit: string;
+    /** Further units the IDE adds to `uses` when dropping the component (third-party families need several). */
+    extraUnits?: string[];
     /** Visual size; undefined for non-visual components (TTimer). */
     width?: number;
     height?: number;
@@ -45,7 +48,7 @@ const KEY_EVENTS = [
     ev('OnKeyDown', `${SENDER}; var Key: Word; Shift: TShiftState`),
 ];
 
-export const COMPONENTS: ComponentDef[] = [
+const VCL_COMPONENTS: ComponentDef[] = [
     { className: 'TButton', namePrefix: 'Button', unit: 'StdCtrls', width: 75, height: 25, props: ["Caption = '%NAME%'"], tabOrder: true,
         events: [ev('OnClick'), ev('OnEnter'), ev('OnExit'), ...KEY_EVENTS] },
     { className: 'TEdit', namePrefix: 'Edit', unit: 'StdCtrls', width: 121, height: 21, props: ["Text = '%NAME%'"], tabOrder: true,
@@ -90,6 +93,9 @@ export const COMPONENTS: ComponentDef[] = [
     { className: 'TMaskEdit', namePrefix: 'MaskEdit', unit: 'Mask', width: 121, height: 21, props: ["Text = ''"], tabOrder: true, events: [ev('OnChange')] },
     { className: 'TScrollBox', namePrefix: 'ScrollBox', unit: 'Forms', width: 185, height: 105, props: [], tabOrder: true, events: [ev('OnResize')] },
 ];
+
+/** The built-in catalog: the VCL, then DevExpress and TMS. */
+export const COMPONENTS: ComponentDef[] = [...VCL_COMPONENTS, ...THIRD_PARTY];
 
 /** Parameter lists of the usual VCL events; anything else defaults to `Sender: TObject`. */
 export const EVENT_PARAMS: Record<string, string> = {
@@ -149,8 +155,12 @@ export function isValidIdentifier(name: string): boolean {
     return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
+/** An event property: `OnClick`, or a nested one such as DevExpress `Properties.OnChange`. */
+export const EVENT_PROP_RE = /^(?:[A-Za-z]\w*\.)?On[A-Z]\w*$/;
+
+/** `Button1` + `OnClick` → `Button1Click`; `cxTextEdit1` + `Properties.OnChange` → `cxTextEdit1PropertiesChange`. */
 export function handlerName(componentName: string, eventName: string): string {
-    return componentName + eventName.replace(/^On/, '');
+    return componentName + eventName.replace(/\.On/, '.').replace(/^On/, '').replace(/\./g, '');
 }
 
 export interface DfmRoot {
@@ -310,15 +320,8 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     const head = implementationAt >= 0 ? pas.slice(0, implementationAt) : pas;
     const uses = head.match(/\buses\b([^;]*);/i);
     if (uses && uses.index !== undefined && opt.def.unit) {
-        const dotted = /\bVcl\./i.test(uses[1]) || !/\bForms\b/i.test(uses[1]);
-        // Only the VCL's own units take the Vcl. scope; third-party units keep their name.
-        const unitName = (dotted && VCL_UNITS.has(opt.def.unit.toLowerCase()) ? 'Vcl.' : '') + opt.def.unit;
-        const present = new RegExp('\\b(?:Vcl\\.)?' + opt.def.unit.replace(/\./g, '\\.') + '\\b', 'i').test(uses[1]);
-        if (!present) {
-            const semicolon = uses.index + uses[0].length - 1;
-            const before = pas.slice(0, semicolon).replace(/\s+$/, '');
-            edits.push({ offset: before.length, text: `, ${unitName}` });
-        }
+        // The class's own unit plus the ones the IDE would add; only VCL units take the Vcl. scope.
+        edits.push(...usesEdits(pas, [opt.def.unit, ...(opt.def.extraUnits ?? [])]));
     }
 
     return { edits, handler: method ? `${form.name}.${method}` : undefined };

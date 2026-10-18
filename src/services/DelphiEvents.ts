@@ -4,7 +4,7 @@
  * declaration and empty implementation in the .pas unit.
  */
 import {
-    COMPONENTS, TextEdit, buildUnitEdits, eventDefFor, handlerName, resolveComponentDef,
+    COMPONENTS, EVENT_PROP_RE, TextEdit, buildUnitEdits, eventDefFor, handlerName, resolveComponentDef,
 } from './DelphiForm';
 import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
 
@@ -38,7 +38,7 @@ export function eventsForClass(className: string, isForm = false): string[] {
 export function wiredEvents(node: DfmNode): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(node.props)) {
-        if (/^On[A-Z]\w*$/.test(k)) { out[k] = v; }
+        if (EVENT_PROP_RE.test(k)) { out[k] = v; }
     }
     return out;
 }
@@ -58,7 +58,7 @@ export function planAddEvent(pas: string, dfm: string, req: AddEventRequest): Ad
     if (!root) { return { error: 'This .dfm is not in text format.' }; }
     const node = findNode(root, req.componentName);
     if (!node) { return { error: `Component "${req.componentName}" not found in the .dfm.` }; }
-    if (!/^On[A-Z]\w*$/.test(req.eventName)) { return { error: `"${req.eventName}" is not an event name (expected OnXxx).` } }
+    if (!EVENT_PROP_RE.test(req.eventName)) { return { error: `"${req.eventName}" is not an event name (expected OnXxx).` } }
     if (req.methodName && !/^[A-Za-z_]\w*$/.test(req.methodName)) { return { error: `"${req.methodName}" is not a valid method name.` }; }
 
     const event = eventDefFor(req.eventName);

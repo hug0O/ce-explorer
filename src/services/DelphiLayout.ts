@@ -29,10 +29,12 @@ export interface DfmNode {
 }
 
 // Standard and third-party containers (TcxGroupBox, TAdvPanel, TRzPanel, TJvPageControl, TsPanel…).
-const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Box|Pnl|Pane|Group|Container|Page|Sheet)$/i;
+const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Pnl|Pane|Group|Container|Page|Sheet|Pager|LayoutControl|LayoutGroup|Ribbon|RibbonTab|NavBar)$/i;
+// Names that end like a container but hold items, not child controls.
+const NOT_CONTAINER_RE = /(RadioGroup|CheckGroup|ButtonGroup|CheckBox|ComboBox|ListBox|CheckListBox)$/i;
 
 export function isContainer(node: DfmNode): boolean {
-    return node.depth === 0 || node.children.length > 0 || CONTAINER_RE.test(node.className);
+    return node.depth === 0 || node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));
 }
 
 /** Parses the component hierarchy of a text DFM. Returns the form (root) node, or undefined. */
@@ -222,6 +224,8 @@ export interface AddComponentRequest {
     def?: ComponentDef;
     /** The field is already declared in the unit (added by hand): only wire the .dfm and the handler. */
     fieldExists?: boolean;
+    /** Exact position inside the container (the designer's drop point); overrides the relative placement. */
+    position?: { left: number; top: number };
 }
 
 export type AddComponentPlan =
@@ -260,7 +264,7 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
 
     // A reference in another container: position relative to it inside ITS container.
     const container = ref && ref.parent && ref.parent !== parent && !req.parentName ? ref.parent : parent;
-    const place = computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side, req.gap ?? MARGIN);
+    const place = req.position ? { left: req.position.left, top: req.position.top } : computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side, req.gap ?? MARGIN);
 
     const unit = buildUnitEdits(pas, { formClass: root.className, componentName: req.name, def, event, skipField: req.fieldExists });
     if (!unit) { return { error: `Could not find the form class ${root.className} in the unit.` }; }

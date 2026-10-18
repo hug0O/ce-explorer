@@ -34,7 +34,6 @@ class Vehicle:
     def from_dict(cls, data):
         return cls(data["brand"], data["model"], data["year"])
 
-
 class ElectricVehicle(Vehicle):
     def __init__(self, brand, model, year, battery_kwh):
         super().__init__(brand, model, year)

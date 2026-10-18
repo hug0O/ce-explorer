@@ -42,7 +42,7 @@ export function registerSafePreview(context: vscode.ExtensionContext): void {
 }
 
 function previewEnabled(): boolean {
-    return vscode.workspace.getConfiguration('mmx').get<boolean>('previewEdits', true);
+    return vscode.workspace.getConfiguration('mmx').get<boolean>('previewEdits', false);
 }
 
 /**

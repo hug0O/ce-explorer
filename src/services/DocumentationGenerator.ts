@@ -2,7 +2,12 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
 
-function generateMarkdown(parsed: import('../models/types').ParsedDocument, fileName: string): string {
+/**
+ * Pure generator: produces a Markdown documentation string from a parsed
+ * document. Decoupled from any VS Code UI so it can be reused both by
+ * `generateDocumentation` (command palette) and by the inline analytics view.
+ */
+export function generateMarkdown(parsed: import('../models/types').ParsedDocument, fileName: string): string {
     const lines: string[] = [];
     lines.push(`# API Documentation — ${fileName}`);
     lines.push('');

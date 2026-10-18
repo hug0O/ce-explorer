@@ -1,8 +1,13 @@
 import * as vscode from 'vscode';
-import { ProviderRegistry } from '../providers/ProviderRegistry';
+import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
 
-interface DeadCodeItem {
+/** Minimal registry contract required by collectDeadCode. */
+export interface DeadCodeRegistry {
+    getByDocument(doc: vscode.TextDocument): ILanguageProvider | undefined;
+}
+
+export interface DeadCodeItem {
     kind: 'method' | 'class' | 'import';
     name: string;
     file: string;
@@ -10,24 +15,37 @@ interface DeadCodeItem {
     className?: string;
 }
 
-export async function detectDeadCode(registry: ProviderRegistry): Promise<void> {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
-
-    const provider = registry.getByDocument(editor.document);
-    if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }
-
-    vscode.window.showInformationMessage('Scanning workspace for dead code...');
-
-    const extensions = provider.fileExtensions.map(e => e.substring(1));
+/**
+ * Workspace scan: collects all potentially unused methods/classes across the
+ * workspace. Decoupled from any VS Code UI so it can be reused by the inline
+ * analytics view.
+ *
+ * Cost is LINEAR in the workspace size: every file is read, parsed and
+ * tokenized exactly once, and usage counting is a single identifier-frequency
+ * table. (The previous implementation ran `combinedText.split(name)` once PER
+ * candidate name — one full-workspace scan plus a huge allocation per method,
+ * which froze the machine on real projects.)
+ */
+export async function collectDeadCode(
+    registry: DeadCodeRegistry,
+    extensions: string[],
+    onProgress?: (done: number, total: number, fileName: string) => void
+): Promise<DeadCodeItem[]> {
     const pattern = `**/*.{${extensions.join(',')}}`;
     const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**');
 
     const allMethodNames = new Map<string, { file: string; line: number; className?: string }>();
     const allClassNames = new Map<string, { file: string; line: number }>();
-    const allTexts: string[] = [];
+    const identifierCounts = new Map<string, number>();
+    const identRe = /[A-Za-z_][A-Za-z0-9_]*/g;
 
+    let done = 0;
     for (const fileUri of files) {
+        done++;
+        const fileName = fileUri.fsPath.split(/[/\\]/).pop() ?? '';
+        if (onProgress && (done % 10 === 0 || done === files.length)) {
+            onProgress(done, files.length, fileName);
+        }
         try {
             const doc = await vscode.workspace.openTextDocument(fileUri);
             const prov = registry.getByDocument(doc);
@@ -35,57 +53,39 @@ export async function detectDeadCode(registry: ProviderRegistry): Promise<void> 
 
             const parsed = prov.parseDocument(doc);
             const text = doc.getText();
-            allTexts.push(text);
+
+            let m: RegExpExecArray | null;
+            identRe.lastIndex = 0;
+            while ((m = identRe.exec(text)) !== null) {
+                identifierCounts.set(m[0], (identifierCounts.get(m[0]) ?? 0) + 1);
+            }
 
             for (const cls of parsed.classes) {
                 allClassNames.set(cls.name, { file: fileUri.fsPath, line: cls.range.start.line });
-                for (const m of cls.members) {
-                    if (m.kind === MemberKind.Method || m.kind === MemberKind.Constructor) {
-                        allMethodNames.set(`${cls.name}::${m.name}`, { file: fileUri.fsPath, line: m.range.start.line, className: cls.name });
+                for (const mem of cls.members) {
+                    if (mem.kind === MemberKind.Method || mem.kind === MemberKind.Constructor) {
+                        allMethodNames.set(`${cls.name}::${mem.name}`, { file: fileUri.fsPath, line: mem.range.start.line, className: cls.name });
                     }
                 }
             }
         } catch { /* skip unreadable files */ }
     }
 
-    const combinedText = allTexts.join('\n');
     const deadCode: DeadCodeItem[] = [];
 
     for (const [key, info] of allMethodNames) {
         const methodName = key.split('::')[1];
-        const occurrences = combinedText.split(methodName).length - 1;
-        if (occurrences <= 1) {
+        // One identifier occurrence = its own declaration only -> unused.
+        if ((identifierCounts.get(methodName) ?? 0) <= 1) {
             deadCode.push({ kind: 'method', name: methodName, file: info.file, line: info.line, className: info.className });
         }
     }
 
     for (const [name, info] of allClassNames) {
-        const occurrences = combinedText.split(name).length - 1;
-        if (occurrences <= 1) {
+        if ((identifierCounts.get(name) ?? 0) <= 1) {
             deadCode.push({ kind: 'class', name, file: info.file, line: info.line });
         }
     }
 
-    if (deadCode.length === 0) {
-        vscode.window.showInformationMessage('No dead code detected');
-        return;
-    }
-
-    const items = deadCode.map(d => ({
-        label: `${d.kind === 'method' ? '$(symbol-method)' : '$(symbol-class)'} ${d.name}`,
-        description: d.file.split(/[/\\]/).pop(),
-        item: d,
-    }));
-
-    const picked = await vscode.window.showQuickPick(items, {
-        placeHolder: `${deadCode.length} potentially unused item(s) found`,
-    });
-
-    if (picked) {
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(picked.item.file));
-        const editor2 = await vscode.window.showTextDocument(doc);
-        const pos = new vscode.Position(picked.item.line, 0);
-        editor2.selection = new vscode.Selection(pos, pos);
-        editor2.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-    }
+    return deadCode;
 }

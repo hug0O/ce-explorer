@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
-import { ClassInfo, ClassMember, MemberKind, MemberSpec, FieldSpec, PropertySpec, GeneratedCode } from '../models/types';
+import { ClassInfo, ClassMember, MemberKind, MemberSpec, FieldSpec, PropertySpec, GeneratedCode, MemberFormResult } from '../models/types';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
-import { CodeGeneratorService } from '../services/CodeGeneratorService';
+import { CodeGeneratorService, expandToFullMember } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
-import { MemberEditorPanel } from '../webview/MemberEditorPanel';
-import { previewAndConfirm } from './SafePreview';
+import { EditPipeline } from './EditPipeline';
+import { memberFormToSpec, generateFromSpec } from './memberForm';
+import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
 
 let _log: vscode.OutputChannel | undefined;
 function getLog(): vscode.OutputChannel {
@@ -15,10 +16,46 @@ function getLog(): vscode.OutputChannel {
 }
 function mmxLog(msg: string): void {
     getLog().appendLine(msg);
-    console.log('[MMX] ' + msg);
 }
 export function setLogChannel(ch: vscode.OutputChannel): void {
     _log = ch;
+}
+
+/**
+ * Queue the inserts described by `gen` onto `pipeline` (original document
+ * coordinates), recording original texts for the preview. Split from
+ * applyGeneratedCode so composite operations (e.g. move member: delete from
+ * source + insert into destination) can queue everything into one pipeline
+ * and commit a single atomic WorkspaceEdit.
+ */
+export async function queueGeneratedCode(
+    doc: vscode.TextDocument,
+    provider: ILanguageProvider,
+    gen: GeneratedCode,
+    pipeline: EditPipeline
+): Promise<void> {
+    pipeline.recordOriginal(doc.uri, doc.getText());
+
+    if (gen.declaration) {
+        pipeline.insert(doc.uri, gen.declarationPosition, gen.declaration);
+    }
+
+    if (gen.extraDeclaration && gen.extraDeclarationPosition) {
+        pipeline.insert(doc.uri, gen.extraDeclarationPosition, gen.extraDeclaration);
+    }
+
+    if (gen.pairedFileImplementation) {
+        const pairedUri = provider.findPairedFile(doc.uri);
+        if (pairedUri) {
+            const pd = await vscode.workspace.openTextDocument(pairedUri);
+            pipeline.recordOriginal(pairedUri, pd.getText());
+            pipeline.insert(pairedUri, new vscode.Position(pd.lineCount, 0), '\n' + gen.pairedFileImplementation);
+        } else {
+            pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), '\n' + gen.pairedFileImplementation);
+        }
+    } else if (gen.implementation) {
+        pipeline.insert(doc.uri, gen.implementationPosition, gen.implementation);
+    }
 }
 
 export async function applyGeneratedCode(
@@ -26,102 +63,27 @@ export async function applyGeneratedCode(
     provider: ILanguageProvider,
     gen: GeneratedCode
 ): Promise<boolean> {
-    mmxLog('[applyGeneratedCode] doc=' + doc.fileName);
-    mmxLog('[applyGeneratedCode] declaration=' + (gen.declaration ? 'yes' : 'no') + ' at line ' + gen.declarationPosition.line);
-    mmxLog('[applyGeneratedCode] implementation=' + (gen.implementation ? 'yes' : 'no') + ' at line ' + gen.implementationPosition.line);
-    mmxLog('[applyGeneratedCode] pairedFileImplementation=' + (gen.pairedFileImplementation ? 'yes' : 'no'));
-
-    const wsEdit = new vscode.WorkspaceEdit();
-
-    // Planned edits grouped by URI so the Safe Preview can show an accurate
-    // diff before anything is applied. Each entry captures the exact insert
-    // that will later be queued on the WorkspaceEdit below.
-    interface PlannedEdit { uri: vscode.Uri; range: vscode.Range; newText: string; }
-    const plannedByUri = new Map<vscode.Uri, PlannedEdit[]>();
-    const plan = (uri: vscode.Uri, pos: vscode.Position, text: string) => {
-        const range = new vscode.Range(pos, pos);
-        const arr = plannedByUri.get(uri) ?? [];
-        arr.push({ uri, range, newText: text });
-        plannedByUri.set(uri, arr);
-    };
-
-    let pairedUri: vscode.Uri | undefined;
-    // Cache of already-opened document texts keyed by URI string, so the Safe
-    // Preview loop can reuse them instead of reopening each file a second time.
-    const originalTextCache = new Map<string, string>();
-    originalTextCache.set(doc.uri.toString(), doc.getText());
-
-    if (gen.declaration) {
-        wsEdit.insert(doc.uri, gen.declarationPosition, gen.declaration);
-        plan(doc.uri, gen.declarationPosition, gen.declaration);
-        mmxLog('[applyGeneratedCode] queued declaration insert at line ' + gen.declarationPosition.line);
-    }
-
-    if (gen.pairedFileImplementation) {
-        pairedUri = provider.findPairedFile(doc.uri);
-        if (pairedUri) {
-            const pd = await vscode.workspace.openTextDocument(pairedUri);
-            originalTextCache.set(pairedUri.toString(), pd.getText());
-            const pos = new vscode.Position(pd.lineCount, 0);
-            wsEdit.insert(pairedUri, pos, '\n' + gen.pairedFileImplementation);
-            plan(pairedUri, pos, '\n' + gen.pairedFileImplementation);
-            mmxLog('[applyGeneratedCode] queued paired impl in ' + pairedUri.fsPath);
-        } else {
-            const pos = new vscode.Position(doc.lineCount, 0);
-            wsEdit.insert(doc.uri, pos, '\n' + gen.pairedFileImplementation);
-            plan(doc.uri, pos, '\n' + gen.pairedFileImplementation);
-            mmxLog('[applyGeneratedCode] no paired file — queued impl at end of doc');
-        }
-    } else if (gen.implementation) {
-        wsEdit.insert(doc.uri, gen.implementationPosition, gen.implementation);
-        plan(doc.uri, gen.implementationPosition, gen.implementation);
-        mmxLog('[applyGeneratedCode] queued implementation insert at line ' + gen.implementationPosition.line);
-    }
-
-    // Safe Preview: show a diff and require explicit confirmation before the
-    // (fragile) structural edit is committed. Skipped when `mmx.previewEdits`
-    // is disabled, in which case previewAndConfirm returns true immediately.
-    const previewDocs: { label: string; uri: vscode.Uri; originalText: string; edits: PlannedEdit[] }[] = [];
-    for (const [uri, edits] of plannedByUri) {
-        const key = uri.toString();
-        let originalText = originalTextCache.get(key);
-        if (originalText === undefined) {
-            const pd = await vscode.workspace.openTextDocument(uri);
-            originalText = pd.getText();
-            originalTextCache.set(key, originalText);
-        }
-        previewDocs.push({ label: vscode.workspace.asRelativePath(uri), uri, originalText, edits });
-    }
-    const approved = await previewAndConfirm(previewDocs, 'Apply generated code');
-    if (!approved) {
-        mmxLog('[applyGeneratedCode] user cancelled in Safe Preview — no changes applied');
-        return false;
-    }
-
-    const result = await vscode.workspace.applyEdit(wsEdit);
-    mmxLog('[applyGeneratedCode] applyEdit result: ' + result);
-    return result;
+    const pipeline = new EditPipeline();
+    await queueGeneratedCode(doc, provider, gen, pipeline);
+    return pipeline.apply('Apply generated code');
 }
 
 export async function editMember(
-    context: vscode.ExtensionContext,
     doc: vscode.TextDocument,
     provider: ILanguageProvider,
     cls: ClassInfo,
     member: ClassMember,
     codeGenerator: CodeGeneratorService,
-    codeExplorer: CodeExplorerService
+    codeExplorer: CodeExplorerService,
+    result: MemberFormResult
 ): Promise<boolean> {
-    mmxLog('[editMember] opening editor for: ' + member.name + ' kind=' + member.kind + ' in class ' + cls.name);
+    mmxLog('[editMember] applying result for: ' + member.name + ' -> ' + result.name + ' kind=' + member.kind + ' in class ' + cls.name);
     mmxLog('[editMember] member.range: line ' + member.range.start.line + '-' + member.range.end.line);
 
-    const result = await MemberEditorPanel.create(context, doc, provider, cls, codeGenerator, member.kind as MemberKind, member);
-    if (!result) {
-        mmxLog('[editMember] MemberEditorPanel.create returned null — user cancelled or error');
+    if (!result.name || !result.name.trim()) {
+        mmxLog('[editMember] no name in result — aborted');
         return false;
     }
-
-    mmxLog('[editMember] editor result: name=' + result.name + ' kind=' + result.kind);
 
     const originalInsertLine = member.range.start.line;
     mmxLog('[editMember] originalInsertLine=' + originalInsertLine);
@@ -135,6 +97,8 @@ export async function editMember(
         mmxLog('[editMember] captured existing implementation body (' + existingBody.length + ' chars) — will be preserved');
     }
 
+    const spec = memberFormToSpec(result);
+
     mmxLog('[editMember] deleting old member...');
 
     // Standalone (file-level) functions have their declaration and body in a single
@@ -144,17 +108,24 @@ export async function editMember(
     if (cls.classType === 'standalone' && member.implementationRange) {
         const range = member.implementationRange;
         const currentText = doc.getText(range);
-        const spec: MemberSpec = {
-            kind: result.kind, name: result.name, returnType: result.returnType || undefined,
-            visibility: result.visibility, parameters: result.parameters || [],
-            modifiers: [], isStatic: !!result.isStatic, isVirtual: !!result.isVirtual,
-            isAbstract: !!result.isAbstract, isOverride: !!result.isOverride, isFinal: false,
-        };
-        const newFull = provider.rewriteStandaloneFunction(currentText, spec);
+        const mspec = spec as MemberSpec;
+        const newFull = provider.rewriteStandaloneFunction(currentText, mspec);
         if (newFull !== undefined) {
             mmxLog('[editMember] standalone rewrite in place: ' + spec.name);
             const wsEdit = new vscode.WorkspaceEdit();
             wsEdit.replace(doc.uri, range, newFull);
+            // Languages with a separate forward/interface declaration (Pascal)
+            // must keep it in sync with the implementation header. Only touch it
+            // when the declaration is a distinct range from the implementation
+            // and the provider knows how to rewrite it.
+            if (member.range
+                && !(member.range.start.line <= range.end.line && range.start.line <= member.range.end.line)) {
+                const newDecl = provider.rewriteStandaloneDeclaration(doc.getText(member.range), mspec);
+                if (newDecl !== undefined) {
+                    wsEdit.replace(doc.uri, member.range, newDecl);
+                    mmxLog('[editMember] standalone declaration synced: ' + spec.name);
+                }
+            }
             const ok = await vscode.workspace.applyEdit(wsEdit);
             mmxLog('[editMember] standalone rewrite result: ' + ok);
             if (ok) {
@@ -166,64 +137,66 @@ export async function editMember(
         mmxLog('[editMember] provider has no standalone rewrite — falling back to legacy path');
     }
 
-    await codeGenerator.deleteMember(doc, cls, member);
+    // Atomic edit: the old member blocks are REPLACED in place by the newly
+    // generated code, all queued on one pipeline in original document
+    // coordinates and committed as a single WorkspaceEdit — one preview, one
+    // undo step, and a cancelled preview changes nothing.
+    const declRange = expandToFullMember(doc, member.range);
+    const pairedUri = provider.findPairedFile(doc.uri);
+    const implInPaired = !!(pairedUri && member.implementationRange);
+    // Same-file implementation block (e.g. Pascal implementation section),
+    // distinct from the declaration block.
+    const sameFileImplRange = member.implementationRange && !implInPaired
+        && !(member.implementationRange.start.line <= declRange.end.line
+            && member.implementationRange.end.line >= declRange.start.line)
+        ? expandToFullMember(doc, member.implementationRange)
+        : undefined;
 
-    // Standalone procedures (file-level functions) are not in parsed.classes.
-    // Use the original synthesized ClassInfo directly — generateMethod handles
-    // classType === 'standalone' to produce the correct qualifier-free code.
-    let updatedCls: ClassInfo;
-    if (cls.classType === 'standalone') {
-        mmxLog('[editMember] standalone procedure — using original ClassInfo');
-        updatedCls = cls;
-    } else {
-        const reparsed = provider.parseDocument(doc);
-        mmxLog('[editMember] reparsed: ' + reparsed.classes.length + ' classes');
-        const found = reparsed.classes.find(c => c.name === cls.name);
-        if (!found) {
-            mmxLog('[editMember] FAIL: class ' + cls.name + ' not found after reparse');
+    if (member.implementationRange && !implInPaired && !sameFileImplRange) {
+        // Overlapping declaration/implementation block and no provider rewrite
+        // support (rare legacy fallback): keep the sequential delete+reinsert.
+        mmxLog('[editMember] legacy fallback (overlapping decl/impl)');
+        await codeGenerator.deleteMember(doc, cls, member);
+        const gen = generateFromSpec(provider, cls, spec, existingBody);
+        gen.declarationPosition = new vscode.Position(originalInsertLine, 0);
+        const success = await applyGeneratedCode(doc, provider, gen);
+        if (success) {
             codeExplorer.refresh();
-            return false;
+            vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + cls.name);
         }
-        updatedCls = found;
-        mmxLog('[editMember] found updated class: ' + updatedCls.name + ' with ' + updatedCls.members.length + ' members');
+        return success;
     }
 
-    let success = false;
+    const gen = generateFromSpec(provider, cls, spec, existingBody);
 
-    if (result.kind === MemberKind.Method || result.kind === MemberKind.Constructor || result.kind === MemberKind.Destructor) {
-        const spec: MemberSpec = {
-            kind: result.kind, name: result.name, returnType: result.returnType || undefined,
-            visibility: result.visibility, parameters: result.parameters || [],
-            modifiers: [], isStatic: result.isStatic, isVirtual: result.isVirtual,
-            isAbstract: result.isAbstract, isOverride: result.isOverride, isFinal: false,
-        };
-        mmxLog('[editMember] generating method: ' + spec.name + ' returnType=' + spec.returnType + ' params=' + spec.parameters.length);
-        const gen = provider.generateMethod(updatedCls.name, spec, updatedCls, existingBody);
-        gen.declarationPosition = new vscode.Position(originalInsertLine, 0);
-        mmxLog('[editMember] declarationPosition set to line ' + originalInsertLine);
-        success = await applyGeneratedCode(doc, provider, gen);
-    } else if (result.kind === MemberKind.Field) {
-        const spec: FieldSpec = { kind: MemberKind.Field, name: result.name, type: result.type || result.returnType || 'int', visibility: result.visibility };
-        mmxLog('[editMember] generating field: ' + spec.name + ' type=' + spec.type);
-        const gen = provider.generateField(updatedCls.name, spec, updatedCls);
-        gen.declarationPosition = new vscode.Position(originalInsertLine, 0);
-        success = await applyGeneratedCode(doc, provider, gen);
-    } else if (result.kind === MemberKind.Property) {
-        const spec: PropertySpec = {
-            kind: MemberKind.Property, name: result.name, type: result.type || result.returnType || 'string',
-            visibility: result.visibility, hasGetter: result.hasGetter, hasSetter: result.hasSetter,
-            getterName: result.getterName, setterName: result.setterName, isDefault: false, isReadOnly: false,
-        };
-        mmxLog('[editMember] generating property: ' + spec.name + ' type=' + spec.type);
-        const gen = provider.generateProperty(updatedCls.name, spec, updatedCls);
-        gen.declarationPosition = new vscode.Position(originalInsertLine, 0);
-        success = await applyGeneratedCode(doc, provider, gen);
+    const pipeline = new EditPipeline();
+    pipeline.recordOriginal(doc.uri, doc.getText());
+
+    pipeline.replace(doc.uri, declRange, gen.declaration ?? '');
+
+    if (implInPaired && pairedUri && member.implementationRange) {
+        // Header/source languages: implementationRange coordinates refer to the
+        // paired file. Replace the old implementation there with the new one.
+        const pd = await vscode.workspace.openTextDocument(pairedUri);
+        pipeline.recordOriginal(pairedUri, pd.getText());
+        pipeline.delete(pairedUri, expandToFullMember(pd, member.implementationRange));
+        if (gen.pairedFileImplementation) {
+            pipeline.insert(pairedUri, new vscode.Position(pd.lineCount, 0), '\n' + gen.pairedFileImplementation);
+        }
+    } else if (sameFileImplRange) {
+        if (gen.implementation) {
+            pipeline.replace(doc.uri, sameFileImplRange, gen.implementation);
+        } else {
+            pipeline.delete(doc.uri, sameFileImplRange);
+        }
     }
+
+    const success = await pipeline.apply(`Edit member "${result.name}"`);
 
     mmxLog('[editMember] final success: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + updatedCls.name);
+        vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + cls.name);
     }
 
     return success;
@@ -256,19 +229,24 @@ async function findSourceDefinitions(
     const includePattern = '**/*{' + extensions.join(',') + '}';
     const files = await vscode.workspace.findFiles(includePattern, '**/node_modules/**');
     const docUriStr = doc.uri.toString();
-    for (const fileUri of files) {
-        if (stillMissing.size === 0) break;
-        if (fileUri.toString() === docUriStr) continue;
-        const fileDoc = await vscode.workspace.openTextDocument(fileUri);
-        const fileParsed = provider.parseDocument(fileDoc);
-        for (const clsInfo of fileParsed.classes) {
-            if (stillMissing.has(clsInfo.name)) {
-                found.set(clsInfo.name, clsInfo);
-                stillMissing.delete(clsInfo.name);
+    await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Window, title: 'CE: Searching definitions of ' + missing.join(', ') + '…' },
+        async () => {
+            for (const fileUri of files) {
                 if (stillMissing.size === 0) break;
+                if (fileUri.toString() === docUriStr) continue;
+                const fileDoc = await vscode.workspace.openTextDocument(fileUri);
+                const fileParsed = provider.parseDocument(fileDoc);
+                for (const clsInfo of fileParsed.classes) {
+                    if (stillMissing.has(clsInfo.name)) {
+                        found.set(clsInfo.name, clsInfo);
+                        stillMissing.delete(clsInfo.name);
+                        if (stillMissing.size === 0) break;
+                    }
+                }
             }
-        }
-    }
+        },
+    );
 
     return Array.from(found, ([name, info]) => ({ name, info }));
 }
@@ -304,6 +282,75 @@ function formatMethodLabel(m: ClassMember): string {
  * generated through provider.generateMethod and applied through
  * applyGeneratedCode (Safe Preview).
  */
+
+/**
+ * Insert a local variable declaration derived from a field's type at the cursor.
+ * Used by the "Create local variable" action: the user places the cursor inside a
+ * method body and triggers the action on a field (explorer item or cursor on the
+ * field), and a correctly-typed local declaration is inserted at the cursor.
+ */
+export async function createLocalVariable(
+    doc: vscode.TextDocument,
+    provider: ILanguageProvider,
+    member: ClassMember,
+    editor: vscode.TextEditor,
+    scopeAnalyzer?: LocalScopeAnalyzer
+): Promise<boolean> {
+    let fieldType = member.type || member.returnType;
+
+    // When the field has no explicit type, try to infer one from the cursor's
+    // surrounding scope (existing local / parameter / literal assignment) so
+    // that the created local is typed rather than defaulting to nothing.
+    if (!fieldType && scopeAnalyzer) {
+        const parsed = provider.parseDocument(doc);
+        const pos = editor.selection.active;
+        const enclosing = parsed.classes
+            .flatMap(c => c.members)
+            .find(m => m.kind === MemberKind.Method
+                && (m.range.contains(pos) || m.implementationRange?.contains(pos)));
+        if (enclosing) {
+            const scope = scopeAnalyzer.getScope(doc, provider, enclosing);
+            if (scope) {
+                const lineText = doc.lineAt(pos.line).text;
+                const assign = lineText.match(/[:=]\s*(.+?)\s*;?\s*$/);
+                if (assign) {
+                    fieldType = provider.resolveIdentifierType(assign[1], scope);
+                }
+            }
+        }
+    }
+
+    if (!fieldType) {
+        vscode.window.showWarningMessage(`CE: Could not determine a type for "${member.name}".`);
+        return false;
+    }
+
+    // Suggest a lowercase local name derived from the field name, letting the
+    // user override it.
+    const suggested = member.name.charAt(0).toLowerCase() + member.name.slice(1);
+    const localName = await vscode.window.showInputBox({
+        prompt: 'Local variable name',
+        value: suggested,
+        validateInput: v => v.trim() ? null : 'Name required',
+    });
+    if (!localName) { return false; }
+
+    const lineText = doc.lineAt(editor.selection.active.line).text;
+    const indentMatch = lineText.match(/^[\t ]*/);
+    const indent = indentMatch ? indentMatch[0] : '';
+    const snippet = indent + provider.formatLocalVariable(localName, fieldType) + '\n';
+
+    const wsEdit = new vscode.WorkspaceEdit();
+    wsEdit.insert(doc.uri, new vscode.Position(editor.selection.active.line, 0), snippet);
+    const ok = await vscode.workspace.applyEdit(wsEdit);
+    if (ok) {
+        const newPos = new vscode.Position(editor.selection.active.line, 0);
+        editor.selection = new vscode.Selection(newPos, newPos);
+        vscode.window.showInformationMessage(`CE: Inserted local "${localName}: ${fieldType}".`);
+    }
+    return ok;
+}
+
 export async function implementInterface(
     doc: vscode.TextDocument,
     provider: ILanguageProvider,
@@ -404,6 +451,54 @@ export async function implementInterface(
     return success;
 }
 
+/**
+ * Insert a documentation comment header above the member's implementation
+ * (or its declaration when there is no separate implementation block). The
+ * header is derived from the parsed signature — name, parameters with their
+ * directions, return type — plus a TODO line for the description.
+ */
+export async function insertDocHeader(
+    doc: vscode.TextDocument,
+    provider: ILanguageProvider,
+    _cls: ClassInfo,
+    member: ClassMember
+): Promise<boolean> {
+    const target = member.implementationRange?.start ?? member.range.start;
+    const indent = (doc.lineAt(target.line).text.match(/^(\s*)/)?.[1]) || '';
+
+    const commentLines: string[] = [`${member.name} — TODO: describe what this routine does.`];
+    if (member.parameters.length > 0) {
+        commentLines.push('Params:');
+        for (const p of member.parameters) {
+            const dir = p.isVar ? 'var ' : p.isOut ? 'out ' : p.isConst ? 'const ' : '';
+            commentLines.push(`  ${dir}${p.name}: ${p.type}`);
+        }
+    }
+    if (member.returnType) {
+        commentLines.push(`Returns: ${member.returnType}`);
+    }
+
+    let block: string;
+    if (provider.languageId === 'pascal') {
+        block = ['{', ...commentLines.map(l => '  ' + l), '}'].map(l => indent + l).join('\n') + '\n';
+    } else if (provider.languageId === 'python') {
+        block = commentLines.map(l => indent + '# ' + l).join('\n') + '\n';
+    } else if (provider.languageId === 'plsql') {
+        block = commentLines.map(l => indent + '-- ' + l).join('\n') + '\n';
+    } else {
+        block = commentLines.map(l => indent + '// ' + l).join('\n') + '\n';
+    }
+
+    const pipeline = new EditPipeline();
+    pipeline.recordOriginal(doc.uri, doc.getText());
+    pipeline.insert(doc.uri, new vscode.Position(target.line, 0), block);
+    const ok = await pipeline.apply(`Insert doc header for "${member.name}"`);
+    if (ok) {
+        vscode.window.showInformationMessage(`CE: Doc header inserted for "${member.name}".`);
+    }
+    return ok;
+}
+
 export async function deleteMember(
     doc: vscode.TextDocument,
     cls: ClassInfo,
@@ -423,7 +518,6 @@ export async function deleteMember(
     mmxLog('[deleteMember] dialog returned: ' + JSON.stringify(confirm));
     if (confirm !== 'Delete') {
         mmxLog('[deleteMember] user cancelled');
-        getLog().show();
         return false;
     }
 
@@ -444,69 +538,60 @@ export async function renameMember(
     cls: ClassInfo,
     member: ClassMember,
     provider: ILanguageProvider | undefined,
-    codeExplorer: CodeExplorerService
+    codeExplorer: CodeExplorerService,
+    newName: string
 ): Promise<boolean> {
-    mmxLog('[renameMember] member=' + member.name + ' class=' + cls.name);
+    mmxLog('[renameMember] member=' + member.name + ' -> ' + newName + ' class=' + cls.name);
     mmxLog('[renameMember] member.range: line ' + member.range.start.line + ' char ' + member.range.start.character);
-    mmxLog('[renameMember] about to show InputBox...');
 
-    await new Promise<void>(resolve => setTimeout(resolve, 100));
-
-    const newName = await vscode.window.showInputBox({
-        title: 'CE: Rename Member',
-        prompt: `Rename "${member.name}" to:`,
-        value: member.name,
-        ignoreFocusOut: true,
-    });
-    mmxLog('[renameMember] InputBox returned: ' + JSON.stringify(newName));
     if (!newName || newName === member.name) {
-        mmxLog('[renameMember] cancelled or same name: ' + newName);
-        getLog().show();
+        mmxLog('[renameMember] empty or same name: ' + newName);
         return false;
     }
 
     mmxLog('[renameMember] new name: ' + newName);
 
-    const wsEdit = new vscode.WorkspaceEdit();
+    const pipeline = new EditPipeline();
+    pipeline.recordOriginal(doc.uri, doc.getText());
     const escapedName = member.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const renameRegex = new RegExp('\\b' + escapedName + '\\b', 'g');
+    const nameLen = member.name.length;
 
-    // For standalone procedures, cls.range is only the declaration line.
-    // We must also search the implementation block (member.implementationRange)
-    // so that both the interface and implementation sections stay in sync.
-    const isStandalone = cls.classType === 'standalone';
-    const searchRanges: vscode.Range[] = isStandalone
-        ? [member.range, ...(member.implementationRange ? [member.implementationRange] : [])]
-        : [cls.range];
-
-    let totalReplacements = 0;
-
-    for (const searchRange of searchRanges) {
-        const startLine = searchRange.start.line;
-        const endLine = searchRange.end.line;
-        for (let lineNum = startLine; lineNum <= endLine && lineNum < doc.lineCount; lineNum++) {
-            const lineText = doc.lineAt(lineNum).text;
-            let searchStart = 0;
-            let lineMatch;
-            while ((lineMatch = renameRegex.exec(lineText)) !== null) {
-                if (lineMatch.index < searchStart) {
-                    renameRegex.lastIndex = searchStart;
-                    continue;
+    // Scan the WHOLE current document: class declaration (Pascal interface
+    // header), the member implementation block (Pascal implementation section,
+    // which lives OUTSIDE the class range) and every call site in the file.
+    // A class-range-only scan silently missed implementations and calls.
+    //
+    // Same-named members of OTHER classes in this file (e.g. two classes that
+    // both declare `Process`) are unrelated and must be left untouched: their
+    // declaration and implementation blocks are excluded from the scan.
+    const excluded: vscode.Range[] = [];
+    if (provider && cls.classType !== 'standalone') {
+        try {
+            for (const other of provider.parseDocument(doc).classes) {
+                if (other.id === cls.id || other.name === cls.name) { continue; }
+                for (const m of other.members) {
+                    if (m.name !== member.name) { continue; }
+                    excluded.push(m.range);
+                    if (m.implementationRange) { excluded.push(m.implementationRange); }
                 }
-                const nameRange = new vscode.Range(
-                    lineNum, lineMatch.index,
-                    lineNum, lineMatch.index + member.name.length
-                );
-                wsEdit.replace(doc.uri, nameRange, newName);
-                totalReplacements++;
-                searchStart = lineMatch.index + member.name.length;
-                renameRegex.lastIndex = searchStart;
             }
-            renameRegex.lastIndex = 0;
+        } catch { /* parse failure: fall back to the unrestricted scan */ }
+    }
+    let totalReplacements = 0;
+    for (let lineNum = 0; lineNum < doc.lineCount; lineNum++) {
+        if (excluded.some(r => lineNum >= r.start.line && lineNum <= r.end.line)) { continue; }
+        const lineText = doc.lineAt(lineNum).text;
+        const renameRegex = new RegExp('\\b' + escapedName + '\\b', 'g');
+        let match;
+        while ((match = renameRegex.exec(lineText)) !== null) {
+            const nameRange = new vscode.Range(lineNum, match.index, lineNum, match.index + nameLen);
+            pipeline.replace(doc.uri, nameRange, newName);
+            totalReplacements++;
+            renameRegex.lastIndex = match.index + nameLen;
         }
     }
 
-    mmxLog('[renameMember] replaced ' + totalReplacements + ' occurrences in ' + (isStandalone ? 'standalone procedure' : 'class ' + cls.name));
+    mmxLog('[renameMember] replaced ' + totalReplacements + ' occurrences in ' + doc.fileName);
 
     if (totalReplacements === 0) {
         mmxLog('[renameMember] FAIL: no occurrences found');
@@ -519,22 +604,28 @@ export async function renameMember(
         mmxLog('[renameMember] paired file: ' + (pairedUri?.fsPath || 'none'));
         if (pairedUri) {
             const pairedDoc = await vscode.workspace.openTextDocument(pairedUri);
+            pipeline.recordOriginal(pairedUri, pairedDoc.getText());
+            // Same file-wide scan as the current document: covers the qualified
+            // definitions (Class::method) AND plain call sites in the paired
+            // source file — not just the Class::name pattern.
             const pairedText = pairedDoc.getText();
-            const pattern = cls.name + '::' + member.name;
-            let idx = pairedText.indexOf(pattern);
+            const renameRegex = new RegExp('\\b' + escapedName + '\\b', 'g');
+            let match;
             let count = 0;
-            while (idx >= 0) {
-                const pos = pairedDoc.positionAt(idx + cls.name.length + 2);
-                const endPos = pairedDoc.positionAt(idx + pattern.length);
-                wsEdit.replace(pairedUri, new vscode.Range(pos, endPos), newName);
+            while ((match = renameRegex.exec(pairedText)) !== null) {
+                // `Other::name` belongs to a different class — leave it alone.
+                const qualifier = /(\w+)\s*::\s*~?$/.exec(pairedText.substring(Math.max(0, match.index - 80), match.index));
+                if (qualifier && cls.name && qualifier[1] !== cls.name) { continue; }
+                const start = pairedDoc.positionAt(match.index);
+                const end = pairedDoc.positionAt(match.index + nameLen);
+                pipeline.replace(pairedUri, new vscode.Range(start, end), newName);
                 count++;
-                idx = pairedText.indexOf(pattern, idx + 1);
             }
             mmxLog('[renameMember] replaced ' + count + ' occurrences in paired file');
         }
     }
 
-    const ok = await vscode.workspace.applyEdit(wsEdit);
+    const ok = await pipeline.apply(`Rename "${member.name}"`);
     mmxLog('[renameMember] applyEdit result: ' + ok);
     if (ok) {
         codeExplorer.refresh();
@@ -550,7 +641,7 @@ export async function renameMember(
  * declarations (e.g. Pascal `var` sections) and the method body intact.
  * Returns undefined if no body can be located.
  */
-function extractImplBody(implText: string): string | undefined {
+export function extractImplBody(implText: string): string | undefined {
     // Pascal: header line is `function|procedure|constructor|destructor ...;`
     const headerMatch = implText.match(/(?:function|procedure|constructor|destructor)\b[^\n]*/);
     if (headerMatch) {

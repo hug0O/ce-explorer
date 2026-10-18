@@ -27,6 +27,33 @@ export interface Parameter {
     direction?: 'in' | 'out' | 'inout';
 }
 
+export interface MemberFormResult {
+    kind: MemberKind;
+    name: string;
+    returnType?: string;
+    type?: string;
+    visibility: Visibility;
+    parameters: Parameter[];
+    isStatic: boolean;
+    isVirtual: boolean;
+    isAbstract: boolean;
+    isOverride: boolean;
+    hasGetter: boolean;
+    hasSetter: boolean;
+    getterName?: string;
+    setterName?: string;
+    createBackingField?: boolean;
+    defaultValue?: string;
+    targetClassName?: string;
+    targetIsStandalone?: boolean;
+}
+
+export interface ExtractSpec {
+    name: string;
+    returnType: string;
+    parameters: Parameter[];
+}
+
 export interface MethodModifier {
     name: string;
     value?: string;
@@ -65,12 +92,60 @@ export interface PropertySpec {
     getterName?: string;
     hasSetter: boolean;
     setterName?: string;
+    createBackingField?: boolean;
     isDefault: boolean;
     isReadOnly: boolean;
     documentation?: string;
 }
 
 export type AnyMemberSpec = MemberSpec | FieldSpec | PropertySpec;
+
+export interface LocalVariable {
+    name: string;
+    type?: string;
+    range: vscode.Range;
+    declarationRange: vscode.Range;
+    isParam: boolean;
+}
+
+export interface MethodScope {
+    method: ClassMember;
+    bodyRange: vscode.Range;
+    locals: LocalVariable[];
+    lspAvailable: boolean;
+}
+
+/**
+ * The kind of variable a VariableRef points at. Unifies locals, parameters,
+ * class members and standalone routines under a single refactoring surface.
+ */
+export type VariableKind = 'local' | 'field' | 'property' | 'param' | 'standalone';
+
+/**
+ * A reference to any refactorable variable under the cursor. This is the
+ * single entry point for the unified rename/delete/changeType operations.
+ */
+export interface VariableRef {
+    kind: VariableKind;
+    name: string;
+    /** Declared type if any (locals may be inferred/absent). */
+    type?: string;
+    /** Range of the variable's declaration (the line edited by changeType/delete). */
+    declarationRange: vscode.Range;
+    document: vscode.TextDocument;
+    /** Class enclosing the variable (set for fields/properties/methods). */
+    enclosingClass?: ClassInfo;
+    /** Method enclosing the variable (set for locals/parameters). */
+    enclosingMethod?: ClassMember;
+    /** Already-parsed method scope (set for locals/parameters). */
+    scope?: MethodScope;
+}
+
+/** A single usage site of a variable, ready to feed into a WorkspaceEdit. */
+export interface Occurrence {
+    uri: vscode.Uri;
+    range: vscode.Range;
+}
 
 export interface ClassMember {
     id: string;
@@ -127,6 +202,13 @@ export interface GeneratedCode {
     implementation: string;
     declarationPosition: vscode.Position;
     implementationPosition: vscode.Position;
+    /**
+     * Optional second declaration (e.g. a private backing field) inserted at its
+     * own position, separate from the primary declaration. Used when a single
+     * insertion point cannot host two members placed in different sections.
+     */
+    extraDeclaration?: string;
+    extraDeclarationPosition?: vscode.Position;
     pairedFileUri?: vscode.Uri;
     pairedFileDeclaration?: string;
     pairedFileImplementation?: string;

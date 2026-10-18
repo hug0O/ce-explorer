@@ -2,8 +2,50 @@ import * as vscode from 'vscode';
 import { CodeExplorerTreeItem, CodeExplorerService } from './CodeExplorerService';
 import { CodeGeneratorService } from './CodeGeneratorService';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
-import { ClassMember, ClassInfo, MemberKind, MemberSpec, FieldSpec, PropertySpec, Visibility } from '../models/types';
-import { applyGeneratedCode } from './MemberOperations';
+import { EditPipeline } from './EditPipeline';
+import { ILanguageProvider } from '../providers/ILanguageProvider';
+import { ClassMember, ClassInfo, MemberKind, MemberSpec, FieldSpec, PropertySpec, Visibility, GeneratedCode } from '../models/types';
+import { applyGeneratedCode, queueGeneratedCode } from './MemberOperations';
+
+/**
+ * Build the generated code that re-creates `member` inside `destClass`.
+ * Shared by moveMember (extension.ts) and batchMove — positions are computed
+ * from the passed ClassInfo, so callers must use a parse of the CURRENT
+ * document state (single-snapshot atomic moves rely on that).
+ */
+export function buildMoveTargetCode(
+    provider: ILanguageProvider,
+    member: ClassMember,
+    destClass: ClassInfo
+): GeneratedCode | undefined {
+    if (member.kind === MemberKind.Method || member.kind === MemberKind.Constructor || member.kind === MemberKind.Destructor) {
+        const spec: MemberSpec = {
+            kind: member.kind, name: member.name, returnType: member.returnType || undefined,
+            visibility: member.visibility, parameters: member.parameters,
+            modifiers: [], isStatic: member.isStatic, isVirtual: member.isVirtual,
+            isAbstract: member.isAbstract, isOverride: member.isOverride, isFinal: false,
+        };
+        return provider.generateMethod(destClass.name, spec, destClass);
+    }
+    if (member.kind === MemberKind.Field) {
+        const spec: FieldSpec = {
+            kind: MemberKind.Field, name: member.name,
+            type: member.type || provider.getTypeDefaults().defaultFieldType,
+            visibility: member.visibility,
+        };
+        return provider.generateField(destClass.name, spec, destClass);
+    }
+    if (member.kind === MemberKind.Property) {
+        const spec: PropertySpec = {
+            kind: MemberKind.Property, name: member.name,
+            type: member.type || provider.getTypeDefaults().defaultPropertyType,
+            visibility: member.visibility, hasGetter: true, hasSetter: true,
+            isDefault: false, isReadOnly: false,
+        };
+        return provider.generateProperty(destClass.name, spec, destClass);
+    }
+    return undefined;
+}
 
 export async function batchMove(
     items: CodeExplorerTreeItem[],
@@ -58,56 +100,43 @@ export async function batchMove(
     );
     if (confirm !== 'Move') return;
 
-    let movedCount = 0;
-    for (const item of memberItems) {
-        const member = item.itemData as ClassMember;
-        const sourceClass = item.parentClass!;
-
-        const deleted = await codeGenerator.deleteMember(doc, sourceClass, member);
-        if (!deleted) {
-            continue;
-        }
-
-        const reparsed = provider.parseDocument(doc);
-        const destClass = reparsed.classes.find(c => c.name === destName);
-        if (!destClass) {
-            continue;
-        }
-
-        let success = false;
-        if (member.kind === MemberKind.Method || member.kind === MemberKind.Constructor || member.kind === MemberKind.Destructor) {
-            const spec: MemberSpec = {
-                kind: member.kind, name: member.name, returnType: member.returnType || undefined,
-                visibility: member.visibility, parameters: member.parameters,
-                modifiers: [], isStatic: member.isStatic, isVirtual: member.isVirtual,
-                isAbstract: member.isAbstract, isOverride: member.isOverride, isFinal: false,
-            };
-            const gen = provider.generateMethod(destClass.name, spec, destClass);
-            success = await applyGeneratedCode(doc, provider, gen);
-        } else if (member.kind === MemberKind.Field) {
-            const spec: FieldSpec = { kind: MemberKind.Field, name: member.name, type: member.type || provider.getTypeDefaults().defaultFieldType, visibility: member.visibility };
-            const gen = provider.generateField(destClass.name, spec, destClass);
-            success = await applyGeneratedCode(doc, provider, gen);
-        } else if (member.kind === MemberKind.Property) {
-            const spec: PropertySpec = {
-                kind: MemberKind.Property, name: member.name, type: member.type || provider.getTypeDefaults().defaultPropertyType,
-                visibility: member.visibility, hasGetter: true, hasSetter: true,
-                isDefault: false, isReadOnly: false,
-            };
-            const gen = provider.generateProperty(destClass.name, spec, destClass);
-            success = await applyGeneratedCode(doc, provider, gen);
-        }
-
-        if (success) {
-            movedCount++;
-        }
+    const destClass = parsed.classes.find(c => c.name === destName);
+    if (!destClass) {
+        vscode.window.showErrorMessage('CE: Destination class not found.');
+        return;
     }
 
+    // Every member is queued (delete from source + insert into destination) on
+    // one pipeline in original document coordinates, then committed as a
+    // single WorkspaceEdit: one preview, one undo step, and cancelling the
+    // preview can never leave members deleted without being moved.
+    const pipeline = new EditPipeline();
+    let planned = 0;
+    await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Window, title: `CE: Moving ${memberItems.length} member(s) to ${destName}…` },
+        async () => {
+            for (const item of memberItems) {
+                const member = item.itemData as ClassMember;
+                const gen = buildMoveTargetCode(provider, member, destClass);
+                if (!gen) { continue; }
+                await codeGenerator.planMemberDeletion(doc, member, pipeline);
+                await queueGeneratedCode(doc, provider, gen, pipeline);
+                planned++;
+            }
+        },
+    );
+
+    if (planned === 0) {
+        vscode.window.showErrorMessage('Batch move: failed to plan any member move.');
+        return;
+    }
+
+    const applied = await pipeline.apply(`Batch move ${planned} member(s) to ${destName}`);
     codeExplorer.refresh();
-    if (movedCount > 0) {
-        vscode.window.showInformationMessage(`Batch move: ${movedCount} member(s) moved to ${destName}.`);
+    if (applied) {
+        vscode.window.showInformationMessage(`Batch move: ${planned} member(s) moved to ${destName}.`);
     } else {
-        vscode.window.showErrorMessage('Batch move: failed to move any members.');
+        vscode.window.showErrorMessage('Batch move: cancelled or failed — nothing changed.');
     }
 }
 

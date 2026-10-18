@@ -374,20 +374,14 @@ function fRechercheMontantOffre(piOFFPR_ID: Integer): string;
   function fINSERT_LOFPR_STDPL( iSTDPL_ID : Integer; iLOFPR_ID : Integer): Integer;
   function fTEST_LLOST_EXIST(iSTDPL_ID, iLOFPR_ID : Integer): Boolean;
   function fget_ELREP_PDS_VALIDE(iDMCOT_ID : Integer): String;
-  procedure pHOFREHistorise_Relance(iOFFRE_ID, iCOLLA_ID : Integer; sHOFRE_CMNT, sHOFRE_DATE_RELANCE : String);
+procedure pHOFREHistorise_Relance(iOFFRE_ID: Integer; iCOLLA_ID: Integer; sHOFRE_CMNT: String; sHOFRE_DATE_RELANCE: String);
   function fGetRecordCount_HOFRE(iOFFRE_ID : Integer): Integer;
 
   function fCalculSommeOFFRE(iOFFRE_ID: Integer): String;
 
-  function fCalculPRIX_VENTE(iOFFRE_ID: Integer): String;
-
+function fCalculPRIX_VENTE(iOFFRE_ID: Integer; iCOMMA_id: Integer; p3: Integer): String;
 
 function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; toto: string): Extended;
-
-
-
-
-
 
 
 implementation
@@ -3025,7 +3019,7 @@ begin
   
 end;
 
-procedure pHOFREHistorise_Relance(iOFFRE_ID, iCOLLA_ID : Integer; sHOFRE_CMNT, sHOFRE_DATE_RELANCE : String);
+procedure pHOFREHistorise_Relance(iOFFRE_ID: Integer; iCOLLA_ID: Integer; sHOFRE_CMNT: String; sHOFRE_DATE_RELANCE: String);
 var 
   oQuery :TUNIQuery ;
    iNUM_RELANCE : Integer;
@@ -3037,6 +3031,7 @@ begin
     oQuery := TUNIQuery.Create(nil);
     try
       iNUM_RELANCE:= fGetRecordCount_HOFRE(iOFFRE_ID)  +1;
+      
       if fQueryRQSQL(oQuery, 34389) then
       begin
         // Préparation insertions des lignes de relances
@@ -3115,7 +3110,16 @@ begin
 
 end;
 
-function fCalculPRIX_VENTE(iOFFRE_ID: Integer): String;
+
+
+
+function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; toto: string): Extended;
+begin
+  Result := 0;
+  
+end;
+
+function fCalculPRIX_VENTE(iOFFRE_ID: Integer; iCOMMA_id: Integer; p3: Integer): String;
 var
   oQuery: TUniQuery;
 begin
@@ -3147,11 +3151,5 @@ begin
     FreeAndNil(oQuery);
   end;
 
-end;
-
-
-function fcalculLOFPR_PRIX_NET(iLOFPR_ID: string; toto: string): Extended;
-begin
-  Result := 0;
 end;
 end.

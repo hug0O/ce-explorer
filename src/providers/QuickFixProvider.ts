@@ -20,8 +20,15 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
 
                 const lineText = document.lineAt(member.range.start.line).text;
 
+                // "Generate body" only when the member is actually a stub —
+                // never on an already implemented method.
                 if (member.kind === MemberKind.Method) {
-                    if (lineText.includes('{') && lineText.includes('}')) {
+                    const bodyText = member.implementationRange
+                        ? document.getText(member.implementationRange)
+                        : lineText;
+                    const isStub = /TODO|todo!\(\)|NotImplemented/.test(bodyText)
+                        || (bodyText.includes('{') && bodyText.includes('}'));
+                    if (isStub && lineText.includes('{') && lineText.includes('}')) {
                         const edit = new vscode.WorkspaceEdit();
                         edit.replace(
                             document.uri,
@@ -33,6 +40,22 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
                             kind: vscode.CodeActionKind.QuickFix,
                             edit,
                         });
+                    } else if (isStub && provider.synchronizeDeclarationImplementation !== undefined) {
+                        // Pascal-style split declaration/implementation: offer
+                        // to create the missing implementation block.
+                        const hasImpl = cls.members.some(m =>
+                            m.name === member.name && m.implementationRange && m !== member);
+                        if (!hasImpl) {
+                            actions.push({
+                                title: 'Synchronize Declaration/Implementation',
+                                kind: vscode.CodeActionKind.QuickFix,
+                                command: {
+                                    command: 'mmx.synchronizeDeclImpl',
+                                    title: 'Synchronize Declaration/Implementation',
+                                    arguments: [],
+                                },
+                            });
+                        }
                     }
                 }
 
@@ -45,7 +68,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
                             title: 'Generate getter/setter',
                             kind: vscode.CodeActionKind.QuickFix,
                             command: {
-                                command: 'ce.generateGettersSetters',
+                                command: 'mmx.generateGettersSetters',
                                 title: 'Generate Getters/Setters',
                                 arguments: [],
                             },

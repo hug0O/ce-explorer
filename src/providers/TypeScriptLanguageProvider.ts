@@ -12,6 +12,8 @@ import {
     MemberKind,
     Parameter,
     RefactoringContext,
+    LocalVariable,
+    MethodScope,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -52,9 +54,15 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: 'void', defaultFieldType: 'number', defaultPropertyType: 'string', defaultParamType: 'number' };
     }
-
-    findPairedFile(_uri: vscode.Uri): vscode.Uri | undefined {
-        return undefined;
+    getTypeSuggestions() {
+        return ['number', 'string', 'boolean', 'void', 'any', 'unknown', 'never', 'object', 'bigint', 'symbol', 'null', 'undefined', 'Array', 'Promise', 'Date', 'RegExp', 'Record', 'Map', 'Set'];
+    }
+    // TypeScript has keywords; JavaScript has none.
+    getVisibilityOptions(): Visibility[] {
+        return this.isJs() ? [] : [Visibility.Private, Visibility.Protected, Visibility.Public];
+    }
+    private isJs(): boolean {
+        return ['javascript', 'javascriptreact'].includes(this.languageId);
     }
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -140,6 +148,14 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
         return result;
     }
 
+    formatLocalVariable(name: string, type: string): string {
+        return type ? `let ${name}: ${type};` : `let ${name};`;
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'number', 'number', 'string', 'boolean');
+    }
+
     rewriteStandaloneFunction(currentText: string, spec: MemberSpec): string | undefined {
         const firstBrace = currentText.indexOf('{');
         const lastBrace = currentText.lastIndexOf('}');
@@ -166,10 +182,69 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
             for (const ch of lines[i]) {
                 if (ch === '{') { depth++; found = true; }
                 else if (ch === '}') depth--;
+                // Bodyless declaration (abstract / interface member): do not
+                // borrow the next member's body.
+                else if (ch === ';' && !found) return start;
             }
             if (found && depth <= 0) return i;
         }
         return start;
+    }
+
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        if (!member.implementationRange) return undefined;
+        const lines = document.getText().split(/\r?\n/);
+        const start = member.implementationRange.start.line;
+        let openLine = -1;
+        for (let i = start; i <= member.implementationRange.end.line; i++) {
+            if ((lines[i] ?? '').includes('{')) { openLine = i; break; }
+        }
+        if (openLine < 0) return undefined;
+        const closeLine = this.findBodyEnd(lines, openLine);
+        return new vscode.Range(openLine + 1, 0, closeLine, (lines[closeLine] ?? '').length);
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        return this.insertPositionFromBody(document, member);
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return [];
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        const re = /^\s+(?:const|let|var)\s+(\w+)(?:\s*:\s*([^=;]+?))?\s*[=;]/;
+        // Destructuring: const { a, b } = obj;  /  const [a, b] = arr;
+        const destructureRe = /^\s+(?:const|let|var)\s+[[{]([^}\]]+)[}\]]\s*(?::\s*[^=;]+?)?\s*=/;
+        for (let i = body.start.line; i <= body.end.line; i++) {
+            const line = lines[i] ?? '';
+            const dm = line.match(destructureRe);
+            if (dm) {
+                const names = dm[1].split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean);
+                for (const name of names) {
+                    if (/^\w+$/.test(name)) {
+                        const col = line.indexOf(name);
+                        locals.push({
+                            name, type: undefined, isParam: false,
+                            range: new vscode.Range(i, col, i, col + name.length),
+                            declarationRange: new vscode.Range(i, col, i, line.length),
+                        });
+                    }
+                }
+                continue;
+            }
+            const m = line.match(re);
+            if (m) {
+                const name = m[1];
+                const col = line.indexOf(name);
+                locals.push({
+                    name, type: m[2]?.trim(), isParam: false,
+                    range: new vscode.Range(i, col, i, col + name.length),
+                    declarationRange: new vscode.Range(i, col, i, lines[i].length),
+                });
+            }
+        }
+        return locals;
     }
 
     private parseClasses(lines: string[], uri: vscode.Uri, classes: ClassInfo[]): void {
@@ -379,19 +454,6 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
         return members;
     }
 
-    private findBraceEnd(lines: string[], start: number, endLine: number): number {
-        let depth = 0;
-        let found = false;
-        for (let i = start; i < endLine; i++) {
-            for (const ch of lines[i]) {
-                if (ch === '{') { depth++; found = true; }
-                else if (ch === '}') { depth--; }
-            }
-            if (found && depth <= 0) return i;
-        }
-        return -1;
-    }
-
     private mapVisibility(vis: string): Visibility {
         switch (vis) {
             case 'public': return Visibility.Public;
@@ -402,25 +464,7 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
     }
 
     private parseParameters(paramsStr: string): Parameter[] {
-        const params: Parameter[] = [];
-        if (!paramsStr.trim()) return params;
-
-        let depth = 0;
-        let current = '';
-        for (const ch of paramsStr) {
-            if (ch === '(' || ch === '<' || ch === '{') depth++;
-            if (ch === ')' || ch === '>' || ch === '}') depth--;
-            if (ch === ',' && depth === 0) {
-                params.push(this.parseSingleParam(current));
-                current = '';
-            } else {
-                current += ch;
-            }
-        }
-        if (current.trim()) {
-            params.push(this.parseSingleParam(current));
-        }
-        return params;
+        return this.splitParamList(paramsStr, '(<{', ')>}').map(p => this.parseSingleParam(p));
     }
 
     private parseSingleParam(param: string): Parameter {
@@ -499,8 +543,10 @@ export class TypeScriptLanguageProvider extends BaseLanguageProvider {
         const indent = '  ';
         const noTypes = this.isJsForClass(classInfo);
 
-        const vis = spec.visibility === Visibility.Private ? 'private ' :
-                    spec.visibility === Visibility.Protected ? 'protected ' : '';
+        // JavaScript has no visibility keywords; only TypeScript does.
+        const vis = noTypes ? '' :
+                    (spec.visibility === Visibility.Private ? 'private ' :
+                     spec.visibility === Visibility.Protected ? 'protected ' : '');
 
         let decl = `${indent}${vis}${spec.name}`;
         if (!noTypes && spec.type) {

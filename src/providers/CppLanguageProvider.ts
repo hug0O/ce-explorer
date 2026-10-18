@@ -11,6 +11,9 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    LocalVariable,
+    MethodScope,
+    RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -71,6 +74,12 @@ export class CppLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: 'void', defaultFieldType: 'int', defaultPropertyType: 'std::string', defaultParamType: 'int' };
     }
+    getTypeSuggestions() {
+        return ['int', 'char', 'bool', 'float', 'double', 'short', 'long', 'unsigned', 'void', 'auto', 'size_t', 'int32_t', 'int64_t', 'std::string', 'std::vector', 'std::map', 'std::shared_ptr'];
+    }
+    getVisibilityOptions() {
+        return [Visibility.Private, Visibility.Protected, Visibility.Public];
+    }
 
     private isHeader(filePath: string): boolean {
         const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
@@ -107,6 +116,58 @@ export class CppLanguageProvider extends BaseLanguageProvider {
             return tryFind(['.h', '.hpp', '.hxx', '.hh']);
         }
         return undefined;
+    }
+
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        const range = member.implementationRange ?? member.range;
+        const lines = document.getText().split(/\r?\n/);
+        let depth = 0;
+        let found = false;
+        let openLine = -1;
+        for (let i = range.start.line; i <= range.end.line; i++) {
+            for (const ch of lines[i] ?? '') {
+                if (ch === '{') { depth++; found = true; if (openLine < 0) openLine = i; }
+                else if (ch === '}') depth--;
+            }
+            if (found && depth <= 0) {
+                return new vscode.Range(openLine + 1, 0, i, (lines[i] ?? '').length);
+            }
+        }
+        return undefined;
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        const body = this.getMethodBodyRange(document, member);
+        return new vscode.Position(body ? body.start.line : (member.implementationRange?.start.line ?? member.range.start.line), 0);
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'int', 'double', 'std::string', 'bool');
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return [];
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        // `<type> <name>;` or `= ...` — skip lines that look like control flow / calls.
+        const re = /^\s+([\w:<>\[\]*&]+)\s+(\w+)\s*[;=]/;
+        for (let i = body.start.line; i <= body.end.line; i++) {
+            const line = lines[i] ?? '';
+            if (/^\s*(if|for|while|return|switch|catch|else)\b/.test(line) || line.includes('(')) continue;
+            const m = line.match(re);
+            if (m) {
+                const [type, name] = [m[1], m[2]];
+                const col = line.indexOf(name);
+                locals.push({
+                    name, type, isParam: false,
+                    range: new vscode.Range(i, col, i, col + name.length),
+                    declarationRange: new vscode.Range(i, col, i, line.length),
+                });
+                locals.push(...this.parseCStyleTrailingVars(line, i, type, name));
+            }
+        }
+        return locals;
     }
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -176,6 +237,10 @@ export class CppLanguageProvider extends BaseLanguageProvider {
     // support is added.
     generateMissingStubs(_className: string, _interfaceInfo: ClassInfo, _classInfo: ClassInfo): string | undefined {
         return undefined;
+    }
+
+    supportsMissingStubs(): boolean {
+        return false;
     }
 
     private extractStandaloneFunctions(lines: string[], classes: ClassInfo[]): ClassMember[] {
@@ -1032,5 +1097,39 @@ export class CppLanguageProvider extends BaseLanguageProvider {
 
     sortMembers(members: ClassMember[], scheme: import('../models/types').SortScheme): ClassMember[] {
         return super.sortMembers(members, scheme);
+    }
+
+    /**
+     * Extracts the selection into a new free function and replaces the
+     * selection with a call. The new function is appended at the end of the
+     * file. C++ requires explicit types.
+     */
+    extractMethod(
+        context: RefactoringContext,
+        methodName: string,
+        parameters: string[],
+        returnType: string
+    ): vscode.TextEdit[] {
+        const sel = context.selection ?? context.range;
+        if (!sel) return [];
+        const document = context.document;
+        const selectedText = document.getText(sel);
+        const ret = returnType && returnType !== 'void' ? returnType : 'void';
+        const params = parameters.map(p => {
+            const sp = p.split(/\s+/);
+            return sp.length > 1 ? p : `${p}`;
+        }).join(', ');
+        const args = parameters.map(p => {
+            const sp = p.split(/\s+/);
+            return sp[sp.length - 1];
+        }).join(', ');
+        const bodyLines = selectedText.split(/\r?\n/);
+        const indentedBody = bodyLines.map(l => l.length ? `    ${l}` : l).join('\n');
+        const newMethod = `\n${ret} ${methodName}(${params}) {\n${indentedBody}\n}\n`;
+        const insertPos = new vscode.Position(document.lineCount, 0);
+        return [
+            new vscode.TextEdit(sel, `${methodName}(${args})`),
+            new vscode.TextEdit(new vscode.Range(insertPos, insertPos), newMethod),
+        ];
     }
 }

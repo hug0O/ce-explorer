@@ -2,20 +2,32 @@
 
 A multi-language class explorer and refactoring tool for VS Code — inspired by MMX Code Explorer for Delphi.
 
-Browse, create, edit, and refactor classes and members across **8 languages** with a visual sidebar, popup forms, and one-click operations.
+Browse, create, edit, and refactor classes and members across **9 languages** with a visual sidebar, popup forms, and one-click operations.
+
+## Install
+
+# 1. Compil bundle — dist/extension.js
+npm run build
+
+# 2. Generate .vsix 
+npx @vscode/vsce package
+
+# install .vsix
+code --install-extension mmx-code-explorer-0.1.0.vsix
 
 ## Supported Languages
 
 | Language | Extensions |
 |----------|-----------|
-| Pascal / Delphi | `.pas` |
-| C++ | `.h` `.hpp` `.cpp` `.cc` `.cxx` |
+| Pascal / Delphi | `.pas` `.dpk` `.dpr` |
+| C++ | `.h` `.hpp` `.cpp` `.cc` `.cxx` `.hxx` |
 | Rust | `.rs` |
 | Java | `.java` |
 | Python | `.py` |
 | C# | `.cs` |
 | Go | `.go` |
 | TypeScript / JavaScript | `.ts` `.tsx` `.js` `.jsx` |
+| PL/SQL | `.pks` `.pkb` `.sql` `.txt` |
 
 ## Features
 
@@ -98,16 +110,18 @@ All commands are prefixed with `CE:`:
 | `mmx.pascal.indentSize` | `2` | Indentation for generated Pascal |
 | `mmx.cpp.indentSize` | `4` | Indentation for generated C++ |
 | `mmx.cpp.braceStyle` | `newLine` | Brace placement for C++ |
-| `mmx.pascal.defaultVisibility` | `published` | Default visibility for Pascal |
+| `mmx.pascal.defaultVisibility` | `private` | Default visibility for Pascal |
 
 ## Templates
 
 Templates use VS Code snippet syntax (`${1:placeholder}`, `$0`) and are loaded from:
 - **Workspace**: `.vscode/mmx-templates.json`
 - **Global**: Extension global storage (`templates.json`)
-- **Built-in**: 46 default templates across all languages
 
-Built-in templates include: Singleton, Factory, Builder, Repository, Observer, Try-Catch, Property, Constructor, Test Method, REST Controller, and more.
+Manage them from the **Templates** section of the Code Explorer sidebar: create, edit,
+delete, and insert with one click. Snippet tab stops act as parameters — jump between
+`${1:...}`, `${2:...}` with Tab when inserting. The list is filtered to the language of
+the file being edited.
 
 ## License
 

@@ -12,6 +12,8 @@ import {
     MemberKind,
     Parameter,
     RefactoringContext,
+    LocalVariable,
+    MethodScope,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -49,9 +51,12 @@ export class RustLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: '()', defaultFieldType: 'i32', defaultPropertyType: 'String', defaultParamType: 'i32' };
     }
-
-    findPairedFile(_uri: vscode.Uri): vscode.Uri | undefined {
-        return undefined;
+    getTypeSuggestions() {
+        return ['i32', 'i64', 'u32', 'u64', 'isize', 'usize', 'f32', 'f64', 'bool', 'char', 'str', 'String', 'Vec', 'HashMap', 'Option', 'Result', 'Box'];
+    }
+    // Rust: pub (public) vs private (module-private). No protected concept.
+    getVisibilityOptions() {
+        return [Visibility.Public, Visibility.Private];
     }
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -104,7 +109,7 @@ export class RustLanguageProvider extends BaseLanguageProvider {
             const returnType = m[4]?.trim();
             const isPub = !!m[1];
 
-            const endBody = this.findBraceEnd(lines, i);
+            const endBody = this.findBraceEndUnbounded(lines, i);
             result.push({
                 id: uniqueId(),
                 kind: MemberKind.Method,
@@ -145,7 +150,76 @@ export class RustLanguageProvider extends BaseLanguageProvider {
         return undefined;
     }
 
-    private findBraceEnd(lines: string[], start: number): number {
+    supportsMissingStubs(): boolean {
+        return false;
+    }
+
+    formatLocalVariable(name: string, type: string): string {
+        return `let ${name}: ${type};`;
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'i32', 'f64', 'String', 'bool');
+    }
+
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        if (!member.implementationRange) return undefined;
+        const lines = document.getText().split(/\r?\n/);
+        const start = member.implementationRange.start.line;
+        const firstBrace = lines.slice(start).findIndex(l => l.includes('{'));
+        if (firstBrace < 0) return undefined;
+        const openLine = start + firstBrace;
+        const endLine = this.findBraceEndUnbounded(lines, openLine);
+        return new vscode.Range(openLine + 1, 0, endLine, (lines[endLine] ?? '').length);
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        const body = this.getMethodBodyRange(document, member);
+        return new vscode.Position(body ? body.start.line : (member.implementationRange?.start.line ?? member.range.start.line), 0);
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return [];
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        const re = /^\s+let\s+(?:mut\s+)?(\w+)(?:\s*:\s*([^=;]+?))?\s*(?:=|;)/;
+        // Tuple destructuring: let (a, b) = ... or let (a, b): (i32, i32) = ...
+        const tupleRe = /^\s+let\s+(?:mut\s+)?\(([^)]+)\)(?:\s*:\s*([^=;]+?))?\s*(?:=|;)/;
+        for (let i = body.start.line; i <= body.end.line; i++) {
+            const line = lines[i] ?? '';
+            const tm = line.match(tupleRe);
+            if (tm) {
+                const names = tm[1].split(',').map(s => s.trim()).filter(Boolean);
+                for (const name of names) {
+                    if (/^\w+$/.test(name)) {
+                        const col = line.indexOf(name);
+                        locals.push({
+                            name, type: undefined, isParam: false,
+                            range: new vscode.Range(i, col, i, col + name.length),
+                            declarationRange: new vscode.Range(i, col, i, line.length),
+                        });
+                    }
+                }
+                continue;
+            }
+            const m = line.match(re);
+            if (m) {
+                const name = m[1];
+                const col = line.indexOf(name);
+                locals.push({
+                    name, type: m[2]?.trim(), isParam: false,
+                    range: new vscode.Range(i, col, i, col + name.length),
+                    declarationRange: new vscode.Range(i, col, i, line.length),
+                });
+            }
+        }
+        return locals;
+    }
+
+    // Unbounded variant: scans to end of file and falls back to `start`
+    // (unlike the Base helper, there is no endLine bound and no -1 failure).
+    private findBraceEndUnbounded(lines: string[], start: number): number {
         let depth = 0;
         let found = false;
         for (let i = start; i < lines.length; i++) {
@@ -286,11 +360,14 @@ export class RustLanguageProvider extends BaseLanguageProvider {
                 let braceDepth = 0;
                 let foundOpen = false;
                 let endBody = -1;
+                let noBody = false; // trait method declaration: `fn f(&self);`
                 for (let j = i; j < endLine; j++) {
                     for (const ch of lines[j]) {
                         if (ch === '{') { braceDepth++; foundOpen = true; }
                         if (ch === '}') { braceDepth--; }
+                        if (ch === ';' && !foundOpen) { noBody = true; break; }
                     }
+                    if (noBody) { break; }
                     if (foundOpen && braceDepth <= 0) {
                         endBody = j;
                         i = j;

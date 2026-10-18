@@ -11,6 +11,9 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    LocalVariable,
+    MethodScope,
+    RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -25,9 +28,9 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
     readonly displayName = 'Java';
 
     private static readonly RE_CLASS = /^\s*(public\s+|protected\s+|private\s+)?((?:abstract|final|static)\s+)*(class|interface|enum)\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w,\s]+))?/;
-    private static readonly RE_CONSTRUCTOR = /^\s*(public|protected|private)\s+((?:static|final|abstract|synchronized|native)\s+)*(\w+)\s*\(([^)]*)\)\s*(?:throws\s+[\w,\s]+)?\s*\{/;
-    private static readonly RE_METHOD = /^\s*(public|protected|private)\s+((?:static|final|abstract|synchronized|native)\s+)*([\w<>\[\]?,\s]+?)\s+(\w+)\s*\(([^)]*)\)/;
-    private static readonly RE_FIELD = /^\s*(public|protected|private)\s+((?:static|final|volatile|transient)\s+)*([\w<>\[\]?,\s]+?)\s+(\w+)\s*(?:=\s*[^;]+)?\s*;/;
+    private static readonly RE_CONSTRUCTOR = /^\s*(?:(public|protected|private)\s+)?((?:static|final|abstract|synchronized|native)\s+)*(\w+)\s*\(([^)]*)\)\s*(?:throws\s+[\w,\s]+)?\s*\{/;
+    private static readonly RE_METHOD = /^\s*(?:(public|protected|private)\s+)?((?:static|final|abstract|synchronized|native|default)\s+)*([\w<>\[\]?,\s]+?)\s+(\w+)\s*\(([^)]*)\)/;
+    private static readonly RE_FIELD = /^\s*(?:(public|protected|private)\s+)?((?:static|final|volatile|transient)\s+)*([\w<>\[\]?,\s]+?)\s+(\w+)\s*(?:=\s*[^;]+)?\s*;/;
     private static readonly RE_PACKAGE = /^\s*package\s+([^;]+);/;
     private static readonly RE_IMPORT = /^\s*import\s+([^;]+);/;
 
@@ -46,9 +49,8 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: 'void', defaultFieldType: 'int', defaultPropertyType: 'String', defaultParamType: 'int' };
     }
-
-    findPairedFile(_uri: vscode.Uri): vscode.Uri | undefined {
-        return undefined;
+    getTypeSuggestions() {
+        return ['int', 'long', 'short', 'byte', 'double', 'float', 'boolean', 'char', 'void', 'var', 'String', 'Object', 'Integer', 'Long', 'Double', 'Boolean', 'List', 'ArrayList', 'Map', 'HashMap'];
     }
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -127,7 +129,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
             }
 
             const classRange = new vscode.Range(startLine, 0, endLine, lines[endLine]?.length ?? 0);
-            const members = this.parseClassBody(lines, startLine + 1, endLine, className);
+            const members = this.parseClassBody(lines, startLine + 1, endLine, className, isInterface);
 
             const classInfo: ClassInfo = {
                 id: uniqueId(),
@@ -149,13 +151,22 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
         }
     }
 
-    private parseClassBody(lines: string[], startLine: number, endLine: number, className: string): ClassMember[] {
+    private parseClassBody(lines: string[], startLine: number, endLine: number, className: string, isInterface = false): ClassMember[] {
         const members: ClassMember[] = [];
         let currentVisibility = Visibility.Package;
+        // Members without a modifier (package-private, interface methods) are
+        // valid Java, so only declarations at the class's own nesting level are
+        // considered — never statements inside method bodies.
+        let depth = 0;
+        const implicitVis = isInterface ? 'public' : '';
 
         for (let i = startLine; i < endLine; i++) {
             const line = lines[i];
-            const trimmed = line.trim();
+            const depthAtStart = depth;
+            depth += this.braceDelta(line);
+            if (depthAtStart !== 0) { continue; }
+            // Drop leading annotations (`@Override public void f()` on one line).
+            const trimmed = line.trim().replace(/^(?:@\w+(?:\([^)]*\))?\s+)+/, '');
 
             if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('@')) {
                 continue;
@@ -163,7 +174,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
 
             const ctorMatch = trimmed.match(JavaLanguageProvider.RE_CONSTRUCTOR);
             if (ctorMatch && ctorMatch[3] === className) {
-                const visStr = ctorMatch[1];
+                const visStr = ctorMatch[1] || implicitVis;
                 const modStr = ctorMatch[2] || '';
                 const ctorName = ctorMatch[3];
                 const paramsStr = ctorMatch[4];
@@ -194,8 +205,8 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
             }
 
             const methodMatch = trimmed.match(JavaLanguageProvider.RE_METHOD);
-            if (methodMatch) {
-                const visStr = methodMatch[1];
+            if (methodMatch && this.isPlainType(methodMatch[3])) {
+                const visStr = methodMatch[1] || implicitVis;
                 const modStr = methodMatch[2] || '';
                 const returnType = methodMatch[3].trim();
                 const methodName = methodMatch[4];
@@ -228,8 +239,8 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
             }
 
             const fieldMatch = trimmed.match(JavaLanguageProvider.RE_FIELD);
-            if (fieldMatch) {
-                const visStr = fieldMatch[1];
+            if (fieldMatch && this.isPlainType(fieldMatch[3])) {
+                const visStr = fieldMatch[1] || implicitVis;
                 const modStr = fieldMatch[2] || '';
                 const fieldType = fieldMatch[3].trim();
                 const fieldName = fieldMatch[4].trim();
@@ -259,17 +270,41 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
         return members;
     }
 
-    private findBraceEnd(lines: string[], start: number, endLine: number): number {
-        let depth = 0;
-        let found = false;
-        for (let i = start; i < endLine; i++) {
-            for (const ch of lines[i]) {
-                if (ch === '{') { depth++; found = true; }
-                else if (ch === '}') { depth--; }
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        if (!member.implementationRange) return undefined;
+        return this.findBracedBodyRange(document.getText().split(/\r?\n/), member.implementationRange.start.line, member.implementationRange.end.line);
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        return this.insertPositionFromBody(document, member);
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return [];
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        const re = /^\s+(?:final\s+)?([\w<>\[\]?.]+)\s+(\w+)\s*[;=]/;
+        for (let i = body.start.line; i <= body.end.line; i++) {
+            const line = lines[i] ?? '';
+            if (line.includes('(')) continue;
+            const m = line.match(re);
+            if (m) {
+                const [type, name] = [m[1], m[2]];
+                const col = line.indexOf(name);
+                locals.push({
+                    name, type, isParam: false,
+                    range: new vscode.Range(i, col, i, col + name.length),
+                    declarationRange: new vscode.Range(i, col, i, line.length),
+                });
+                locals.push(...this.parseCStyleTrailingVars(line, i, type, name));
             }
-            if (found && depth <= 0) return i;
         }
-        return -1;
+        return locals;
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'int', 'double', 'String', 'boolean');
     }
 
     private mapVisibility(vis: string): Visibility {
@@ -282,25 +317,7 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
     }
 
     private parseParameters(paramsStr: string): Parameter[] {
-        const params: Parameter[] = [];
-        if (!paramsStr.trim()) return params;
-
-        let depth = 0;
-        let current = '';
-        for (const ch of paramsStr) {
-            if (ch === '<') depth++;
-            if (ch === '>') depth--;
-            if (ch === ',' && depth === 0) {
-                params.push(this.parseSingleParam(current));
-                current = '';
-            } else {
-                current += ch;
-            }
-        }
-        if (current.trim()) {
-            params.push(this.parseSingleParam(current));
-        }
-        return params;
+        return this.splitParamList(paramsStr, '<', '>').map(p => this.parseSingleParam(p));
     }
 
     private parseSingleParam(param: string): Parameter {
@@ -420,5 +437,56 @@ export class JavaLanguageProvider extends BaseLanguageProvider {
             declaration: pos,
             implementation: pos,
         };
+    }
+
+    /**
+     * Extracts the selection into a new private static method and replaces the
+     * selection with a call. The new method is appended at the end of the file
+     * (Java permits top-level helper methods only inside a class, but the
+     * extracted snippet is a standalone signature used by the caller wiring).
+     */
+    extractMethod(
+        context: RefactoringContext,
+        methodName: string,
+        parameters: string[],
+        returnType: string
+    ): vscode.TextEdit[] {
+        const sel = context.selection ?? context.range;
+        if (!sel) return [];
+        const document = context.document;
+        const selectedText = document.getText(sel);
+        const ret = returnType && returnType !== 'void' ? returnType : 'void';
+        const params = parameters.map(p => p).join(', ');
+        const args = parameters.map(p => {
+            const sp = p.split(/\s+/);
+            return sp[sp.length - 1];
+        }).join(', ');
+        const bodyLines = selectedText.split(/\r?\n/);
+        const indentedBody = bodyLines.map(l => l.length ? `    ${l}` : l).join('\n');
+        const newMethod = `\n    private static ${ret} ${methodName}(${params}) {\n${indentedBody}\n    }\n`;
+        const insertPos = new vscode.Position(document.lineCount, 0);
+        return [
+            new vscode.TextEdit(sel, `${methodName}(${args})`),
+            new vscode.TextEdit(new vscode.Range(insertPos, insertPos), newMethod),
+        ];
+    }
+
+    /**
+     * Rewrites a top-level Java method's signature/body from a MemberSpec,
+     * preserving the original body text. Returns undefined if the input does
+     * not look like a Java method.
+     */
+    rewriteStandaloneFunction(currentText: string, spec: MemberSpec): string | undefined {
+        const firstBrace = currentText.indexOf('{');
+        const lastBrace = currentText.lastIndexOf('}');
+        if (firstBrace < 0 || lastBrace <= firstBrace) return undefined;
+        const body = currentText.substring(firstBrace + 1, lastBrace);
+        const params = spec.parameters.map(p => {
+            const s = p.type ? `${p.type} ${p.name}` : p.name;
+            return p.defaultValue ? `${s} = ${p.defaultValue}` : s;
+        }).join(', ');
+        const ret = spec.returnType && spec.returnType !== 'void' ? spec.returnType : 'void';
+        const staticKw = /static/.test(currentText.substring(0, firstBrace)) ? 'static ' : '';
+        return `${staticKw}${ret} ${spec.name}(${params}) {${body}}\n`;
     }
 }

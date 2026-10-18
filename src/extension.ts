@@ -2,44 +2,40 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from './providers/ProviderRegistry';
 import { CodeExplorerService, CodeExplorerTreeItem } from './services/CodeExplorerService';
 import { CodeGeneratorService } from './services/CodeGeneratorService';
-import { MemberEditorPanel } from './webview/MemberEditorPanel';
 import { MemberViewerPanel } from './webview/MemberViewerPanel';
-import { DashboardPanel } from './webview/DashboardPanel';
-import { MetricsDashboardPanel } from './webview/MetricsDashboardPanel';
-import { ClassInfo, ClassMember, MemberKind, Visibility, MemberSpec, FieldSpec, PropertySpec, GeneratedCode } from './models/types';
+import { ClassInfo, ClassMember, MemberKind, Visibility, PropertySpec, GeneratedCode, MemberFormResult, ExtractSpec, LocalVariable } from './models/types';
+import { memberFormToSpec, generateFromSpec } from './services/memberForm';
+import { LocalScopeAnalyzer } from './services/LocalScopeAnalyzer';
+import { renameLocal, declareUndeclaredVariable, changeLocalType } from './services/LocalRefactorService';
 import { ILanguageProvider } from './providers/ILanguageProvider';
 import { Template } from './models/Template';
 import { TemplateService } from './services/TemplateService';
 import { TemplateStore } from './services/TemplateStore';
 import { TemplateCompletionProvider } from './providers/TemplateCompletionProvider';
 import { TemplateManagerPanel } from './webview/TemplateManagerPanel';
+import { TemplateSidebarPanel } from './webview/TemplateSidebarPanel';
 import { MmxCodeActionProvider } from './providers/MmxCodeActionProvider';
 import { MmxCodeLensProvider } from './services/CodeLensProvider';
 import { MemberDragAndDropController } from './services/DragAndDropController';
 import * as ops from './services/MemberOperations';
+import { EditPipeline } from './services/EditPipeline';
 import { registerSafePreview } from './services/SafePreview';
-import { detectDeadCode } from './services/DeadCodeDetector';
 import { QuickFixProvider } from './providers/QuickFixProvider';
-import { batchMove, batchGenerateGettersSetters } from './services/BatchOperations';
-import { exportStructure } from './services/ExportService';
-import { generateDocumentation } from './services/DocumentationGenerator';
-import { runCodeReview } from './services/CodeReviewService';
+import { resolveVariableAt } from './services/VariableResolver';
+import { VariableRefactorService } from './services/VariableRefactorService';
+import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
 
 let providerRegistry: ProviderRegistry;
 let codeExplorer: CodeExplorerService;
 let codeGenerator: CodeGeneratorService;
 let templateService: TemplateService;
 let templateStore: TemplateStore;
-let extensionContext: vscode.ExtensionContext;
 let memberViewer: MemberViewerPanel;
-let dashboard: DashboardPanel;
+let localScopeAnalyzer: LocalScopeAnalyzer;
+let variableRefactor: VariableRefactorService;
 let log: vscode.OutputChannel;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log('[MMX] activate() called');
-    console.log('[MMX] __dirname:', __dirname);
-    console.log('[MMX] workspace:', vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath));
-
     const outputChannel = vscode.window.createOutputChannel('Code Explorer');
     outputChannel.appendLine('Code Explorer: activating...');
     log = outputChannel;
@@ -49,16 +45,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerSafePreview(context);
 
     try {
-        extensionContext = context;
-        console.log('[MMX] Creating ProviderRegistry...');
         providerRegistry = new ProviderRegistry();
-        console.log('[MMX] Creating CodeExplorerService...');
         codeExplorer = new CodeExplorerService();
-        console.log('[MMX] Creating CodeGeneratorService...');
         codeGenerator = new CodeGeneratorService();
-        console.log('[MMX] All services created');
+        variableRefactor = new VariableRefactorService(codeGenerator, codeExplorer);
 
-        console.log('[MMX] Creating TemplateService...');
         templateService = new TemplateService(context);
         await templateService.load();
         templateService.startWatching();
@@ -68,7 +59,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         templateStore = templateStoreLocal;
 
         outputChannel.appendLine('Providers: ' + providerRegistry.getAllProviders().map(p => p.displayName).join(', '));
-        console.log('[MMX] Providers:', providerRegistry.getAllProviders().map(p => p.displayName).join(', '));
 
         for (const provider of providerRegistry.getAllProviders()) {
             codeExplorer.registerProvider(provider);
@@ -84,7 +74,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             vscode.languages.registerCompletionItemProvider(templateSelectors, completionProvider),
         );
 
-        const codeActionProvider = new MmxCodeActionProvider(providerRegistry);
+        localScopeAnalyzer = new LocalScopeAnalyzer();
+        const codeActionProvider = new MmxCodeActionProvider(providerRegistry, localScopeAnalyzer);
         const codeActionSelectors: vscode.DocumentFilter[] = [];
         for (const ext of providerRegistry.getSupportedExtensions()) {
             codeActionSelectors.push({ scheme: 'file', pattern: '**/*' + ext });
@@ -108,52 +99,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         vscode.commands.executeCommand('setContext', 'mmx:isActive', true);
 
-        console.log('[MMX] Creating tree views...');
         const dragDropController = new MemberDragAndDropController(() => codeExplorer.refresh());
         const classesTree = vscode.window.createTreeView('mmxCodeExplorer', {
             treeDataProvider: codeExplorer,
             showCollapseAll: true,
             dragAndDropController: dragDropController,
         });
-        console.log('[MMX] Tree views created');
 
         const codeLensProvider = new MmxCodeLensProvider(providerRegistry);
+        const codeLensSelectors: vscode.DocumentFilter[] = [];
+        for (const ext of providerRegistry.getSupportedExtensions()) {
+            codeLensSelectors.push({ scheme: 'file', pattern: '**/*' + ext });
+        }
         const codeLensRegistration = vscode.languages.registerCodeLensProvider(
-            { scheme: 'file' },
+            codeLensSelectors,
             codeLensProvider
         );
         context.subscriptions.push(codeLensRegistration);
 
         context.subscriptions.push(classesTree);
 
-        console.log('[MMX] Creating MemberViewerPanel...');
         memberViewer = new MemberViewerPanel(context.extensionUri, providerRegistry, codeExplorer, codeGenerator, context);
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(MemberViewerPanel.viewType, memberViewer)
         );
-        console.log('[MMX] MemberViewerPanel created');
 
-        console.log('[MMX] Creating DashboardPanel...');
-        dashboard = new DashboardPanel(context.extensionUri, providerRegistry, codeExplorer);
-        context.subscriptions.push(
-            vscode.window.registerWebviewViewProvider(DashboardPanel.viewType, dashboard)
+        const templateSidebar = new TemplateSidebarPanel(
+            context.extensionUri,
+            templateStore,
+            templateService,
+            providerRegistry.getAllProviders().map(p => p.languageId),
         );
         context.subscriptions.push(
-            vscode.window.onDidChangeTextEditorSelection(e => dashboard.scheduleCursorUpdate(e.textEditor)),
-            vscode.window.onDidChangeActiveTextEditor(e => { if (e) dashboard.scheduleCursorUpdate(e); })
+            vscode.window.registerWebviewViewProvider(TemplateSidebarPanel.viewType, templateSidebar)
         );
-        console.log('[MMX] DashboardPanel created');
 
         registerCommands(context);
-        console.log('[MMX] Commands registered');
 
         if (vscode.window.activeTextEditor) {
             codeExplorer.refresh();
         }
 
         outputChannel.appendLine('Code Explorer: activated successfully');
-        console.log('[MMX] ACTIVATED SUCCESSFULLY');
-        vscode.window.showInformationMessage('Code Explorer activated ✓');
     } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const stack = e instanceof Error && e.stack ? e.stack : '';
@@ -166,38 +153,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
-
-        vscode.commands.registerCommand('mmx.testMinimal', async () => {
-            console.log('[MMX] testMinimal command fired');
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showErrorMessage('No active editor');
-                return;
-            }
-
-            const provider = providerRegistry.getByDocument(editor.document);
-            if (!provider) {
-                vscode.window.showErrorMessage('No provider for language: ' + editor.document.languageId);
-                return;
-            }
-
-            const parsed = provider.parseDocument(editor.document);
-            const classCount = parsed.classes.length;
-            const classNames = parsed.classes.map(c => c.name).join(', ');
-
-            vscode.window.showInformationMessage(
-                'CE Test: Found ' + classCount + ' class(es): ' + classNames
-            );
-
-            if (classCount > 0) {
-                const cls = parsed.classes[0];
-                const insertPos = new vscode.Position(editor.document.lineCount, 0);
-                const edit = new vscode.WorkspaceEdit();
-                edit.insert(editor.document.uri, insertPos, '\n// CE Test: parsed class ' + cls.name + ' with ' + cls.members.length + ' members\n');
-                const ok = await vscode.workspace.applyEdit(edit);
-                vscode.window.showInformationMessage('Insert test result: ' + ok);
-            }
-        }),
 
         vscode.commands.registerCommand('mmx.refreshExplorer', () => {
             codeExplorer.refresh();
@@ -215,7 +170,6 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.addMethod', async (item?: CodeExplorerTreeItem) => {
-            console.log('[MMX] mmx.addMethod command fired');
             await addMember(MemberKind.Method, item);
         }),
 
@@ -232,40 +186,25 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.editMember', async (item?: CodeExplorerTreeItem) => {
-            log.appendLine('=== mmx.editMember FIRED ===');
-            log.appendLine('  item provided: ' + !!item);
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                log.appendLine('  resolveFromItemOrCursor returned undefined — no member found');
-                log.show();
-                const action = await vscode.window.showWarningMessage(
-                    'Place cursor on a class member first.', 'Show Details',
-                );
-                if (action === 'Show Details') { log.show(); }
+                vscode.window.showWarningMessage('Place cursor on a class member first.');
                 return;
             }
-            log.appendLine('  resolved: member=' + resolved.member.name + ' kind=' + resolved.member.kind + ' cls=' + resolved.cls.name);
-            log.appendLine('  member.range: line=' + resolved.member.range.start.line + ' char=' + resolved.member.range.start.character);
-            log.show();
-            await ops.editMember(extensionContext, resolved.doc, resolved.provider, resolved.cls, resolved.member, codeGenerator, codeExplorer);
+            const result = await memberViewer.beginSession({
+                mode: 'edit', member: resolved.member, classInfo: resolved.cls,
+                provider: resolved.provider, document: resolved.doc,
+            });
+            if (!result) { return; }
+            await ops.editMember(resolved.doc, resolved.provider, resolved.cls, resolved.member, codeGenerator, codeExplorer, result as MemberFormResult);
         }),
 
         vscode.commands.registerCommand('mmx.deleteMember', async (item?: CodeExplorerTreeItem) => {
-            log.appendLine('=== mmx.deleteMember FIRED ===');
-            log.appendLine('  item provided: ' + !!item);
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                log.appendLine('  resolveFromItemOrCursor returned undefined — no member found');
-                log.show();
-                const action = await vscode.window.showWarningMessage(
-                    'Place cursor on a class member first.', 'Show Details',
-                );
-                if (action === 'Show Details') { log.show(); }
+                vscode.window.showWarningMessage('Place cursor on a class member first.');
                 return;
             }
-            log.appendLine('  resolved: member=' + resolved.member.name + ' kind=' + resolved.member.kind + ' cls=' + resolved.cls.name);
-            log.appendLine('  member.range: line=' + resolved.member.range.start.line + '-' + resolved.member.range.end.line);
-            log.show();
             await ops.deleteMember(resolved.doc, resolved.cls, resolved.member, codeGenerator, codeExplorer);
         }),
 
@@ -320,70 +259,143 @@ function registerCommands(context: vscode.ExtensionContext): void {
             );
             if (confirm !== 'Move') return;
 
-            const deleted = await codeGenerator.deleteMember(doc, sourceClass, member);
-            if (!deleted) {
-                vscode.window.showErrorMessage('CE: Failed to delete member from source class.');
-                return;
-            }
-
-            const reparsed = provider.parseDocument(doc);
-            const destClass = reparsed.classes.find(c => c.name === destName);
+            const destClass = parsed.classes.find(c => c.name === destName);
             if (!destClass) {
-                vscode.window.showErrorMessage('CE: Destination class not found after re-parse.');
-                codeExplorer.refresh();
+                vscode.window.showErrorMessage('CE: Destination class not found.');
+                return;
+            }
+            const gen = buildMoveTargetCode(provider, member, destClass);
+            if (!gen) {
+                vscode.window.showWarningMessage(`CE: Moving a ${member.kind} is not supported.`);
                 return;
             }
 
-            let success = false;
-            if (member.kind === MemberKind.Method || member.kind === MemberKind.Constructor || member.kind === MemberKind.Destructor) {
-                const spec: MemberSpec = {
-                    kind: member.kind, name: member.name, returnType: member.returnType || undefined,
-                    visibility: member.visibility, parameters: member.parameters,
-                    modifiers: [], isStatic: member.isStatic, isVirtual: member.isVirtual,
-                    isAbstract: member.isAbstract, isOverride: member.isOverride, isFinal: false,
-                };
-                const gen = provider.generateMethod(destClass.name, spec, destClass);
-                success = await applyGeneratedCode(doc, provider, gen);
-            } else if (member.kind === MemberKind.Field) {
-                const spec: FieldSpec = { kind: MemberKind.Field, name: member.name, type: member.type || provider.getTypeDefaults().defaultFieldType, visibility: member.visibility };
-                const gen = provider.generateField(destClass.name, spec, destClass);
-                success = await applyGeneratedCode(doc, provider, gen);
-            } else if (member.kind === MemberKind.Property) {
-                const spec: PropertySpec = {
-                    kind: MemberKind.Property, name: member.name, type: member.type || provider.getTypeDefaults().defaultPropertyType,
-                    visibility: member.visibility, hasGetter: true, hasSetter: true,
-                    isDefault: false, isReadOnly: false,
-                };
-                const gen = provider.generateProperty(destClass.name, spec, destClass);
-                success = await applyGeneratedCode(doc, provider, gen);
-            }
+            // Delete from source + insert into destination are queued on one
+            // pipeline in original document coordinates and committed as a
+            // single WorkspaceEdit — cancelling the preview can never leave
+            // the member deleted from the source class.
+            const pipeline = new EditPipeline();
+            await codeGenerator.planMemberDeletion(doc, member, pipeline);
+            await ops.queueGeneratedCode(doc, provider, gen, pipeline);
 
-            if (success) {
-                codeExplorer.refresh();
+            const applied = await pipeline.apply(`Move "${member.name}" to ${destName}`);
+            codeExplorer.refresh();
+            if (applied) {
                 vscode.window.showInformationMessage(`Moved "${member.name}" from ${sourceClass.name} to ${destClass.name}`);
             } else {
-                codeExplorer.refresh();
-                vscode.window.showErrorMessage('CE: Failed to insert member into destination class.');
+                vscode.window.showErrorMessage(`CE: Move of "${member.name}" cancelled or failed — nothing changed.`);
             }
         }),
 
         vscode.commands.registerCommand('mmx.renameMember', async (item?: CodeExplorerTreeItem) => {
-            log.appendLine('=== mmx.renameMember FIRED ===');
-            log.appendLine('  item provided: ' + !!item);
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                log.appendLine('  resolveFromItemOrCursor returned undefined — no member found');
-                log.show();
-                const action = await vscode.window.showWarningMessage(
-                    'Place cursor on a class member first.', 'Show Details',
-                );
-                if (action === 'Show Details') { log.show(); }
+                vscode.window.showWarningMessage('Place cursor on a class member first.');
                 return;
             }
-            log.appendLine('  resolved: member=' + resolved.member.name + ' kind=' + resolved.member.kind + ' cls=' + resolved.cls.name);
-            log.appendLine('  member.range: line=' + resolved.member.range.start.line + ' char=' + resolved.member.range.start.character);
-            log.show();
-            await ops.renameMember(resolved.doc, resolved.cls, resolved.member, resolved.provider, codeExplorer);
+            const result = await memberViewer.beginSession({
+                mode: 'edit', renameOnly: true, member: resolved.member, classInfo: resolved.cls,
+                provider: resolved.provider, document: resolved.doc,
+            }) as MemberFormResult | undefined;
+            if (!result || !result.name) { return; }
+            await ops.renameMember(resolved.doc, resolved.cls, resolved.member, resolved.provider, codeExplorer, result.name);
+        }),
+
+        vscode.commands.registerCommand('mmx.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showWarningMessage('Open a file and place the cursor where the local should be inserted.');
+                return;
+            }
+            const resolved = resolveFromItemOrCursor(item);
+            if (!resolved) {
+                vscode.window.showWarningMessage('Select or place the cursor on a field to derive a local variable from.');
+                return;
+            }
+            if (resolved.member.kind !== MemberKind.Field && resolved.member.kind !== MemberKind.Property) {
+                vscode.window.showWarningMessage('Create local variable works on a field or property.');
+                return;
+            }
+            await ops.createLocalVariable(resolved.doc, resolved.provider, resolved.member, editor, localScopeAnalyzer);
+        }),
+
+        // Resolves the enclosing method + cursor position for local-variable ops.
+        vscode.commands.registerCommand('mmx.renameLocalVariable', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) { return; }
+            const parsed = provider.parseDocument(doc);
+            const pos = editor.selection.active;
+            const member = findEnclosingLocalMember(parsed, pos);
+            if (!member) { vscode.window.showWarningMessage('Place the cursor inside a method body.'); return; }
+            const scope = localScopeAnalyzer.getScope(doc, provider, member);
+            if (!scope) { vscode.window.showWarningMessage('Could not analyze locals here.'); return; }
+            const local = scope.locals.find((l: LocalVariable) => l.range.contains(pos));
+            if (!local) { vscode.window.showWarningMessage('Place the cursor on a declared local variable.'); return; }
+            const newName = await vscode.window.showInputBox({ prompt: 'New name', value: local.name });
+            if (!newName) { return; }
+            await renameLocal(doc, scope, local, newName);
+        }),
+
+        vscode.commands.registerCommand('mmx.changeLocalType', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) { return; }
+            const parsed = provider.parseDocument(doc);
+            const pos = editor.selection.active;
+            const member = findEnclosingLocalMember(parsed, pos);
+            if (!member) { vscode.window.showWarningMessage('Place the cursor inside a method body.'); return; }
+            const scope = localScopeAnalyzer.getScope(doc, provider, member);
+            if (!scope) { vscode.window.showWarningMessage('Could not analyze locals here.'); return; }
+            const local = scope.locals.find((l: LocalVariable) => l.range.contains(pos));
+            if (!local) { vscode.window.showWarningMessage('Place the cursor on a declared local variable.'); return; }
+            await changeLocalType(doc, local);
+        }),
+
+        vscode.commands.registerCommand('mmx.declareLocalVariable', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { vscode.window.showWarningMessage('Place the cursor on the undeclared variable to declare.'); return; }
+            const doc = editor.document;
+            const provider = providerRegistry.getByDocument(doc);
+            if (!provider) { return; }
+            const parsed = provider.parseDocument(doc);
+            const pos = editor.selection.active;
+            const member = findEnclosingLocalMember(parsed, pos);
+            if (!member) { vscode.window.showWarningMessage('Place the cursor inside a method body.'); return; }
+            const scope = localScopeAnalyzer.getScope(doc, provider, member);
+            if (!scope) { vscode.window.showWarningMessage('Could not analyze locals here.'); return; }
+            await declareUndeclaredVariable(doc, provider, scope, pos);
+        }),
+
+        // --- Unified variable refactoring (works on locals, params, fields, properties) ---
+        vscode.commands.registerCommand('mmx.renameVariable', async () => {
+            const editor = vscode.window.activeTextEditor;
+            const ref = resolveVariableFromCursor();
+            if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to rename.'); return; }
+            const newName = await vscode.window.showInputBox({ prompt: 'New name', value: ref.name });
+            if (!newName) { return; }
+            const provider = providerRegistry.getByDocument(ref.document);
+            await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
+        }),
+
+        vscode.commands.registerCommand('mmx.changeVariableType', async () => {
+            const ref = resolveVariableFromCursor();
+            if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a typed variable.'); return; }
+            const newType = await vscode.window.showInputBox({ prompt: 'New type', value: ref.type || '' });
+            if (newType === undefined) { return; }
+            await variableRefactor.changeType(ref, newType);
+        }),
+
+        vscode.commands.registerCommand('mmx.deleteVariable', async () => {
+            const editor = vscode.window.activeTextEditor;
+            const ref = resolveVariableFromCursor();
+            if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to delete.'); return; }
+            const provider = providerRegistry.getByDocument(ref.document);
+            await variableRefactor.remove(ref, provider, editor?.selection.active);
         }),
 
         vscode.commands.registerCommand('mmx.synchronizeDeclImpl', async () => {
@@ -431,39 +443,18 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 return;
             }
 
-            const methodName = await vscode.window.showInputBox({
-                prompt: 'Method name:',
-                placeHolder: 'extractedMethod',
+            const result = await memberViewer.beginSession({
+                mode: 'extract', provider, document: editor.document, selection: editor.selection,
             });
-            if (!methodName) {
-                return;
-            }
-
-            const returnType = await vscode.window.showInputBox({
-                prompt: 'Return type:',
-                placeHolder: provider.languageId === 'pascal' ? '' : 'void',
-            });
-            if (returnType === undefined) {
-                return;
-            }
-
-            const paramsInput = await vscode.window.showInputBox({
-                prompt: 'Parameters (name:type, comma-separated, empty = none):',
-                placeHolder: 'x:int, name:string',
-            });
-            if (paramsInput === undefined) {
-                return;
-            }
-            const parameters = paramsInput.trim()
-                ? paramsInput.split(',').map(s => s.trim()).filter(Boolean)
-                : [];
-
+            if (!result) { return; }
+            const spec = result as ExtractSpec;
+            const params = spec.parameters.map(p => `${p.name}:${p.type}`);
             const ok = await codeGenerator.extractMethod(
                 editor.document,
                 editor.selection,
-                methodName,
-                parameters,
-                returnType || (provider.languageId === 'pascal' ? '' : 'void')
+                spec.name,
+                params,
+                spec.returnType || (provider.languageId === 'pascal' ? '' : 'void')
             );
             if (!ok) {
                 vscode.window.showWarningMessage('CE: Could not extract method for this language.');
@@ -475,18 +466,24 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.showActions', async () => {
+            // Filter provider-unsupported actions out of the quick pick.
+            const activeDoc = vscode.window.activeTextEditor?.document;
+            const activeProv = activeDoc ? providerRegistry.getByDocument(activeDoc) : undefined;
+            const stubsSupported = activeProv ? activeProv.supportsMissingStubs() : true;
             const actions = [
                 { label: '$(symbol-method) Add Method', description: '', cmd: 'mmx.addMethod' },
                 { label: '$(symbol-field) Add Field', description: '', cmd: 'mmx.addField' },
                 { label: '$(symbol-property) Add Property', description: '', cmd: 'mmx.addProperty' },
                 { label: '$(symbol-constructor) Add Constructor', description: '', cmd: 'mmx.addConstructor' },
                 { label: '$(edit) Edit Member', description: '', cmd: 'mmx.editMember' },
-                { label: '$(references) Rename Member', description: '', cmd: 'mmx.renameMember' },
-                { label: '$(trash) Delete Member', description: '', cmd: 'mmx.deleteMember' },
+                { label: '$(edit) Rename Variable', description: 'local / field / property', cmd: 'mmx.renameVariable' },
+                { label: '$(symbol-type-parameter) Change Variable Type', description: '', cmd: 'mmx.changeVariableType' },
+                { label: '$(trash) Delete Variable', description: '', cmd: 'mmx.deleteVariable' },
                 { label: '$(fold) Extract Method', description: '', cmd: 'mmx.extractMethod' },
                 { label: '$(code) Insert Template', description: '', cmd: 'mmx.insertTemplate' },
                 { label: '$(sync) Synchronize Decl/Impl', description: '', cmd: 'mmx.synchronizeDeclImpl' },
-                { label: '$(symbol-interface) Implement Interface', description: '', cmd: 'mmx.implementInterface' },
+                ...(stubsSupported ? [{ label: '$(symbol-interface) Implement Interface', description: '', cmd: 'mmx.implementInterface' }] : []),
+                { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'mmx.generateGettersSetters' },
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
@@ -530,7 +527,6 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.implementInterface', async (item?: CodeExplorerTreeItem) => {
-            log.appendLine('=== mmx.implementInterface FIRED ===');
             let doc: vscode.TextDocument | undefined;
             let prov: ILanguageProvider | undefined;
             let cls: ClassInfo | undefined;
@@ -566,11 +562,15 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 return;
             }
 
+            if (!prov.supportsMissingStubs()) {
+                vscode.window.showInformationMessage(`CE: Interface implementation is not supported for ${prov.displayName}.`);
+                return;
+            }
+
             await ops.implementInterface(doc, prov, cls, codeExplorer);
         }),
 
         vscode.commands.registerCommand('mmx.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
-            log.appendLine('=== mmx.generateGettersSetters FIRED ===');
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 vscode.window.showWarningMessage('No active editor.');
@@ -762,12 +762,19 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.codeMetrics', () => {
-            MetricsDashboardPanel.createOrShow(context.extensionUri, providerRegistry);
+        vscode.commands.registerCommand('mmx.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
+            const resolved = resolveFromItemOrCursor(item);
+            if (!resolved) {
+                vscode.window.showWarningMessage('Place cursor on a class member first.');
+                return;
+            }
+            await ops.insertDocHeader(resolved.doc, resolved.provider, resolved.cls, resolved.member);
         }),
 
         vscode.commands.registerCommand('ce.detectDeadCode', async () => {
-            await detectDeadCode(providerRegistry);
+            // Centralized into the Member viewer (inline analytics) per feedback.
+            await memberViewer.handleRunAnalytics('deadcode');
+            vscode.commands.executeCommand('mmxViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.batchMove', async () => {
@@ -842,21 +849,26 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('ce.exportStructure', async () => {
-            await exportStructure(providerRegistry);
+            // Centralized into the Member viewer (inline analytics) per feedback.
+            await memberViewer.handleRunAnalytics('export');
+            vscode.commands.executeCommand('mmxViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.generateDocumentation', async () => {
-            await generateDocumentation(providerRegistry);
+            // Centralized into the Member viewer (inline analytics) per feedback.
+            await memberViewer.handleRunAnalytics('documentation');
+            vscode.commands.executeCommand('mmxViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.codeReview', async () => {
-            await runCodeReview(providerRegistry);
+            // Centralized into the Member viewer (inline analytics) per feedback.
+            await memberViewer.handleRunAnalytics('review');
+            vscode.commands.executeCommand('mmxViewer.focus');
         }),
     );
 }
 
 async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promise<void> {
-    console.log('[MMX] addMember called, kind:', kind);
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
@@ -878,174 +890,147 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
     let classInfo: ClassInfo | undefined;
     let isStandalone = false;
 
-    if (hasClasses) {
-        const labels = parsed.classes.map(c => {
-            const typeLabel = c.classType ? ` (${c.classType})` : (c.isInterface ? ' (interface)' : c.isRecord ? ' (record)' : '');
-            return { label: c.name + typeLabel, name: c.name, id: c.id };
-        });
+    // Resolve the target class without a pop-up: tree item first, then the class
+    // under the cursor. If none can be resolved but classes exist, the sidebar
+    // add-session will offer a compact target selector.
+    if (_item?.parentClass) {
+        classInfo = _item.parentClass;
+    } else if (hasClasses) {
+        const cursor = editor.selection.active;
+        classInfo = parsed.classes.find(c => c.range.contains(cursor));
+    }
 
-        const standaloneOption = '(File-level function)';
-        const allOptions = supportsStandalone ? [standaloneOption, ...labels.map(l => l.label)] : labels.map(l => l.label);
-
-        const pick = await vscode.window.showQuickPick(allOptions, { placeHolder: 'Select target' });
-        if (!pick) return;
-
-        if (pick === standaloneOption) {
-            isStandalone = true;
-        } else {
-            const picked = labels.find(l => l.label === pick);
-            classInfo = parsed.classes.find(c => c.id === picked?.id);
-        }
-    } else {
+    if (!classInfo && !hasClasses && supportsStandalone) {
         isStandalone = true;
     }
 
-    if (isStandalone) {
-        const name = await vscode.window.showInputBox({ prompt: 'Function name:', placeHolder: 'my_function' });
-        if (!name) return;
+    // Field from a class button: pick the visibility section first, so the
+    // variable lands in private/public/… without digging through the form.
+    let presetVisibility: Visibility | undefined;
+    if (kind === MemberKind.Field && _item?.parentClass) {
+        const visItems = provider.getVisibilityModifiers().map(v => ({
+            label: v,
+            description: v === provider.getDefaultVisibility() ? '(default)' : '',
+            picked: v === provider.getDefaultVisibility(),
+        }));
+        const pickedVis = await vscode.window.showQuickPick(visItems, {
+            title: 'CE: Add Field — visibility',
+            placeHolder: `Visibility section in ${_item.parentClass.name}`,
+        });
+        if (!pickedVis) { return; }
+        presetVisibility = pickedVis.label as Visibility;
+    }
 
-        const returnType = await vscode.window.showInputBox({ prompt: 'Return type:', placeHolder: provider.languageId === 'python' ? '' : 'void' });
-        if (returnType === undefined) return;
+    // Single sidebar session for both standalone and class targets — no pop-ups.
+    const result = await memberViewer.beginSession({
+        mode: 'add', kind, provider, document: doc,
+        classInfo: isStandalone ? undefined : classInfo,
+        visibility: presetVisibility,
+        candidateClasses: (!classInfo && !isStandalone && hasClasses) ? parsed.classes : undefined,
+        allowStandaloneTarget: (!classInfo && !isStandalone && supportsStandalone) ? true : undefined,
+    }) as MemberFormResult | undefined;
+    if (!result || !result.name) { return; }
 
-        const parameters: { name: string; type: string }[] = [];
-        let pn = 1;
-        while (true) {
-            const p = await vscode.window.showInputBox({ prompt: 'Param ' + pn + ' (name:type, empty=done)', placeHolder: 'param:string' });
-            if (p === undefined) return;
-            if (p.trim() === '') break;
-            const ci = p.indexOf(':');
-            parameters.push(ci > 0 ? { name: p.substring(0, ci).trim(), type: p.substring(ci + 1).trim() } : { name: p.trim(), type: provider.languageId === 'python' ? '' : 'string' });
-            pn++;
-        }
-
-        const lastLine = doc.lineCount;
-        const wsEdit = new vscode.WorkspaceEdit();
-        let code = '';
-
-        if (provider.languageId === 'rust') {
-            const params = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-            const ret = returnType ? ` -> ${returnType}` : '';
-            code = `\npub fn ${name}(${params})${ret} {\n    todo!()\n}\n`;
-        } else if (provider.languageId === 'go') {
-            const params = parameters.map(p => `${p.name} ${p.type}`).join(', ');
-            const ret = returnType || '';
-            code = `\nfunc ${name}(${params})${ret ? ' ' + ret : ''} {\n\t// TODO: implement\n}\n`;
-        } else if (provider.languageId === 'python') {
-            const params = parameters.map(p => p.name).join(', ');
-            code = `\ndef ${name}(${params}):\n    pass\n`;
-        } else if (provider.languageId === 'pascal') {
-            // Pascal: declaration goes in interface section, implementation in implementation section
-            const params = parameters.map(p => `${p.name}: ${p.type}`).join('; ');
-            const decl = returnType
-                ? `function ${name}(${params}): ${returnType};`
-                : `procedure ${name}(${params});`;
-            const impl = returnType
-                ? `function ${name}(${params}): ${returnType};\nbegin\n  Result := ${returnType === 'Boolean' ? 'False' : '0'};\nend;\n`
-                : `procedure ${name}(${params});\nbegin\n  // TODO: implement\nend;\n`;
-
-            // Find the implementation keyword line — insert declaration before it.
-            // The implementation body must go BEFORE `end.` (and before
-            // initialization/finalization), never after — code after `end.` is invalid.
-            const text = doc.getText();
-            const lines = text.split(/\r?\n/);
-            let implLine = -1;
-            for (let i = 0; i < lines.length; i++) {
-                if (/^implementation\b/i.test(lines[i].trim())) { implLine = i; break; }
-            }
-
-            // Locate a valid insertion point for the implementation body:
-            // prefer before initialization/finalization, otherwise before `end.`.
-            let implInsertLine = -1;
-            for (let i = 0; i < lines.length; i++) {
-                if (/^(initialization|finalization)\b/i.test(lines[i].trim())) { implInsertLine = i; break; }
-            }
-            if (implInsertLine < 0) {
-                for (let i = lines.length - 1; i >= 0; i--) {
-                    if (/^end\.\s*$/i.test(lines[i].trim())) { implInsertLine = i; break; }
-                }
-            }
-            if (implInsertLine < 0) {
-                implInsertLine = doc.lineCount;
-            }
-
-            const wsEdit2 = new vscode.WorkspaceEdit();
-            if (implLine >= 0) {
-                // Insert declaration in interface section, implementation before `end.`
-                wsEdit2.insert(doc.uri, new vscode.Position(implLine, 0), `\n${decl}\n\n`);
-                wsEdit2.insert(doc.uri, new vscode.Position(implInsertLine, 0), `\n${impl}`);
-            } else {
-                // No implementation section — just append both at end of file
-                wsEdit2.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\n${decl}\n\n${impl}`);
-            }
-            const ok2 = await vscode.workspace.applyEdit(wsEdit2);
-            if (ok2) {
-                codeExplorer.refresh();
-                vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
-            }
-            return;
-        } else if (provider.languageId === 'cpp') {
-            const params = parameters.map(p => `${p.type} ${p.name}`).join(', ');
-            const ret = returnType && returnType !== 'void' ? returnType : 'void';
-            code = `\n${ret} ${name}(${params}) {\n    // TODO: implement\n}\n`;
-        } else {
-            const params = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-            const ret = returnType ? `: ${returnType}` : '';
-            code = `\nfunction ${name}(${params})${ret} {\n  // TODO: implement\n}\n`;
-        }
-
-        wsEdit.insert(doc.uri, new vscode.Position(lastLine, 0), code);
-        const ok = await vscode.workspace.applyEdit(wsEdit);
-        if (ok) {
-            codeExplorer.refresh();
-            vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
-        }
+    if (isStandalone || result.targetIsStandalone === true) {
+        await applyStandaloneFunction(doc, provider, result);
         return;
     }
 
-    if (!classInfo) return;
-
-    const result = await MemberEditorPanel.create(extensionContext, doc, provider, classInfo, codeGenerator, kind);
-    if (!result) {
-        console.log('[MMX] MemberEditorPanel cancelled');
+    const targetClass = classInfo
+        ?? parsed.classes.find(c => c.name === result.targetClassName);
+    if (!targetClass) {
+        vscode.window.showWarningMessage('CE: Could not resolve target class.');
         return;
     }
 
-    console.log('[MMX] Form result:', JSON.stringify(result));
-    let success = false;
-
-    if (result.kind === MemberKind.Method || result.kind === MemberKind.Constructor || result.kind === MemberKind.Destructor) {
-        const spec: MemberSpec = {
-            kind: result.kind, name: result.name, returnType: result.returnType || undefined,
-            visibility: result.visibility, parameters: result.parameters || [],
-            modifiers: [], isStatic: result.isStatic, isVirtual: result.isVirtual,
-            isAbstract: result.isAbstract, isOverride: result.isOverride, isFinal: false,
-        };
-        const gen = provider.generateMethod(classInfo.name, spec, classInfo);
-        success = await applyGeneratedCode(doc, provider, gen);
-    } else if (result.kind === MemberKind.Field) {
-        const spec: FieldSpec = { kind: MemberKind.Field, name: result.name, type: result.type || result.returnType || 'int', visibility: result.visibility };
-        const gen = provider.generateField(classInfo.name, spec, classInfo);
-        success = await applyGeneratedCode(doc, provider, gen);
-    } else if (result.kind === MemberKind.Property) {
-        const spec: PropertySpec = {
-            kind: MemberKind.Property, name: result.name, type: result.type || result.returnType || 'string',
-            visibility: result.visibility, hasGetter: result.hasGetter, hasSetter: result.hasSetter,
-            getterName: result.getterName, setterName: result.setterName, isDefault: false, isReadOnly: false,
-        };
-        const gen = provider.generateProperty(classInfo.name, spec, classInfo);
-        success = await applyGeneratedCode(doc, provider, gen);
-    }
+    const spec = memberFormToSpec(result);
+    const success = await ops.applyGeneratedCode(doc, provider, generateFromSpec(provider, targetClass, spec));
 
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('CE: Added "' + result.name + '" to ' + classInfo.name + ' ✓');
+        vscode.window.showInformationMessage('CE: Added "' + result.name + '" to ' + targetClass.name + ' ✓');
     } else {
         vscode.window.showErrorMessage('CE: Failed to add "' + result.name + '"');
     }
 }
 
-async function applyGeneratedCode(doc: vscode.TextDocument, provider: ILanguageProvider, gen: import('./models/types').GeneratedCode): Promise<boolean> {
-    return ops.applyGeneratedCode(doc, provider, gen);
+async function applyStandaloneFunction(doc: vscode.TextDocument, provider: ILanguageProvider, form: MemberFormResult): Promise<void> {
+    const name = form.name;
+    const returnType = form.returnType || '';
+    const parameters = form.parameters;
+
+    const pipeline = new EditPipeline();
+    pipeline.recordOriginal(doc.uri, doc.getText());
+
+    if (provider.languageId === 'rust') {
+        const params = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+        const ret = returnType ? ` -> ${returnType}` : '';
+        pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\npub fn ${name}(${params})${ret} {\n    todo!()\n}\n`);
+    } else if (provider.languageId === 'go') {
+        const params = parameters.map(p => `${p.name} ${p.type}`).join(', ');
+        const ret = returnType || '';
+        pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\nfunc ${name}(${params})${ret ? ' ' + ret : ''} {\n\t// TODO: implement\n}\n`);
+    } else if (provider.languageId === 'python') {
+        const params = parameters.map(p => p.name).join(', ');
+        pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\ndef ${name}(${params}):\n    pass\n`);
+    } else if (provider.languageId === 'pascal') {
+        // Pascal: declaration goes in interface section, implementation in implementation section
+        const params = parameters.map(p => `${p.name}: ${p.type}`).join('; ');
+        const decl = returnType
+            ? `function ${name}(${params}): ${returnType};`
+            : `procedure ${name}(${params});`;
+        const impl = returnType
+            ? `function ${name}(${params}): ${returnType};\nbegin\n  Result := ${returnType === 'Boolean' ? 'False' : '0'};\nend;\n`
+            : `procedure ${name}(${params});\nbegin\n  // TODO: implement\nend;\n`;
+
+        // Find the implementation keyword line — insert declaration before it.
+        // The implementation body must go BEFORE `end.` (and before
+        // initialization/finalization), never after — code after `end.` is invalid.
+        const text = doc.getText();
+        const lines = text.split(/\r?\n/);
+        let implLine = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (/^implementation\b/i.test(lines[i].trim())) { implLine = i; break; }
+        }
+
+        // Locate a valid insertion point for the implementation body:
+        // prefer before initialization/finalization, otherwise before `end.`.
+        let implInsertLine = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (/^(initialization|finalization)\b/i.test(lines[i].trim())) { implInsertLine = i; break; }
+        }
+        if (implInsertLine < 0) {
+            for (let i = lines.length - 1; i >= 0; i--) {
+                if (/^end\.\s*$/i.test(lines[i].trim())) { implInsertLine = i; break; }
+            }
+        }
+        if (implInsertLine < 0) {
+            implInsertLine = doc.lineCount;
+        }
+
+        if (implLine >= 0) {
+            // Insert declaration in interface section, implementation before `end.`
+            pipeline.insert(doc.uri, new vscode.Position(implLine, 0), `\n${decl}\n\n`);
+            pipeline.insert(doc.uri, new vscode.Position(implInsertLine, 0), `\n${impl}`);
+        } else {
+            // No implementation section — just append both at end of file
+            pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\n${decl}\n\n${impl}`);
+        }
+    } else if (provider.languageId === 'cpp') {
+        const params = parameters.map(p => `${p.type} ${p.name}`).join(', ');
+        const ret = returnType && returnType !== 'void' ? returnType : 'void';
+        pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\n${ret} ${name}(${params}) {\n    // TODO: implement\n}\n`);
+    } else {
+        const params = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+        const ret = returnType ? `: ${returnType}` : '';
+        pipeline.insert(doc.uri, new vscode.Position(doc.lineCount, 0), `\nfunction ${name}(${params})${ret} {\n  // TODO: implement\n}\n`);
+    }
+
+    const ok = await pipeline.apply('Add standalone function');
+    if (ok) {
+        codeExplorer.refresh();
+        vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
+    }
 }
 
 function synthStandaloneClass(member: ClassMember, doc: vscode.TextDocument): ClassInfo {
@@ -1117,7 +1102,10 @@ function resolveFromItemOrCursor(item?: CodeExplorerTreeItem): { doc: vscode.Tex
     log.appendLine('  [resolve] parsed ' + parsed.classes.length + ' classes');
 
     for (const cls of parsed.classes) {
-        if (!cls.range.contains(position)) continue;
+        // A method body can sit outside the class range (Pascal implementation
+        // section, Go receiver methods), so also accept a cursor on any member.
+        const onMember = cls.members.some(m => m.range.contains(position) || m.implementationRange?.contains(position));
+        if (!cls.range.contains(position) && !onMember) continue;
         log.appendLine('  [resolve] cursor is inside class: ' + cls.name + ' (lines ' + cls.range.start.line + '-' + cls.range.end.line + ')');
 
         for (const member of cls.members) {
@@ -1209,6 +1197,41 @@ function resolveFromItemOrCursor(item?: CodeExplorerTreeItem): { doc: vscode.Tex
 
     log.appendLine('  [resolve] FAIL: cursor not inside any class or standalone procedure');
     return undefined;
+}
+
+/**
+ * Resolve the method member enclosing `position` for local-variable operations
+ * (classes + standalone procedures). Unlike resolveFromItemOrCursor this does
+ * not require a tree item and returns just the member.
+ */
+function findEnclosingLocalMember(parsed: { classes: ClassInfo[]; standaloneProcedures: ClassMember[] }, position: vscode.Position): ClassMember | undefined {
+    for (const cls of parsed.classes) {
+        for (const member of cls.members) {
+            if (member.range.contains(position) || member.implementationRange?.contains(position)) {
+                return member;
+            }
+        }
+    }
+    for (const proc of parsed.standaloneProcedures) {
+        if (proc.range.contains(position) || proc.implementationRange?.contains(position)) {
+            return proc;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Resolve the variable (local, parameter, field, property or standalone) under
+ * the active cursor, for the unified refactoring commands. Returns undefined
+ * when the cursor is not on a refactorable variable.
+ */
+function resolveVariableFromCursor(): import('./models/types').VariableRef | undefined {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return undefined; }
+    const doc = editor.document;
+    const provider = providerRegistry.getByDocument(doc);
+    if (!provider) { return undefined; }
+    return resolveVariableAt(doc, provider, editor.selection.active);
 }
 
 

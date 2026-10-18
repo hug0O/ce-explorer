@@ -4,5 +4,4 @@
 node_modules/**
 docs/plans/**
 **/*.map
-**/*.test.ts
 tmp_*

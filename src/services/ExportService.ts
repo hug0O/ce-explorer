@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ParsedDocument, ClassInfo, ClassMember } from '../models/types';
 
-interface ExportData {
+export interface ExportData {
     exportedAt: string;
     fileName: string;
     language: string;
@@ -31,19 +31,16 @@ interface ExportData {
     standaloneFunctions: { name: string; returnType?: string; parameters: { name: string; type: string }[]; line: number }[];
 }
 
-export async function exportStructure(registry: ProviderRegistry): Promise<void> {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
-
-    const provider = registry.getByDocument(editor.document);
-    if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }
-
-    const parsed = provider.parseDocument(editor.document);
-
-    const data: ExportData = {
+/**
+ * Pure builder: turns a parsed document into a serializable ExportData
+ * structure. Decoupled from any VS Code UI so it can be reused both by
+ * `exportStructure` (command palette) and by the inline analytics view.
+ */
+export function buildExportData(parsed: ParsedDocument, fileName: string, language: string): ExportData {
+    return {
         exportedAt: new Date().toISOString(),
-        fileName: editor.document.fileName,
-        language: provider.displayName,
+        fileName,
+        language,
         classes: parsed.classes.map(cls => ({
             name: cls.name,
             classType: cls.classType,
@@ -73,6 +70,17 @@ export async function exportStructure(registry: ProviderRegistry): Promise<void>
             line: m.range.start.line,
         })),
     };
+}
+
+export async function exportStructure(registry: ProviderRegistry): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+
+    const provider = registry.getByDocument(editor.document);
+    if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }
+
+    const parsed = provider.parseDocument(editor.document);
+    const data = buildExportData(parsed, editor.document.fileName, provider.displayName);
 
     const json = JSON.stringify(data, null, 2);
     const doc = await vscode.workspace.openTextDocument({ content: json, language: 'json' });

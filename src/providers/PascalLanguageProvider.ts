@@ -14,6 +14,8 @@ import {
     Visibility,
     MemberKind,
     Parameter,
+    LocalVariable,
+    MethodScope,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -142,24 +144,41 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         }
     }
 
+    /**
+     * Line of the class's closing `end;` — the hard upper bound for any member
+     * insert position, so a stale or overshooting member range can never push
+     * a generated declaration outside the class body.
+     */
+    private findClassEndLine(classInfo: ClassInfo, lines: string[]): number {
+        for (let i = classInfo.range.start.line; i <= classInfo.range.end.line && i < lines.length; i++) {
+            if (/^\s*end\s*;/i.test(lines[i])) {
+                return i;
+            }
+        }
+        return classInfo.range.end.line;
+    }
+
     private findVisibilityInsertPosition(
         classInfo: ClassInfo,
         lines: string[],
         visibility: Visibility,
     ): { pos: vscode.Position; needsSection: boolean } {
+        const classEndLine = this.findClassEndLine(classInfo, lines);
         const visMembers = classInfo.members.filter(m => m.visibility === visibility);
         if (visMembers.length > 0) {
             const last = visMembers.reduce((a, b) => a.range.end.line > b.range.end.line ? a : b);
-            return { pos: new vscode.Position(last.range.end.line + 1, 0), needsSection: false };
+            const rawLine = last.range.end.line + 1;
+            const clamped = rawLine > classEndLine;
+            return { pos: new vscode.Position(Math.min(rawLine, classEndLine), 0), needsSection: clamped };
         }
 
-        for (let i = classInfo.range.start.line; i <= classInfo.range.end.line; i++) {
+        for (let i = classInfo.range.start.line; i <= classEndLine; i++) {
             if (i >= lines.length) break;
             if (/^\s*end\s*;/i.test(lines[i])) {
                 return { pos: new vscode.Position(i, 0), needsSection: true };
             }
         }
-        return { pos: new vscode.Position(classInfo.range.end.line, 0), needsSection: true };
+        return { pos: new vscode.Position(classEndLine, 0), needsSection: true };
     }
 
     private computeDeclaration(
@@ -194,7 +213,6 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
     }
 
     generateMethod(className: string, spec: MemberSpec, classInfo: ClassInfo, existingBody?: string): GeneratedCode {
-        console.log('[MMX-PASCAL-FIXED-V2] generateMethod called: className=' + className + ' isStandalone=' + (classInfo.classType === 'standalone'));
         const params = this.formatParameterList(spec.parameters);
         const isStandalone = classInfo.classType === 'standalone';
         const declIndent = isStandalone ? '' : '    ';
@@ -239,6 +257,56 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         };
     }
 
+    rewriteStandaloneFunction(currentText: string, spec: MemberSpec): string | undefined {
+        // Rewrite only the routine signature; preserve the local declarations
+        // (var/const/type/label) and the begin..end body verbatim. The header
+        // runs up to the first ';' at paren-depth 0, so ';' inside the parameter
+        // list is not mistaken for the terminator.
+        const terminatorIdx = this.findHeaderTerminator(currentText);
+        if (terminatorIdx < 0) {
+            return undefined;
+        }
+        const rest = currentText.substring(terminatorIdx + 1);
+        return this.buildStandaloneHeader(spec) + rest;
+    }
+
+    rewriteStandaloneDeclaration(declText: string, spec: MemberSpec): string | undefined {
+        // Pascal standalone routines have a forward declaration in the interface
+        // section that must mirror the implementation header. Rewrite the same
+        // header prefix; trailing modifiers (e.g. 'overload;') after the first
+        // ';' at paren-depth 0 are preserved.
+        const terminatorIdx = this.findHeaderTerminator(declText);
+        if (terminatorIdx < 0) {
+            return undefined;
+        }
+        const rest = declText.substring(terminatorIdx + 1);
+        return this.buildStandaloneHeader(spec) + rest;
+    }
+
+    private buildStandaloneHeader(spec: MemberSpec): string {
+        const params = this.formatParameterList(spec.parameters);
+        if (spec.kind === MemberKind.Constructor) {
+            return `constructor Create${params};`;
+        } else if (spec.kind === MemberKind.Destructor) {
+            return `destructor Destroy;`;
+        } else if (spec.returnType && spec.returnType.trim() !== '') {
+            return `function ${spec.name}${params}: ${spec.returnType.trim()};`;
+        } else {
+            return `procedure ${spec.name}${params};`;
+        }
+    }
+
+    private findHeaderTerminator(text: string): number {
+        let depth = 0;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            else if (ch === ';' && depth <= 0) return i;
+        }
+        return -1;
+    }
+
     generateField(className: string, spec: FieldSpec, classInfo: ClassInfo): GeneratedCode {
         const declIndent = '    ';
         const fieldLine = `${declIndent}${spec.name}: ${spec.type};`;
@@ -257,11 +325,26 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         const declIndent = '    ';
         let propLine = `${declIndent}property ${spec.name}: ${spec.type}`;
 
-        if (spec.hasGetter && spec.getterName) {
-            propLine += ` read ${spec.getterName}`;
-        }
-        if (spec.hasSetter && spec.setterName) {
-            propLine += ` write ${spec.setterName}`;
+        // When a backing field is requested, generate a private field and wire the
+        // property's read/write clauses to it. This produces e.g.:
+        //   FName: string;          (private section)
+        //   property Name: string read FName write FName;
+        let backingDecl: { text: string; position: vscode.Position } | undefined;
+        if (spec.createBackingField) {
+            const fieldName = this.backingFieldName(spec.name);
+            const fieldLine = `${declIndent}${fieldName}: ${spec.type};`;
+            propLine += ` read ${fieldName}`;
+            if (spec.hasSetter) {
+                propLine += ` write ${fieldName}`;
+            }
+            backingDecl = this.computeDeclaration(fieldLine, Visibility.Private, classInfo);
+        } else {
+            if (spec.hasGetter && spec.getterName) {
+                propLine += ` read ${spec.getterName}`;
+            }
+            if (spec.hasSetter && spec.setterName) {
+                propLine += ` write ${spec.setterName}`;
+            }
         }
         if (spec.isDefault) {
             propLine += ' default';
@@ -273,12 +356,183 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
 
         const decl = this.computeDeclaration(propLine, spec.visibility, classInfo);
 
+        // Place the backing field in the private section and the property in its
+        // own visibility section as two separate inserts (a single fused insert
+        // would drop the property into the private section when it is public).
+        if (backingDecl) {
+            return {
+                declaration: decl.text,
+                implementation: '',
+                declarationPosition: decl.position,
+                implementationPosition: decl.position,
+                extraDeclaration: backingDecl.text,
+                extraDeclarationPosition: backingDecl.position,
+            };
+        }
+
         return {
             declaration: decl.text,
             implementation: '',
             declarationPosition: decl.position,
             implementationPosition: decl.position,
         };
+    }
+
+    supportsBackingField(): boolean {
+        return true;
+    }
+
+    formatLocalVariable(name: string, type: string): string {
+        return `${name}: ${type};`;
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'Integer', 'Extended', 'string', 'Boolean');
+    }
+
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        if (!member.implementationRange) return undefined;
+        const lines = document.getText().split(/\r?\n/);
+        const startLine = member.implementationRange.start.line;
+        const endLine = member.implementationRange.end.line;
+        let beginLine = startLine;
+        for (let i = startLine; i <= endLine; i++) {
+            if (/^\s*begin\b/i.test(lines[i] ?? '')) { beginLine = i + 1; break; }
+        }
+        let endBody = endLine;
+        for (let i = endLine; i >= startLine; i--) {
+            if (/^\s*end\s*;?\s*$/i.test(lines[i] ?? '')) { endBody = i - 1; break; }
+        }
+        return new vscode.Range(beginLine, 0, endBody, (lines[endBody] ?? '').length);
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        const lines = document.getText().split(/\r?\n/);
+        const implStart = member.implementationRange?.start.line ?? member.range.start.line;
+        const body = this.getMethodBodyRange(document, member);
+        const bodyStart = body ? body.start.line : implStart;
+        for (let i = bodyStart; i >= implStart; i--) {
+            if (/^\s*var\b/i.test(lines[i] ?? '')) { return new vscode.Position(i + 1, 0); }
+        }
+        return new vscode.Position(bodyStart, 0);
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        const implStart = member.implementationRange?.start.line;
+
+        // Parameters (from member.parameters).
+        for (const p of member.parameters ?? []) {
+            const paramIdx = lines.findIndex((l, i) => i >= (implStart ?? 0) && new RegExp('\\b' + p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(l));
+            if (paramIdx >= 0) {
+                const col = lines[paramIdx].indexOf(p.name);
+                locals.push({
+                    name: p.name, type: p.type, isParam: true,
+                    range: new vscode.Range(paramIdx, col, paramIdx, col + p.name.length),
+                    declarationRange: new vscode.Range(paramIdx, col, paramIdx, lines[paramIdx].length),
+                });
+            }
+        }
+
+        if (!member.implementationRange || implStart === undefined) return locals;
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return locals;
+
+        // Locate the `begin` line, then scan for a `var` section between the impl
+        // header and `begin`.
+        let beginLine = implStart;
+        for (let i = implStart; i <= body.end.line; i++) {
+            if (/^\s*begin\b/i.test(lines[i] ?? '')) { beginLine = i; break; }
+        }
+        let varStart = -1;
+        for (let i = implStart; i < beginLine; i++) {
+            if (/^\s*var\b/i.test(lines[i] ?? '')) { varStart = i + 1; break; }
+        }
+        if (varStart < 0) return locals;
+
+        // Parse the var section. Handles three layouts the old single-name
+        // regex missed:
+        //   a: Integer;
+        //   a, b, c: Integer;          (several names sharing a type)
+        //   a, b,                      (continues on the next line until ;)
+        //   c: Integer;
+        // Accumulate raw var-section lines, joining continuation lines until we
+        // hit a terminating ';', then split the name list from the type.
+        let acc = '';
+        let accStartLine = -1;
+        const flushVarDecl = (raw: string, declStart: number) => {
+            const flat = raw.replace(/\s+/g, ' ').trim();
+            // name(s) : type;  — type may contain spaces/generics.
+            const m = flat.match(/^([\w, ]+?)\s*:\s*(.+?)\s*;?\s*$/);
+            if (!m) { return; }
+            const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
+            const type = m[2].trim();
+            for (const name of names) {
+                // Locate the original column of this name on its real line so
+                // rename/type edits target the right token.
+                const idx = lines[declStart]?.indexOf(name) ?? -1;
+                const col = idx >= 0 ? idx : 2;
+                locals.push({
+                    name, type, isParam: false,
+                    range: new vscode.Range(declStart, col, declStart, col + name.length),
+                    declarationRange: new vscode.Range(declStart, col, declStart, lines[declStart]?.length ?? 0),
+                });
+            }
+        };
+
+        // Precompute line ranges occupied by nested procedure/function bodies
+        // (a nested routine carries its own var/begin/end that must NOT be
+        // mixed into the parent's locals). Each nested routine runs from its
+        // `procedure`/`function` header to the matching `end;`. We only need the
+        // header span (up to its terminating ';') since the body's begin..end is
+        // inside the parent's begin..end and not in the var section.
+        const skipRanges: [number, number][] = [];
+        for (let i = varStart; i < beginLine; i++) {
+            const line = (lines[i] ?? '').trim();
+            if (/^(procedure|function)\b/i.test(line)) {
+                // Nested routine header: skip until the terminating ';' that
+                // closes its signature (may span multiple lines).
+                let j = i;
+                let depth = 0;
+                for (; j < beginLine; j++) {
+                    const t = (lines[j] ?? '');
+                    for (const ch of t) { if (ch === '(') depth++; else if (ch === ')') depth--; }
+                    if (depth <= 0 && /;\s*$/.test(t.trim())) { break; }
+                }
+                skipRanges.push([i, j]);
+                i = j;
+            }
+        }
+        const isSkipped = (ln: number) => skipRanges.some(([a, b]) => ln >= a && ln <= b);
+
+        for (let i = varStart; i < beginLine; i++) {
+            if (isSkipped(i)) { continue; }
+            const line = lines[i] ?? '';
+            if (accStartLine < 0) { accStartLine = i; }
+            acc += (acc && !acc.endsWith(' ') ? ' ' : '') + line.trim();
+            if (/;\s*$/.test(line.trim())) {
+                flushVarDecl(acc, accStartLine);
+                acc = '';
+                accStartLine = -1;
+            }
+        }
+        if (acc.trim()) { flushVarDecl(acc, accStartLine < 0 ? varStart : accStartLine); }
+
+        // Filter out false positives that slipped through nested routine
+        // signatures: Pascal keywords, names with spaces, and duplicates of an
+        // already-collected local (a nested routine parameter can share a name
+        // with a parent local but with a different declaration line).
+        const KEYWORDS = /^(var|const|type|begin|end|procedure|function|if|then|else|for|while|do|repeat|until|case|of|with|try|except|finally|raise|and|or|not|in|is|as|to|downto|div|mod|shl|shr|nil|true|false|inherited|self)$/i;
+        const seen = new Set<string>();
+        const filtered = locals.filter(l => {
+            const n = l.name.trim();
+            if (!n || KEYWORDS.test(n) || /\s/.test(n)) { return false; }
+            if (seen.has(n)) { return false; }
+            seen.add(n);
+            return true;
+        });
+        return filtered;
     }
 
     getInsertPosition(
@@ -312,6 +566,15 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: '', defaultFieldType: 'Integer', defaultPropertyType: 'string', defaultParamType: 'Integer' };
     }
+    getTypeSuggestions() {
+        return ['Integer', 'String', 'Boolean', 'Double', 'Extended', 'Real', 'Char', 'TDateTime', 'TStringList', 'TList', 'Pointer', 'Variant', 'Cardinal', 'Int64', 'Word', 'Byte'];
+    }
+    getVisibilityOptions() {
+        return [Visibility.Private, Visibility.Protected, Visibility.Public, Visibility.Published];
+    }
+    getLocalSectionKeyword() {
+        return 'var';
+    }
 
     getDefaultVisibility(): Visibility {
         return Visibility.Published;
@@ -325,14 +588,12 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         return undefined;
     }
 
-    findPairedFile(uri: vscode.Uri): vscode.Uri | undefined {
-        const ext = '.pas';
-        const path = uri.fsPath;
-        if (!path.toLowerCase().endsWith(ext)) {
-            return undefined;
-        }
-        return undefined;
+    supportsMissingStubs(): boolean {
+        return false;
     }
+
+    // Pascal stores interface and implementation in the same .pas file, so there
+    // is no paired file. The base findPairedFile already returns undefined.
 
     synchronizeDeclarationImplementation(
         document: vscode.TextDocument,
@@ -870,12 +1131,52 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
     }
 
     private findImplementationEnd(lines: string[], startLine: number): number {
+        // Locate the end of a Pascal routine body by tracking block depth.
+        // `begin`, `try`, `case`, `asm` and `record` each open a block that is
+        // closed by `end`; `repeat..until` is self-balanced (no `end`) and so is
+        // ignored. Previously only `begin`/`end` were counted, which dropped the
+        // closing `end` of every try/except and try/finally block and made the
+        // routine end resolve too early (e.g. on the except's `end` instead of
+        // the routine's own `end`).
+        //
+        // Comments ({..}, (*..*), //) and string literals are stripped first,
+        // carrying multi-line comment state across lines, so keywords embedded
+        // in them cannot unbalance the count.
         let depth = 0;
+        let inCurly = false;
+        let inParenStar = false;
         for (let i = startLine; i < lines.length; i++) {
-            const line = lines[i].trim().toLowerCase();
-            const beginCount = (line.match(/\bbegin\b/g) || []).length;
-            const endCount = (line.match(/\bend\b/g) || []).length;
-            depth += beginCount - endCount;
+            const raw = lines[i];
+            let code = '';
+            let inStr = false;
+            for (let p = 0; p < raw.length; p++) {
+                const ch = raw[p];
+                const next = raw[p + 1] ?? '';
+                if (inCurly) {
+                    if (ch === '}') inCurly = false;
+                    continue;
+                }
+                if (inParenStar) {
+                    if (ch === '*' && next === ')') { inParenStar = false; p++; }
+                    continue;
+                }
+                if (inStr) {
+                    if (ch === '\'') {
+                        if (next === '\'') { p++; }
+                        else { inStr = false; }
+                    }
+                    continue;
+                }
+                if (ch === '{') { inCurly = true; continue; }
+                if (ch === '(' && next === '*') { inParenStar = true; p++; continue; }
+                if (ch === '/' && next === '/') { break; }
+                if (ch === '\'') { inStr = true; continue; }
+                code += ch;
+            }
+            const lower = code.toLowerCase();
+            const openCount = (lower.match(/\b(begin|try|case|asm|record)\b/g) || []).length;
+            const endCount = (lower.match(/\bend\b/g) || []).length;
+            depth += openCount - endCount;
             if (depth <= 0 && endCount > 0 && i > startLine) {
                 return i;
             }
@@ -899,7 +1200,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             }
         }
 
-        const declarations: { name: string; isFunc: boolean; line: number; params?: string; returnType?: string }[] = [];
+        const declarations: { name: string; isFunc: boolean; line: number; endLine: number; params?: string; returnType?: string }[] = [];
 
         // Helper: does `text` contain a ';' at paren depth 0 (the declaration terminator)?
         const hasTerminator = (text: string): boolean => {
@@ -944,12 +1245,69 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             const procMatch = flat.match(/^procedure\s+(\w+)\s*(?:\(([^)]*)\))?\s*;/i);
 
             if (isFunc && funcMatch) {
-                declarations.push({ name: funcMatch[1], isFunc: true, line: startLine, params: funcMatch[2], returnType: funcMatch[3].trim() });
+                declarations.push({ name: funcMatch[1], isFunc: true, line: startLine, endLine, params: funcMatch[2], returnType: funcMatch[3].trim() });
             } else if (!isFunc && procMatch) {
-                declarations.push({ name: procMatch[1], isFunc: false, line: startLine, params: procMatch[2] });
+                declarations.push({ name: procMatch[1], isFunc: false, line: startLine, endLine, params: procMatch[2] });
             }
 
             i = endLine + 1;
+        }
+
+        // Implementation-only routines (no forward declaration in the interface
+        // section) are legal Pascal and must stay visible: scan the
+        // implementation section for unqualified routine definitions that were
+        // not collected above. Their declaration and body are the same block.
+        if (implStart >= 0) {
+            const known = new Set(declarations.map(d => d.name.toLowerCase()));
+            let i = implStart;
+            while (i < lines.length) {
+                const trimmed = lines[i].trim();
+                if (/^end\.\s*$/i.test(trimmed)) break;
+                if (/^\s*(?:procedure|function)\s+T\w+\./.test(trimmed)) { i++; continue; }
+                const startMatch = trimmed.match(/^(procedure|function)\s+(\w+)\b/i);
+                if (!startMatch || known.has(startMatch[2].toLowerCase())) { i++; continue; }
+
+                const isFunc = startMatch[1].toLowerCase() === 'function';
+                const startLine = i;
+                let acc = '';
+                let endLine = i;
+                let terminated = false;
+                for (let j = i; j < lines.length; j++) {
+                    acc += (j > i ? ' ' : '') + lines[j].trim();
+                    if (hasTerminator(acc)) { endLine = j; terminated = true; break; }
+                }
+                if (!terminated) { i++; continue; }
+
+                const flat = acc.replace(/\s+/g, ' ').trim();
+                const funcMatch = flat.match(/^function\s+(\w+)\s*(?:\(([^)]*)\))?\s*:\s*([^;]+);/i);
+                const procMatch = flat.match(/^procedure\s+(\w+)\s*(?:\(([^)]*)\))?\s*;/i);
+                const name = (isFunc ? funcMatch?.[1] : procMatch?.[1]) ?? startMatch[2];
+                const paramsStr = (isFunc ? funcMatch?.[2] : procMatch?.[2]) ?? flat.match(/\(([^)]*)\)/)?.[1];
+                const returnType = isFunc ? funcMatch?.[3]?.trim() : undefined;
+
+                const bodyEnd = this.findImplementationEnd(lines, endLine);
+                const block = new vscode.Range(
+                    new vscode.Position(startLine, 0),
+                    new vscode.Position(bodyEnd, lines[bodyEnd]?.length ?? 0),
+                );
+                results.push({
+                    id: nextId('sproc'),
+                    kind: MemberKind.Method,
+                    name,
+                    returnType,
+                    visibility: Visibility.Public,
+                    parameters: this.parseParams(paramsStr),
+                    modifiers: [],
+                    isStatic: false,
+                    isVirtual: false,
+                    isAbstract: false,
+                    isOverride: false,
+                    range: block,
+                    implementationRange: block,
+                });
+                known.add(name.toLowerCase());
+                i = bodyEnd + 1;
+            }
         }
 
         for (const decl of declarations) {
@@ -988,7 +1346,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
                 isOverride: false,
                 range: new vscode.Range(
                     new vscode.Position(decl.line, 0),
-                    new vscode.Position(decl.line, lines[decl.line]?.length ?? 0),
+                    new vscode.Position(decl.endLine, lines[decl.endLine]?.length ?? 0),
                 ),
                 implementationRange: implRange,
             });
@@ -1242,8 +1600,10 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             const fields = classInfo.members.filter(m => m.kind === MemberKind.Field);
             if (fields.length > 0) {
                 const lastField = fields.reduce((a, b) => a.range.end.line > b.range.end.line ? a : b);
-                const indent = (lines[lastField.range.end.line] || '').match(/^(\s*)/)?.[1] || '';
-                return new vscode.Position(lastField.range.end.line + 1, indent.length);
+                const classEndLine = this.findClassEndLine(classInfo, lines);
+                const line = Math.min(lastField.range.end.line + 1, classEndLine);
+                const indent = (lines[line] || '').match(/^(\s*)/)?.[1] || '';
+                return new vscode.Position(line, indent.length);
             }
             for (let i = classInfo.range.start.line; i <= classInfo.range.end.line; i++) {
                 if (i >= lines.length) break;

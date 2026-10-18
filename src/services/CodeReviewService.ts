@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
 
-interface ReviewFinding {
+export interface ReviewFinding {
     severity: 'info' | 'warning' | 'error';
     category: string;
     message: string;
@@ -12,10 +12,21 @@ interface ReviewFinding {
     memberName?: string;
 }
 
-function reviewDocument(document: vscode.TextDocument, provider: import('../providers/ILanguageProvider').ILanguageProvider): ReviewFinding[] {
+/**
+ * Pure analysis: returns all review findings for a document. Decoupled from
+ * any VS Code UI so it can be reused both by the command palette entry point
+ * (`runCodeReview`) and by the inline analytics view in MemberViewerPanel.
+ */
+export function reviewDocument(document: vscode.TextDocument, provider: import('../providers/ILanguageProvider').ILanguageProvider): ReviewFinding[] {
     const findings: ReviewFinding[] = [];
     const parsed = provider.parseDocument(document);
     const fileName = document.fileName.split(/[/\\]/).pop() || document.fileName;
+    const lang = provider.languageId;
+
+    // Rules that do not make sense for some languages: exported/struct fields
+    // are idiomatic in Go/Rust, attribute-style fields in Python/JS, and PL/SQL
+    // package variables have no accessor concept.
+    const fieldEncapsulationApplies = !['go', 'rust', 'python', 'javascript', 'plsql'].includes(lang);
 
     for (const cls of parsed.classes) {
         if (cls.members.length > 15) {
@@ -35,10 +46,14 @@ function reviewDocument(document: vscode.TextDocument, provider: import('../prov
             if (lineCount > 30) {
                 findings.push({ severity: 'warning', category: 'Complexity', message: `${m.name} is ${lineCount} lines long`, file: fileName, line: m.range.start.line, className: cls.name, memberName: m.name });
             }
-            if (m.visibility === 'public' && m.kind === MemberKind.Field) {
+            if (fieldEncapsulationApplies && m.visibility === 'public' && m.kind === MemberKind.Field) {
                 findings.push({ severity: 'warning', category: 'Encapsulation', message: `Public field ${m.name} should be private with accessors`, file: fileName, line: m.range.start.line, className: cls.name, memberName: m.name });
             }
         }
+    }
+
+    if (lang === 'pascal') {
+        findings.push(...reviewPascalRoutines(document, parsed));
     }
 
     const text = document.getText();
@@ -47,6 +62,53 @@ function reviewDocument(document: vscode.TextDocument, provider: import('../prov
         const idx = text.indexOf(match);
         const line = document.positionAt(idx).line;
         findings.push({ severity: 'info', category: 'TODO', message: match.substring(0, 60), file: fileName, line });
+    }
+
+    return findings;
+}
+
+/**
+ * Pascal/Delphi-specific checks, run on every routine (standalone or class
+ * member) that has an implementation block:
+ * - a function whose body never assigns Result (nor calls Exit) returns
+ *   garbage at runtime — the classic Delphi bug;
+ * - an empty begin..end block is an unimplemented stub.
+ */
+function reviewPascalRoutines(
+    document: vscode.TextDocument,
+    parsed: { standaloneProcedures: ClassMember[]; classes: { name: string; members: ClassMember[] }[] }
+): ReviewFinding[] {
+    const findings: ReviewFinding[] = [];
+    const fileName = document.fileName.split(/[/\\]/).pop() || document.fileName;
+    const routines: { name: string; className?: string; member: ClassMember }[] = [
+        ...parsed.standaloneProcedures.map(m => ({ name: m.name, member: m })),
+        ...parsed.classes.flatMap(c => c.members.filter(m => m.implementationRange).map(m => ({ name: m.name, className: c.name, member: m }))),
+    ];
+
+    for (const { name, className, member } of routines) {
+        const impl = member.implementationRange;
+        if (!impl) { continue; }
+        const body = document.getText(impl);
+
+        if (member.returnType) {
+            const assignsResult = /Result\s*:=|Exit\s*\(|^\s*throw\b/im.test(body);
+            if (!assignsResult) {
+                findings.push({
+                    severity: 'warning', category: 'Correctness',
+                    message: `Function ${name} never assigns Result (nor calls Exit)`,
+                    file: fileName, line: impl.start.line, className, memberName: name,
+                });
+            }
+        }
+
+        const inner = body.replace(/^[\s\S]*?\bbegin\b/i, '').replace(/\bend\s*;\s*$/i, '').trim();
+        if (inner.length === 0) {
+            findings.push({
+                severity: 'info', category: 'Stub',
+                message: `${name} has an empty body (unimplemented)`,
+                file: fileName, line: impl.start.line, className, memberName: name,
+            });
+        }
     }
 
     return findings;

@@ -2,7 +2,7 @@
   "name": "mmx-code-explorer",
   "displayName": "Code Explorer",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "publisher": "mmx",
   "license": "MIT",
   "engines": {
@@ -25,7 +25,19 @@
     "multi-language"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished",
+    "onLanguage:pascal",
+    "onLanguage:cpp",
+    "onLanguage:rust",
+    "onLanguage:java",
+    "onLanguage:python",
+    "onLanguage:csharp",
+    "onLanguage:go",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:plsql"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -43,21 +55,25 @@
         {
           "id": "mmxCodeExplorer",
           "name": "Classes",
-          "when": "mmx:isActive"
+          "when": "mmx:isActive",
+          "visibility": "collapsed"
         },
         {
-          "id": "mmxDashboard",
-          "name": "Dashboard",
+          "id": "mmxTemplates",
+          "name": "Templates",
+          "when": "mmx:isActive",
+          "type": "webview",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "mmxViewer",
+          "name": "Member",
           "when": "mmx:isActive",
           "type": "webview"
         }
       ]
     },
     "commands": [
-      {
-        "command": "mmx.testMinimal",
-        "title": "CE: Test - Parse & Insert Comment"
-      },
       {
         "command": "mmx.addMethod",
         "title": "CE: Add Method...",
@@ -66,17 +82,17 @@
       {
         "command": "mmx.addField",
         "title": "CE: Add Field...",
-        "icon": "$(add)"
+        "icon": "$(symbol-field)"
       },
       {
         "command": "mmx.addProperty",
         "title": "CE: Add Property...",
-        "icon": "$(add)"
+        "icon": "$(symbol-property)"
       },
       {
         "command": "mmx.addConstructor",
         "title": "CE: Add Constructor...",
-        "icon": "$(add)"
+        "icon": "$(symbol-constructor)"
       },
       {
         "command": "mmx.refreshExplorer",
@@ -111,7 +127,38 @@
       },
       {
         "command": "mmx.renameMember",
-        "title": "CE: Rename Member"
+        "title": "CE: Rename Member",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "mmx.createLocalVariable",
+        "title": "CE: Create Local Variable"
+      },
+      {
+        "command": "mmx.renameLocalVariable",
+        "title": "CE: Rename Local Variable"
+      },
+      {
+        "command": "mmx.changeLocalType",
+        "title": "CE: Change Local Type"
+      },
+      {
+        "command": "mmx.declareLocalVariable",
+        "title": "CE: Declare Local Variable"
+      },
+      {
+        "command": "mmx.renameVariable",
+        "title": "CE: Rename Variable",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mmx.changeVariableType",
+        "title": "CE: Change Variable Type"
+      },
+      {
+        "command": "mmx.deleteVariable",
+        "title": "CE: Delete Variable",
+        "icon": "$(trash)"
       },
       {
         "command": "mmx.openMemberEditor",
@@ -161,9 +208,9 @@
         "icon": "$(symbol-property)"
       },
       {
-        "command": "ce.codeMetrics",
-        "title": "CE: Code Metrics",
-        "icon": "$(graph)"
+        "command": "mmx.insertDocHeader",
+        "title": "CE: Insert Doc Header",
+        "icon": "$(symbol-string)"
       },
       {
         "command": "ce.exportStructure",
@@ -216,22 +263,47 @@
           "command": "mmx.addMethod",
           "when": "view == mmxCodeExplorer",
           "group": "navigation"
+        },
+        {
+          "command": "mmx.clearFilter",
+          "when": "view == mmxCodeExplorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
         {
           "command": "mmx.addMethod",
-          "when": "view == mmxCodeExplorer && viewItem == class",
+          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
           "group": "inline@1"
         },
         {
           "command": "mmx.addField",
-          "when": "view == mmxCodeExplorer && viewItem == class",
+          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
           "group": "inline@2"
         },
         {
           "command": "mmx.addProperty",
-          "when": "view == mmxCodeExplorer && viewItem == class",
+          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "mmx.addConstructor",
+          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
+          "group": "inline@4"
+        },
+        {
+          "command": "mmx.editMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "inline@1"
+        },
+        {
+          "command": "mmx.renameMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "inline@2"
+        },
+        {
+          "command": "mmx.deleteMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
           "group": "inline@3"
         },
         {
@@ -240,19 +312,14 @@
           "group": "1_edit@1"
         },
         {
-          "command": "mmx.editMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "inline@1"
-        },
-        {
-          "command": "mmx.deleteMember",
+          "command": "mmx.renameMember",
           "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
           "group": "1_edit@2"
         },
         {
           "command": "mmx.deleteMember",
           "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "inline@2"
+          "group": "1_edit@3"
         },
         {
           "command": "mmx.navigateToMember",
@@ -260,49 +327,66 @@
           "group": "2_nav@1"
         },
         {
-          "command": "mmx.renameMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "1_edit@4"
-        },
-        {
           "command": "mmx.generateGettersSetters",
           "when": "view == mmxCodeExplorer && viewItem == field",
           "group": "1_edit@5"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "mmx.extractMethod",
-          "group": "mmx@1"
         },
         {
-          "command": "mmx.synchronizeDeclImpl",
-          "group": "mmx@2"
-        },
-        {
-          "command": "mmx.editMember",
-          "group": "mmx@3"
-        },
-        {
-          "command": "mmx.deleteMember",
-          "group": "mmx@4"
-        },
-        {
-          "command": "mmx.renameMember",
-          "group": "mmx@5"
+          "command": "mmx.moveMember",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
+          "group": "1_edit@6"
         },
         {
           "command": "mmx.insertTemplate",
-          "group": "mmx@6"
+          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
+          "group": "3_refactor@2"
         },
+        {
+          "command": "mmx.synchronizeDeclImpl",
+          "when": "view == mmxCodeExplorer && viewItem =~ /method|constructor|destructor/",
+          "group": "3_refactor@3"
+        }
+      ],
+      "editor/context": [
         {
           "command": "mmx.showActions",
           "group": "mmx@0"
         },
         {
+          "command": "mmx.editMember",
+          "when": "editorTextFocus",
+          "group": "mmx@1"
+        },
+        {
+          "command": "mmx.renameVariable",
+          "when": "editorTextFocus",
+          "group": "mmx@2"
+        },
+        {
+          "command": "mmx.changeVariableType",
+          "when": "editorTextFocus",
+          "group": "mmx@3"
+        },
+        {
+          "command": "mmx.deleteVariable",
+          "when": "editorTextFocus",
+          "group": "mmx@4"
+        },
+        {
+          "command": "mmx.extractMethod",
+          "when": "editorTextFocus",
+          "group": "mmx@5"
+        },
+        {
           "command": "mmx.implementInterface",
           "when": "editorTextFocus",
-          "group": "mmx@7"
+          "group": "mmx@6"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mmx.navigateToMember",
+          "when": "false"
         }
       ]
     },

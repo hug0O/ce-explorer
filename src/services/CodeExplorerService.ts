@@ -167,6 +167,7 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
     private filterPattern: string = '';
     private compiledFilter: CompiledFilter = compileFilter('');
     private groupBy: GroupMode = 'visibility';
+    private refreshTimer: NodeJS.Timeout | undefined;
 
     private matchesFilter(name: string): boolean {
         return nameMatchesFilter(name, this.compiledFilter);
@@ -251,7 +252,15 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
         if (e.document === this.currentDocument) {
             this.parsedCache.delete(e.document.uri.toString());
             this.parsedVersion.delete(e.document.uri.toString());
-            this._onDidChangeTreeData.fire(null);
+            // Debounce: the tree re-parses the document, so firing on every
+            // keystroke would re-parse per character while typing.
+            if (this.refreshTimer) {
+                clearTimeout(this.refreshTimer);
+            }
+            this.refreshTimer = setTimeout(() => {
+                this.refreshTimer = undefined;
+                this._onDidChangeTreeData.fire(null);
+            }, 300);
         }
     }
 
@@ -264,6 +273,10 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
     }
 
     refresh(): void {
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = undefined;
+        }
         this.parsedCache.clear();
         this.parsedVersion.clear();
         this._onDidChangeTreeData.fire(null);
@@ -348,47 +361,5 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
 
     resolveTreeItem(item: CodeExplorerTreeItem, _element: CodeExplorerTreeItem): vscode.ProviderResult<CodeExplorerTreeItem> {
         return item;
-    }
-
-    getSelectedClass(): ClassInfo | undefined {
-        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
-        if (!doc || !this.isSupportedDocument(doc)) {
-            return undefined;
-        }
-
-        const provider = this.providerForDocument(doc);
-        if (!provider) {
-            return undefined;
-        }
-
-        const parsed = provider.parseDocument(doc);
-        return parsed.classes.length > 0 ? parsed.classes[0] : undefined;
-    }
-
-    getClassByName(name: string): ClassInfo | undefined {
-        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
-        if (!doc || !this.isSupportedDocument(doc)) {
-            return undefined;
-        }
-
-        const provider = this.providerForDocument(doc);
-        if (!provider) {
-            return undefined;
-        }
-
-        const parsed = provider.parseDocument(doc);
-        return parsed.classes.find(c => c.name === name);
-    }
-
-    getCurrentProvider(): ILanguageProvider | undefined {
-        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
-        if (!doc) {
-            return undefined;
-        }
-        return this.providerForDocument(doc);
-    }
-
-    getProvider(languageId: string): ILanguageProvider | undefined {
-        return this.providers.get(languageId);
     }
 }

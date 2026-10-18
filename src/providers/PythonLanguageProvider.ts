@@ -12,6 +12,8 @@ import {
     MemberKind,
     Parameter,
     RefactoringContext,
+    LocalVariable,
+    MethodScope,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
 
@@ -47,9 +49,12 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
     getTypeDefaults() {
         return { defaultReturnType: 'None', defaultFieldType: 'Any', defaultPropertyType: 'str', defaultParamType: 'Any' };
     }
-
-    findPairedFile(_uri: vscode.Uri): vscode.Uri | undefined {
-        return undefined;
+    getTypeSuggestions() {
+        return ['int', 'str', 'float', 'bool', 'bytes', 'list', 'dict', 'tuple', 'set', 'frozenset', 'None', 'Any', 'Optional', 'List', 'Dict', 'Tuple', 'Union', 'object'];
+    }
+    // Python has no visibility keyword; convention is _name / __name.
+    getVisibilityOptions() {
+        return [Visibility.Public, Visibility.Protected, Visibility.Private];
     }
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -129,6 +134,82 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
         return result;
     }
 
+    formatLocalVariable(name: string, type: string): string {
+        return type ? `${name}: ${type} = None` : `${name} = None`;
+    }
+
+    guessTypeFromAssignment(rhs: string, _scope: MethodScope): string | undefined {
+        return this.guessFromLiteral(rhs, 'int', 'float', 'str', 'bool');
+    }
+
+    getMethodBodyRange(document: vscode.TextDocument, member: ClassMember): vscode.Range | undefined {
+        const range = member.implementationRange ?? member.range;
+        const lines = document.getText().split(/\r?\n/);
+        // Body is the indented block following the def line.
+        let defLine = range.start.line;
+        for (let i = range.start.line; i <= range.end.line; i++) {
+            if (/^\s*def\s/.test(lines[i] ?? '')) { defLine = i; break; }
+        }
+        const defIndent = (lines[defLine].match(/^(\s*)/) ?? [''])[0].length;
+        let endLine = defLine;
+        for (let i = defLine + 1; i < lines.length; i++) {
+            const trimmed = (lines[i] ?? '').trim();
+            if (trimmed === '') continue;
+            const indent = (lines[i].match(/^(\s*)/) ?? [''])[0].length;
+            if (indent <= defIndent) break;
+            endLine = i;
+        }
+        return new vscode.Range(defLine + 1, 0, endLine, (lines[endLine] ?? '').length);
+    }
+
+    getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position {
+        const body = this.getMethodBodyRange(document, member);
+        return new vscode.Position(body ? body.start.line : (member.implementationRange?.start.line ?? member.range.start.line), 0);
+    }
+
+    parseLocals(document: vscode.TextDocument, member: ClassMember): LocalVariable[] {
+        const body = this.getMethodBodyRange(document, member);
+        if (!body) return [];
+        const lines = document.getText().split(/\r?\n/);
+        const locals: LocalVariable[] = [];
+        // Annotated assignment: `name: type = ...` or `name: type`
+        const re = /^\s+(\w+)\s*:\s*([^=]+?)(\s*=.*)?$/;
+        // Tuple unpack: `a, b = ...` or chained `a = b = ...`
+        const unpackRe = /^\s+([\w, ]+?)\s*=(?!=)\s*.+/;
+        for (let i = body.start.line; i <= body.end.line; i++) {
+            const line = lines[i] ?? '';
+            // Skip control flow and annotated (handled below).
+            if (/^\s*(if|elif|else|for|while|return|def|class|with|try|except|finally|raise|import|from|pass|break|continue)\b/.test(line)) { continue; }
+            const m = line.match(re);
+            if (m) {
+                const name = m[1];
+                const col = line.indexOf(name);
+                locals.push({
+                    name, type: m[2].trim(), isParam: false,
+                    range: new vscode.Range(i, col, i, col + name.length),
+                    declarationRange: new vscode.Range(i, col, i, lines[i].length),
+                });
+                continue;
+            }
+            // Tuple unpack / chained: `a, b = ...` or `a = b = ...`
+            const um = line.match(unpackRe);
+            if (um) {
+                const names = um[1].split(',').map(s => s.trim()).filter(Boolean);
+                for (const name of names) {
+                    if (/^\w+$/.test(name) && !locals.some(l => l.name === name && l.declarationRange.start.line === i)) {
+                        const col = line.indexOf(name);
+                        locals.push({
+                            name, type: undefined, isParam: false,
+                            range: new vscode.Range(i, col, i, col + name.length),
+                            declarationRange: new vscode.Range(i, col, i, line.length),
+                        });
+                    }
+                }
+            }
+        }
+        return locals;
+    }
+
     rewriteStandaloneFunction(currentText: string, spec: MemberSpec): string | undefined {
         const lines = currentText.split('\n');
         if (lines.length === 0) return undefined;
@@ -202,7 +283,9 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
             }
 
             const classIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-            let endLine = i + 1;
+            // Default to end-of-file: a class body extends to EOF unless a later
+            // non-empty line outdents to the class indent level.
+            let endLine = lines.length;
             for (let scan = i + 1; scan < lines.length; scan++) {
                 const scanLine = lines[scan];
                 if (scanLine.trim() === '') continue;
@@ -210,9 +293,6 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
                 if (scanIndent <= classIndent && scanLine.trim().length > 0) {
                     endLine = scan;
                     break;
-                }
-                if (scan === lines.length - 1) {
-                    endLine = scan + 1;
                 }
             }
 
@@ -455,7 +535,11 @@ export class PythonLanguageProvider extends BaseLanguageProvider {
 
     generateField(_className: string, spec: FieldSpec, classInfo: ClassInfo): GeneratedCode {
         const indent = '    ';
-        let decl = `${indent}self.${spec.name}`;
+        // Python convention: _name (protected), __name (private).
+        let name = spec.name;
+        if (spec.visibility === Visibility.Protected && !name.startsWith('_')) { name = '_' + name; }
+        if (spec.visibility === Visibility.Private && !name.startsWith('__')) { name = '__' + name.replace(/^_+/, ''); }
+        let decl = `${indent}self.${name}`;
         if (spec.defaultValue) {
             decl += ` = ${spec.defaultValue}`;
         } else if (spec.type && spec.type !== 'Any') {

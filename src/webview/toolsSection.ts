@@ -66,10 +66,41 @@ export function toolsCss(): string {
 `;
 }
 
-export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS): string {
+export const PLSQL_COMMANDS = [
+    'mmx.plsql.syncPackage', 'mmx.plsql.newPackage', 'mmx.plsql.crudFromTable', 'mmx.plsql.utplsql',
+    'mmx.plsql.exceptionBlock', 'mmx.plsql.extractProcedure', 'mmx.plsql.docHeader', 'mmx.plsql.findCallers',
+];
+export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
+
+function plsqlBlock(): string {
+    const btn = (cmd: string, label: string, title: string) => `<button class="ana" data-pl="${cmd}" title="${escapeAttr(title)}">${label}</button>`;
+    const chip = (id: string, label: string, title: string) => `<button class="chip" data-pa="${id}" title="${escapeAttr(title)}">${escapeAttr(label)}</button>`;
+    return `
+<div class="tools-block" id="plBlock">
+<div class="section-title">PL/SQL (Oracle)</div>
+<div class="analyze-grid">
+${btn('mmx.plsql.syncPackage', '🔄 Sync spec ⇄ body', 'Declare / stub / fix signatures between the .pks and the .pkb')}
+${btn('mmx.plsql.newPackage', '📦 New package…', 'Spec + body skeleton')}
+${btn('mmx.plsql.crudFromTable', '🗄️ CRUD from table', 'Select or copy a CREATE TABLE')}
+${btn('mmx.plsql.extractProcedure', '✂️ Extract procedure', 'Selection → procedure with detected IN / OUT parameters')}
+${btn('mmx.plsql.exceptionBlock', '⚠️ Exception block', 'NO_DATA_FOUND / TOO_MANY_ROWS / OTHERS')}
+${btn('mmx.plsql.docHeader', '📘 PLDoc header', 'Insert or refresh the /** … */ block from the signature')}
+${btn('mmx.plsql.utplsql', '🧪 utPLSQL tests', 'Test package generated from the spec')}
+${btn('mmx.plsql.findCallers', '🔎 Find callers', 'References across the workspace')}
+<button class="ana" data-review="1" title="Oracle review rules">✅ Review (Oracle)</button>
+</div>
+<div class="tool-label">Align the selection as…</div>
+<div class="chips">
+${chip('params', 'Parameters', 'name | IN / OUT | type')}${chip('values', 'Declarations', 'name | type | := value')}${chip('assign', ':=', 'assignments')}${chip('arrow', '=>', 'named arguments')}${chip('comment', '--', 'trailing comments')}${chip('alias', 'AS', 'column aliases')}
+</div>
+</div>
+`;
+}
+
+export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false): string {
     const chipsJson = escapeAttr(JSON.stringify(chipList));
     return `
-<div class="tools-block">
+${plsql ? plsqlBlock() : ''}<div class="tools-block">
 <div class="section-title">Align selection</div>
 <div class="tool-row">
 <input id="alignToken" class="inp" value="${escapeAttr(alignToken)}" placeholder="text to align on, e.g. :=" spellcheck="false">
@@ -149,6 +180,15 @@ export function toolsScript(): string {
     return `
 function initTools(api) {
     function $(id) { return document.getElementById(id); }
+    document.querySelectorAll('[data-pl]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'plsql', cmd: b.getAttribute('data-pl') }); });
+    });
+    document.querySelectorAll('[data-pa]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'plsqlAlign', id: b.getAttribute('data-pa') }); });
+    });
+    document.querySelectorAll('[data-review]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'runAnalytics', kind: 'review' }); });
+    });
     var tok = $('alignToken');
     if (tok) {
         var chipBox = $('chips');

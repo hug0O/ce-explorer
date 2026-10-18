@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ParsedDocument } from '../models/types';
+import { acceptsContent } from '../utils/plsqlSniff';
 import { PascalLanguageProvider } from '../providers/PascalLanguageProvider';
 import { CppLanguageProvider } from '../providers/CppLanguageProvider';
 import { RustLanguageProvider } from '../providers/RustLanguageProvider';
@@ -15,6 +16,7 @@ export class ProviderRegistry {
     private providers: Map<string, ILanguageProvider> = new Map();
     private extensionToProvider: Map<string, ILanguageProvider> = new Map();
     private static readonly PARSE_CACHE_SIZE = 24;
+    private sniffCache: Map<string, { version: number; ok: boolean }> = new Map();
     private parseCache: Map<string, { version: number; parsed: ParsedDocument }> = new Map();
 
     constructor() {
@@ -46,11 +48,33 @@ export class ProviderRegistry {
     }
 
     getByDocument(document: vscode.TextDocument): ILanguageProvider | undefined {
-        let provider = this.providers.get(document.languageId);
+        const provider = this.providers.get(document.languageId);
         if (provider) {
             return provider;
         }
-        return this.getByFileExtension(document.uri.fsPath);
+        const byExt = this.getByFileExtension(document.uri.fsPath);
+        // A .txt only counts as source when it really contains SQL / PL/SQL.
+        return byExt && this.acceptsDocument(document) ? byExt : undefined;
+    }
+
+    /** Content check for ambiguous extensions, cached per (uri, version). */
+    acceptsDocument(document: vscode.TextDocument): boolean {
+        const path = document.uri.fsPath;
+        if (!acceptsContent(path, '')) {
+            const key = document.uri.toString();
+            const hit = this.sniffCache.get(key);
+            if (hit && typeof document.version === 'number' && hit.version === document.version) { return hit.ok; }
+            const ok = acceptsContent(path, document.getText());
+            this.sniffCache.set(key, { version: document.version, ok });
+            if (this.sniffCache.size > 64) { this.sniffCache.delete(this.sniffCache.keys().next().value as string); }
+            return ok;
+        }
+        return true;
+    }
+
+    /** Same decision from raw text (workspace scans). */
+    acceptsText(fsPath: string, text: string): boolean {
+        return acceptsContent(fsPath, text);
     }
 
     /**

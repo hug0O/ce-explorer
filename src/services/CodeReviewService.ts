@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { reviewPlSqlText } from '../utils/plsqlReview';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
 
@@ -54,6 +55,11 @@ export function reviewDocument(document: vscode.TextDocument, provider: import('
 
     if (lang === 'pascal') {
         findings.push(...reviewPascalRoutines(document, parsed));
+    }
+    if (lang === 'plsql') {
+        for (const f of reviewPlSqlText(document.getText())) {
+            findings.push({ severity: f.severity, category: f.category, message: f.message, file: fileName, line: f.line, className: f.className, memberName: f.memberName });
+        }
     }
 
     const text = document.getText();

@@ -8,6 +8,7 @@ import { memberFormToSpec, generateFromSpec } from './memberForm';
 import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
 import type { WorkspaceIndex } from './WorkspaceIndex';
 import { queueDfmRename, syncFormAfterDelete } from './FormSync';
+import { insertPlDocHeader } from './PlSqlCommands';
 
 let _workspaceIndex: WorkspaceIndex | undefined;
 export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
@@ -470,6 +471,11 @@ export async function insertDocHeader(
     _cls: ClassInfo,
     member: ClassMember
 ): Promise<boolean> {
+    if (provider.languageId === 'plsql') {
+        const ok = await insertPlDocHeader(doc, { name: member.name, startLine: member.range.start.line });
+        if (ok) { vscode.window.showInformationMessage(`CE: PLDoc header written for "${member.name}".`); }
+        return ok;
+    }
     const target = member.implementationRange?.start ?? member.range.start;
     const indent = (doc.lineAt(target.line).text.match(/^(\s*)/)?.[1]) || '';
 

@@ -25,6 +25,7 @@ import { resolveVariableAt } from './services/VariableResolver';
 import { VariableRefactorService } from './services/VariableRefactorService';
 import { WorkspaceIndex } from './services/WorkspaceIndex';
 import { setFormStorage } from './services/FormLibrary';
+import * as plsql from './services/PlSqlCommands';
 import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
@@ -58,6 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         context.subscriptions.push(workspaceIndex);
         ops.setWorkspaceIndex(workspaceIndex);
         setFormStorage(context.globalState);
+        plsql.setPlSqlContext(providerRegistry, workspaceIndex);
 
         templateService = new TemplateService(context);
         await templateService.load();
@@ -471,6 +473,22 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
+        vscode.commands.registerCommand('mmx.plsql.syncPackage', plsql.syncPackage),
+        vscode.commands.registerCommand('mmx.plsql.newPackage', plsql.newPackage),
+        vscode.commands.registerCommand('mmx.plsql.crudFromTable', plsql.crudFromTable),
+        vscode.commands.registerCommand('mmx.plsql.utplsql', plsql.utplsqlFromSpec),
+        vscode.commands.registerCommand('mmx.plsql.exceptionBlock', plsql.insertExceptionBlock),
+        vscode.commands.registerCommand('mmx.plsql.extractProcedure', plsql.extractProcedure),
+        vscode.commands.registerCommand('mmx.plsql.alignPreset', (id: string) => plsql.alignPreset(String(id))),
+        vscode.commands.registerCommand('mmx.plsql.docHeader', async () => {
+            const editor = vscode.window.activeTextEditor;
+            const resolved = editor ? resolveFromItemOrCursor(undefined) : undefined;
+            if (!resolved) { vscode.window.showWarningMessage('CE: Place the cursor on a procedure or function.'); return; }
+            await plsql.insertPlDocHeader(resolved.doc, { name: resolved.member.name, startLine: resolved.member.range.start.line });
+        }),
+        vscode.commands.registerCommand('mmx.plsql.findCallers', () => vscode.commands.executeCommand('editor.action.referenceSearch.trigger')),
+        vscode.languages.registerDefinitionProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlDefinitionProvider()),
+        vscode.languages.registerReferenceProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlReferenceProvider()),
         vscode.commands.registerCommand('mmx.addComponent', addComponent),
         vscode.commands.registerCommand('mmx.addEventHandler', addEventHandler),
 
@@ -515,6 +533,15 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'mmx.generateGettersSetters' },
                 { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
                 { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
+                ...(activeProv?.languageId === 'plsql' ? [
+                    { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'mmx.plsql.syncPackage' },
+                    { label: '$(package) PL/SQL: New Package…', description: '', cmd: 'mmx.plsql.newPackage' },
+                    { label: '$(database) PL/SQL: CRUD Package from Table', description: 'CREATE TABLE', cmd: 'mmx.plsql.crudFromTable' },
+                    { label: '$(fold) PL/SQL: Extract Procedure', description: 'selection', cmd: 'mmx.plsql.extractProcedure' },
+                    { label: '$(warning) PL/SQL: Insert Exception Block', description: '', cmd: 'mmx.plsql.exceptionBlock' },
+                    { label: '$(book) PL/SQL: PLDoc Header (insert / refresh)', description: '', cmd: 'mmx.plsql.docHeader' },
+                    { label: '$(beaker) PL/SQL: utPLSQL Tests from Spec', description: '', cmd: 'mmx.plsql.utplsql' },
+                ] : []),
                 { label: '$(list-flat) Align Selection on Text', description: 'any language', cmd: 'mmx.alignSelection' },
                 { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'mmx.addEventHandler' },
                 { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'mmx.addComponent' },

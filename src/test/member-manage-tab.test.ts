@@ -140,3 +140,17 @@ test('cursor outside any member: tabs instead of tools stacked under the quick a
     assert.match(manage, /Routines|Members/);
     assert.match(manage, /class="tab active" data-tab="manage"/);
 });
+
+test('Tools tab shows the PL/SQL block only for PL/SQL documents', () => {
+    const panel = makePanel();
+    panel._tab = 'tools';
+    assert.doesNotMatch(panel.getHtml(), /id="plBlock"/);
+    panel.isPlSql = () => true;
+    const html: string = panel.getHtml();
+    assert.match(html, /id="plBlock"/);
+    for (const cmd of ['syncPackage', 'newPackage', 'crudFromTable', 'extractProcedure', 'exceptionBlock', 'docHeader', 'utplsql', 'findCallers']) {
+        assert.ok(html.includes(`data-pl="mmx.plsql.${cmd}"`), cmd);
+    }
+    for (const id of ['params', 'values', 'assign', 'arrow', 'comment', 'alias']) { assert.ok(html.includes(`data-pa="${id}"`), id); }
+    assert.match(html, /command: 'plsqlAlign'/);
+});

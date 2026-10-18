@@ -16,6 +16,8 @@ import {
     RefactoringContext,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
+import { PlMember, parsePlSqlUnits } from '../utils/plsqlParse';
+import { declType, inferVariableType as inferPlSqlVariableType } from '../utils/plsqlExtract';
 
 let nextIdCounter = 0;
 function nextId(prefix: string): string { return prefix + '_' + (nextIdCounter++); }
@@ -28,7 +30,7 @@ function nextId(prefix: string): string { return prefix + '_' + (nextIdCounter++
  */
 export class PlSqlLanguageProvider extends BaseLanguageProvider {
     readonly languageId = 'plsql';
-    readonly fileExtensions = ['.pks', '.pkb', '.sql', '.txt'];
+    readonly fileExtensions = ['.pks', '.pkb', '.pck', '.pls', '.plb', '.prc', '.fnc', '.trg', '.sql', '.txt'];
     readonly displayName = 'PL/SQL';
 
     parseDocument(document: vscode.TextDocument): ParsedDocument {
@@ -36,300 +38,67 @@ export class PlSqlLanguageProvider extends BaseLanguageProvider {
         const lines = text.split(/\r?\n/);
         const classes: ClassInfo[] = [];
         const standaloneProcedures: ClassMember[] = [];
-        const imports: string[] = [];
+        const lineLen = (l: number): number => (lines[l] ?? '').length;
 
-        // Collect package ranges to avoid double-parsing package internals as
-        // standalone procedures.
-        const packageRanges: { start: number; end: number }[] = [];
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-
-            // CREATE [OR REPLACE] PACKAGE BODY nom [IS|AS]
-            const bodyMatch = line.match(/^create\s+(?:or\s+replace\s+)?package\s+body\s+([\w$.#]+)/i);
-            if (bodyMatch) {
-                const pkgName = bodyMatch[1];
-                const startLine = i;
-                const endLine = this.findNamedEnd(lines, i, pkgName);
-                packageRanges.push({ start: startLine, end: endLine });
-                const range = new vscode.Range(startLine, 0, endLine, (lines[endLine] ?? '').length);
-                const members = this.extractPackageMembers(lines, startLine + 1, endLine);
-                classes.push({
-                    id: nextId('pkg'),
-                    name: pkgName,
-                    classType: 'package',
-                    parentClass: undefined,
-                    interfaces: [],
-                    members,
-                    range,
-                    declarationRange: range,
-                    isInterface: false,
-                    isRecord: false,
-                    isSealed: false,
-                    fileUri: document.uri,
-                });
+        for (const unit of parsePlSqlUnits(text)) {
+            if (unit.kind === 'procedure' || unit.kind === 'function' || unit.kind === 'trigger' || unit.kind === 'block') {
+                const m = unit.members[0];
+                standaloneProcedures.push(this.toMember(m, lines, 'sproc', Visibility.Public));
                 continue;
             }
-
-            // CREATE [OR REPLACE] PACKAGE nom [IS|AS] (spec only)
-            const specMatch = line.match(/^create\s+(?:or\s+replace\s+)?package\s+(?!body\b)([\w$.#]+)/i);
-            if (specMatch) {
-                const pkgName = specMatch[1];
-                const startLine = i;
-                const endLine = this.findNamedEnd(lines, i, pkgName);
-                packageRanges.push({ start: startLine, end: endLine });
-                const range = new vscode.Range(startLine, 0, endLine, (lines[endLine] ?? '').length);
-                const members = this.extractPackageMembers(lines, startLine + 1, endLine);
-                classes.push({
-                    id: nextId('pkgspec'),
-                    name: pkgName,
-                    classType: 'package',
-                    parentClass: undefined,
-                    interfaces: [],
-                    members,
-                    range,
-                    declarationRange: range,
-                    isInterface: false,
-                    isRecord: false,
-                    isSealed: false,
-                    fileUri: document.uri,
-                });
-                continue;
-            }
-
-            // Standalone PROCEDURE / FUNCTION outside a package
-            if (this.isInsideAny(i, packageRanges)) { continue; }
-            const procStart = line.match(/^create\s+(?:or\s+replace\s+)?(?:procedure|function)\s+([\w$.#]+)/i);
-            if (procStart) {
-                const procName = procStart[1];
-                const startLine = i;
-                const endLine = this.findMatchingEnd(lines, i);
-                const member = this.buildMember(lines, startLine, endLine, procName);
-                if (member) { standaloneProcedures.push(member); }
-            }
+            const range = new vscode.Range(unit.startLine, 0, unit.endLine, lineLen(unit.endLine));
+            classes.push({
+                id: nextId(unit.kind === 'package' ? 'pkgspec' : 'pkg'),
+                name: unit.name,
+                classType: unit.kind === 'table' ? 'table' : 'package',
+                parentClass: undefined,
+                interfaces: [],
+                members: unit.members.map(m => this.toMember(m, lines, m.kind === 'procedure' || m.kind === 'function' ? 'pmem' : 'pkvar', Visibility.Public)),
+                range,
+                declarationRange: range,
+                isInterface: false,
+                isRecord: false,
+                isSealed: false,
+                fileUri: document.uri,
+            });
         }
-
-        return { uri: document.uri, languageId: this.languageId, classes, standaloneProcedures, imports };
+        return { uri: document.uri, languageId: this.languageId, classes, standaloneProcedures, imports: [] };
     }
 
     /**
-     * Extract members (procedures, functions, global variables) between the
-     * package header and its END line. Procedure/function signatures may span
-     * multiple lines (params on separate lines) until the terminating IS/AS.
+     * Maps a parsed PL/SQL member to the editor model. For a subprogram, `range`
+     * is its signature (PROCEDURE … IS) and `implementationRange` runs from its
+     * BEGIN to its closing END, so the locals sit between the two. A spec
+     * declaration (`PROCEDURE p;`) has no implementation range.
      */
-    private extractPackageMembers(lines: string[], startLine: number, endLine: number): ClassMember[] {
-        const members: ClassMember[] = [];
-
-        let i = startLine;
-        while (i < endLine) {
-            const line = lines[i] ?? '';
-            const trimmed = line.trim();
-
-            // Skip comments and empty lines.
-            if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('/*')) { i++; continue; }
-
-            // PROCEDURE or FUNCTION — accumulate signature lines until IS/AS.
-            if (/^(procedure|function)\b/i.test(trimmed)) {
-                const memberStart = i;
-                let acc = trimmed;
-                let sigEnd = i;
-                // Accumulate until we find a line ending with IS or AS.
-                for (; i < endLine; i++) {
-                    const t = (lines[i] ?? '').trim();
-                    acc = i === memberStart ? t : acc + ' ' + t;
-                    if (/\b(is|as)\b\s*$/i.test(t) || /\b(is|as)\s*$/i.test(t)) { sigEnd = i; break; }
-                    if (/\b(is|as)\b/i.test(t)) { sigEnd = i; break; }
-                }
-                const flat = acc.replace(/\s+/g, ' ').trim();
-
-                // PROCEDURE name(params) IS
-                const procMatch = flat.match(/^procedure\s+([\w$.#]+)\s*(\([^)]*\))?\s*(?:is|as)\b/i);
-                // FUNCTION name(params) RETURN type IS
-                const funcMatch = flat.match(/^function\s+([\w$.#]+)\s*(\([^)]*\))?\s*return\s+([\w().%,]+)\s*(?:is|as)\b/i);
-
-                if (procMatch || funcMatch) {
-                    const isFunc = !!funcMatch;
-                    const name = (funcMatch || procMatch)![1];
-                    const paramsStr = (funcMatch || procMatch)![2] || '';
-                    const retType = funcMatch ? funcMatch[3].trim() : undefined;
-                    const params = this.parsePlSqlParams(paramsStr);
-                    const mEnd = this.findMatchingEnd(lines, sigEnd);
-                    members.push(this.makeMember(lines, memberStart, sigEnd, mEnd, name, params, isFunc, retType));
-                    i = mEnd + 1;
-                    continue;
-                }
-                // Not a real proc/func match — fall through to variable check.
-            }
-
-            // Global variable: name type; or name type := value;
-            const varMatch = trimmed.match(/^([\w]+)\s+([\w().%,]+)\s*(?::=.*)?;\s*$/i);
-            if (varMatch && !/^(begin|end|exception|return|if|for|while|loop|procedure|function)\b/i.test(trimmed)) {
-                const name = varMatch[1];
-                const type = varMatch[2].trim();
-                const col = line.indexOf(name);
-                members.push({
-                    id: nextId('pkvar'),
-                    kind: MemberKind.Field,
-                    name,
-                    type,
-                    visibility: Visibility.Public,
-                    parameters: [],
-                    modifiers: [],
-                    isStatic: true,
-                    isVirtual: false,
-                    isAbstract: false,
-                    isOverride: false,
-                    range: new vscode.Range(i, col, i, line.length),
-                    implementationRange: new vscode.Range(i, col, i, line.length),
-                });
-            }
-
-            i++;
+    private toMember(m: PlMember, lines: string[], idPrefix: string, visibility: Visibility): ClassMember {
+        const lineLen = (l: number): number => (lines[l] ?? '').length;
+        const isSub = m.kind === 'procedure' || m.kind === 'function';
+        const params: Parameter[] = m.params.map(p => ({
+            name: p.name, type: p.type, defaultValue: p.defaultValue,
+            isOut: p.direction !== 'in', isVar: false, isConst: false, direction: p.direction,
+        }));
+        if (!isSub) {
+            const col = Math.max(0, (lines[m.startLine] ?? '').indexOf(m.name));
+            const r = new vscode.Range(m.startLine, col, m.endLine, lineLen(m.endLine));
+            return {
+                id: nextId(idPrefix), kind: MemberKind.Field, name: m.name, type: m.type, visibility,
+                parameters: [], modifiers: m.kind === 'constant' ? ['constant'] : [], isStatic: true, isVirtual: false,
+                isAbstract: false, isOverride: false, range: r, implementationRange: r,
+            };
         }
-
-        return members;
-    }
-
-    private makeMember(lines: string[], startLine: number, sigEnd: number, endLine: number, name: string, params: Parameter[], isFunc: boolean, retType?: string): ClassMember {
-        // range = signature only (PROCEDURE...IS); the locals live between
-        // range.end and implementationRange.start (the BEGIN line).
-        const implStart = this.findBeginLine(lines, sigEnd, endLine);
+        const range = new vscode.Range(m.startLine, 0, m.sigEndLine, lineLen(m.sigEndLine));
+        let implementationRange: vscode.Range | undefined;
+        if (!m.isDeclaration) {
+            const implStart = m.beginLine ?? m.sigEndLine;
+            implementationRange = new vscode.Range(implStart, 0, m.endLine, lineLen(m.endLine));
+        }
         return {
-            id: nextId('pmem'),
-            kind: MemberKind.Method,
-            name,
-            returnType: isFunc ? retType : undefined,
-            visibility: Visibility.Public,
-            parameters: params,
-            modifiers: [],
-            isStatic: false,
-            isVirtual: false,
-            isAbstract: false,
-            isOverride: false,
-            range: new vscode.Range(startLine, 0, sigEnd, (lines[sigEnd] ?? '').length),
-            implementationRange: implStart !== undefined
-                ? new vscode.Range(implStart, 0, endLine, (lines[endLine] ?? '').length)
-                : new vscode.Range(sigEnd, 0, endLine, (lines[endLine] ?? '').length),
+            id: nextId(idPrefix), kind: MemberKind.Method, name: m.name,
+            returnType: m.kind === 'function' ? m.returnType : undefined,
+            visibility, parameters: params, modifiers: [], isStatic: false, isVirtual: false,
+            isAbstract: false, isOverride: false, range, implementationRange,
         };
-    }
-
-    private buildMember(lines: string[], startLine: number, endLine: number, name: string): ClassMember | undefined {
-        const trimmed = (lines[startLine] ?? '').trim();
-        const isFunc = /^create\s+(?:or\s+replace\s+)?function\b/i.test(trimmed);
-        const funcMatch = trimmed.match(/return\s+([\w().%,]+)/i);
-        const paramsMatch = trimmed.match(/\(([^)]*)\)/);
-        return {
-            id: nextId('sproc'),
-            kind: MemberKind.Method,
-            name,
-            returnType: isFunc ? funcMatch?.[1]?.trim() : undefined,
-            visibility: Visibility.Public,
-            parameters: this.parsePlSqlParams(paramsMatch?.[1] || ''),
-            modifiers: [],
-            isStatic: false,
-            isVirtual: false,
-            isAbstract: false,
-            isOverride: false,
-            range: new vscode.Range(startLine, 0, endLine, (lines[endLine] ?? '').length),
-            implementationRange: new vscode.Range(startLine, 0, endLine, (lines[endLine] ?? '').length),
-        };
-    }
-
-    /**
-     * Parse PL/SQL parameter list: "p_id IN NUMBER, p_name OUT VARCHAR2"
-     */
-    private parsePlSqlParams(paramsStr: string): Parameter[] {
-        if (!paramsStr || !paramsStr.trim()) { return []; }
-        // Strip outer parentheses: the regex capture includes them.
-        const cleaned = paramsStr.trim().replace(/^\(/, '').replace(/\)$/, '');
-        const params: Parameter[] = [];
-        const segments = this.splitParams(cleaned);
-        for (const seg of segments) {
-            const m = seg.trim().match(/^([\w]+)\s+(?:in\s+out|in|out)?\s*([\w().%,]+)/i);
-            if (m) {
-                const direction = /out/i.test(seg) ? (/in/i.test(seg) ? 'inout' : 'out') : 'in';
-                params.push({
-                    name: m[1],
-                    type: m[2],
-                    isOut: direction === 'out' || direction === 'inout',
-                    isVar: false,
-                    isConst: false,
-                    direction: direction as 'in' | 'out' | 'inout',
-                });
-            }
-        }
-        return params;
-    }
-
-    private splitParams(paramsStr: string): string[] {
-        const out: string[] = [];
-        let depth = 0;
-        let current = '';
-        for (const ch of paramsStr) {
-            if (ch === '(') depth++;
-            else if (ch === ')') depth--;
-            if (ch === ',' && depth <= 0) { out.push(current); current = ''; }
-            else { current += ch; }
-        }
-        if (current.trim()) { out.push(current); }
-        return out;
-    }
-
-    /**
-     * Find the line matching `endRegex` starting from `fromLine`, accounting
-     * for nested PROCEDURE/FUNCTION blocks (each has its own END).
-     */
-    /**
-     * Find the END line that closes a named PL/SQL construct (PACKAGE BODY nom
-     * / PACKAGE nom), matching `END nom;`. This avoids false matches on inner
-     * END; of nested procedures.
-     */
-    private findNamedEnd(lines: string[], fromLine: number, name: string): number {
-        const re = new RegExp('^end\\s+' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*;?\\s*$', 'i');
-        for (let i = fromLine + 1; i < lines.length; i++) {
-            if (re.test((lines[i] ?? '').trim())) { return i; }
-        }
-        // Fallback: last END in the file.
-        for (let i = lines.length - 1; i > fromLine; i--) {
-            if (/^\s*end\b/i.test((lines[i] ?? '').trim())) { return i; }
-        }
-        return Math.min(fromLine + 50, lines.length - 1);
-    }
-
-    /**
-     * Find the END line matching the construct starting at `fromLine`. Uses
-     * depth counting: nested PROCEDURE/FUNCTION (with IS/AS on the same line)
-     * increment depth, any `END` statement decrements it. When depth returns
-     * below zero, that END is the one closing the construct.
-     *
-     * The accumulation-based multi-line signatures in extractPackageMembers
-     * handle procs whose IS/AS is on a later line; here we only count single-
-     * line signatures (PROCEDURE name IS) for depth, which covers the common
-     * nested case.
-     */
-    private findMatchingEnd(lines: string[], fromLine: number): number {
-        let depth = 0;
-        for (let i = fromLine + 1; i < lines.length; i++) {
-            const t = (lines[i] ?? '').trim();
-            // Nested sub-program (signature on one line ending with IS/AS).
-            if (/^(procedure|function)\b/i.test(t) && /\b(is|as)\b\s*$/i.test(t)) { depth++; continue; }
-            if (/^\s*end\b/i.test(t)) {
-                if (depth <= 0) { return i; }
-                depth--;
-            }
-        }
-        return Math.min(fromLine + 50, lines.length - 1);
-    }
-
-    private findBeginLine(lines: string[], fromLine: number, endLine: number): number | undefined {
-        for (let i = fromLine; i <= endLine; i++) {
-            if (/^\s*begin\b/i.test(lines[i] ?? '')) { return i; }
-        }
-        return undefined;
-    }
-
-    private isInsideAny(line: number, ranges: { start: number; end: number }[]): boolean {
-        return ranges.some(r => line >= r.start && line <= r.end);
     }
 
     // --- Required abstract methods ---
@@ -352,6 +121,12 @@ export class PlSqlLanguageProvider extends BaseLanguageProvider {
             }
         }
         return new vscode.Position(start + 1, 0);
+    }
+
+    inferVariableType(name: string, body: string, scope: MethodScope): string | undefined {
+        const known = scope.locals.filter(l => l.type).map(l => ({ name: l.name, type: l.type as string }));
+        const t = inferPlSqlVariableType(name, body, known);
+        return t ? declType(t) : undefined;
     }
 
     formatLocalVariable(name: string, type: string): string {

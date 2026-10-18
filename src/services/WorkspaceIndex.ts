@@ -94,6 +94,8 @@ export class WorkspaceIndex implements vscode.Disposable {
         try {
             const doc = await vscode.workspace.openTextDocument(uri);
             if (doc.getText().length > MAX_FILE_BYTES) { return; }
+            // Notes (.txt) that are not SQL / PL/SQL stay out of the index.
+            if (!this.registry.acceptsText(uri.fsPath, doc.getText())) { this.files.delete(uri.toString()); return; }
             const parsed = provider.parseDocument(doc);
             const symbols: IndexedSymbol[] = [];
             for (const cls of parsed.classes) {

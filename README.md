@@ -157,3 +157,25 @@ MIT
 - **The .dfm follows the unit**: renaming a component field (explorer, Member panel…) renames the `object` in the `.dfm`, its references and its `<Component><Event>` handlers; deleting it removes the object, its children and the empty handlers; adding a field of a known component class offers to create the object. Handlers that contain code, or are shared, are never touched.
 - **Third-party components** (DevExpress, TMS, JVCL…): any class name works. The tool learns size, caption, tab stop and events from the `.dfm` files already in your workspace, remembers the unit you typed for a class, and you can describe a class once in the `mmx.delphi.customComponents` setting (`className`, `unit`, `width`, `height`, `namePrefix`, `events`, `props`, `tabOrder`). Third-party units are added to `uses` as written, never with the `Vcl.` scope.
 - Examples: `test-fixtures/delphi/ComplexForm.*` (docked panels, page control, group boxes, DevExpress controls, a list view collection) and `LayoutForm.*`.
+
+## PL/SQL (Oracle)
+
+Files: `.pks .pkb .pck .pls .plb .prc .fnc .trg .sql`, and `.txt` **only when the text contains SQL / PL/SQL** (notes and logs are left alone). Package specs *and* bodies, stand-alone procedures / functions, triggers, anonymous `DECLARE … END;` blocks of a script and `CREATE TABLE` columns appear in the explorer. The parser understands nested subprograms, `END IF / END LOOP / CASE … END`, constants, exceptions, types, cursors and comments.
+
+Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the command palette (`CE PL/SQL: …`):
+
+| Feature | What it does |
+|---------|--------------|
+| Synchronize spec ⇄ body | Finds subprograms declared on one side only and signature mismatches (Oracle needs them identical); declare in the spec, create an empty body (before the initialization section), or copy the signature either way. Works across `.pks` / `.pkb` or in one file. |
+| New package | Spec + body skeleton from `name(params):Return; …`, with PLDoc headers |
+| CRUD package from table | From a `CREATE TABLE` (selection, cursor or clipboard): insert / update / delete / get (`%ROWTYPE`) / exists, typed with `table.col%TYPE` |
+| Extract procedure | Selection → new procedure with detected `IN` / `OUT` / `IN OUT` parameters (sizes stripped); locals used only there move inside |
+| Declare variable | Type inferred from the body: `SELECT col INTO v FROM t` → `t.col%TYPE`, `FETCH c INTO r` → `c%ROWTYPE`, literals, `SYSDATE`, other variables |
+| Exception block | `NO_DATA_FOUND`, `TOO_MANY_ROWS`, `OTHERS` with re-raise |
+| PLDoc header | `/** … @param … @return … */` from the signature; running it again refreshes it and keeps your descriptions |
+| utPLSQL tests | Test package generated from a spec |
+| Go to definition / Find callers | `F12` / `Shift+F12` on `PKG.PROC` across the workspace |
+| Review (Oracle) | `WHEN OTHERS THEN NULL`, `SELECT INTO` without `EXCEPTION`, `COMMIT` in package code, dynamic SQL by concatenation, `= NULL`, DML in loops, unclosed cursors, bad `RAISE_APPLICATION_ERROR` codes, unused variables / parameters, functions without `RETURN`, never-called private helpers |
+| Align presets | Parameters (name \| mode \| type), declarations, `:=`, `=>`, `--`, `AS` |
+
+Setting `mmx.plsql.author` is written in generated headers. Nothing connects to a database: everything works on the source text.

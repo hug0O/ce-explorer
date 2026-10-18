@@ -88,6 +88,11 @@ export interface ILanguageProvider {
     getDeclarationInsertPosition(document: vscode.TextDocument, member: ClassMember): vscode.Position;
     guessTypeFromAssignment(rhs: string, scope: MethodScope): string | undefined;
     resolveIdentifierType(rhs: string, scope: MethodScope): string | undefined;
+    /**
+     * Type of an undeclared variable from the way the whole subprogram body uses it
+     * (SELECT … INTO → table.column%TYPE, FETCH → %ROWTYPE…). Optional.
+     */
+    inferVariableType?(name: string, body: string, scope: MethodScope): string | undefined;
 
     synchronizeDeclarationImplementation(
         document: vscode.TextDocument,

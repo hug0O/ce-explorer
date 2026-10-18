@@ -260,6 +260,42 @@
       {
         "command": "mmx.addEventHandler",
         "title": "CE: Add Event Handler to Delphi Component..."
+      },
+      {
+        "command": "mmx.plsql.syncPackage",
+        "title": "CE PL/SQL: Synchronize Package Spec / Body"
+      },
+      {
+        "command": "mmx.plsql.newPackage",
+        "title": "CE PL/SQL: New Package..."
+      },
+      {
+        "command": "mmx.plsql.crudFromTable",
+        "title": "CE PL/SQL: CRUD Package from CREATE TABLE"
+      },
+      {
+        "command": "mmx.plsql.utplsql",
+        "title": "CE PL/SQL: Generate utPLSQL Tests from Spec"
+      },
+      {
+        "command": "mmx.plsql.exceptionBlock",
+        "title": "CE PL/SQL: Insert Exception Block"
+      },
+      {
+        "command": "mmx.plsql.extractProcedure",
+        "title": "CE PL/SQL: Extract Procedure from Selection"
+      },
+      {
+        "command": "mmx.plsql.docHeader",
+        "title": "CE PL/SQL: Insert / Refresh PLDoc Header"
+      },
+      {
+        "command": "mmx.plsql.findCallers",
+        "title": "CE PL/SQL: Find Callers"
+      },
+      {
+        "command": "mmx.plsql.alignPreset",
+        "title": "CE PL/SQL: Align Selection (preset)"
       }
     ],
     "menus": {
@@ -426,6 +462,10 @@
         {
           "command": "mmx.lensRun",
           "when": "false"
+        },
+        {
+          "command": "mmx.plsql.alignPreset",
+          "when": "false"
         }
       ]
     },
@@ -549,6 +589,11 @@
               }
             }
           }
+        },
+        "mmx.plsql.author": {
+          "type": "string",
+          "default": "",
+          "description": "Author written in generated PL/SQL headers (default: the OS user name)."
         }
       }
     },

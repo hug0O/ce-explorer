@@ -8,8 +8,8 @@ CREATE OR REPLACE PACKAGE BODY PKG_ORDER IS
     l_tax   NUMBER;
   BEGIN
     l_amount := p_order_id * 100;
-    l_tax := l_amount * 0.2;
-    g_total := g_total + l_amount;
+    l_tax    := l_amount * 0.2;
+    g_total  := g_total + l_amount;
   END;
 
   FUNCTION get_status(p_order_id IN NUMBER) RETURN VARCHAR2 IS
@@ -18,5 +18,6 @@ CREATE OR REPLACE PACKAGE BODY PKG_ORDER IS
     l_result := 'PROCESSED';
     RETURN l_result;
   END;
+
 
 END PKG_ORDER;

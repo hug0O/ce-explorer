@@ -10,7 +10,7 @@ import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { PLSQL_ALIGN_IDS, PLSQL_COMMANDS, sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { addComponentToForm, addEventToComponent, alignSelection, buildFormModel, getLastAlignToken, suggestComponentName } from '../services/FormCommands';
 import type { Side } from '../services/DelphiLayout';
 import type { Direction } from '../services/DelphiSpacing';
@@ -145,6 +145,12 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : 'detail'); break;
                 case 'alignSelection': await alignSelection(typeof msg.token === 'string' ? msg.token : ''); break;
                 case 'saveAlignChips': void this._extensionContext.globalState.update(MemberViewerPanel.CHIPS_KEY, sanitizeChips(msg.chips)); break;
+                case 'plsql':
+                    if (typeof msg.cmd === 'string' && PLSQL_COMMANDS.includes(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); }
+                    break;
+                case 'plsqlAlign':
+                    if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('mmx.plsql.alignPreset', msg.id); }
+                    break;
                 case 'toolsReady': await this.sendFormModel(); break;
                 case 'suggestName': await this.sendSuggestedName(String(msg.className ?? '')); break;
                 case 'addComponent': await this.handleAddComponent(msg.req); break;
@@ -417,6 +423,12 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (await distributeSpacing(vscode.window.activeTextEditor?.document, { containerName: msg.containerName, horizontal, vertical })) {
             await this.sendFormModel();
         }
+    }
+
+    /** Whether the active editor holds PL/SQL (real extension, or a .txt / .sql that contains it). */
+    private isPlSql(): boolean {
+        const doc = vscode.window.activeTextEditor?.document;
+        return !!doc && this._providerRegistry.getByDocument(doc)?.languageId === 'plsql';
     }
 
     private alignChips(): string[] {
@@ -1044,7 +1056,7 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
 
         // Same three tabs as the member view, so the tools are never stacked under the quick actions.
         const body = this._tab === 'tools'
-            ? toolsHtml(getLastAlignToken(), this.alignChips())
+            ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql())
             : this._tab === 'manage'
                 ? this.getManageHtml()
                 : `<div class="empty">
@@ -1286,7 +1298,7 @@ ${toolsCss()}
         }
 
         if (this._tab === 'tools') {
-            html += toolsHtml(getLastAlignToken(), this.alignChips());
+            html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql());
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
         } else if (member) {

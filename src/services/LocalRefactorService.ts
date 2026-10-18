@@ -118,7 +118,9 @@ export async function declareUndeclaredVariable(
     // locals/parameters in the scope before falling back to the field default.
     const lineText = document.lineAt(position.line).text;
     const assign = lineText.match(/[:=]\s*(.+?)\s*;?\s*$/);
-    const guessed = assign ? provider.resolveIdentifierType(assign[1], scope) : undefined;
+    // The whole body is a better witness than the cursor line (SELECT … INTO tbl.col%TYPE, FETCH … %ROWTYPE).
+    const contextual = provider.inferVariableType?.(name, document.getText(scope.bodyRange), scope);
+    const guessed = contextual ?? (assign ? provider.resolveIdentifierType(assign[1], scope) : undefined);
     const defaultType = provider.getTypeDefaults().defaultFieldType;
     const typeGuess = guessed || defaultType;
 

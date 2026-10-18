@@ -97,6 +97,26 @@ test('designer ⇄ code navigation and empty-handler clean-up are wired in packa
     assert.ok(pkg.contributes.menus['editor/title'].some((m: { command: string }) => m.command === 'mmx.delphi.designer'), 'a title-bar button leads back to the designer');
 });
 
+test('parents are easy to spot and components easy to move between them', () => {
+    const html = designerHtml('N');
+    // where does it live: parent outlined and named, breadcrumb, containers toggle, hover tag
+    assert.match(html, /\.pbox \{[^}]*dashed/, 'the parent of the selection is outlined');
+    assert.match(html, /'⬑ parent: '/, 'and named');
+    for (const id of ['showparents', 'hov', 'droplabel']) { assert.ok(html.includes(`id="${id}"`), id); }
+    assert.match(html, /data-crumb/, 'the breadcrumb is clickable');
+    assert.match(html, /DEPTH_COLORS/, 'containers are coloured by depth');
+    // how to move it: drop highlight + label, inspector select, list drag & drop, docked controls too, Esc = parent
+    assert.match(html, /\.ctl\.droptarget::after/, 'the drop target is highlighted');
+    assert.match(html, /↳ Drop into /);
+    assert.match(html, /dockedOnly/, 'docked controls can be dragged to another container');
+    assert.match(html, /box\.appendChild\(field\('Parent', psel\)\)/, 'the inspector has a Parent selector');
+    assert.match(html, /addEventListener\('dragstart'/, 'list rows can be dragged');
+    assert.match(html, /d\.draggable = true/);
+    assert.match(html, /function canDropInto/, 'never into itself or one of its own children');
+    assert.match(html, /function selectParent/);
+    assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
+});
+
 test('selection is unmistakable: above every control, strong outline, handles, name tag, highlighted list row', () => {
     const html = designerHtml('N');
     assert.match(html, /#overlay \{[^}]*z-index: 1000/, 'the overlay paints above the controls (it used to sit under them)');

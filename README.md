@@ -211,6 +211,13 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 - **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `mmx.delphi.removeEmptyHandlers`.
 - **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does **F12** and the *Code* button). `mmx.delphi.designerColumn` can open the designer beside the code instead.
 
+#### Designer: seeing and changing a component's parent
+
+- **The parent is always visible.** Select a component and its parent container is outlined with an orange dashed frame and a `⬑ parent: name : class` tag. The inspector starts with a breadcrumb (`Form › pnlCentre › pgcDetails › … › edtNom`) where each ancestor is clickable, and the status bar shows the same path.
+- **Containers** checkbox in the toolbar: every container is outlined and named, with a colour per nesting depth. Even with it off, the container under the pointer is outlined with its name and class.
+- **Move to another parent**, four ways: drag the component onto another container (the target turns green and a tag says `Drop into … : class`; dropping on the form itself takes it out of its container); pick one in the inspector's **Parent** list (the component stays where it is on screen when possible); drag a row of the Components list onto a container row, or onto the `⌂ form` row at its top; or drag a *docked* control (alTop, alClient…) — it keeps its `Align`. A component is always kept inside its new parent, and never goes into itself or its own children.
+- **Esc** selects the parent of the selection (the usual Delphi habit); it first cancels the palette tool if one is armed.
+
 #### Sidebar → Tools: one page per set of tools
 
 The Tools tab is split into sub-tabs, and only the ones that apply to the active file are shown: **Form** (visual designer, layout and checks), **Components** (add a component, create an event handler on an existing one) and **Spacing** for a Delphi unit; **PL/SQL** for Oracle files; **Align** for everything. The last sub-tab you used is remembered.

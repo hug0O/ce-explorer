@@ -91,6 +91,20 @@ test('drag into another container: the block moves with its children and the new
     assert.match((reparentEdits(dfm, ['btnFermer'], 'edtNom', [{ left: 0, top: 0 }]) as { error: string }).error, /cannot contain/);
 });
 
+test('moving between parents: docked panels keep their Align and stored Left / Top, and the form itself is a valid target', () => {
+    const docked = ok(reparentEdits(dfm, ['pnlGaucheBas'], 'pnlCentre', [{ left: 5, top: 5 }]));
+    const n = findNode(parseDfmTree(applyTextEdits(dfm, docked.dfmEdits))!, 'pnlGaucheBas')!;
+    assert.equal(n.parent?.name, 'pnlCentre');
+    assert.equal(n.props['Align'], 'alBottom', 'the docking is not lost by the move');
+    assert.deepEqual([n.left, n.top], [1, 356], 'a docked control is placed by its Align, so the drop position is not written');
+
+    const out = ok(reparentEdits(dfm, ['btnAjouter', 'btnSupprimer'], 'ComplexForm', [{ left: 8, top: 8 }, { left: 24, top: 24 }]));
+    const t = parseDfmTree(applyTextEdits(dfm, out.dfmEdits))!;
+    assert.deepEqual(['btnAjouter', 'btnSupprimer'].map(b => findNode(t, b)!.parent?.name), ['ComplexForm', 'ComplexForm'], 'moved out of every container, onto the form');
+    assert.deepEqual(['btnAjouter', 'btnSupprimer'].map(b => findNode(t, b)!.left), [8, 24]);
+    assert.equal(checkForm(pas, applyTextEdits(dfm, out.dfmEdits)).filter(i => i.severity !== 'info').length, 0);
+});
+
 test('delete: object, field and empty handlers go; code in a handler stays', () => {
     const r = ok(deleteEdits(pas, dfm, ['btnAjouter', 'btnNouveau'], 'TComplexForm'));
     const out = editsOf(r as never);

@@ -94,7 +94,22 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .ctl .chrome { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .ctl.hidden { opacity: 0.4; outline: 1px dashed #888; }
 .ctl.disabled > .chrome { color: #6d6d6d; }
-.ctl.droptarget { outline: 2px solid #0078d7; outline-offset: -2px; }
+.ctl.droptarget::after, #client.droptarget::after { content: ''; position: absolute; inset: 0; outline: 3px dashed #2f9e44; outline-offset: -3px; background: rgba(47, 158, 68, 0.16); pointer-events: none; z-index: 900; }
+#droplabel { position: fixed; display: none; z-index: 5000; background: #555; color: #fff; font: 600 11px/16px 'Segoe UI', sans-serif; padding: 1px 8px; border-radius: 4px; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+#droplabel.go { background: #2f9e44; }
+#hov { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 999; }
+.hbox { position: absolute; outline: 1px dotted #ffb000; background: rgba(255, 176, 0, 0.06); }
+.htag { position: absolute; background: rgba(60, 60, 60, 0.88); color: #ffd166; font: 10px/12px 'Segoe UI', sans-serif; padding: 0 5px; border-radius: 2px; white-space: nowrap; }
+.pbox { position: absolute; outline: 2px dashed #f08c00; outline-offset: 2px; background: rgba(240, 140, 0, 0.06); }
+.plabel { position: absolute; background: #f08c00; color: #fff; font: 600 10px/14px 'Segoe UI', sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.cbox { position: absolute; border: 1px dashed; background: rgba(128, 128, 128, 0.04); }
+.ctag { position: absolute; color: #fff; font: 9px/11px 'Segoe UI', sans-serif; padding: 0 4px; border-radius: 2px; white-space: nowrap; }
+.crumbs { margin: 2px 0 8px; font-size: 11px; line-height: 1.7; }
+.crumb { cursor: pointer; color: var(--vscode-textLink-foreground, #3794ff); }
+.crumb:hover { text-decoration: underline; }
+.crumb.cur { color: var(--vscode-foreground); font-weight: 600; cursor: default; text-decoration: none; }
+.outline div.dropok { outline: 2px dashed #2f9e44; outline-offset: -2px; background: rgba(47, 158, 68, 0.2); }
+.outline div.rootrow { font-weight: 600; border-bottom: 1px solid var(--vscode-panel-border, #444); margin-bottom: 2px; }
 .k-button > .chrome { background: linear-gradient(#f2f2f2, #dcdcdc); border: 1px solid #adadad; border-radius: 3px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 4px; }
 .k-edit > .chrome, .k-combo > .chrome, .k-datepick > .chrome { background: #fff; border: 1px solid #7a7a7a; padding: 2px 3px; display: flex; align-items: center; }
 .k-combo > .chrome::after, .k-datepick > .chrome::after { content: '▾'; margin-left: auto; padding-left: 4px; font-size: 10px; }
@@ -163,6 +178,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   <label>Zoom <select id="zoom"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
   <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
   <label><input type="checkbox" id="names"> names</label>
+  <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
   <span class="sep"></span>
   <button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   <span class="sep"></span>
@@ -185,14 +201,15 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
       <div id="outline" class="outline"></div>
     </details>
   </div>
-  <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div></div></div></div></div>
+  <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div><div id="hov"></div></div></div></div></div>
   <div id="right"><div id="inspector"></div></div>
 </div>
 <div id="status"></div>
+<div id="droplabel"></div>
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -335,8 +352,12 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     index(m.root, '');
     var client = $('client');
     var overlay = $('overlay');
+    var hov = $('hov');
+    state.hover = null;
     while (client.firstChild) { client.removeChild(client.firstChild); }
     client.appendChild(overlay);
+    client.appendChild(hov);
+    while (hov.firstChild) { hov.removeChild(hov.firstChild); }
     client.style.width = m.width + 'px'; client.style.height = m.height + 'px';
     client.style.background = m.root.color || '#f0f0f0';
     $('formframe').style.width = (m.width + 2) + 'px';
@@ -378,6 +399,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var key = state.sel.join(',');
     var flash = key !== state.selKey;
     state.selKey = key;
+    drawParents(o);
     state.sel.forEach(function (name, i) {
       var e = els[name];
       if (!e || e.offsetParent === null) { return; }
@@ -493,9 +515,16 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var tree = !f.flat && !filtered && f.sort === 'form';
     state.listOrder = rows.map(function (n) { return n.name; });
     $('compcount').textContent = rows.length + '/' + nodes.length;
+    if (!f.text && !f.type) {
+      var rr = el('div', 'rootrow', '⌂ ' + state.model.root.name + ' (form)');
+      rr.setAttribute('data-pick', state.model.root.name);
+      rr.title = 'The form itself: drop components here to move them out of their container';
+      o.appendChild(rr);
+    }
     rows.forEach(function (n) {
       var d = el('div', state.sel.indexOf(n.name) >= 0 ? 'sel' : '');
       d.setAttribute('data-pick', n.name);
+      d.draggable = true;
       d.title = n.name + ' : ' + n.cls + (n.caption ? ' — ' + n.caption : '');
       d.style.paddingLeft = (tree ? n.depth * 10 : 4) + 'px';
       d.appendChild(el('span', 'ico', iconOf(n)));
@@ -509,6 +538,33 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var picked = o.querySelector('.sel');
     if (picked && picked.scrollIntoView) { picked.scrollIntoView({ block: 'nearest' }); }
   }
+  /* ───────── drag a row of the components list onto a container row ───────── */
+  (function () {
+    var oc = $('outline');
+    function clearDrop() { Array.prototype.forEach.call(oc.querySelectorAll('.dropok'), function (r) { r.classList.remove('dropok'); }); }
+    oc.addEventListener('dragstart', function (ev) {
+      var row = ev.target.closest ? ev.target.closest('[data-pick]') : null;
+      if (!row || row.getAttribute('data-pick') === rootName()) { ev.preventDefault(); return; }
+      var name = row.getAttribute('data-pick');
+      state.dragNames = state.sel.indexOf(name) >= 0 ? state.sel.slice() : [name];
+      ev.dataTransfer.setData('text/plain', state.dragNames.join(','));
+      ev.dataTransfer.effectAllowed = 'move';
+    });
+    oc.addEventListener('dragover', function (ev) {
+      clearDrop();
+      var row = ev.target.closest ? ev.target.closest('[data-pick]') : null;
+      if (!row || !state.dragNames) { return; }
+      if (canDropInto(state.dragNames, dropTargetName(row.getAttribute('data-pick')))) { ev.preventDefault(); row.classList.add('dropok'); }
+    });
+    oc.addEventListener('dragleave', function (ev) { if (!ev.relatedTarget || !oc.contains(ev.relatedTarget)) { clearDrop(); } });
+    oc.addEventListener('drop', function (ev) {
+      ev.preventDefault(); clearDrop();
+      var row = ev.target.closest ? ev.target.closest('[data-pick]') : null;
+      if (row && state.dragNames) { reparentTo(state.dragNames, row.getAttribute('data-pick')); }
+      state.dragNames = null;
+    });
+    oc.addEventListener('dragend', function () { clearDrop(); state.dragNames = null; });
+  })();
   /* A component on a hidden page: switch the page tabs so that it can be seen, then scroll to it. */
   function revealNode(name) {
     var child = name, changed = false;
@@ -520,6 +576,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     return changed;
   }
   function listClick(name, ev) {
+    if (name === rootName()) { select([]); return; }
     var sel;
     if (ev.shiftKey && state.lastPick && state.listOrder.indexOf(state.lastPick) >= 0) {
       var a = state.listOrder.indexOf(state.lastPick), b = state.listOrder.indexOf(name);
@@ -559,6 +616,25 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     }
     var n = byName[state.sel[0]];
     box.appendChild(el('h4', '', 'Properties'));
+    var crumbs = el('div', 'crumbs');
+    pathOf(n.name).forEach(function (p, i, arr) {
+      if (i) { crumbs.appendChild(document.createTextNode(' › ')); }
+      var c = el('span', 'crumb' + (i === arr.length - 1 ? ' cur' : ''), p);
+      if (i < arr.length - 1) { c.setAttribute('data-crumb', p); c.title = 'Select ' + p; }
+      crumbs.appendChild(c);
+    });
+    box.appendChild(crumbs);
+    var psel = el('select');
+    var rn0 = rootName();
+    var popt = el('option', '', rn0 + ' (form)'); popt.value = rn0; psel.appendChild(popt);
+    allNodes().forEach(function (c) {
+      if (!c.container || c.name === n.name || !canDropInto([n.name], c.name)) { return; }
+      var o = el('option', '', new Array(c.depth).join('· ') + c.name + ' : ' + c.cls); o.value = c.name; psel.appendChild(o);
+    });
+    psel.value = parentOf[n.name];
+    psel.title = 'Move into another container (keeps the position on screen)';
+    psel.addEventListener('change', function () { moveToParent(n.name, psel.value); });
+    box.appendChild(field('Parent', psel));
     box.appendChild(field('Name', textInput(n.name, function (v) { post({ type: 'rename', from: n.name, to: v.trim() }); })));
     var clsRow = el('span', 'hint', n.cls);
     if (n.family) { clsRow.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DevExpress' : 'TMS')); }
@@ -619,10 +695,115 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var m = state.model; if (!m) { return; }
     var count = Object.keys(byName).length - 1;
     var s = m.root.name + ' · ' + count + ' component(s)';
-    if (state.sel.length === 1) { var n = byName[state.sel[0]]; s += ' · ' + n.name + ' (' + n.x + ', ' + n.y + ') ' + n.w + '×' + n.h + (n.align ? ' · ' + n.align : ''); }
+    if (state.sel.length === 1) { var n = byName[state.sel[0]]; s += ' · ' + pathOf(n.name).join(' › ') + ' (' + n.x + ', ' + n.y + ') ' + n.w + '×' + n.h + (n.align ? ' · ' + n.align : ''); }
     else if (state.sel.length > 1) { s += ' · ' + state.sel.length + ' selected'; }
     if (state.tool) { s += ' · tool: ' + state.tool + ' (Esc to cancel)'; }
     $('status').textContent = state.notice ? state.notice : s;
+  }
+
+  /* ───────── parents: see where a component lives, and move it somewhere else ───────── */
+  var DEPTH_COLORS = ['#e8590c', '#2f9e44', '#9c36b6', '#1971c2', '#f08c00', '#0c8599'];
+  function rootName() { return state.model.root.name; }
+  function pathOf(name) { var p = [], c = name; while (c) { p.unshift(c); c = parentOf[c]; } return p; }
+  function areaOf(name) {
+    if (name === rootName()) { return { x: 0, y: 0, w: state.model.width, h: state.model.height }; }
+    var e = els[name];
+    return e && e.offsetParent !== null ? relRect(e) : null;
+  }
+  function placeBox(cls, r, color) {
+    var b = el('div', cls);
+    b.style.left = r.x + 'px'; b.style.top = r.y + 'px'; b.style.width = r.w + 'px'; b.style.height = r.h + 'px';
+    if (color) { b.style.borderColor = color; }
+    return b;
+  }
+  /* Optional outline + name tag of every container, coloured by depth, and always the parent of the selection. */
+  function drawParents(o) {
+    var rn = rootName();
+    if (state.showParents) {
+      Object.keys(byName).forEach(function (name) {
+        var n = byName[name];
+        if (name === rn || !n.container) { return; }
+        var r = areaOf(name);
+        if (!r) { return; }
+        var c = DEPTH_COLORS[(n.depth - 1) % DEPTH_COLORS.length];
+        o.appendChild(placeBox('cbox', r, c));
+        var t = el('div', 'ctag', name);
+        t.style.background = c; t.style.left = r.x + 'px'; t.style.top = Math.max(0, r.y - 12) + 'px';
+        o.appendChild(t);
+      });
+    }
+    var prim = state.sel[state.sel.length - 1];
+    if (!prim || !byName[prim] || !parentOf[prim]) { return; }
+    var pn = parentOf[prim];
+    var pr = areaOf(pn);
+    if (!pr) { return; }
+    o.appendChild(placeBox('pbox', pr));
+    var pl = el('div', 'plabel', '⬑ parent: ' + pn + (pn === rn ? ' (form)' : ' : ' + byName[pn].cls));
+    pl.style.left = pr.x + 'px'; pl.style.top = (pr.y >= 18 ? pr.y - 18 : pr.y + 2) + 'px';
+    o.appendChild(pl);
+  }
+  /* The container under the pointer is outlined and named while no drag is going on. */
+  function updateHover(ev) {
+    if (!state.model || drag) { return; }
+    var t = ev.target, name = null;
+    if (t.closest && t.closest('#client')) { var c = t.closest('.ctl.cont'); name = c ? c.getAttribute('data-name') : rootName(); }
+    if (name === state.hover) { return; }
+    state.hover = name; drawHover();
+  }
+  function drawHover() {
+    var h = $('hov');
+    if (!h) { return; }
+    while (h.firstChild) { h.removeChild(h.firstChild); }
+    var n = state.hover;
+    if (!n || !byName[n] || n === rootName()) { return; }
+    var r = areaOf(n);
+    if (!r) { return; }
+    h.appendChild(placeBox('hbox', r));
+    var t = el('div', 'htag', n + ' : ' + byName[n].cls);
+    t.style.left = r.x + 'px'; t.style.top = (r.y >= 14 ? r.y - 14 : r.y + 2) + 'px';
+    h.appendChild(t);
+  }
+  /* A component can go into any container, except itself or one of its own children. */
+  function canDropInto(names, target) {
+    if (!state.model || !byName[target]) { return false; }
+    if (target !== rootName() && !byName[target].container) { return false; }
+    var chain = pathOf(target);
+    return names.every(function (n) { return chain.indexOf(n) < 0; });
+  }
+  function dropTargetName(name) {
+    var n = byName[name];
+    if (n && kind(n.cls) === 'pages') { return activeSheet(n) || name; }
+    return name;
+  }
+  function reparentTo(names, target) {
+    target = dropTargetName(target);
+    if (!canDropInto(names, target)) { state.notice = 'A component cannot be moved into itself or into one of its own children.'; renderStatus(); return; }
+    var movable = names.filter(function (n) { return parentOf[n] !== target; });
+    if (!movable.length) { return; }
+    post({ type: 'reparent', names: movable, target: target, positions: movable.map(function (n, i) { return { left: 8 + 16 * i, top: 8 + 16 * i }; }) });
+  }
+  /* Inspector "Parent": move into the chosen container, keeping the component where it is on screen when possible. */
+  function moveToParent(name, target) {
+    target = dropTargetName(target);
+    if (!canDropInto([name], target) || parentOf[name] === target) { return; }
+    var pos = { left: 8, top: 8 };
+    try {
+      var er = relRect(els[name]), tr = areaOf(target);
+      if (tr) { pos = { left: Math.max(0, Math.min(Math.round(er.x - tr.x), Math.round(tr.w - er.w))), top: Math.max(0, Math.min(Math.round(er.y - tr.y), Math.round(tr.h - er.h))) }; }
+    } catch (err) { pos = { left: 8, top: 8 }; }
+    post({ type: 'reparent', names: [name], target: target, positions: [pos] });
+  }
+  function selectParent() {
+    var prim = state.sel[state.sel.length - 1];
+    var pn = prim ? parentOf[prim] : '';
+    if (!pn || pn === rootName()) { select([]); return; }
+    revealNode(pn); select([pn]);
+  }
+  function dropLabel(ev, text, ok) {
+    var l = $('droplabel');
+    if (!text) { l.style.display = 'none'; return; }
+    l.textContent = text; l.style.display = 'block'; l.className = ok ? 'go' : '';
+    l.style.left = (ev.clientX + 16) + 'px'; l.style.top = (ev.clientY + 16) + 'px';
   }
 
   /* ───────── interaction ───────── */
@@ -653,6 +834,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var tab = t.closest && t.closest('.tab');
     var pal = t.closest && t.closest('[data-tool]');
     if (pal) { state.tool = state.tool === pal.getAttribute('data-tool') ? null : pal.getAttribute('data-tool'); renderPalette(); renderStatus(); return; }
+    var crumb = t.closest && t.closest('[data-crumb]');
+    if (crumb) { var cn = crumb.getAttribute('data-crumb'); if (cn === rootName()) { select([]); } else { listClick(cn, ev); } return; }
     var pick = t.closest && t.closest('[data-pick]');
     if (pick) { listClick(pick.getAttribute('data-pick'), ev); return; }
     if (!inClient) { return; }
@@ -679,9 +862,9 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 
   function startMove(ev) {
     var names = state.sel.slice();
-    if (!names.every(isFree)) { return; }
     var orig = {}; names.forEach(function (n) { orig[n] = { x: byName[n].x, y: byName[n].y }; });
-    drag = { kind: 'move', sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, ddx: 0, ddy: 0, target: null };
+    // Docked components cannot be placed by hand, but they can still be dragged into another container.
+    drag = { kind: 'move', sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, ddx: 0, ddy: 0, target: null, dockedOnly: !names.every(isFree) };
   }
   function startResize(ev, h) {
     var names = state.sel.slice(); var orig = {};
@@ -703,7 +886,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   }
 
   document.addEventListener('mousemove', function (ev) {
-    if (!drag) { return; }
+    if (!drag) { updateHover(ev); return; }
     var z = state.zoom;
     var dx = (ev.clientX - drag.sx) / z, dy = (ev.clientY - drag.sy) / z;
     if (drag.kind === 'move') {
@@ -716,8 +899,11 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
       var tgt = dropContainerAt(ev, dragged);
       if (drag.target && drag.target !== tgt) { drag.target.classList.remove('droptarget'); }
       var parentEl = drag.names.length ? (parentOf[drag.names[0]] === state.model.root.name ? $('client') : els[parentOf[drag.names[0]]]) : null;
-      drag.target = tgt && tgt !== parentEl ? tgt : null;
-      if (drag.target && drag.target !== $('client')) { drag.target.classList.add('droptarget'); }
+      var tn = tgt ? nameOfContainer(tgt) : '';
+      drag.target = tgt && tgt !== parentEl && canDropInto(drag.names, tn) ? tgt : null;
+      if (drag.target) { drag.target.classList.add('droptarget'); }
+      var pname = parentOf[drag.names[0]];
+      dropLabel(ev, drag.target ? '↳ Drop into ' + tn + (tn === rootName() ? ' (form)' : ' : ' + byName[tn].cls) : (drag.dockedOnly ? 'Docked: drop it on another container to move it' : 'Stays in ' + pname), !!drag.target);
       drawSel();
     } else if (drag.kind === 'resize') {
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 2) { return; }
@@ -749,12 +935,16 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     if (d.kind === 'move') {
       d.names.forEach(function (n) { els[n].style.transform = ''; els[n].style.zIndex = ''; });
       if (d.target) { d.target.classList.remove('droptarget'); }
+      dropLabel(ev, '', false);
       if (!d.moved) { return; }
+      if (d.dockedOnly && !d.target) { drawSel(); return; }
       if (d.target) {
         var tr = d.target.getBoundingClientRect();
         var positions = d.names.map(function (n) {
-          var r = els[n].getBoundingClientRect();
-          return { left: (r.left + d.ddx * z - tr.left) / z, top: (r.top + d.ddy * z - tr.top) / z };
+          var r = els[n].getBoundingClientRect(), b = byName[n];
+          // Keep the component inside its new parent, so that it does not end up half hidden.
+          var left = (r.left + d.ddx * z - tr.left) / z, top = (r.top + d.ddy * z - tr.top) / z;
+          return { left: Math.round(Math.max(0, Math.min(left, tr.width / z - b.w))), top: Math.round(Math.max(0, Math.min(top, tr.height / z - b.h))) };
         });
         post({ type: 'reparent', names: d.names, target: nameOfContainer(d.target), positions: positions });
       } else if (d.ddx || d.ddy) {
@@ -794,7 +984,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var tag = ev.target && ev.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
     if (ev.key === 'F12') { post({ type: 'openCode' }); ev.preventDefault(); return; }
-    if (ev.key === 'Escape') { state.tool = null; renderPalette(); select([]); return; }
+    if (ev.key === 'Escape') { if (state.tool) { state.tool = null; renderPalette(); renderStatus(); } else { selectParent(); } return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A') && state.model) { select(state.model.root.children.map(function (c) { return c.name; })); ev.preventDefault(); return; }
@@ -815,6 +1005,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   $('zoom').addEventListener('change', function () { state.zoom = Number($('zoom').value); applyZoom(); drawSel(); });
   $('grid').addEventListener('change', function () { state.grid = Number($('grid').value); });
   $('names').addEventListener('change', function () { state.names = $('names').checked; render(); });
+  $('showparents').addEventListener('change', function () { state.showParents = $('showparents').checked; drawSel(); });
+  $('client').addEventListener('mouseleave', function () { state.hover = null; drawHover(); });
   $('undo').addEventListener('click', function () { post({ type: 'undo' }); });
   $('redo').addEventListener('click', function () { post({ type: 'redo' }); });
   $('opencode').addEventListener('click', function () { post({ type: 'openCode' }); });

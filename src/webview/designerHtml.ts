@@ -73,7 +73,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .outline .par { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; opacity: 0.7; }
 .outline div { padding: 1px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px; font-size: 11px; }
 .outline div:hover { background: var(--vscode-list-hoverBackground); }
-.outline div.sel { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.outline div.sel { background: var(--vscode-list-activeSelectionBackground, #0a84ff); color: var(--vscode-list-activeSelectionForeground, #fff); font-weight: 600; }
+.outline div.sel .cls, .outline div.sel .par { color: inherit; opacity: 0.85; }
 .row { display: flex; gap: 4px; align-items: center; margin: 3px 0; }
 .row > span { width: 62px; color: var(--vscode-descriptionForeground); flex: none; }
 .row input[type=text], .row input[type=number], .row select { flex: 1; min-width: 0; }
@@ -147,10 +148,13 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; }
 .ev-badge { position: absolute; right: -1px; top: -1px; font-size: 9px; background: #ffd24a; color: #000; border-radius: 3px; padding: 0 2px; line-height: 11px; pointer-events: none; z-index: 5; }
 .nm { position: absolute; left: 0; top: -12px; font-size: 9px; background: rgba(0,0,0,0.65); color: #fff; padding: 0 3px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 6; }
-#overlay { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
-.selbox { position: absolute; outline: 1px dashed #0078d7; background: rgba(0, 120, 215, 0.06); }
-.selbox.primary { outline: 1px solid #0078d7; }
-.handle { position: absolute; width: 7px; height: 7px; background: #fff; border: 1px solid #0078d7; pointer-events: auto; }
+#overlay { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 1000; }
+.selbox { position: absolute; outline: 2px dashed #0a84ff; background: rgba(10, 132, 255, 0.12); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95); }
+.selbox.primary { outline: 3px solid #0a84ff; background: rgba(10, 132, 255, 0.16); box-shadow: 0 0 0 1px #fff, 0 0 12px 3px rgba(10, 132, 255, 0.6); }
+.selbox.flash { animation: selflash 0.7s ease-out; }
+@keyframes selflash { 0% { box-shadow: 0 0 0 1px #fff, 0 0 0 0 rgba(10, 132, 255, 0.95); } 100% { box-shadow: 0 0 0 1px #fff, 0 0 0 18px rgba(10, 132, 255, 0); } }
+.handle { position: absolute; width: 9px; height: 9px; background: #fff; border: 2px solid #0a84ff; box-shadow: 0 0 0 1px #fff; pointer-events: auto; }
+.sellabel { position: absolute; background: #0a84ff; color: #fff; font: 600 10px/14px 'Segoe UI', sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
 .band { position: absolute; border: 1px dashed #0078d7; background: rgba(0, 120, 215, 0.12); pointer-events: none; }
 .tool-on #client { cursor: crosshair; }
 </style></head>
@@ -371,17 +375,28 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   function drawSel() {
     var o = $('overlay');
     while (o.firstChild) { o.removeChild(o.firstChild); }
+    var key = state.sel.join(',');
+    var flash = key !== state.selKey;
+    state.selKey = key;
     state.sel.forEach(function (name, i) {
       var e = els[name];
       if (!e || e.offsetParent === null) { return; }
       var r = relRect(e), n = byName[name];
-      var b = el('div', 'selbox' + (i === state.sel.length - 1 ? ' primary' : ''));
-      b.style.left = r.x + 'px'; b.style.top = r.y + 'px'; b.style.width = r.w + 'px'; b.style.height = r.h + 'px';
+      var primary = i === state.sel.length - 1;
+      var b = el('div', 'selbox' + (primary ? ' primary' : '') + (flash ? ' flash' : ''));
+      b.style.left = (r.x - 1) + 'px'; b.style.top = (r.y - 1) + 'px'; b.style.width = (r.w + 2) + 'px'; b.style.height = (r.h + 2) + 'px';
       o.appendChild(b);
+      if (primary) {
+        var text = state.sel.length > 1 ? state.sel.length + ' selected · ' + name : name + ' : ' + n.cls + '   ' + Math.round(r.w) + '×' + Math.round(r.h);
+        var lab = el('div', 'sellabel', text);
+        lab.style.left = (r.x - 1) + 'px';
+        lab.style.top = (r.y >= 20 ? r.y - 20 : r.y + r.h + 6) + 'px';
+        o.appendChild(lab);
+      }
       allowedHandles(n).forEach(function (h) {
         var hd = el('div', 'handle');
         hd.setAttribute('data-h', h);
-        hd.style.left = (r.x + HANDLES[h][0] * r.w - 4) + 'px'; hd.style.top = (r.y + HANDLES[h][1] * r.h - 4) + 'px';
+        hd.style.left = (r.x - 1 + HANDLES[h][0] * (r.w + 2) - 5) + 'px'; hd.style.top = (r.y - 1 + HANDLES[h][1] * (r.h + 2) - 5) + 'px';
         hd.style.cursor = h + '-resize';
         o.appendChild(hd);
       });
@@ -491,6 +506,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
       o.appendChild(d);
     });
     if (!rows.length) { o.appendChild(el('div', 'hint', 'No component matches.')); }
+    var picked = o.querySelector('.sel');
+    if (picked && picked.scrollIntoView) { picked.scrollIntoView({ block: 'nearest' }); }
   }
   /* A component on a hidden page: switch the page tabs so that it can be seen, then scroll to it. */
   function revealNode(name) {
@@ -835,7 +852,11 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
       if (m.selection) { state.sel = m.selection; }
       render();
     } else if (m.type === 'select') {
-      state.sel = m.names || []; drawSel(); renderOutline(); renderInspector(); renderStatus();
+      state.sel = (m.names || []).filter(function (n) { return byName[n]; });
+      var shown = state.sel.length && revealNode(state.sel[0]);
+      if (shown) { render(); } else { drawSel(); renderOutline(); renderInspector(); renderStatus(); }
+      var target = state.sel.length ? els[state.sel[0]] : null;
+      if (target && target.scrollIntoView) { target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
     } else if (m.type === 'notice') {
       state.notice = m.text; renderStatus();
     }

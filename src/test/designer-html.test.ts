@@ -96,3 +96,13 @@ test('designer ⇄ code navigation and empty-handler clean-up are wired in packa
     assert.match(key.when, /activeWebviewPanelId == 'mmxFormDesigner'/, 'the shortcut also works from inside the designer');
     assert.ok(pkg.contributes.menus['editor/title'].some((m: { command: string }) => m.command === 'mmx.delphi.designer'), 'a title-bar button leads back to the designer');
 });
+
+test('selection is unmistakable: above every control, strong outline, handles, name tag, highlighted list row', () => {
+    const html = designerHtml('N');
+    assert.match(html, /#overlay \{[^}]*z-index: 1000/, 'the overlay paints above the controls (it used to sit under them)');
+    assert.match(html, /\.selbox\.primary \{ outline: 3px solid/);
+    assert.match(html, /\.handle \{[^}]*width: 9px/);
+    assert.match(html, /\.sellabel/);
+    assert.match(html, /\.outline div\.sel \{[^}]*#0a84ff/, 'the selected list row has a visible fallback colour');
+    assert.match(html, /state\.sel\.length \+ ' selected/);
+});

@@ -62,6 +62,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private readonly _scopeAnalyzer = new LocalScopeAnalyzer();
 
     private _mode: ViewerMode = 'view';
+    // Active tab of the member view: 'detail' (selected member) or 'manage'
+    // (add / edit / rename / delete any member of the current type at any time).
+    private _tab: 'detail' | 'manage' = 'detail';
     private _sessionCtx?: EditSessionContext;
     private _resolveSession?: (result: MemberFormResult | ExtractSpec | undefined) => void;
     // The local variable currently being edited inline (mode 'variable').
@@ -129,6 +132,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
+                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : 'detail'); break;
+                case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
                 case 'memberAction': await this.handleMemberAction(msg.act as string); break;
                 case 'deleteVariableByName': await this.handleDeleteVariableByName(msg.name as string); break;
@@ -351,8 +356,49 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
      * member CURRENTLY DISPLAYED in the panel — no cursor re-resolution, so the
      * buttons always act on exactly what the user sees.
      */
-    private async handleMemberAction(act: string): Promise<void> {
-        const { member, classInfo, provider } = this._state;
+    private setTab(tab: 'detail' | 'manage'): void {
+        this._tab = tab;
+        this._stateKey = '';
+        const editor = vscode.window.activeTextEditor;
+        if (editor && this._mode === 'view') { this.onCursorChanged(editor); } else { this.updateView(); }
+    }
+
+    /** Members listed by the Manage tab: the current type's members, or the file's standalone routines. */
+    private manageTargets(): ClassMember[] {
+        const { classInfo } = this._state;
+        if (classInfo) {
+            return [...classInfo.members].sort((a, b) => a.range.start.line - b.range.start.line);
+        }
+        const doc = vscode.window.activeTextEditor?.document;
+        const parsed = doc ? this._codeExplorer.getParsedDocument(doc) : undefined;
+        return parsed ? [...parsed.standaloneProcedures] : [];
+    }
+
+    /** Edit / rename / delete / go-to on ANY member listed in the Manage tab (not only the one under the cursor). */
+    private async handleManageAction(act: string, id: string): Promise<void> {
+        const member = this.manageTargets().find(m => m.id === id);
+        if (!member) {
+            vscode.window.showWarningMessage('CE: This member changed in the meantime, the list was refreshed.');
+            this.setTab('manage');
+            return;
+        }
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!doc) {
+            vscode.window.showWarningMessage('CE: Open this member\'s file first.');
+            return;
+        }
+        if (act === 'go') {
+            const pos = member.implementationRange?.start ?? member.range.start;
+            await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
+            return;
+        }
+        await this.handleMemberAction(act, { member, classInfo: this._state.classInfo });
+    }
+
+    private async handleMemberAction(act: string, target?: { member: ClassMember; classInfo: ClassInfo | undefined }): Promise<void> {
+        const member = target ? target.member : this._state.member;
+        const classInfo = target ? target.classInfo : this._state.classInfo;
+        const provider = this._state.provider;
         if (!member || !provider) { return; }
         const doc = vscode.window.activeTextEditor?.document;
         if (!doc) {
@@ -369,9 +415,19 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 await ops.editMember(doc, provider, cls, member, this._codeGenerator, this._codeExplorer, result as MemberFormResult);
                 break;
             }
-            case 'rename':
-                await this._view?.webview.postMessage({ command: 'startRename' });
+            case 'rename': {
+                if (!target) {
+                    await this._view?.webview.postMessage({ command: 'startRename' });
+                    break;
+                }
+                const renamed = await this.beginSession({
+                    mode: 'edit', renameOnly: true, member, classInfo: cls, provider, document: doc,
+                }) as MemberFormResult | undefined;
+                if (renamed?.name) {
+                    await ops.renameMember(doc, cls, member, provider, this._codeExplorer, renamed.name);
+                }
                 break;
+            }
             case 'docHeader':
                 await ops.insertDocHeader(doc, provider, cls, member);
                 break;
@@ -921,6 +977,86 @@ ${groupsHtml}
 </html>`;
     }
 
+    /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
+    private variablesHtml(member: ClassMember): string {
+        let html = '';
+        const provider = this._state.provider;
+        const doc = vscode.window.activeTextEditor?.document;
+        if (provider && doc) {
+            const scope = this._scopeAnalyzer.getScope(doc, provider, member);
+            if (scope && scope.locals.length > 0) {
+                html += `<div class="section var-section"><div class="section-title">Variables</div><ul class="var-list">`;
+                for (const l of scope.locals) {
+                    const badge = l.isParam ? '<span class="dir">param </span>' : '<span class="dir">local </span>';
+                    const t = l.type ? `: <span class="ptype">${escapeHtml(l.type)}</span>` : '';
+                    const safeName = escapeHtml(l.name).replace(/"/g, '&quot;');
+                    html += `<li class="var-row">${badge}<span class="pname">${escapeHtml(l.name)}</span>${t}` +
+                        `<span class="var-actions">` +
+                        `<button class="var-btn" data-edit="${safeName}" title="Edit">✏️</button>` +
+                        `<button class="var-btn" data-delete="${safeName}" title="Delete">🗑️</button>` +
+                        `</span></li>`;
+                }
+                html += `</ul></div>`;
+            }
+        }
+        html += `<button class="ana" data-addvar="1">➕ Add Variable</button>`;
+        return html;
+    }
+
+    /** "Add / Delete" tab: add buttons plus every member of the current type with edit / rename / delete. */
+    private getManageHtml(): string {
+        const { member, classInfo, provider } = this._state;
+        let html = '';
+
+        const isStruct = !!classInfo && (classInfo.isRecord || classInfo.classType === 'struct');
+        const isCppStruct = provider?.languageId === 'cpp' && classInfo?.classType === 'struct';
+        const canHaveMethods = !classInfo || !isStruct || isCppStruct;
+        const isInterface = !!classInfo?.isInterface;
+
+        html += `<div class="section"><div class="section-title">Add</div><div class="analyze-grid">`;
+        if (classInfo) { html += `<button class="ana" data-run="mmx.addField">📦 Field</button>`; }
+        if (canHaveMethods) { html += `<button class="ana" data-run="mmx.addMethod">🔧 Method</button>`; }
+        if (classInfo && canHaveMethods && !isInterface) {
+            html += `<button class="ana" data-run="mmx.addProperty">🔑 Property</button>`;
+            html += `<button class="ana" data-run="mmx.addConstructor">🏗️ Constructor</button>`;
+        }
+        html += `</div></div>`;
+
+        const targets = this.manageTargets();
+        const icon = (k: MemberKind) => k === MemberKind.Field ? '📦' : k === MemberKind.Property ? '🔑'
+            : k === MemberKind.Constructor ? '🏗️' : k === MemberKind.Destructor ? '🧹' : '🔧';
+        html += `<div class="section"><div class="section-title">${classInfo ? 'Members' : 'Routines'} (${targets.length})</div>`;
+        if (targets.length === 0) {
+            html += `<p class="empty-section">Nothing here yet, use the buttons above.</p>`;
+        } else {
+            html += `<ul class="mlist">`;
+            for (const m of targets) {
+                const id = escapeHtml(m.id);
+                const t = m.returnType || m.type;
+                const sig = m.kind === MemberKind.Method || m.kind === MemberKind.Constructor || m.kind === MemberKind.Destructor
+                    ? `(${m.parameters.length})` : '';
+                html += `<li class="mrow${member && member.id === m.id ? ' sel' : ''}">` +
+                    `<span>${icon(m.kind)}</span>` +
+                    `<span class="mname" data-m-act="go" data-id="${id}" title="Go to ${escapeHtml(m.name)}">${escapeHtml(m.name)}${sig}</span>` +
+                    (t ? `<span class="mtype">: ${escapeHtml(t)}</span>` : '') +
+                    `<span class="var-actions">` +
+                    `<button class="var-btn" data-m-act="edit" data-id="${id}" title="Edit">✏️</button>` +
+                    `<button class="var-btn" data-m-act="rename" data-id="${id}" title="Rename">🔤</button>` +
+                    `<button class="var-btn" data-m-act="delete" data-id="${id}" title="Delete">🗑️</button>` +
+                    `</span></li>`;
+            }
+            html += `</ul>`;
+        }
+        html += `</div>`;
+
+        const hasBody = !!member && member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
+        if (member && hasBody) {
+            html += `<div class="divider"></div><div class="section-title">Variables of ${escapeHtml(member.name)}</div>`;
+            html += this.variablesHtml(member);
+        }
+        return html;
+    }
+
     private getHtml(): string {
         const nonce = getNonce();
         const { member, classInfo } = this._state;
@@ -981,9 +1117,27 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 .var-actions { margin-left: auto; display: flex; gap: 2px; }
 .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
 .var-btn:hover { filter: brightness(1.3); }
+.tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
+.tab:hover { color: var(--vscode-foreground); }
+.mlist { list-style: none; padding: 0; }
+.mrow { display: flex; align-items: center; gap: 5px; padding: 3px 4px; border-radius: 3px; font-size: 12px; }
+.mrow:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15)); }
+.mrow.sel { background: var(--vscode-list-activeSelectionBackground, rgba(0,127,212,0.25)); }
+.mrow .mname { cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); }
+.mrow .mname:hover { text-decoration: underline; }
+.mrow .mtype { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mrow .var-actions { opacity: 0.5; }
+.mrow:hover .var-actions { opacity: 1; }
 </style>
 </head>
 <body>`;
+
+        html += `<div class="tabs">
+<button class="tab${this._tab === 'detail' ? ' active' : ''}" data-tab="detail">Details</button>
+<button class="tab${this._tab === 'manage' ? ' active' : ''}" data-tab="manage">Add / Delete</button>
+</div>`;
 
         if (classInfo) {
             html += `<div class="class-header">
@@ -997,7 +1151,9 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 </div>`;
         }
 
-        if (member) {
+        if (this._tab === 'manage') {
+            html += this.getManageHtml();
+        } else if (member) {
             const kindLabel = member.kind === MemberKind.Constructor ? 'Constructor'
                 : member.kind === MemberKind.Destructor ? 'Destructor'
                 : member.kind.charAt(0).toUpperCase() + member.kind.slice(1);
@@ -1049,27 +1205,7 @@ li.param-item:hover .param-edit { opacity: 0.8; }
             // Local variables & parameters detected inside the method body.
             // Each is clickable to open the inline variable editor (rename +
             // change type in one form), mirroring the member editor.
-            const provider = this._state.provider;
-            const doc = vscode.window.activeTextEditor?.document;
-            if (provider && doc) {
-                const scope = this._scopeAnalyzer.getScope(doc, provider, member);
-                if (scope && scope.locals.length > 0) {
-                    html += `<div class="section var-section"><div class="section-title">Variables</div><ul class="var-list">`;
-                    for (const l of scope.locals) {
-                        const badge = l.isParam ? '<span class="dir">param </span>' : '<span class="dir">local </span>';
-                        const t = l.type ? `: <span class="ptype">${escapeHtml(l.type)}</span>` : '';
-                        const safeName = escapeHtml(l.name).replace(/"/g, '&quot;');
-                        html += `<li class="var-row">${badge}<span class="pname">${escapeHtml(l.name)}</span>${t}` +
-                            `<span class="var-actions">` +
-                            `<button class="var-btn" data-edit="${safeName}" title="Edit">✏️</button>` +
-                            `<button class="var-btn" data-delete="${safeName}" title="Delete">🗑️</button>` +
-                            `</span></li>`;
-                    }
-                    html += `</ul></div>`;
-                }
-            }
-
-            html += `<button class="ana" data-addvar="1">➕ Add Variable</button>`;
+            html += this.variablesHtml(member);
 
             html += `<div class="divider"></div>`;
             html += `<div class="section"><div class="section-title">Actions</div><div class="analyze-grid">`;
@@ -1127,7 +1263,15 @@ li.param-item:hover .param-edit { opacity: 0.8; }
             else if (addvar) { vscodeApi.postMessage({ command: 'addVariable' }); }
         });
     });
-    document.querySelectorAll('.var-btn').forEach(function(b) {
+    document.querySelectorAll('.tab').forEach(function(b) {
+        b.addEventListener('click', function() { vscodeApi.postMessage({ command: 'setTab', tab: b.getAttribute('data-tab') }); });
+    });
+    document.querySelectorAll('[data-m-act]').forEach(function(b) {
+        b.addEventListener('click', function() {
+            vscodeApi.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });
+        });
+    });
+    document.querySelectorAll('.var-btn[data-edit], .var-btn[data-delete]').forEach(function(b) {
         b.addEventListener('click', function() {
             var editName = b.getAttribute('data-edit');
             var delName = b.getAttribute('data-delete');

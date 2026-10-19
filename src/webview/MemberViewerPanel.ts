@@ -457,13 +457,14 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (typeof vscode.languages?.createDiagnosticCollection !== 'function') { return; }
         this._reviewDiag ??= vscode.languages.createDiagnosticCollection('ce-review');
         const level = { error: vscode.DiagnosticSeverity.Error, warning: vscode.DiagnosticSeverity.Warning, info: vscode.DiagnosticSeverity.Information };
-        const diagnostics = findings.filter(f => f.line < doc.lineCount).map(f => {
+        // what a language server reported is already in the Problems panel: only the review's own findings are added
+        const diagnostics = findings.filter(f => f.line < doc.lineCount && !f.source).map(f => {
             const text = doc.lineAt(f.line).text;
             const start = f.col ?? text.length - text.trimStart().length;
             const end = Math.max(f.endCol ?? text.trimEnd().length, start + 1);
             const d = new vscode.Diagnostic(new vscode.Range(f.line, start, f.line, end), f.message + (f.hint ? ' — ' + f.hint : ''), level[f.severity]);
             d.source = 'CE Review';
-            d.code = f.category;
+            d.code = f.code ?? f.category;
             return d;
         });
         this._reviewDiag.set(doc.uri, diagnostics);

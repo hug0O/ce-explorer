@@ -48,6 +48,7 @@ export function reviewCss(): string {
 .fhint { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px; word-break: break-word; }
 .fmeta { font-size: 10px; color: var(--vscode-descriptionForeground); margin-top: 2px; opacity: 0.85; }
 .fmeta .cat { text-transform: uppercase; letter-spacing: 0.4px; }
+.fmeta .fcode { font-family: var(--vscode-editor-font-family, monospace); }
 `;
 }
 
@@ -66,7 +67,7 @@ export function reviewHtml(findings: ReviewFinding[], o: ReviewOptions = DEFAULT
     const count = (s: ReviewSeverity): number => findings.filter(f => f.severity === s).length;
     const shown = orderedFindings(findings, o.sort).filter(x => o.sev[x.f.severity]);
     const file = findings[0].file;
-    let html = `<div class="rsum">${findings.length} finding(s) in ${esc(file)}: click one to go to its line. They are also marked in the editor and listed in the Problems panel until you close the report.</div>`;
+    let html = `<div class="rsum">${findings.length} finding(s) in ${esc(file)}: click one to go to its line. The code (H2164, CS0168, TS6133…) is the one the compiler or the linter gives it. They are also marked in the editor and listed in the Problems panel until you close the report.</div>`;
     html += `<div class="rbar">`
         + SEVERITIES.map(s => `<button class="rchip sev-${s}${o.sev[s] ? ' on' : ''}" data-sev="${s}" title="Show or hide the ${PLURAL[s].toLowerCase()}">${ICON[s]} ${count(s)} ${PLURAL[s]}</button>`).join('')
         + `<select class="rsort" id="rSort" title="Order of the list">`
@@ -79,7 +80,7 @@ export function reviewHtml(findings: ReviewFinding[], o: ReviewOptions = DEFAULT
         html += `<div class="finding sev-${f.severity}" data-idx="${idx}" tabindex="0" role="button" title="${esc(SEVERITY_LABEL[f.severity])}: go to line ${f.line + 1}">`
             + `<span class="fsev">${ICON[f.severity]}</span><div class="fbody"><div class="fmsg">${esc(f.message)}</div>`
             + (f.hint ? `<div class="fhint">${esc(f.hint)}</div>` : '')
-            + `<div class="fmeta"><span class="cat">${esc(f.category)}</span> · ${esc(where)}</div></div></div>`;
+            + `<div class="fmeta"><span class="cat">${esc(f.category)}${f.source ? ' (' + esc(f.source) + ')' : ''}</span>${f.code ? ' · <span class="fcode">' + esc(f.code) + '</span>' : ''} · ${esc(where)}</div></div></div>`;
     }
     return html + `</div>`;
 }

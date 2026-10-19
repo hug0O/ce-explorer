@@ -22,8 +22,8 @@ export interface PascalRoutine {
     end: number;
 }
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const word = (name: string): RegExp => new RegExp('(?<![\\w.])' + escapeRe(name) + '(?!\\w)', 'i');
+export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const word = (name: string): RegExp => new RegExp('(?<![\\w.])' + escapeRe(name) + '(?!\\w)', 'i');
 
 /** Types that look like classes (`TRect.Create(…)`) but are records or other values: nothing to free. */
 const VALUE_TYPES = /^(TPoint|TRect|TSize|TGUID|TTimeSpan|TStopwatch|TValue|TPair|TPointF|TRectF|TSizeF|TVector\w*|TMatrix\w*|TDateTime|TDate|TTime|TColor|TBytes|TArray|TFormatSettings)$/i;
@@ -65,9 +65,9 @@ export function blankPascal(lines: string[]): string[] {
     return out;
 }
 
-interface Local { name: string; type: string; line: number }
+export interface Local { name: string; type: string; line: number }
 
-interface Layout {
+export interface Layout {
     headerEnd: number;
     /** First line of the body (`begin` or `asm`), -1 for a routine without one. */
     begin: number;
@@ -76,7 +76,7 @@ interface Layout {
     nested: boolean;
 }
 
-function layoutOf(code: string[], r: PascalRoutine): Layout {
+export function layoutOf(code: string[], r: PascalRoutine): Layout {
     let depth = 0;
     let headerEnd = r.start;
     for (let i = r.start; i <= r.end && i < code.length; i++) {
@@ -110,10 +110,10 @@ function layoutOf(code: string[], r: PascalRoutine): Layout {
     return { headerEnd, begin, locals, nested };
 }
 
-interface Statement { text: string; line: number }
+export interface Statement { text: string; line: number }
 
 /** The statements of a body (cut at `;`), with the line each starts on. */
-function statementsOf(code: string[], from: number, to: number): Statement[] {
+export function statementsOf(code: string[], from: number, to: number): Statement[] {
     const out: Statement[] = [];
     let text = '';
     let line = -1;
@@ -135,13 +135,13 @@ function statementsOf(code: string[], from: number, to: number): Statement[] {
     return out;
 }
 
-function lineStarts(text: string): number[] {
+export function lineStarts(text: string): number[] {
     const starts = [0];
     for (let i = 0; i < text.length; i++) { if (text[i] === '\n') { starts.push(i + 1); } }
     return starts;
 }
 
-function lineOfOffset(starts: number[], offset: number): number {
+export function lineOfOffset(starts: number[], offset: number): number {
     let lo = 0;
     let hi = starts.length - 1;
     while (lo < hi) {
@@ -172,7 +172,7 @@ export function reviewPascal(lines: string[], routines: PascalRoutine[], fileNam
             const sets = /\bResult\b|\bExit\s*\(|\braise\b/i.test(body) || new RegExp('(?<![\\w.])' + escapeRe(r.name) + '\\s*:=', 'i').test(body);
             if (!sets) {
                 add({ severity: 'warning', category: 'Correctness', message: `Function ${r.name} never assigns Result (nor calls Exit)`, line: r.start, ...owner,
-                    hint: 'Assign Result on every path, or make it a procedure. The compiler reports it as warning W1035.' });
+                    hint: 'Assign Result on every path, or make it a procedure.', code: 'W1035' });
             }
         }
 
@@ -220,7 +220,7 @@ export function reviewPascal(lines: string[], routines: PascalRoutine[], fileNam
             if (!word(l.name).test(bodyAfterBegin)) {
                 const col = Math.max(0, lines[l.line].search(word(l.name)));
                 add({ severity: 'info', category: 'Unused', message: `Variable ${l.name} is declared but never used in ${r.name}`, line: l.line, col, endCol: col + l.name.length, ...owner,
-                    hint: 'Remove it. The compiler reports it as hint H2164.' });
+                    hint: 'Remove it.', code: 'H2164' });
             }
         }
         if (!handler && !r.isOverride && !r.isVirtual) {

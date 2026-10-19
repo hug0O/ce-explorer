@@ -1,15 +1,32 @@
 import * as vscode from 'vscode';
 import { reviewPlSqlText } from '../utils/plsqlReview';
 import { PascalRoutine, reviewPascal } from '../utils/pascalReview';
+import { reviewPascalCompiler } from '../utils/pascalCompiler';
+import { reviewLanguage, reviewStructure } from '../utils/compilerReview';
+import { reviewPython } from '../utils/pythonReview';
+import { dropReported, findingsFromDiagnostics } from '../utils/diagnosticsReview';
 import { reviewText } from '../utils/textReview';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
-import { ClassMember, MemberKind } from '../models/types';
-import { ReviewFinding, SEVERITY_LABEL, SEVERITY_ORDER } from '../utils/reviewTypes';
+import { ClassInfo, ClassMember, MemberKind } from '../models/types';
+import { ReviewClassInfo, ReviewFinding, SEVERITY_LABEL, SEVERITY_ORDER } from '../utils/reviewTypes';
 
 export type { ReviewFinding } from '../utils/reviewTypes';
 
 /** A class of a form, frame or data module holds one field per component: its size says nothing about its design. */
 const FORM_PARENT = /(Form|Frame|DataModule)$/i;
+
+function classInfoOf(cls: ClassInfo): ReviewClassInfo {
+    return {
+        name: cls.name, parentClass: cls.parentClass, isInterface: cls.isInterface, isRecord: cls.isRecord,
+        startLine: cls.range.start.line, endLine: cls.range.end.line,
+        members: cls.members.map(m => ({
+            name: m.name, kind: m.kind, visibility: m.visibility, isVirtual: m.isVirtual, isAbstract: m.isAbstract, isOverride: m.isOverride,
+            modifiers: m.modifiers ?? [], returnType: m.returnType, params: m.parameters.map(p => p.name),
+            startLine: m.range.start.line, endLine: m.range.end.line,
+            implStart: m.implementationRange?.start.line, implEnd: m.implementationRange?.end.line,
+        })),
+    };
+}
 
 function routineOf(m: ClassMember, className?: string): PascalRoutine | undefined {
     const impl = m.implementationRange;
@@ -91,16 +108,25 @@ export function reviewDocument(document: vscode.TextDocument, provider: import('
             ...parsed.classes.flatMap(c => c.members.map(m => routineOf(m, c.name))),
         ].filter((r): r is PascalRoutine => !!r);
         findings.push(...reviewPascal(lines, routines, fileName));
+        findings.push(...reviewPascalCompiler(lines, routines, parsed.classes.map(classInfoOf), fileName));
     }
     if (lang === 'plsql') {
         for (const f of reviewPlSqlText(document.getText())) {
-            findings.push({ severity: f.severity, category: f.category, message: f.message, file: fileName, line: f.line, className: f.className, memberName: f.memberName });
+            findings.push({ severity: f.severity, category: f.category, message: f.message, file: fileName, line: f.line, className: f.className, memberName: f.memberName, code: f.code, hint: f.hint });
         }
     }
+    if (lang === 'python') { findings.push(...reviewPython(lines, fileName)); }
+    findings.push(...reviewLanguage(lines, lang, fileName));
+    findings.push(...reviewStructure(parsed.classes.map(classInfoOf), lines, lang, fileName));
     findings.push(...reviewText(lines, lang, fileName));
 
+    // What the language servers of the other extensions already say about the file is the real compiler's opinion.
+    const reported = findingsFromDiagnostics(
+        typeof vscode.languages?.getDiagnostics === 'function' ? vscode.languages.getDiagnostics(document.uri) : [], fileName);
+    const own = dropReported(findings, reported);
+
     // The order of the file, the most serious first on a line.
-    return findings.sort((a, b) => a.line - b.line || SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+    return [...own, ...reported].sort((a, b) => a.line - b.line || SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 
 export async function runCodeReview(registry: ProviderRegistry): Promise<void> {

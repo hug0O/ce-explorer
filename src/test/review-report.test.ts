@@ -143,3 +143,14 @@ test('the severity buttons and the order are kept by the panel and redraw the re
     assert.ok(/<option value="category" selected>/.test(panel.getAnalyticsHtml()));
     assert.equal(drawn, 0);
 });
+
+test('the report shows the code the compiler or the linter gives a finding, and who reported it', () => {
+    const html = reviewHtml([
+        finding({ severity: 'info', category: 'Unused', message: 'Variable Tmp is declared but never used', code: 'H2164' }),
+        finding({ severity: 'warning', category: 'Compiler', message: 'from the server', code: 'TS6133', source: 'ts', line: 3 }),
+        finding({ severity: 'info', category: 'TODO', message: 'no code', line: 5 }),
+    ]);
+    assert.ok(/<span class="cat">Unused<\/span> · <span class="fcode">H2164<\/span> · line 1/.test(html));
+    assert.ok(/<span class="cat">Compiler \(ts\)<\/span> · <span class="fcode">TS6133<\/span> · line 4/.test(html), 'what a language server said is marked with its name');
+    assert.ok(/<span class="cat">TODO<\/span> · line 6/.test(html), 'no code, no empty slot');
+});

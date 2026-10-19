@@ -11,6 +11,9 @@ export interface PlFinding {
     line: number;
     memberName?: string;
     className?: string;
+    /** The Oracle compiler warning (`PLW-06002`…) that reports the same problem, when there is one. */
+    code?: string;
+    hint?: string;
 }
 
 const MAX_BODY_LINES = 100;
@@ -40,8 +43,8 @@ export function reviewPlSqlText(text: string): PlFinding[] {
         for (const m of subs) {
             const { text: body, base } = bodySlice(m, starts, clean);
             const at = (offset: number): number => lineOfOffset(starts, base + offset);
-            const add = (severity: PlFinding['severity'], category: string, message: string, line: number): void => {
-                findings.push({ severity, category, message, line, memberName: m.name, className: unit.name });
+            const add = (severity: PlFinding['severity'], category: string, message: string, line: number, extra: { code?: string; hint?: string } = {}): void => {
+                findings.push({ severity, category, message, line, memberName: m.name, className: unit.name, ...extra });
             };
 
             for (const x of allMatches(/\bwhen\s+others\s+then\s+null\s*;/i, body)) {
@@ -49,7 +52,8 @@ export function reviewPlSqlText(text: string): PlFinding[] {
             }
             for (const x of allMatches(/\bwhen\s+others\s+then\b([\s\S]*?)(?=\bwhen\b|\bend\b)/i, body)) {
                 if (!/\bnull\s*;\s*$/i.test(x[1].trim()) && !/\braise\b|raise_application_error/i.test(x[1])) {
-                    add('warning', 'Error handling', `WHEN OTHERS in ${m.name} neither re-raises nor raises an application error`, at(x.index));
+                    add('warning', 'Error handling', `WHEN OTHERS in ${m.name} neither re-raises nor raises an application error`, at(x.index),
+                        { code: 'PLW-06009', hint: 'End the handler with RAISE; or RAISE_APPLICATION_ERROR(…), so the caller learns that it failed.' });
                 }
             }
             for (const x of allMatches(/\bselect\s+\*/i, body)) {
@@ -82,7 +86,7 @@ export function reviewPlSqlText(text: string): PlFinding[] {
                 if (!new RegExp('\\bclose\\s+' + x[1] + '\\b', 'i').test(body)) { add('warning', 'Resources', `Cursor ${x[1]} is opened but never closed in ${m.name}`, at(x.index)); }
             }
             if (m.kind === 'function' && !/\breturn\b[^;]*;/i.test(body.replace(/\bReturn\s+[\w$#.%]+\s+is\b/i, ''))) {
-                add('error', 'Logic', `Function ${m.name} has no RETURN statement`, m.endLine);
+                add('error', 'Logic', `Function ${m.name} has no RETURN statement`, m.endLine, { code: 'PLW-05005', hint: 'A function must RETURN a value on every path.' });
             }
 
             // DML inside a LOOP: one round trip per row.
@@ -96,6 +100,33 @@ export function reviewPlSqlText(text: string): PlFinding[] {
                 else if (depth > 0 && (up === 'INSERT' || up === 'UPDATE' || up === 'DELETE' || up === 'MERGE') && toks[i - 1]?.up !== 'FOR' && toks[i - 1]?.up !== 'BEFORE') {
                     add('info', 'Performance', `${up} inside a loop in ${m.name}: consider one set-based statement or FORALL`, at(toks[i].start));
                     reported = true;
+                }
+            }
+
+            // Statements that follow RETURN or RAISE can never run; a plain LOOP with no way out never ends.
+            const isStart = (k: number): boolean => k === 0 || [';', 'BEGIN', 'THEN', 'ELSE', 'LOOP'].includes(toks[k - 1].up);
+            const loops: { plain: boolean; exits: boolean; line: number }[] = [];
+            for (let k = 0; k < toks.length; k++) {
+                const up = toks[k].up;
+                if ((up === 'RETURN' || up === 'RAISE') && isStart(k)) {
+                    let depth = 0;
+                    let j = k + 1;
+                    while (j < toks.length && !(toks[j].text === ';' && depth <= 0)) {
+                        if (toks[j].text === '(') { depth++; } else if (toks[j].text === ')') { depth--; }
+                        j++;
+                    }
+                    const next = toks[j + 1];
+                    if (next && !['END', 'EXCEPTION', 'ELSE', 'ELSIF', 'WHEN'].includes(next.up)) {
+                        add('warning', 'Logic', `Unreachable code in ${m.name}: it follows ${up}`, at(next.start), { code: 'PLW-06002', hint: 'Remove it, or the statement before it.' });
+                    }
+                }
+                if (up === 'EXIT' || up === 'RETURN' || up === 'RAISE' || up === 'GOTO') { loops.forEach(l => { l.exits = true; }); }
+                if (up === 'LOOP' && toks[k - 1]?.up !== 'END') { loops.push({ plain: isStart(k), exits: false, line: at(toks[k].start) }); }
+                else if (up === 'END' && toks[k + 1]?.up === 'LOOP') {
+                    const l = loops.pop();
+                    if (l && l.plain && !l.exits) {
+                        add('warning', 'Logic', `LOOP without EXIT or RETURN in ${m.name}: it never ends`, l.line, { hint: 'Add EXIT WHEN <condition>, or use a FOR / WHILE loop.' });
+                    }
                 }
             }
 

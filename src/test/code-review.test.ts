@@ -48,7 +48,7 @@ test('a function that never says what it returns is a warning; Result, Exit, rai
     const f = review(src).filter(x => x.category === 'Correctness');
     assert.deepEqual(f.map(x => x.memberName), ['NoResult', 'Mentions'], 'a comment saying Result does not count');
     assert.equal(f[0].severity, 'warning');
-    assert.match(f[0].hint!, /W1035/);
+    assert.equal(f[0].code, 'W1035', 'the number the compiler gives it');
 });
 
 test('unused variables and parameters are advice; event handlers, overrides and virtual methods keep their parameters', () => {
@@ -172,7 +172,9 @@ test('text rules: notes, passwords in the source, swallowed exceptions', () => {
 
 const nodeModule = require('node:module');
 const originalLoad = nodeModule._load;
+let serverDiagnostics: any[] = [];
 const vscodeMock = {
+    languages: { getDiagnostics: () => serverDiagnostics },
     window: { activeTextEditor: undefined },
     Position: class { constructor(public line: number, public character: number) {} },
     Selection: class {}, Range: class {}, TextEditorRevealType: { InCenter: 2 },
@@ -207,4 +209,24 @@ test('reviewDocument puts every rule together, in file order, with what the form
     const plain = { id: 'c2', name: 'TBig', members: Array.from({ length: 16 }, (_, i) => mem('p' + i, 'M' + i, 'method')), range: rng(0, 1), isInterface: false, isRecord: false, isSealed: false, interfaces: [] };
     const big = reviewDocument({ getText: () => 'x', fileName: 'B.java', lineAt: () => ({ text: '' }) } as any, { languageId: 'java', parseDocument: () => ({ classes: [plain], standaloneProcedures: [] }) } as any);
     assert.ok(big.some(x => x.category === 'Size' && x.severity === 'warning' && x.hint));
+});
+
+test('reviewDocument lists what the language server reports, once, next to the review\'s own findings', () => {
+    const src = ['import { a } from "./a";', 'var old = 1;', 'const unusedHere = 2;', 'work(old);'];
+    const doc = { getText: () => src.join('\n'), fileName: '/x/m.ts', uri: { toString: () => 'file:///x/m.ts' }, lineAt: (n: number) => ({ text: src[n] }) } as any;
+    const provider = { languageId: 'typescript', parseDocument: () => ({ classes: [], standaloneProcedures: [] }) } as any;
+    const range = (l: number): any => ({ start: { line: l, character: 6 }, end: { line: l, character: 16 } });
+    serverDiagnostics = [
+        { message: "'unusedHere' is declared but its value is never read.", severity: 1, source: 'ts', code: 6133, range: range(2) },
+        { message: "Cannot find module './a'.", severity: 0, source: 'ts', code: 2307, range: range(0) },
+        { message: 'a diagnostic of the review itself', severity: 1, source: 'CE Review', code: 'no-var', range: range(1) },
+    ];
+    const f = reviewDocument(doc, provider);
+    serverDiagnostics = [];
+    const compiler = f.filter(x => x.category === 'Compiler');
+    assert.deepEqual(compiler.map(x => [x.line, x.code, x.severity, x.source]), [[0, 'TS2307', 'error', 'ts'], [2, 'TS6133', 'warning', 'ts']]);
+    assert.ok(!f.some(x => x.line === 2 && x.category === 'Unused'), 'the review\'s own finding for the same line and code is dropped: the compiler\'s stays');
+    assert.ok(f.some(x => x.code === 'no-var' && x.source === undefined), 'its own diagnostics are not read back as the compiler\'s, the rule still reports');
+    assert.ok(f.some(x => x.code === 'TS6133' && x.line === 0 && x.category === 'Unused'), 'the import nobody uses is the review\'s own finding');
+    assert.deepEqual(f.map(x => x.line), [...f.map(x => x.line)].sort((a, b) => a - b));
 });

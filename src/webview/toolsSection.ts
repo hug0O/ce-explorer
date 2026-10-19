@@ -4,8 +4,7 @@
  * Every button that has a keyboard shortcut shows it, so nobody has to look
  * for it (the shortcuts are declared in package.json and listed here).
  *
- * The markup is static; the Delphi spacing page is filled from the extension
- * through `formModel` messages (see MemberViewerPanel).
+ * The markup is static.
  */
 
 function escapeAttr(s: string): string {
@@ -188,15 +187,15 @@ ${btn('ce.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and emp
 `;
 }
 
-export type ToolsSub = 'form' | 'spacing' | 'plsql' | 'align';
+export type ToolsSub = 'form' | 'plsql' | 'align';
 
-export const TOOLS_SUBS: ToolsSub[] = ['form', 'spacing', 'plsql', 'align'];
+export const TOOLS_SUBS: ToolsSub[] = ['form', 'plsql', 'align'];
 
 /** The sub-tabs relevant to the active file: Delphi tools only for a Delphi unit, PL/SQL tools only for PL/SQL. */
 export function availableSubs(plsql: boolean, delphi: boolean): { id: ToolsSub; label: string }[] {
     const subs: { id: ToolsSub; label: string }[] = [];
     if (delphi) {
-        subs.push({ id: 'form', label: 'Form' }, { id: 'spacing', label: 'Spacing' });
+        subs.push({ id: 'form', label: 'Form' });
     }
     if (plsql) { subs.push({ id: 'plsql', label: 'PL/SQL' }); }
     subs.push({ id: 'align', label: 'Align' });
@@ -216,35 +215,9 @@ function alignBlock(alignToken: string, chipsJson: string): string {
 </div>`;
 }
 
-function spacingBlock(): string {
-    return `
-<div class="tools-block" id="sForm">
-<div class="section-title">Spacing between components</div>
-<div class="tool-note" id="sMsg">Loading form…</div>
-<div id="sFields" hidden>
-<div class="tool-label">Gap between a component and the next one…</div>
-<select id="sComp" class="tool-select"></select>
-<div class="tool-row mt4">
-<select id="sDir" class="tool-select grow"><option value="right">to its right</option><option value="below">below it</option><option value="left">to its left</option><option value="above">above it</option></select>
-<input id="sGap" class="inp narrow" type="number" min="-50" max="500" value="8" title="Pixels, edge to edge">
-</div>
-<label class="tool-note"><input type="checkbox" id="sCascade" checked> move the components that follow too</label>
-<button id="sApply" class="tool-primary">Set gap</button>
-<div class="tool-label mt10">Distribute a whole container</div>
-<select id="sCont" class="tool-select"></select>
-<div class="tool-row mt4">
-<input id="sH" class="inp" type="number" min="-50" max="500" value="8" title="Horizontal gap (px)">
-<input id="sV" class="inp" type="number" min="-50" max="500" value="8" title="Vertical gap (px)">
-</div>
-<div class="tool-note">Horizontal / vertical gaps. Rows are detected automatically and columns are aligned across rows.</div>
-<button id="sDist" class="tool-primary">Distribute</button>
-</div>
-</div>`;
-}
-
 /**
  * The Tools tab, split into sub-tabs so that each set of tools has its own page:
- * Form · Spacing (Delphi), PL/SQL, Align. Only the pages that make sense for the
+ * Form (Delphi), PL/SQL, Align. Only the pages that make sense for the
  * active file are offered; `activeSub` is the one shown.
  */
 export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false, activeSub = ''): string {
@@ -253,7 +226,6 @@ export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN
     const active = subs.some(s => s.id === activeSub) ? activeSub : subs[0].id;
     const pages: Record<ToolsSub, string> = {
         form: delphi ? delphiBlock() : '',
-        spacing: delphi ? spacingBlock() : '',
         plsql: plsql ? plsqlBlock() : '',
         align: alignBlock(alignToken, chipsJson),
     };
@@ -328,49 +300,6 @@ function initTools(api) {
         $('alignGo').addEventListener('click', function () { api.postMessage({ command: 'alignSelection', token: tok.value }); });
         tok.addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('alignGo').click(); } });
     }
-    if (!$('sForm')) { return; }
-
-    var model = null;
-    function option(value, text) { var o = document.createElement('option'); o.value = value; o.textContent = text; return o; }
-    function clear(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
-
-    function fillSpacing() {
-        var comp = $('sComp');
-        var keep = comp.value;
-        clear(comp);
-        (model.components || []).forEach(function (c) { if (c.name !== model.formName) { comp.appendChild(option(c.name, c.label)); } });
-        if (keep) { comp.value = keep; }
-        var cont = $('sCont');
-        var keepC = cont.value;
-        clear(cont);
-        (model.containers || []).forEach(function (c) { cont.appendChild(option(c.name, c.label)); });
-        if (keepC) { cont.value = keepC; }
-    }
-
-    function fillModel() {
-        if (!model || !model.ok) {
-            $('sMsg').textContent = (model && model.reason) || 'No Delphi form here.';
-            $('sFields').hidden = true;
-            return;
-        }
-        $('sMsg').textContent = 'Form ' + model.formName;
-        $('sFields').hidden = false;
-        fillSpacing();
-    }
-
-    window.addEventListener('message', function (e) {
-        var m = e.data;
-        if (m && m.command === 'formModel') { model = m.model; fillModel(); }
-    });
-
-    $('sApply').addEventListener('click', function () {
-        api.postMessage({ command: 'setSpacing', componentName: $('sComp').value, direction: $('sDir').value, gap: Number($('sGap').value), cascade: $('sCascade').checked });
-    });
-    $('sDist').addEventListener('click', function () {
-        api.postMessage({ command: 'distribute', containerName: $('sCont').value, horizontal: Number($('sH').value), vertical: Number($('sV').value) });
-    });
-
-    api.postMessage({ command: 'toolsReady' });
 }
 `;
 }

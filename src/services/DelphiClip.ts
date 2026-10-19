@@ -9,7 +9,7 @@ import { readUnit } from './DelphiCheck';
 import { wiredEvents } from './DelphiEvents';
 import { handlerImplementation } from './DelphiSync';
 import { nodeBlock, renameIdentifiers, reindentBlock } from '../utils/dfmEdit';
-import { setPropEdit } from './DelphiSpacing';
+import { setPropEdit } from './DelphiProps';
 import { clientSize } from './DelphiAlign';
 
 export interface ClipHandler {

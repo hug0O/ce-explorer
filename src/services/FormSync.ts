@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { TextEdit } from './DelphiForm';
 import { findNode, parseDfmTree } from './DelphiLayout';
-import { Direction, distributeContainer, setGapBetween } from './DelphiSpacing';
 import { planDfmDelete, planDfmRename } from './DelphiSync';
 import { EditPipeline } from './EditPipeline';
 import { addComponentToForm, resolveFormPair } from './FormCommands';
@@ -25,83 +24,6 @@ async function openPair(doc: vscode.TextDocument | undefined) {
     if (!pair) { return undefined; }
     const [pasDoc, dfmDoc] = await Promise.all([vscode.workspace.openTextDocument(pair.pas), vscode.workspace.openTextDocument(pair.dfm)]);
     return { pair, pasDoc, dfmDoc };
-}
-
-export interface SetSpacingRequest {
-    componentName: string;
-    direction: Direction;
-    gap: number;
-    cascade: boolean;
-}
-
-/** Sets the gap between a component and its neighbour on one side (moving the neighbour and, optionally, what follows it). */
-export async function setSpacing(doc: vscode.TextDocument | undefined, req: SetSpacingRequest): Promise<boolean> {
-    const opened = await openPair(doc);
-    if (!opened) {
-        vscode.window.showWarningMessage('CE: Spacing needs a .pas unit with a text .dfm of the same name next to it.');
-        return false;
-    }
-    const { pair, dfmDoc } = opened;
-    const dfm = dfmDoc.getText();
-    const root = parseDfmTree(dfm);
-    const node = root ? findNode(root, req.componentName) : undefined;
-    if (!node) {
-        vscode.window.showErrorMessage(`CE: Component "${req.componentName}" not found in the .dfm.`);
-        return false;
-    }
-    const result = setGapBetween(dfm, node, req.direction, req.gap, req.cascade);
-    if ('error' in result) {
-        vscode.window.showWarningMessage('CE: ' + result.error);
-        return false;
-    }
-    if (result.edits.length === 0) {
-        vscode.window.showInformationMessage(`CE: The gap ${req.direction} of ${node.name} is already ${req.gap}px.`);
-        return true;
-    }
-    const pipeline = new EditPipeline();
-    pipeline.recordOriginal(pair.dfm, dfm);
-    queueTextEdits(pipeline, dfmDoc, result.edits);
-    if (!await pipeline.apply(`Gap ${req.direction} of ${node.name}: ${req.gap}px`)) { return false; }
-    vscode.window.showInformationMessage(`CE: ${req.gap}px ${req.direction} of ${node.name} (moved ${result.moved.join(', ')}).`);
-    return true;
-}
-
-export interface DistributeRequest {
-    containerName: string;
-    horizontal: number;
-    vertical: number;
-}
-
-/** Re-lays out a container's components on fixed horizontal / vertical gaps. */
-export async function distributeSpacing(doc: vscode.TextDocument | undefined, req: DistributeRequest): Promise<boolean> {
-    const opened = await openPair(doc);
-    if (!opened) {
-        vscode.window.showWarningMessage('CE: Spacing needs a .pas unit with a text .dfm of the same name next to it.');
-        return false;
-    }
-    const { pair, dfmDoc } = opened;
-    const dfm = dfmDoc.getText();
-    const root = parseDfmTree(dfm);
-    const container = root ? findNode(root, req.containerName) : undefined;
-    if (!container) {
-        vscode.window.showErrorMessage(`CE: Container "${req.containerName}" not found in the .dfm.`);
-        return false;
-    }
-    const result = distributeContainer(dfm, container, req.horizontal, req.vertical);
-    if ('error' in result) {
-        vscode.window.showWarningMessage('CE: ' + result.error);
-        return false;
-    }
-    if (result.edits.length === 0) {
-        vscode.window.showInformationMessage(`CE: ${container.name} already uses ${req.horizontal}px / ${req.vertical}px gaps.`);
-        return true;
-    }
-    const pipeline = new EditPipeline();
-    pipeline.recordOriginal(pair.dfm, dfm);
-    queueTextEdits(pipeline, dfmDoc, result.edits);
-    if (!await pipeline.apply(`Distribute ${container.name} (${req.horizontal}/${req.vertical}px)`)) { return false; }
-    vscode.window.showInformationMessage(`CE: ${container.name}: ${result.moved.length} component(s) re-spaced (${req.horizontal}px / ${req.vertical}px).`);
-    return true;
 }
 
 /**

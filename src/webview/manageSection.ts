@@ -43,6 +43,10 @@ export interface FocusView {
     search: string;
     searchHits: LineHit[];
     searchTotal: number;
+    /** Local variables and parameters of the member (markup made by the panel, already escaped), when it has a body. */
+    variables?: { count: number; html: string };
+    /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
+    open: { used: boolean; vars: boolean; find: boolean };
 }
 
 export interface ManageView {
@@ -94,15 +98,27 @@ export function manageCss(): string {
 .mfilter .mclear.on { display: block; }
 .mgroup { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 8px 0 2px 2px; list-style: none; }
 .mrow .vis { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); width: 10px; flex: none; text-align: center; }
-.madd { margin-bottom: 4px; }
-.mfocus { border-top: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3)); margin-top: 10px; padding-top: 8px; }
-.mfocus .mfname { font-family: var(--vscode-editor-font-family, monospace); font-weight: 700; }
+.madd-box { margin-bottom: 6px; }
+.madd-box .section-title { margin-bottom: 3px; }
+.mbtns { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
+.mbtns .ana { width: auto; padding: 2px 7px; font-size: 11px; line-height: 1.35; }
+.mdetail { list-style: none; margin: 1px 0 6px 12px; padding: 3px 6px 4px; border-left: 2px solid var(--vscode-focusBorder, #007fd4); background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.1)); border-radius: 0 3px 3px 0; }
+.mdetail .var-list { list-style: none; padding: 0; }
+.mdetail .var-row { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; }
+.mdetail .var-row .dir { color: var(--vscode-symbolIcon-keywordForeground, #569cd6); }
+.mdetail .var-row .pname { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
+.mdetail .var-row .ptype { color: var(--vscode-symbolIcon-typeParameterForeground, #4ec9b0); }
+.mdetail .var-actions { margin-left: auto; display: flex; gap: 2px; }
+.mdetail .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
+.mdetail .ana { margin-top: 3px; }
+.mdetail .mdet > summary { margin-top: 0; }
 .mdet > summary { cursor: pointer; font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 4px; }
 .mhits { list-style: none; max-height: 190px; overflow: auto; margin: 2px 0 6px; }
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
 .mhit .mtx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mhits:empty { display: none; }
 .mmore { font-size: 10px; color: var(--vscode-descriptionForeground); padding: 1px 4px; }
 .msearchinfo { font-size: 10px; color: var(--vscode-descriptionForeground); min-height: 13px; }
 `;
@@ -113,19 +129,24 @@ function hitRowsHtml(hits: LineHit[], total: number): string {
         + (total > hits.length ? `<li class="mmore">… ${total - hits.length} more not listed (first ${MAX_HITS} shown)</li>` : '');
 }
 
-/** Where the member is used in this file, and a search box over its own code. */
+/** What goes under the selected member's row: where it is used in this file, its variables, a search box over its own code. Each block folds. */
 export function focusHtml(f: FocusView): string {
-    let html = `<div class="mfocus" id="mFocus"><div class="section-title">${esc(f.kindLabel)} <span class="mfname">${esc(f.name)}</span></div>`;
-    html += `<details class="mdet" open><summary>Used in this file (<span id="mUsageCount">${f.usageTotal}</span>)</summary>`;
+    const open = (on: boolean): string => (on ? ' open' : '');
+    let html = `<div class="mfocus" id="mFocus">`;
+    html += `<details class="mdet" data-fold="used"${open(f.open.used)}><summary>Used in this file (<span id="mUsageCount">${f.usageTotal}</span>)</summary>`;
     html += f.usageTotal
         ? `<ul class="mhits" id="mUsages">${hitRowsHtml(f.usages, f.usageTotal)}</ul>`
         : `<p class="empty-section">Not used elsewhere in this file.</p>`;
     html += `</details>`;
+    if (f.variables) {
+        html += `<details class="mdet" data-fold="vars"${open(f.open.vars)}><summary>Variables (${f.variables.count})</summary>${f.variables.html}</details>`;
+    }
     if (f.searchable) {
-        html += `<div class="tool-row mfilter"><input id="mSearch" class="inp" type="text" spellcheck="false" placeholder="Search in the code of ${esc(f.name)}… (regex ok)" value="${esc(f.search)}">`
+        html += `<details class="mdet" data-fold="find"${open(f.open.find)}><summary>Search in the code of ${esc(f.name)}</summary>`
+            + `<div class="tool-row mfilter"><input id="mSearch" class="inp" type="text" spellcheck="false" placeholder="Search in ${esc(f.name)}… (regex ok)" value="${esc(f.search)}">`
             + `<button class="mclear${f.search ? ' on' : ''}" id="mSearchClear" title="Clear the search">×</button></div>`
             + `<div class="msearchinfo" id="mSearchInfo">${f.search ? (f.searchTotal ? f.searchTotal + ' line(s) match' : 'No line matches') : ''}</div>`
-            + `<ul class="mhits" id="mSearchHits">${hitRowsHtml(f.searchHits, f.searchTotal)}</ul>`;
+            + `<ul class="mhits" id="mSearchHits">${hitRowsHtml(f.searchHits, f.searchTotal)}</ul></details>`;
     }
     return html + `</div>`;
 }
@@ -141,14 +162,14 @@ export function manageListHtml(v: ManageView): string {
         html += `<div class="mhead"><span class="mtypelabel">${esc(typeLabel)}</span></div>`;
     }
 
-    html += `<div class="section"><div class="section-title">Add</div><div class="analyze-grid madd">`;
+    html += `<div class="section madd-box"><div class="section-title">Add</div><div class="mbtns">`;
     if (v.add.field) { html += `<button class="ana" data-m-add="field">📦 Field</button>`; }
     if (v.add.method) { html += `<button class="ana" data-m-add="method">🔧 Method</button>`; }
     if (v.add.property) { html += `<button class="ana" data-m-add="property">🔑 Property</button>`; }
     if (v.add.constructor) { html += `<button class="ana" data-m-add="constructor">🏗️ Constructor</button>`; }
-    html += `</div><div class="analyze-grid">`
+    html += `</div><div class="mbtns">`
         + `<button class="ana" data-m-run="ce.insertTemplate" title="Insert a template at the cursor">🧩 Template…</button>`
-        + `<button class="ana" data-m-run="ce.synchronizeDeclImpl" title="Declare / create the missing declarations and implementations">🔄 Sync decl / impl</button>`
+        + `<button class="ana" data-m-run="ce.synchronizeDeclImpl" title="Declare / create the missing declarations and implementations">🔄 Sync</button>`
         + `<button class="ana" data-m-run="ce.manageTemplates" title="Create and edit your templates">📝 Templates</button>`
         + `<button class="ana" id="mRefresh" title="Parse the file again">♻️ Refresh</button>`
         + `</div></div>`;
@@ -187,11 +208,11 @@ export function manageListHtml(v: ManageView): string {
                 + (v.canMove && !v.isFile ? `<button class="var-btn" data-m-act="move" data-id="${id}" title="Move to another type…">➡️</button>` : '')
                 + `<button class="var-btn" data-m-act="delete" data-id="${id}" title="Delete">🗑️</button>`
                 + `</span></li>`;
+            if (v.focus && v.focus.id === m.id) { html += `<li class="mdetail">${focusHtml(v.focus)}</li>`; }
         }
         html += `</ul><p class="empty-section" id="mNone" hidden>No member matches the filter.</p>`;
     }
     html += `</div>`;
-    if (v.focus) { html += focusHtml(v.focus); }
     return html;
 }
 
@@ -205,6 +226,17 @@ function initManage(api) {
     });
     document.querySelectorAll('[data-m-run]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'run', cmd: b.getAttribute('data-m-run') }); });
+    });
+    // A block that is folded or unfolded stays so when the tab is drawn again.
+    var folds = {};
+    document.querySelectorAll('details[data-fold]').forEach(function (d) {
+        folds[d.getAttribute('data-fold')] = d.open;
+        d.addEventListener('toggle', function () {
+            var key = d.getAttribute('data-fold');
+            if (folds[key] === d.open) { return; }
+            folds[key] = d.open;
+            api.postMessage({ command: 'manageFold', key: key, open: d.open });
+        });
     });
     // Rows of the usage and search lists: go to the line. A delegated listener, since the search list is rebuilt while typing.
     document.addEventListener('click', function (ev) {
@@ -249,6 +281,8 @@ function initManage(api) {
             var text = r.getAttribute('data-text') || '';
             var ok = (!kind || r.getAttribute('data-kind') === kind) && (!v || (rx ? rx.test(text) : text.indexOf(lit) >= 0));
             r.style.display = ok ? '' : 'none';
+            var detail = r.nextElementSibling;
+            if (detail && detail.classList.contains('mdetail')) { detail.style.display = ok ? '' : 'none'; }
             if (ok) { shown++; }
         });
         // a group heading stays only while one of its rows is shown

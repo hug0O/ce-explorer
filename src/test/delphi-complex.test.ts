@@ -5,7 +5,6 @@ import * as path from 'path';
 import { applyTextEdits } from '../services/DelphiForm';
 import { findNode, listContainers, parseDfmTree, planAddComponent } from '../services/DelphiLayout';
 import { planAddEvent } from '../services/DelphiEvents';
-import { distributeContainer, setGapBetween } from '../services/DelphiSpacing';
 import { planDfmDelete, planDfmRename } from '../services/DelphiSync';
 import { learnFromDfmTexts, parseCustomComponents, resolveWithLibrary } from '../services/DelphiLibrary';
 
@@ -102,21 +101,6 @@ test('events on third-party controls and on the form of the complex example', ()
     const shown = planAddEvent(pas, dfm, { componentName: 'ComplexForm', eventName: 'OnShow' });
     assert.ok(!('error' in shown));
     assert.match(applyTextEdits(dfm, [(shown as { dfmEdit: never }).dfmEdit]), /TextHeight = 15\r?\n {2}OnShow = ComplexFormShow/);
-});
-
-test('spacing on the complex form: gap in all four directions inside a docked panel', () => {
-    const bottom = findNode(root, 'pnlGaucheBas')!;
-    assert.equal(bottom.children.length, 2);
-    const right = setGapBetween(dfm, findNode(root, 'btnAjouter')!, 'right', 20);
-    assert.ok(!('error' in right));
-    assert.equal(findNode(parseDfmTree(applyTextEdits(dfm, (right as { edits: never[] }).edits))!, 'btnSupprimer')!.left, 8 + 75 + 20);
-    assert.ok(!('error' in right) && right.moved.join() === 'btnSupprimer');
-
-    const rows = distributeContainer(dfm, findNode(root, 'grpIdentite')!, 10, 12);
-    assert.ok(!('error' in rows));
-    const out = parseDfmTree(applyTextEdits(dfm, (rows as { edits: never[] }).edits))!;
-    assert.equal(findNode(out, 'edtNom')!.left, findNode(out, 'edtPrenom')!.left, 'edits stay in one column');
-    assert.equal(findNode(out, 'edtPrenom')!.top! - (findNode(out, 'edtNom')!.top! + 23), 12);
 });
 
 test('rename / delete keep the complex form consistent', () => {

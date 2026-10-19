@@ -5,7 +5,7 @@
 import type { TextEdit } from './DelphiForm';
 import type { DfmNode } from './DelphiLayout';
 import { deleteProp, formatAnchors, parseAnchors, setProp } from '../utils/dfmEdit';
-import { setPropEdit } from './DelphiSpacing';
+import { setPropEdit } from './DelphiProps';
 
 export type AlignOp = 'left' | 'right' | 'top' | 'bottom' | 'centerX' | 'centerY' | 'sameWidth' | 'sameHeight' | 'sameSize' | 'spaceH' | 'spaceV';
 

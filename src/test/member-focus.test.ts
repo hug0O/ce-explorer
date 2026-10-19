@@ -60,21 +60,27 @@ test('memberLineRanges merges a declaration touching its implementation', () => 
     assert.deepEqual(memberLineRanges({ range: { start: { line: 4 }, end: { line: 9 } }, implementationRange: { start: { line: 8 }, end: { line: 14 } } }), [[4, 14]]);
 });
 
-test('the member section lists its usages and a search box, with the exact counts', () => {
+test('the member section lists its usages, variables and a search box, each one foldable, with the exact counts', () => {
+    const open = { used: true, vars: true, find: false };
     const html = focusHtml({
         id: 'm1', name: 'Run', kindLabel: 'Method', usageTotal: 302,
         usages: [{ line: 17, text: 'Run(3);', start: 2, end: 5 }], searchable: true, search: 'for',
         searchHits: [{ line: 10, text: 'for I := 0 to A do', start: 2, end: 5 }], searchTotal: 1,
+        variables: { count: 2, html: '<ul class="var-list"><li class="var-row">I</li></ul>' }, open,
     });
     assert.match(html, /Used in this file \(<span id="mUsageCount">302<\/span>\)/);
     assert.match(html, /data-m-line="17"[^>]*><span class="mln">18<\/span>/, 'lines are shown from 1');
     assert.match(html, /301 more not listed|… 301 more/, 'the rows stop at the cap, the count does not');
     assert.match(html, /id="mSearch"[^>]*value="for"/);
     assert.match(html, /1 line\(s\) match/);
-    const field = focusHtml({ id: 'f', name: 'FCount', kindLabel: 'Field', usageTotal: 0, usages: [], searchable: false, search: '', searchHits: [], searchTotal: 0 });
+    assert.match(html, /<summary>Variables \(2\)<\/summary><ul class="var-list">/);
+    assert.match(html, /data-fold="used" open>/, 'an unfolded block');
+    assert.match(html, /data-fold="vars" open>/);
+    assert.match(html, /data-fold="find">/, 'a folded block has no open attribute');
+    const field = focusHtml({ id: 'f', name: 'FCount', kindLabel: 'Field', usageTotal: 0, usages: [], searchable: false, search: '', searchHits: [], searchTotal: 0, open });
     assert.match(field, /Not used elsewhere in this file/);
-    assert.doesNotMatch(field, /id="mSearch"/, 'a field has no code to search');
-    assert.match(focusHtml({ id: 'x', name: '<b>', kindLabel: 'Method', usageTotal: 0, usages: [], searchable: true, search: '"><i>', searchHits: [], searchTotal: 0 }), /&lt;b&gt;/, 'names are escaped');
+    assert.doesNotMatch(field, /id="mSearch"|data-fold="vars"/, 'a field has no code to search and no variables');
+    assert.match(focusHtml({ id: 'x', name: '<b>', kindLabel: 'Method', usageTotal: 0, usages: [], searchable: true, search: '"><i>', searchHits: [], searchTotal: 0, open }), /&lt;b&gt;/, 'names are escaped');
 });
 
 /* ───────── the Structure tab, with a real document and decorations ───────── */
@@ -144,16 +150,23 @@ test('selecting a member in Structure lists the lines of the file that use it an
     const panel = makePanel();
     const html: string = panel.getHtml();
     assert.ok(/id="mFocus"/.test(html));
-    assert.ok(/mfname">FCount<\/span>/.test(html), 'the section is about the member under the cursor');
     assert.ok(/Used in this file \(<span id="mUsageCount">1<\/span>\)/.test(html));
     assert.ok(!/id="mSearch"/.test(html), 'a field has no body to search');
 
     panel._focusId = 'm_run';
+    panel._scopeAnalyzer = { getScope: () => ({ locals: [{ name: 'I', type: 'Integer', isParam: false }] }) };
     const run: string = panel.getHtml();
     assert.ok(/Used in this file \(<span id="mUsageCount">2<\/span>\)/.test(run), 'Run: its call on line 18 and a string that says Run; not its declaration and implementation');
     assert.ok(/data-m-line="17"/.test(run));
     assert.ok(/id="mSearch"/.test(run), 'a method has a body to search');
     assert.ok(/class="mrow sel"[^>]*data-text="run /.test(run), 'the clicked member is the highlighted row');
+
+    // the blocks sit right under the row of the member they are about, not at the bottom of the tab
+    const rows = [...run.matchAll(/<li class="(mrow[^"]*|mdetail)"/g)].map(m => m[1].split(' ')[0]);
+    assert.deepEqual(rows, ['mrow', 'mrow', 'mdetail', 'mrow'], 'Count, Run, (the blocks of Run), Other');
+    assert.ok(run.indexOf('class="mdetail"') < run.indexOf('data-id="m_other"'), 'the blocks come before the next member');
+    assert.ok(run.indexOf('id="mFocus"') === run.lastIndexOf('id="mFocus"'), 'and nowhere else');
+    assert.ok(/data-fold="vars"/.test(run), 'the variables are one of the blocks');
 
     panel.syncHighlights();
     const all = [...decorations.values()];
@@ -203,4 +216,27 @@ test('the Structure tab script is valid JavaScript and wires the usage rows, the
     assert.ok(script, 'a script is present');
     assert.doesNotThrow(() => new vm.Script(script![1]));
     for (const key of ["command: 'manageLine'", "command: 'manageSearch'", "m.command !== 'memberHits'"]) { assert.ok(script![1].includes(key), key); }
+});
+
+test('Add buttons are compact, the folds are remembered, variables are read-only away from the cursor', () => {
+    const panel = makePanel();
+    const html: string = panel.getHtml();
+    assert.ok(/class="mbtns"/.test(html) && !/class="analyze-grid madd"/.test(html), 'the Add buttons are a compact wrapping row');
+    assert.ok(/\.mbtns \.ana \{ width: auto; padding: 2px 7px/.test(html), 'small buttons, small gap');
+    panel._focusId = 'm_run';
+    assert.ok(/data-fold="used" open>/.test(panel.getHtml()));
+    panel._folds.used = false;
+    assert.ok(/data-fold="used">/.test(panel.getHtml()), 'a folded block stays folded after the tab is drawn again');
+    assert.ok(/command: 'manageFold'/.test(panel.getHtml()), 'the page tells the panel what is folded');
+
+    // m_run is not under the cursor (the state member is FCount): its variables can be seen, not edited
+    panel._scopeAnalyzer = { getScope: () => ({ locals: [{ name: 'I', type: 'Integer', isParam: false }] }) };
+    const away: string = panel.getHtml();
+    assert.ok(/<summary>Variables \(1\)<\/summary>/.test(away));
+    const detail = away.slice(away.indexOf('class="mdetail"'), away.indexOf('data-id="m_other"'));
+    assert.ok(!/data-addvar/.test(detail) && !/data-edit=/.test(detail) && !/data-delete=/.test(detail), 'no edit / delete / add away from the cursor');
+    assert.ok(/Place the cursor in Run to edit its variables/.test(away));
+    panel._state.member = panel.manageTargets().find((m: any) => m.id === 'm_run');
+    const here: string = panel.getHtml();
+    assert.ok(/data-edit="I"/.test(here) && /data-delete="I"/.test(here) && /data-addvar="1"/.test(here), 'with the cursor in the member the variables are editable');
 });

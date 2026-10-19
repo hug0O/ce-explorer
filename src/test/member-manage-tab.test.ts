@@ -88,14 +88,14 @@ test('Manage tab ignores actions on a member that no longer exists', async () =>
     assert.equal(refreshed, true);
 });
 
-test('Tools tab shows the align form and the Delphi spacing form; both pages can drive them', () => {
+test('Tools tab shows the align form and the Delphi layout page; no spacing page any more', () => {
     const panel = makePanel();
     panel._tab = 'tools';
     panel.isDelphi = () => true;
     const html: string = panel.getHtml();
     assert.match(html, /data-tab="tools"/);
     assert.match(html, /id="alignToken"/);
-    assert.match(html, /id="sForm"/);
+    assert.doesNotMatch(html, /id="sForm"|id="sFields"|data-sub="spacing"/, 'the spacing page is gone');
     assert.doesNotMatch(html, /id="dForm"|id="dAdd"|id="eAdd"/, 'adding components and events is the designer\'s job now');
     assert.match(html, /function initTools\(api\)/);
     assert.match(html, /initTools\(vscodeApi\)/);
@@ -106,7 +106,7 @@ test('Tools tab shows the align form and the Delphi spacing form; both pages can
     assert.match(empty, /initTools\(api\)/);
 });
 
-test('Tools tab: saved align shortcuts and the spacing block are present, the component / event forms are gone', () => {
+test('Tools tab: saved align shortcuts are present, the spacing, component and event forms are gone', () => {
     const panel = makePanel();
     panel._tab = 'tools';
     panel.isDelphi = () => true;
@@ -114,12 +114,11 @@ test('Tools tab: saved align shortcuts and the spacing block are present, the co
     assert.match(html, /id="chips"[^>]*data-chips="\[&quot;:=&quot;/, 'default shortcuts are rendered as data');
     assert.match(html, /command: 'saveAlignChips'/, 'shortcuts can be added and removed, then persisted');
     for (const id of ['sComp', 'sDir', 'sGap', 'sCascade', 'sApply', 'sCont', 'sH', 'sV', 'sDist']) {
-        assert.ok(html.includes(`id="${id}"`), id);
+        assert.ok(!html.includes(`id="${id}"`), id + ' is gone');
     }
     for (const id of ['dGap', 'eComp', 'eEvent', 'eAdd', 'dHint']) { assert.ok(!html.includes(`id="${id}"`), id + ' is gone'); }
     assert.doesNotMatch(html, /command: 'classInfo'|command: 'addComponent'|command: 'addEvent'|command: 'suggestName'/);
-    assert.match(html, /command: 'setSpacing'/);
-    assert.match(html, /command: 'distribute'/);
+    assert.doesNotMatch(html, /command: 'setSpacing'|command: 'distribute'|command: 'toolsReady'/);
 });
 
 test('sanitizeChips keeps any number of custom strings but drops junk and duplicates', async () => {
@@ -187,21 +186,21 @@ test('Tools are split into sub-tabs; only the pages that apply to the file are o
 
     panel.isDelphi = () => true;
     const delphi: string = panel.getHtml();
-    assert.deepEqual(subs(delphi), ['form', 'spacing', 'align'], 'no Components page: the designer adds components');
+    assert.deepEqual(subs(delphi), ['form', 'align'], 'no Components page (the designer adds components) and no Spacing page');
     assert.deepEqual(shown(delphi), ['form'], 'the designer / layout page first');
-    assert.ok(delphi.includes('id="dlBlock"') && delphi.includes('id="sFields"') && !delphi.includes('id="dAdd"') && delphi.includes('id="alignToken"'));
+    assert.ok(delphi.includes('id="dlBlock"') && !delphi.includes('id="sFields"') && !delphi.includes('id="dAdd"') && delphi.includes('id="alignToken"'));
     assert.doesNotMatch(delphi, /id="plBlock"/);
 
-    panel._toolsTab = 'spacing';
-    assert.deepEqual(shown(panel.getHtml()), ['spacing'], 'the chosen sub-tab is remembered across redraws');
+    panel._toolsTab = 'align';
+    assert.deepEqual(shown(panel.getHtml()), ['align'], 'the chosen sub-tab is remembered across redraws');
 
     panel.isDelphi = () => false;
     panel.isPlSql = () => true;
-    panel._toolsTab = 'spacing';
+    panel._toolsTab = 'form';
     const sql: string = panel.getHtml();
     assert.deepEqual(subs(sql), ['plsql', 'align']);
     assert.deepEqual(shown(sql), ['plsql'], 'a remembered tab that does not apply falls back to the first one');
-    assert.doesNotMatch(sql, /id="sFields"|id="dlBlock"/, 'Delphi tools are absent from a SQL file');
+    assert.doesNotMatch(sql, /id="dlBlock"/, 'Delphi tools are absent from a SQL file');
     assert.match(sql, /command: 'toolsTab'/);
 });
 
@@ -487,7 +486,6 @@ test('no page of the sidebar uses an inline style attribute: the nonce in its CS
     }
     panel._tab = 'tools';
     const html: string = panel.getHtml();
-    assert.match(html, /data-sub="spacing" hidden/, 'the other sub-pages are hidden through the hidden attribute');
-    assert.match(html, /id="sFields" hidden/);
+    assert.match(html, /data-sub="plsql" hidden/, 'the other sub-pages are hidden through the hidden attribute');
     assert.match(html, /p\.hidden = p\.getAttribute\('data-sub'\) !== id/, 'and shown again the same way');
 });

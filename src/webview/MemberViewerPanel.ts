@@ -18,10 +18,10 @@ import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSectio
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
+import { ReviewSeverity } from '../utils/reviewTypes';
+import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
-import { alignSelection, buildFormModel, getLastAlignToken } from '../services/FormCommands';
-import type { Direction } from '../services/DelphiSpacing';
-import { distributeSpacing, setSpacing } from '../services/FormSync';
+import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -94,6 +94,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     // Moment of the last jump made from this view: the cursor events it causes must not change the member being looked at.
     private _ownJumpAt = 0;
     private _memberSearch = '';
+    // Blocks under the selected member that are unfolded (kept between redraws).
+    private _folds = { used: true, vars: true, find: true };
     private _hiLine?: vscode.TextEditorDecorationType;
     private _hiUse?: vscode.TextEditorDecorationType;
     private _hiFind?: vscode.TextEditorDecorationType;
@@ -112,6 +114,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     // Analytics: serializable payload rendered inline by getAnalyticsHtml.
     private _analyticsKind?: AnalyticsKind;
     private _analyticsData?: ReviewFinding[] | ExportData | DeadCodeItem[] | string;
+    // The file a review is about (a click on a finding goes to it), the severities listed, their order, and the squiggles in the editor.
+    private _analyticsUri?: vscode.Uri;
+    private _reviewSev: Record<ReviewSeverity, boolean> = { ...DEFAULT_REVIEW_OPTIONS.sev };
+    private _reviewSort: ReviewSort = DEFAULT_REVIEW_OPTIONS.sort;
+    private _reviewDiag?: vscode.DiagnosticCollection;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -199,9 +206,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('ce.plsql.alignPreset', msg.id); }
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
-                case 'toolsReady': await this.sendFormModel(); break;
-                case 'setSpacing': await this.handleSetSpacing(msg); break;
-                case 'distribute': await this.handleDistribute(msg); break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'manageFilter':
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
@@ -211,6 +215,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
                 case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
                 case 'manageLine': this.handleManageLine(Number(msg.line)); break;
+                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find') { this._folds[msg.key as 'used' | 'vars' | 'find'] = msg.open === true; } break;
                 case 'manageSearch': this.handleMemberSearch(String(msg.text ?? '')); break;
                 case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
@@ -223,6 +228,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'cancelVariable': this.endVariableEdit(); break;
                 case 'runAnalytics': await this.handleRunAnalytics(msg.kind as AnalyticsKind); break;
                 case 'closeAnalytics': this.endAnalytics(); break;
+                case 'goTo': await this.handleGoTo(Number(msg.idx)); break;
+                case 'reviewFilter':
+                    if (msg.sev === 'error' || msg.sev === 'warning' || msg.sev === 'info') { this._reviewSev[msg.sev as ReviewSeverity] = msg.on === true; this.updateView(); }
+                    break;
+                case 'reviewSort': if ((REVIEW_SORTS as string[]).includes(msg.mode)) { this._reviewSort = msg.mode as ReviewSort; this.updateView(); } break;
                 case '__diag': console.error('[CE] webview script error:', msg.error); break;
             }
         });
@@ -404,9 +414,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
         const doc = editor.document;
         try {
+            this.clearReviewDiagnostics();
             switch (kind) {
                 case 'review': {
-                    this._analyticsData = reviewDocument(doc, provider);
+                    const findings = reviewDocument(doc, provider);
+                    this._analyticsData = findings;
+                    this._analyticsUri = doc.uri;
+                    this.publishReviewDiagnostics(doc, findings);
                     break;
                 }
                 case 'documentation': {
@@ -438,8 +452,52 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
     }
 
+    /** The findings as squiggles in the file and entries of the Problems panel, until the report is closed. */
+    private publishReviewDiagnostics(doc: vscode.TextDocument, findings: ReviewFinding[]): void {
+        if (typeof vscode.languages?.createDiagnosticCollection !== 'function') { return; }
+        this._reviewDiag ??= vscode.languages.createDiagnosticCollection('ce-review');
+        const level = { error: vscode.DiagnosticSeverity.Error, warning: vscode.DiagnosticSeverity.Warning, info: vscode.DiagnosticSeverity.Information };
+        const diagnostics = findings.filter(f => f.line < doc.lineCount).map(f => {
+            const text = doc.lineAt(f.line).text;
+            const start = f.col ?? text.length - text.trimStart().length;
+            const end = Math.max(f.endCol ?? text.trimEnd().length, start + 1);
+            const d = new vscode.Diagnostic(new vscode.Range(f.line, start, f.line, end), f.message + (f.hint ? ' — ' + f.hint : ''), level[f.severity]);
+            d.source = 'CE Review';
+            d.code = f.category;
+            return d;
+        });
+        this._reviewDiag.set(doc.uri, diagnostics);
+    }
+
+    private clearReviewDiagnostics(): void {
+        this._reviewDiag?.clear();
+    }
+
+    /** A click on a finding of the review, or on an entry of the dead code list: the editor goes to that place. */
+    private async handleGoTo(idx: number): Promise<void> {
+        if (!Number.isInteger(idx) || idx < 0) { return; }
+        let uri: vscode.Uri | undefined;
+        let range: vscode.Range | undefined;
+        if (this._analyticsKind === 'review') {
+            const f = (this._analyticsData as ReviewFinding[] | undefined)?.[idx];
+            if (!f || !this._analyticsUri) { return; }
+            uri = this._analyticsUri;
+            range = new vscode.Range(f.line, f.col ?? 0, f.line, f.endCol ?? f.col ?? 0);
+        } else if (this._analyticsKind === 'deadcode') {
+            const d = (this._analyticsData as DeadCodeItem[] | undefined)?.[idx];
+            if (!d) { return; }
+            uri = vscode.Uri.file(d.file);
+            range = new vscode.Range(d.line, 0, d.line, 0);
+        }
+        if (!uri || !range) { return; }
+        try { await vscode.window.showTextDocument(uri, { selection: range, preserveFocus: false }); }
+        catch { vscode.window.showWarningMessage('CE: That file could not be opened.'); }
+    }
+
     /** Leaves the analytics view and returns to member tracking. */
     private endAnalytics(): void {
+        this.clearReviewDiagnostics();
+        this._analyticsUri = undefined;
         this._mode = 'view';
         this._analyticsKind = undefined;
         this._analyticsData = undefined;
@@ -460,31 +518,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         this.setTab('manage');
     }
 
-    private async handleSetSpacing(msg: Record<string, unknown>): Promise<void> {
-        const dirs: Direction[] = ['right', 'below', 'left', 'above'];
-        const direction = dirs.find(d => d === msg.direction);
-        const gap = Number(msg.gap);
-        if (typeof msg.componentName !== 'string' || !msg.componentName || !direction || !Number.isFinite(gap)) {
-            vscode.window.showWarningMessage('CE: Pick a component, a direction and a gap in pixels.');
-            return;
-        }
-        if (await setSpacing(vscode.window.activeTextEditor?.document, { componentName: msg.componentName, direction, gap, cascade: msg.cascade !== false })) {
-            await this.sendFormModel();
-        }
-    }
-
-    private async handleDistribute(msg: Record<string, unknown>): Promise<void> {
-        const horizontal = Number(msg.horizontal);
-        const vertical = Number(msg.vertical);
-        if (typeof msg.containerName !== 'string' || !msg.containerName || !Number.isFinite(horizontal) || !Number.isFinite(vertical)) {
-            vscode.window.showWarningMessage('CE: Pick a container and the horizontal / vertical gaps in pixels.');
-            return;
-        }
-        if (await distributeSpacing(vscode.window.activeTextEditor?.document, { containerName: msg.containerName, horizontal, vertical })) {
-            await this.sendFormModel();
-        }
-    }
-
     /** Whether the active editor is a Delphi unit or form file. */
     private isDelphi(): boolean {
         return /\.(pas|dfm)$/i.test(vscode.window.activeTextEditor?.document.uri.fsPath ?? '');
@@ -499,11 +532,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private alignChips(): string[] {
         const saved = this._extensionContext.globalState?.get<unknown>(MemberViewerPanel.CHIPS_KEY);
         return saved === undefined ? sanitizeChips(undefined) : sanitizeChips(saved);
-    }
-
-    private async sendFormModel(): Promise<void> {
-        const model = await buildFormModel(vscode.window.activeTextEditor?.document);
-        await this._view?.webview.postMessage({ command: 'formModel', model });
     }
 
     /* ───────── memo: Markdown notes per language ───────── */
@@ -651,20 +679,24 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     }
 
     /** Where the focused member is used in the current file, and the search inside its code. */
-    private focusData(): FocusView | undefined {
+    private focusData(withVariables = false): FocusView | undefined {
         const member = this.focusMember();
         const doc = vscode.window.activeTextEditor?.document;
-        if (!member || !doc) { return undefined; }
-        const lines = doc.getText().split(/\r?\n/);
+        if (!member) { return undefined; }
+        const lines = doc ? doc.getText().split(/\r?\n/) : [];
         const skip = new Set<number>([member.range.start.line]);
         if (member.implementationRange) { skip.add(member.implementationRange.start.line); }
         const use = usageLines(lines, member.name, skip);
         const searchable = member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
         const found = searchable && this._memberSearch ? searchLines(lines, memberLineRanges(member), this._memberSearch) : { hits: [] as LineHit[], total: 0 };
         const kindLabel = member.kind.charAt(0).toUpperCase() + member.kind.slice(1);
+        // The variables can be edited only where the cursor is: the actions of the Details tab work on the member under it.
+        const editable = !!this._state.member && this._state.member.id === member.id;
+        const variables = withVariables && searchable ? this.variablesBody(member, editable) : undefined;
         return {
             id: member.id, name: member.name, kindLabel, usages: use.hits, usageTotal: use.total,
             searchable, search: this._memberSearch, searchHits: found.hits, searchTotal: found.total,
+            variables, open: { ...this._folds },
         };
     }
 
@@ -1161,18 +1193,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
         let body = '';
         if (kind === 'review') {
-            const findings = (data as ReviewFinding[]) || [];
-            body = findings.length === 0
-                ? '<p class="muted">No issues found ✓</p>'
-                : '<table class="tbl"><thead><tr><th>Sev</th><th>Category</th><th>Message</th><th>Line</th></tr></thead><tbody>'
-                    + findings.map(f => `<tr class="sev-${f.severity}"><td>${sevIcon(f.severity)}</td><td>${escapeHtml(f.category)}</td><td>${escapeHtml(f.message)}${f.memberName ? ' <span class="muted">' + escapeHtml(f.memberName) + '</span>' : ''}</td><td>${f.line + 1}</td></tr>`).join('')
-                    + '</tbody></table>';
+            body = reviewHtml((data as ReviewFinding[]) || [], { sev: this._reviewSev, sort: this._reviewSort });
         } else if (kind === 'deadcode') {
             const items = (data as DeadCodeItem[]) || [];
             body = items.length === 0
                 ? '<p class="muted">No dead code detected ✓</p>'
                 : '<table class="tbl"><thead><tr><th>Kind</th><th>Name</th><th>File</th><th>Line</th></tr></thead><tbody>'
-                    + items.map(d => `<tr><td>${escapeHtml(d.kind)}</td><td>${escapeHtml(d.name)}</td><td class="muted">${escapeHtml(shortFile(d.file))}</td><td>${d.line + 1}</td></tr>`).join('')
+                    + items.map((d, i) => `<tr data-idx="${i}" tabindex="0" title="Go to ${escapeHtml(shortFile(d.file))}:${d.line + 1}"><td>${escapeHtml(d.kind)}</td><td>${escapeHtml(d.name)}</td><td class="muted">${escapeHtml(shortFile(d.file))}</td><td>${d.line + 1}</td></tr>`).join('')
                     + '</tbody></table>';
         } else if (kind === 'documentation') {
             const md = (data as string) || '';
@@ -1197,9 +1224,9 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: var(--vsco
 .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tbl th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); padding: 3px 6px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
 .tbl td { padding: 3px 6px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.15)); vertical-align: top; }
-.sev-error td:first-child { color: #f48771; }
-.sev-warning td:first-child { color: #cca700; }
-.sev-info td:first-child { color: var(--vscode-symbolIcon-interfaceForeground, #75beff); }
+.tbl tr[data-idx] { cursor: pointer; }
+.tbl tr[data-idx]:hover, .tbl tr[data-idx]:focus { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15)); outline: none; }
+${reviewCss()}
 .card { background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.1)); border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; }
 .card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
 .card .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; }
@@ -1215,7 +1242,22 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: var(--vsco
 <div class="bar"><h2>${escapeHtml(title)}</h2><button class="btnClose" id="btnClose">✕ Close</button></div>
 ${body}
 <script nonce="${nonce}">
-(function(){document.getElementById("btnClose").addEventListener("click",function(){acquireVsCodeApi().postMessage({command:"closeAnalytics"});});})();
+(function () {
+    var api = acquireVsCodeApi();
+    document.getElementById('btnClose').addEventListener('click', function () { api.postMessage({ command: 'closeAnalytics' }); });
+    document.querySelectorAll('[data-idx]').forEach(function (r) {
+        function go() { api.postMessage({ command: 'goTo', idx: Number(r.getAttribute('data-idx')) }); }
+        r.addEventListener('click', go);
+        r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
+    document.querySelectorAll('[data-sev]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'reviewFilter', sev: b.getAttribute('data-sev'), on: !b.classList.contains('on') }); });
+    });
+    var sort = document.getElementById('rSort');
+    if (sort) { sort.addEventListener('change', function () { api.postMessage({ command: 'reviewSort', mode: sort.value }); }); }
+    var again = document.getElementById('rAgain');
+    if (again) { again.addEventListener('click', function () { api.postMessage({ command: 'runAnalytics', kind: 'review' }); }); }
+})();
 </script>
 </body>
 </html>`;
@@ -1406,6 +1448,22 @@ ${memoScript()}
         return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n</div>`;
     }
 
+    /** Rows of the local variables and parameters of a member; the buttons only where they can act on it. */
+    private variableRowsHtml(locals: { name: string; type?: string; isParam?: boolean }[], editable: boolean): string {
+        let html = `<ul class="var-list">`;
+        for (const l of locals) {
+            const badge = l.isParam ? '<span class="dir">param </span>' : '<span class="dir">local </span>';
+            const t = l.type ? `: <span class="ptype">${escapeHtml(l.type)}</span>` : '';
+            const safeName = escapeHtml(l.name).replace(/"/g, '&quot;');
+            html += `<li class="var-row">${badge}<span class="pname">${escapeHtml(l.name)}</span>${t}`
+                + (editable
+                    ? `<span class="var-actions"><button class="var-btn" data-edit="${safeName}" title="Edit">✏️</button><button class="var-btn" data-delete="${safeName}" title="Delete">🗑️</button></span>`
+                    : '')
+                + `</li>`;
+        }
+        return html + `</ul>`;
+    }
+
     /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
     private variablesHtml(member: ClassMember): string {
         let html = '';
@@ -1414,22 +1472,22 @@ ${memoScript()}
         if (provider && doc) {
             const scope = this._scopeAnalyzer.getScope(doc, provider, member);
             if (scope && scope.locals.length > 0) {
-                html += `<div class="section var-section"><div class="section-title">Variables</div><ul class="var-list">`;
-                for (const l of scope.locals) {
-                    const badge = l.isParam ? '<span class="dir">param </span>' : '<span class="dir">local </span>';
-                    const t = l.type ? `: <span class="ptype">${escapeHtml(l.type)}</span>` : '';
-                    const safeName = escapeHtml(l.name).replace(/"/g, '&quot;');
-                    html += `<li class="var-row">${badge}<span class="pname">${escapeHtml(l.name)}</span>${t}` +
-                        `<span class="var-actions">` +
-                        `<button class="var-btn" data-edit="${safeName}" title="Edit">✏️</button>` +
-                        `<button class="var-btn" data-delete="${safeName}" title="Delete">🗑️</button>` +
-                        `</span></li>`;
-                }
-                html += `</ul></div>`;
+                html += `<div class="section var-section"><div class="section-title">Variables</div>${this.variableRowsHtml(scope.locals, true)}</div>`;
             }
         }
         html += `<button class="ana" data-addvar="1">➕ Add Variable</button>`;
         return html;
+    }
+
+    /** The variables block under a member of the Structure tab: its count and rows, with Add Variable when the cursor is in it. */
+    private variablesBody(member: ClassMember, editable: boolean): { count: number; html: string } | undefined {
+        const provider = this._state.provider;
+        const doc = vscode.window.activeTextEditor?.document;
+        const locals = provider && doc ? this._scopeAnalyzer.getScope(doc, provider, member)?.locals ?? [] : [];
+        if (locals.length === 0 && !editable) { return undefined; }
+        let html = locals.length ? this.variableRowsHtml(locals, editable) : '<p class="empty-section">No local variable.</p>';
+        html += editable ? `<button class="ana" data-addvar="1">➕ Add Variable</button>` : `<p class="tool-note">Place the cursor in ${escapeHtml(member.name)} to edit its variables.</p>`;
+        return { count: locals.length, html };
     }
 
     /** "Structure" tab: add to any type of the file, then filter / group / edit / rename / move / delete its members. */
@@ -1456,17 +1514,10 @@ ${memoScript()}
             add: { field: !!current, method: canHaveMethods, property: !!current && canHaveMethods && !current.isInterface, constructor: !!current && canHaveMethods && !current.isInterface },
             canMove: ctx.classes.length > 1, rows,
             filter: this._manageFilter, kindFilter: this._manageKind, group: this._manageGroup, focusFilter: this._focusFilter,
-            focus: this.focusData(),
+            focus: this.focusData(true),
         };
         this._focusFilter = false;
-        let html = manageListHtml(view);
-
-        const hasBody = !!member && member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
-        if (member && hasBody) {
-            html += `<div class="divider"></div><div class="section-title">Variables of ${escapeHtml(member.name)}</div>`;
-            html += this.variablesHtml(member);
-        }
-        return html;
+        return manageListHtml(view);
     }
 
     private getHtml(): string {

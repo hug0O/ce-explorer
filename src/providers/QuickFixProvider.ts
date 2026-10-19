@@ -50,7 +50,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
                                 title: 'Synchronize Declaration/Implementation',
                                 kind: vscode.CodeActionKind.QuickFix,
                                 command: {
-                                    command: 'mmx.synchronizeDeclImpl',
+                                    command: 'ce.synchronizeDeclImpl',
                                     title: 'Synchronize Declaration/Implementation',
                                     arguments: [],
                                 },
@@ -68,7 +68,7 @@ export class QuickFixProvider implements vscode.CodeActionProvider {
                             title: 'Generate getter/setter',
                             kind: vscode.CodeActionKind.QuickFix,
                             command: {
-                                command: 'mmx.generateGettersSetters',
+                                command: 'ce.generateGettersSetters',
                                 title: 'Generate Getters/Setters',
                                 arguments: [],
                             },

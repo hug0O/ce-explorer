@@ -23,7 +23,7 @@ export class TemplateCompletionProvider implements vscode.CompletionItemProvider
                 item.filterText = t.prefix;
                 item.sortText = t.prefix;
             }
-            item.detail = t.description || '(MMX template)';
+            item.detail = t.description || '(CE template)';
             items.push(item);
         }
         return items;

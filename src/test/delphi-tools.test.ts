@@ -193,7 +193,7 @@ test('paste refuses a missing container and clipboard text that is not ours', ()
     const copied = copyComponents(cPas, cDfm, ['btnFermer'], unitOf) as { payload: Parameters<typeof pasteComponents>[2] };
     assert.match((pasteComponents(cPas, cDfm, copied.payload, 'nope') as { error: string }).error, /not found/);
     assert.equal(parseClip('hello'), undefined);
-    assert.equal(parseClip('MMX-DFM:{bad'), undefined);
+    assert.equal(parseClip('CE-DFM:{bad'), undefined);
     assert.match((copyComponents(cPas, cDfm, ['ComplexForm'], unitOf) as { error: string }).error, /at least one/);
 });
 

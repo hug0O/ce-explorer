@@ -4,7 +4,7 @@ import {
     LearnedComponent, learnFromDfmTexts, parseCustomComponents, resolveWithLibrary,
 } from './DelphiLibrary';
 
-const UNITS_KEY = 'mmx.delphi.classUnits';
+const UNITS_KEY = 'ce.delphi.classUnits';
 const EXCLUDE = '**/{node_modules,.git,__history,__recovery,Win32,Win64,Debug,Release}/**';
 
 let storage: vscode.Memento | undefined;
@@ -25,7 +25,7 @@ export async function rememberClassUnit(className: string, unit: string): Promis
 }
 
 function customComponents() {
-    return parseCustomComponents(vscode.workspace.getConfiguration('mmx').get<unknown>('delphi.customComponents'));
+    return parseCustomComponents(vscode.workspace.getConfiguration('ce').get<unknown>('delphi.customComponents'));
 }
 
 async function readText(uri: vscode.Uri): Promise<string | undefined> {

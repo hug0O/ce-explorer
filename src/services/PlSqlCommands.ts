@@ -162,7 +162,7 @@ export function parseSubprogramList(input: string): ProcSpec[] {
 }
 
 function headerOptions(): { author?: string; date: string } {
-    const author = vscode.workspace.getConfiguration('mmx').get<string>('plsql.author') || process.env.USERNAME || process.env.USER || undefined;
+    const author = vscode.workspace.getConfiguration('ce').get<string>('plsql.author') || process.env.USERNAME || process.env.USER || undefined;
     return { author, date: new Date().toISOString().slice(0, 10) };
 }
 

@@ -23,7 +23,7 @@ function uniqueId(): string {
 }
 
 function getConfig<T>(section: string, defaultValue: T): T {
-    const cfg = vscode.workspace.getConfiguration('mmx.cpp');
+    const cfg = vscode.workspace.getConfiguration('ce.cpp');
     return cfg.get<T>(section, defaultValue);
 }
 

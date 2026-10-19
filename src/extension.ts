@@ -15,8 +15,8 @@ import { TemplateStore } from './services/TemplateStore';
 import { TemplateCompletionProvider } from './providers/TemplateCompletionProvider';
 import { TemplateManagerPanel } from './webview/TemplateManagerPanel';
 import { TemplateSidebarPanel } from './webview/TemplateSidebarPanel';
-import { MmxCodeActionProvider } from './providers/MmxCodeActionProvider';
-import { MmxCodeLensProvider } from './services/CodeLensProvider';
+import { CeCodeActionProvider } from './providers/CeCodeActionProvider';
+import { CeCodeLensProvider } from './services/CodeLensProvider';
 import * as ops from './services/MemberOperations';
 import { EditPipeline } from './services/EditPipeline';
 import { registerSafePreview } from './services/SafePreview';
@@ -90,7 +90,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
 
         localScopeAnalyzer = new LocalScopeAnalyzer();
-        const codeActionProvider = new MmxCodeActionProvider(providerRegistry, localScopeAnalyzer);
+        const codeActionProvider = new CeCodeActionProvider(providerRegistry, localScopeAnalyzer);
         const codeActionSelectors: vscode.DocumentFilter[] = [];
         for (const ext of providerRegistry.getSupportedExtensions()) {
             codeActionSelectors.push({ scheme: 'file', pattern: '**/*' + ext });
@@ -112,9 +112,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }),
         );
 
-        vscode.commands.executeCommand('setContext', 'mmx:isActive', true);
+        vscode.commands.executeCommand('setContext', 'ce:isActive', true);
 
-        const codeLensProvider = new MmxCodeLensProvider(providerRegistry);
+        const codeLensProvider = new CeCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];
         for (const ext of providerRegistry.getSupportedExtensions()) {
             codeLensSelectors.push({ scheme: 'file', pattern: '**/*' + ext });
@@ -150,7 +150,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         const stack = e instanceof Error && e.stack ? e.stack : '';
-        console.error('[MMX] FATAL:', msg, stack);
+        console.error('[CE] FATAL:', msg, stack);
         outputChannel.appendLine('FATAL: ' + msg);
         outputChannel.appendLine(stack);
         vscode.window.showErrorMessage('Code Explorer failed: ' + msg);
@@ -160,11 +160,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
 
-        vscode.commands.registerCommand('mmx.refreshExplorer', () => {
+        vscode.commands.registerCommand('ce.refreshExplorer', () => {
             codeExplorer.refresh();
         }),
 
-        vscode.commands.registerCommand('mmx.navigateToMember', async (position: vscode.Position) => {
+        vscode.commands.registerCommand('ce.navigateToMember', async (position: vscode.Position) => {
             const editor = vscode.window.activeTextEditor;
             if (editor && position) {
                 editor.selection = new vscode.Selection(position, position);
@@ -175,23 +175,23 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.addMethod', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.addMethod', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Method, item);
         }),
 
-        vscode.commands.registerCommand('mmx.addField', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.addField', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Field, item);
         }),
 
-        vscode.commands.registerCommand('mmx.addProperty', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.addProperty', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Property, item);
         }),
 
-        vscode.commands.registerCommand('mmx.addConstructor', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.addConstructor', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Constructor, item);
         }),
 
-        vscode.commands.registerCommand('mmx.editMember', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.editMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 vscode.window.showWarningMessage('Place cursor on a class member first.');
@@ -205,7 +205,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.editMember(resolved.doc, resolved.provider, resolved.cls, resolved.member, codeGenerator, codeExplorer, result as MemberFormResult);
         }),
 
-        vscode.commands.registerCommand('mmx.deleteMember', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.deleteMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 vscode.window.showWarningMessage('Place cursor on a class member first.');
@@ -214,7 +214,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.deleteMember(resolved.doc, resolved.cls, resolved.member, codeGenerator, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('mmx.moveMember', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.moveMember', async (item?: CodeExplorerTreeItem) => {
             if (!item || !('kind' in item.itemData)) {
                 vscode.window.showWarningMessage('Select a member in the explorer to move.');
                 return;
@@ -293,7 +293,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.renameMember', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.renameMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 vscode.window.showWarningMessage('Place cursor on a class member first.');
@@ -307,7 +307,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.renameMember(resolved.doc, resolved.cls, resolved.member, resolved.provider, codeExplorer, result.name);
         }),
 
-        vscode.commands.registerCommand('mmx.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 vscode.window.showWarningMessage('Open a file and place the cursor where the local should be inserted.');
@@ -326,7 +326,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // Resolves the enclosing method + cursor position for local-variable ops.
-        vscode.commands.registerCommand('mmx.renameLocalVariable', async () => {
+        vscode.commands.registerCommand('ce.renameLocalVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
             const doc = editor.document;
@@ -345,7 +345,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await renameLocal(doc, scope, local, newName);
         }),
 
-        vscode.commands.registerCommand('mmx.changeLocalType', async () => {
+        vscode.commands.registerCommand('ce.changeLocalType', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
             const doc = editor.document;
@@ -362,7 +362,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await changeLocalType(doc, local);
         }),
 
-        vscode.commands.registerCommand('mmx.declareLocalVariable', async () => {
+        vscode.commands.registerCommand('ce.declareLocalVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on the undeclared variable to declare.'); return; }
             const doc = editor.document;
@@ -378,7 +378,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // --- Unified variable refactoring (works on locals, params, fields, properties) ---
-        vscode.commands.registerCommand('mmx.renameVariable', async () => {
+        vscode.commands.registerCommand('ce.renameVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to rename.'); return; }
@@ -388,7 +388,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
         }),
 
-        vscode.commands.registerCommand('mmx.changeVariableType', async () => {
+        vscode.commands.registerCommand('ce.changeVariableType', async () => {
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a typed variable.'); return; }
             const newType = await vscode.window.showInputBox({ prompt: 'New type', value: ref.type || '' });
@@ -396,7 +396,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.changeType(ref, newType);
         }),
 
-        vscode.commands.registerCommand('mmx.deleteVariable', async () => {
+        vscode.commands.registerCommand('ce.deleteVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to delete.'); return; }
@@ -404,7 +404,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.remove(ref, provider, editor?.selection.active);
         }),
 
-        vscode.commands.registerCommand('mmx.synchronizeDeclImpl', async () => {
+        vscode.commands.registerCommand('ce.synchronizeDeclImpl', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 return;
@@ -436,7 +436,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.extractMethod', async () => {
+        vscode.commands.registerCommand('ce.extractMethod', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor || editor.selection.isEmpty) {
                 vscode.window.showWarningMessage('Select code to extract into a method.');
@@ -467,51 +467,51 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.alignSelection', alignSelection),
-        vscode.commands.registerCommand('mmx.delphi.designer', () => FormDesignerPanel.createOrShow(vscode.window.activeTextEditor?.document)),
-        vscode.commands.registerCommand('mmx.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
-        vscode.commands.registerCommand('mmx.delphi.align', delphi.alignComponentsCommand),
-        vscode.commands.registerCommand('mmx.delphi.anchors', delphi.anchorsCommand),
-        vscode.commands.registerCommand('mmx.delphi.tabOrder', delphi.tabOrderCommand),
-        vscode.commands.registerCommand('mmx.delphi.check', () => delphi.checkFormCommand()),
-        vscode.commands.registerCommand('mmx.delphi.cleanHandlers', delphi.cleanHandlersCommand),
-        vscode.commands.registerCommand('mmx.delphi.copy', delphi.copyCommand),
-        vscode.commands.registerCommand('mmx.delphi.paste', delphi.pasteCommand),
-        vscode.commands.registerCommand('mmx.delphi.duplicate', delphi.duplicateCommand),
-        vscode.commands.registerCommand('mmx.delphi.formFromFields', delphi.formFromFieldsCommand),
-        vscode.commands.registerCommand('mmx.delphi.formFromClass', delphi.formFromClassCommand),
-        vscode.commands.registerCommand('mmx.delphi.changeClass', delphi.changeClassCommand),
-        vscode.commands.registerCommand('mmx.plsql.syncPackage', plsql.syncPackage),
-        vscode.commands.registerCommand('mmx.plsql.newPackage', plsql.newPackage),
-        vscode.commands.registerCommand('mmx.plsql.crudFromTable', plsql.crudFromTable),
-        vscode.commands.registerCommand('mmx.plsql.utplsql', plsql.utplsqlFromSpec),
-        vscode.commands.registerCommand('mmx.plsql.exceptionBlock', plsql.insertExceptionBlock),
-        vscode.commands.registerCommand('mmx.plsql.extractProcedure', plsql.extractProcedure),
-        vscode.commands.registerCommand('mmx.plsql.alignPreset', (id: string) => plsql.alignPreset(String(id))),
-        vscode.commands.registerCommand('mmx.plsql.docHeader', async () => {
+        vscode.commands.registerCommand('ce.alignSelection', alignSelection),
+        vscode.commands.registerCommand('ce.delphi.designer', () => FormDesignerPanel.createOrShow(vscode.window.activeTextEditor?.document)),
+        vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
+        vscode.commands.registerCommand('ce.delphi.align', delphi.alignComponentsCommand),
+        vscode.commands.registerCommand('ce.delphi.anchors', delphi.anchorsCommand),
+        vscode.commands.registerCommand('ce.delphi.tabOrder', delphi.tabOrderCommand),
+        vscode.commands.registerCommand('ce.delphi.check', () => delphi.checkFormCommand()),
+        vscode.commands.registerCommand('ce.delphi.cleanHandlers', delphi.cleanHandlersCommand),
+        vscode.commands.registerCommand('ce.delphi.copy', delphi.copyCommand),
+        vscode.commands.registerCommand('ce.delphi.paste', delphi.pasteCommand),
+        vscode.commands.registerCommand('ce.delphi.duplicate', delphi.duplicateCommand),
+        vscode.commands.registerCommand('ce.delphi.formFromFields', delphi.formFromFieldsCommand),
+        vscode.commands.registerCommand('ce.delphi.formFromClass', delphi.formFromClassCommand),
+        vscode.commands.registerCommand('ce.delphi.changeClass', delphi.changeClassCommand),
+        vscode.commands.registerCommand('ce.plsql.syncPackage', plsql.syncPackage),
+        vscode.commands.registerCommand('ce.plsql.newPackage', plsql.newPackage),
+        vscode.commands.registerCommand('ce.plsql.crudFromTable', plsql.crudFromTable),
+        vscode.commands.registerCommand('ce.plsql.utplsql', plsql.utplsqlFromSpec),
+        vscode.commands.registerCommand('ce.plsql.exceptionBlock', plsql.insertExceptionBlock),
+        vscode.commands.registerCommand('ce.plsql.extractProcedure', plsql.extractProcedure),
+        vscode.commands.registerCommand('ce.plsql.alignPreset', (id: string) => plsql.alignPreset(String(id))),
+        vscode.commands.registerCommand('ce.plsql.docHeader', async () => {
             const editor = vscode.window.activeTextEditor;
             const resolved = editor ? resolveFromItemOrCursor(undefined) : undefined;
             if (!resolved) { vscode.window.showWarningMessage('CE: Place the cursor on a procedure or function.'); return; }
             await plsql.insertPlDocHeader(resolved.doc, { name: resolved.member.name, startLine: resolved.member.range.start.line });
         }),
-        vscode.commands.registerCommand('mmx.plsql.findCallers', () => vscode.commands.executeCommand('editor.action.referenceSearch.trigger')),
+        vscode.commands.registerCommand('ce.plsql.findCallers', () => vscode.commands.executeCommand('editor.action.referenceSearch.trigger')),
         vscode.languages.registerDefinitionProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlDefinitionProvider()),
         vscode.languages.registerReferenceProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlReferenceProvider()),
-        vscode.commands.registerCommand('mmx.addComponent', addComponent),
-        vscode.commands.registerCommand('mmx.addEventHandler', addEventHandler),
+        vscode.commands.registerCommand('ce.addComponent', addComponent),
+        vscode.commands.registerCommand('ce.addEventHandler', addEventHandler),
 
-        vscode.commands.registerCommand('mmx.manageMembers', async () => {
+        vscode.commands.registerCommand('ce.manageMembers', async () => {
             await memberViewer.showManageTab();
         }),
 
-        vscode.commands.registerCommand('mmx.memo.open', async () => {
+        vscode.commands.registerCommand('ce.memo.open', async () => {
             await memberViewer.showMemoTab();
         }),
 
         // Code-lens entry point: put the cursor on the lens's member first, so
         // the cursor-based commands act on the member the user clicked.
-        vscode.commands.registerCommand('mmx.lensRun', async (cmd: string, line: number) => {
-            if (!['mmx.manageMembers', 'mmx.editMember', 'mmx.deleteMember'].includes(cmd)) { return; }
+        vscode.commands.registerCommand('ce.lensRun', async (cmd: string, line: number) => {
+            if (!['ce.manageMembers', 'ce.editMember', 'ce.deleteMember'].includes(cmd)) { return; }
             const editor = vscode.window.activeTextEditor;
             if (editor && typeof line === 'number') {
                 const pos = new vscode.Position(line, 0);
@@ -520,62 +520,62 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await vscode.commands.executeCommand(cmd);
         }),
 
-        vscode.commands.registerCommand('mmx.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Method, item);
         }),
 
-        vscode.commands.registerCommand('mmx.showActions', async () => {
+        vscode.commands.registerCommand('ce.showActions', async () => {
             // Filter provider-unsupported actions out of the quick pick.
             const activeDoc = vscode.window.activeTextEditor?.document;
             const activeProv = activeDoc ? providerRegistry.getByDocument(activeDoc) : undefined;
             const stubsSupported = activeProv ? activeProv.supportsMissingStubs() : true;
             const actions = [
-                { label: '$(symbol-method) Add Method', description: '', cmd: 'mmx.addMethod' },
-                { label: '$(symbol-field) Add Field', description: '', cmd: 'mmx.addField' },
-                { label: '$(symbol-property) Add Property', description: '', cmd: 'mmx.addProperty' },
-                { label: '$(symbol-constructor) Add Constructor', description: '', cmd: 'mmx.addConstructor' },
-                { label: '$(edit) Edit Member', description: '', cmd: 'mmx.editMember' },
-                { label: '$(edit) Rename Variable', description: 'local / field / property', cmd: 'mmx.renameVariable' },
-                { label: '$(symbol-type-parameter) Change Variable Type', description: '', cmd: 'mmx.changeVariableType' },
-                { label: '$(trash) Delete Variable', description: '', cmd: 'mmx.deleteVariable' },
-                { label: '$(fold) Extract Method', description: '', cmd: 'mmx.extractMethod' },
-                { label: '$(code) Insert Template', description: '', cmd: 'mmx.insertTemplate' },
-                { label: '$(sync) Synchronize Decl/Impl', description: '', cmd: 'mmx.synchronizeDeclImpl' },
-                ...(stubsSupported ? [{ label: '$(symbol-interface) Implement Interface', description: '', cmd: 'mmx.implementInterface' }] : []),
-                { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'mmx.generateGettersSetters' },
-                { label: '$(filter) Filter Members', description: '', cmd: 'mmx.filterTree' },
-                { label: '$(go-to-file) Go to Member', description: '', cmd: 'mmx.goToMember' },
+                { label: '$(symbol-method) Add Method', description: '', cmd: 'ce.addMethod' },
+                { label: '$(symbol-field) Add Field', description: '', cmd: 'ce.addField' },
+                { label: '$(symbol-property) Add Property', description: '', cmd: 'ce.addProperty' },
+                { label: '$(symbol-constructor) Add Constructor', description: '', cmd: 'ce.addConstructor' },
+                { label: '$(edit) Edit Member', description: '', cmd: 'ce.editMember' },
+                { label: '$(edit) Rename Variable', description: 'local / field / property', cmd: 'ce.renameVariable' },
+                { label: '$(symbol-type-parameter) Change Variable Type', description: '', cmd: 'ce.changeVariableType' },
+                { label: '$(trash) Delete Variable', description: '', cmd: 'ce.deleteVariable' },
+                { label: '$(fold) Extract Method', description: '', cmd: 'ce.extractMethod' },
+                { label: '$(code) Insert Template', description: '', cmd: 'ce.insertTemplate' },
+                { label: '$(sync) Synchronize Decl/Impl', description: '', cmd: 'ce.synchronizeDeclImpl' },
+                ...(stubsSupported ? [{ label: '$(symbol-interface) Implement Interface', description: '', cmd: 'ce.implementInterface' }] : []),
+                { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'ce.generateGettersSetters' },
+                { label: '$(filter) Filter Members', description: '', cmd: 'ce.filterTree' },
+                { label: '$(go-to-file) Go to Member', description: '', cmd: 'ce.goToMember' },
                 ...(/\.(pas|dfm)$/i.test(activeDoc?.uri.fsPath ?? '') ? [
-                    { label: '$(symbol-misc) Delphi: Open Form Designer', description: 'visual', cmd: 'mmx.delphi.designer' },
-                    { label: '$(layout) Delphi: Align Components…', description: '', cmd: 'mmx.delphi.align' },
-                    { label: '$(pin) Delphi: Anchors / Docking…', description: '', cmd: 'mmx.delphi.anchors' },
-                    { label: '$(list-ordered) Delphi: TabOrder by Position…', description: '', cmd: 'mmx.delphi.tabOrder' },
-                    { label: '$(checklist) Delphi: Check Form', description: '', cmd: 'mmx.delphi.check' },
-                    { label: '$(trash) Delphi: Clean Handlers', description: '', cmd: 'mmx.delphi.cleanHandlers' },
-                    { label: '$(copy) Delphi: Copy Components…', description: '', cmd: 'mmx.delphi.copy' },
-                    { label: '$(clippy) Delphi: Paste Components…', description: '', cmd: 'mmx.delphi.paste' },
-                    { label: '$(files) Delphi: Duplicate Components…', description: '', cmd: 'mmx.delphi.duplicate' },
-                    { label: '$(symbol-field) Delphi: Form from Fields…', description: '', cmd: 'mmx.delphi.formFromFields' },
-                    { label: '$(symbol-class) Delphi: Form from a Class…', description: '', cmd: 'mmx.delphi.formFromClass' },
-                    { label: '$(replace) Delphi: Change Component Class…', description: '', cmd: 'mmx.delphi.changeClass' },
+                    { label: '$(symbol-misc) Delphi: Open Form Designer', description: 'visual', cmd: 'ce.delphi.designer' },
+                    { label: '$(layout) Delphi: Align Components…', description: '', cmd: 'ce.delphi.align' },
+                    { label: '$(pin) Delphi: Anchors / Docking…', description: '', cmd: 'ce.delphi.anchors' },
+                    { label: '$(list-ordered) Delphi: TabOrder by Position…', description: '', cmd: 'ce.delphi.tabOrder' },
+                    { label: '$(checklist) Delphi: Check Form', description: '', cmd: 'ce.delphi.check' },
+                    { label: '$(trash) Delphi: Clean Handlers', description: '', cmd: 'ce.delphi.cleanHandlers' },
+                    { label: '$(copy) Delphi: Copy Components…', description: '', cmd: 'ce.delphi.copy' },
+                    { label: '$(clippy) Delphi: Paste Components…', description: '', cmd: 'ce.delphi.paste' },
+                    { label: '$(files) Delphi: Duplicate Components…', description: '', cmd: 'ce.delphi.duplicate' },
+                    { label: '$(symbol-field) Delphi: Form from Fields…', description: '', cmd: 'ce.delphi.formFromFields' },
+                    { label: '$(symbol-class) Delphi: Form from a Class…', description: '', cmd: 'ce.delphi.formFromClass' },
+                    { label: '$(replace) Delphi: Change Component Class…', description: '', cmd: 'ce.delphi.changeClass' },
                 ] : []),
                 ...(activeProv?.languageId === 'plsql' ? [
-                    { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'mmx.plsql.syncPackage' },
-                    { label: '$(package) PL/SQL: New Package…', description: '', cmd: 'mmx.plsql.newPackage' },
-                    { label: '$(database) PL/SQL: CRUD Package from Table', description: 'CREATE TABLE', cmd: 'mmx.plsql.crudFromTable' },
-                    { label: '$(fold) PL/SQL: Extract Procedure', description: 'selection', cmd: 'mmx.plsql.extractProcedure' },
-                    { label: '$(warning) PL/SQL: Insert Exception Block', description: '', cmd: 'mmx.plsql.exceptionBlock' },
-                    { label: '$(book) PL/SQL: PLDoc Header (insert / refresh)', description: '', cmd: 'mmx.plsql.docHeader' },
-                    { label: '$(beaker) PL/SQL: utPLSQL Tests from Spec', description: '', cmd: 'mmx.plsql.utplsql' },
+                    { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'ce.plsql.syncPackage' },
+                    { label: '$(package) PL/SQL: New Package…', description: '', cmd: 'ce.plsql.newPackage' },
+                    { label: '$(database) PL/SQL: CRUD Package from Table', description: 'CREATE TABLE', cmd: 'ce.plsql.crudFromTable' },
+                    { label: '$(fold) PL/SQL: Extract Procedure', description: 'selection', cmd: 'ce.plsql.extractProcedure' },
+                    { label: '$(warning) PL/SQL: Insert Exception Block', description: '', cmd: 'ce.plsql.exceptionBlock' },
+                    { label: '$(book) PL/SQL: PLDoc Header (insert / refresh)', description: '', cmd: 'ce.plsql.docHeader' },
+                    { label: '$(beaker) PL/SQL: utPLSQL Tests from Spec', description: '', cmd: 'ce.plsql.utplsql' },
                 ] : []),
-                { label: '$(list-flat) Align Selection on Text', description: 'any language', cmd: 'mmx.alignSelection' },
-                { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'mmx.addEventHandler' },
-                { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'mmx.addComponent' },
-                { label: '$(search) Go to Member in Workspace', description: '', cmd: 'mmx.goToWorkspaceMember' },
-                { label: '$(list-tree) Structure (members of the file)', description: 'Ctrl+K Ctrl+M', cmd: 'mmx.manageMembers' },
-                { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'mmx.memo.open' },
-                { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
-                { label: '$(refresh) Refresh Explorer', description: '', cmd: 'mmx.refreshExplorer' },
+                { label: '$(list-flat) Align Selection on Text', description: 'any language', cmd: 'ce.alignSelection' },
+                { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'ce.addEventHandler' },
+                { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'ce.addComponent' },
+                { label: '$(search) Go to Member in Workspace', description: '', cmd: 'ce.goToWorkspaceMember' },
+                { label: '$(list-tree) Structure (members of the file)', description: 'Ctrl+K Ctrl+M', cmd: 'ce.manageMembers' },
+                { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'ce.memo.open' },
+                { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'ce.toggleGroupBy' },
+                { label: '$(refresh) Refresh Explorer', description: '', cmd: 'ce.refreshExplorer' },
             ];
             const picked = await vscode.window.showQuickPick(actions, {
                 placeHolder: 'CE Actions — select an action',
@@ -585,7 +585,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.insertTemplate', async () => {
+        vscode.commands.registerCommand('ce.insertTemplate', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 vscode.window.showWarningMessage('No active editor.');
@@ -610,11 +610,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await editor.insertSnippet(new vscode.SnippetString(picked.template.body));
         }),
 
-        vscode.commands.registerCommand('mmx.manageTemplates', async () => {
+        vscode.commands.registerCommand('ce.manageTemplates', async () => {
             await TemplateManagerPanel.createOrShow(context.extensionUri, templateStore);
         }),
 
-        vscode.commands.registerCommand('mmx.implementInterface', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.implementInterface', async (item?: CodeExplorerTreeItem) => {
             let doc: vscode.TextDocument | undefined;
             let prov: ILanguageProvider | undefined;
             let cls: ClassInfo | undefined;
@@ -658,7 +658,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.implementInterface(doc, prov, cls, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('mmx.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 vscode.window.showWarningMessage('No active editor.');
@@ -802,20 +802,20 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // The members are filtered and grouped in the Structure tab of the sidebar (it replaced the Classes tree).
-        vscode.commands.registerCommand('mmx.filterTree', async () => {
+        vscode.commands.registerCommand('ce.filterTree', async () => {
             await memberViewer.focusManageFilter();
         }),
 
-        vscode.commands.registerCommand('mmx.clearFilter', () => {
+        vscode.commands.registerCommand('ce.clearFilter', () => {
             memberViewer.clearManageFilter();
         }),
 
-        vscode.commands.registerCommand('mmx.toggleGroupBy', () => {
+        vscode.commands.registerCommand('ce.toggleGroupBy', () => {
             const mode = memberViewer.cycleManageGroup();
             vscode.window.showInformationMessage('CE: Members ordered by ' + MANAGE_GROUP_LABELS[mode]);
         }),
 
-        vscode.commands.registerCommand('mmx.goToWorkspaceMember', async () => {
+        vscode.commands.registerCommand('ce.goToWorkspaceMember', async () => {
             await workspaceIndex.ensureBuilt();
             const symbols = workspaceIndex.allSymbols();
             if (symbols.length === 0) {
@@ -838,7 +838,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await vscode.window.showTextDocument(picked.symbol.uri, { selection: new vscode.Range(pos, pos) });
         }),
 
-        vscode.commands.registerCommand('mmx.goToMember', async () => {
+        vscode.commands.registerCommand('ce.goToMember', async () => {
             const symbols = codeExplorer.listAllSymbols();
             if (symbols.length === 0) {
                 vscode.window.showInformationMessage('No symbols found in the active document.');
@@ -864,7 +864,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('mmx.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
+        vscode.commands.registerCommand('ce.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 vscode.window.showWarningMessage('Place cursor on a class member first.');
@@ -876,7 +876,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.detectDeadCode', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('deadcode');
-            vscode.commands.executeCommand('mmxViewer.focus');
+            vscode.commands.executeCommand('ceViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.batchMove', async () => {
@@ -953,19 +953,19 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.exportStructure', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('export');
-            vscode.commands.executeCommand('mmxViewer.focus');
+            vscode.commands.executeCommand('ceViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.generateDocumentation', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('documentation');
-            vscode.commands.executeCommand('mmxViewer.focus');
+            vscode.commands.executeCommand('ceViewer.focus');
         }),
 
         vscode.commands.registerCommand('ce.codeReview', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('review');
-            vscode.commands.executeCommand('mmxViewer.focus');
+            vscode.commands.executeCommand('ceViewer.focus');
         }),
     );
 }
@@ -1341,5 +1341,5 @@ function resolveVariableFromCursor(): import('./models/types').VariableRef | und
 
 
 export function deactivate(): void {
-    vscode.commands.executeCommand('setContext', 'mmx:isActive', false);
+    vscode.commands.executeCommand('setContext', 'ce:isActive', false);
 }

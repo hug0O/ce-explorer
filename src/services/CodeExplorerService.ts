@@ -25,7 +25,7 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
                 : (cls.parentClass ? `(${cls.parentClass})` : undefined);
             this.tooltip = this.buildClassTooltip(cls);
             this.command = {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: 'Navigate',
                 arguments: [cls.range.start],
             };
@@ -38,7 +38,7 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
             this.tooltip = this.buildMemberTooltip(member);
             const navPos = member.implementationRange?.start ?? member.range.start;
             this.command = {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: 'Navigate',
                 arguments: [navPos],
             };

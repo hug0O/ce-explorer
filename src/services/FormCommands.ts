@@ -337,7 +337,7 @@ export async function addEventHandler(): Promise<void> {
 export async function describeClass(className: string): Promise<ClassInfoReply> {
     const def = await loadComponentDef(className);
     const inCatalog = COMPONENTS.some(c => c.className.toLowerCase() === className.toLowerCase());
-    const custom = vscode.workspace.getConfiguration('mmx').get<Array<{ className?: string }>>('delphi.customComponents') ?? [];
+    const custom = vscode.workspace.getConfiguration('ce').get<Array<{ className?: string }>>('delphi.customComponents') ?? [];
     const inSetting = custom.some(c => (c.className ?? '').toLowerCase() === className.toLowerCase());
     const isGeneric = !inCatalog && !inSetting && def.events.length === 2 && def.events[0].name === 'OnClick' && def.width === 75 && def.height === 25;
     return {

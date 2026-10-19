@@ -12,7 +12,7 @@ import { TemplateService } from '../services/TemplateService';
  * insert-only.
  */
 export class TemplateSidebarPanel implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'mmxTemplates';
+    public static readonly viewType = 'ceTemplates';
 
     private _view?: vscode.WebviewView;
     private _mode: 'list' | 'form' = 'list';
@@ -292,7 +292,7 @@ ${builtinRows ? '<div class="section-title">Built-in</div>' + builtinRows : ''}
         const nonce = getNonce();
         const title = initial ? 'Edit template' : 'New template';
         const scopes = this._store.workspaceAvailable
-            ? '<option value="workspace"' + (scope === 'workspace' ? ' selected' : '') + '>workspace (.vscode/mmx-templates.json)</option>'
+            ? '<option value="workspace"' + (scope === 'workspace' ? ' selected' : '') + '>workspace (.vscode/ce-templates.json)</option>'
             + '<option value="global"' + (scope === 'global' ? ' selected' : '') + '>global (all projects)</option>'
             : '<option value="global">global (all projects)</option>';
         const checked = new Set(initial?.languages ?? []);

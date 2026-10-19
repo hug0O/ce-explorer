@@ -13,7 +13,7 @@ export class TemplateService {
         this.globalUri = vscode.Uri.file(path.join(context.globalStorageUri.fsPath, 'templates.json'));
         const wsFolders = vscode.workspace.workspaceFolders;
         if (wsFolders && wsFolders.length > 0) {
-            this.workspaceUri = vscode.Uri.file(path.join(wsFolders[0].uri.fsPath, '.vscode', 'mmx-templates.json'));
+            this.workspaceUri = vscode.Uri.file(path.join(wsFolders[0].uri.fsPath, '.vscode', 'ce-templates.json'));
         }
     }
 
@@ -29,7 +29,7 @@ export class TemplateService {
             const content = await fs.promises.readFile(uri.fsPath, 'utf8');
             const result: ParseResult = parseTemplateFile(content);
             if (!result.ok) {
-                console.warn('[MMX] [TemplateService] ' + uri.fsPath + ': ' + result.error);
+                console.warn('[CE] [TemplateService] ' + uri.fsPath + ': ' + result.error);
                 return [];
             }
             return result.templates;
@@ -40,7 +40,7 @@ export class TemplateService {
 
     startWatching(): void {
         this.stopWatching();
-        const wsWatcher = vscode.workspace.createFileSystemWatcher('.vscode/mmx-templates.json');
+        const wsWatcher = vscode.workspace.createFileSystemWatcher('.vscode/ce-templates.json');
         const reload = () => { this.load().catch(() => { /* logged inside */ }); };
         this.watchers.push(
             wsWatcher,

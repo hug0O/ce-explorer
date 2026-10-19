@@ -1,9 +1,9 @@
 {
-  "name": "mmx-code-explorer",
+  "name": "ce-code-explorer",
   "displayName": "Code Explorer",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
   "version": "0.1.5",
-  "publisher": "mmx",
+  "publisher": "ce",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -44,165 +44,165 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mmx-explorer",
+          "id": "ce-explorer",
           "title": "Code Explorer",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "mmx-explorer": [
+      "ce-explorer": [
         {
-          "id": "mmxTemplates",
+          "id": "ceTemplates",
           "name": "Templates",
-          "when": "mmx:isActive",
+          "when": "ce:isActive",
           "type": "webview",
           "visibility": "collapsed"
         },
         {
-          "id": "mmxViewer",
+          "id": "ceViewer",
           "name": "Member",
-          "when": "mmx:isActive",
+          "when": "ce:isActive",
           "type": "webview"
         }
       ]
     },
     "commands": [
       {
-        "command": "mmx.addMethod",
+        "command": "ce.addMethod",
         "title": "CE: Add Method...",
         "icon": "$(add)"
       },
       {
-        "command": "mmx.addField",
+        "command": "ce.addField",
         "title": "CE: Add Field...",
         "icon": "$(symbol-field)"
       },
       {
-        "command": "mmx.addProperty",
+        "command": "ce.addProperty",
         "title": "CE: Add Property...",
         "icon": "$(symbol-property)"
       },
       {
-        "command": "mmx.addConstructor",
+        "command": "ce.addConstructor",
         "title": "CE: Add Constructor...",
         "icon": "$(symbol-constructor)"
       },
       {
-        "command": "mmx.refreshExplorer",
+        "command": "ce.refreshExplorer",
         "title": "CE: Refresh Explorer",
         "icon": "$(refresh)"
       },
       {
-        "command": "mmx.navigateToMember",
+        "command": "ce.navigateToMember",
         "title": "CE: Navigate to Member"
       },
       {
-        "command": "mmx.synchronizeDeclImpl",
+        "command": "ce.synchronizeDeclImpl",
         "title": "CE: Synchronize Declaration/Implementation"
       },
       {
-        "command": "mmx.editMember",
+        "command": "ce.editMember",
         "title": "CE: Edit Member...",
         "icon": "$(edit)"
       },
       {
-        "command": "mmx.deleteMember",
+        "command": "ce.deleteMember",
         "title": "CE: Delete Member",
         "icon": "$(trash)"
       },
       {
-        "command": "mmx.moveMember",
+        "command": "ce.moveMember",
         "title": "CE: Move Member to..."
       },
       {
-        "command": "mmx.extractMethod",
+        "command": "ce.extractMethod",
         "title": "CE: Extract Method"
       },
       {
-        "command": "mmx.renameMember",
+        "command": "ce.renameMember",
         "title": "CE: Rename Member",
         "icon": "$(symbol-variable)"
       },
       {
-        "command": "mmx.createLocalVariable",
+        "command": "ce.createLocalVariable",
         "title": "CE: Create Local Variable"
       },
       {
-        "command": "mmx.renameLocalVariable",
+        "command": "ce.renameLocalVariable",
         "title": "CE: Rename Local Variable"
       },
       {
-        "command": "mmx.changeLocalType",
+        "command": "ce.changeLocalType",
         "title": "CE: Change Local Type"
       },
       {
-        "command": "mmx.declareLocalVariable",
+        "command": "ce.declareLocalVariable",
         "title": "CE: Declare Local Variable"
       },
       {
-        "command": "mmx.renameVariable",
+        "command": "ce.renameVariable",
         "title": "CE: Rename Variable",
         "icon": "$(edit)"
       },
       {
-        "command": "mmx.changeVariableType",
+        "command": "ce.changeVariableType",
         "title": "CE: Change Variable Type"
       },
       {
-        "command": "mmx.deleteVariable",
+        "command": "ce.deleteVariable",
         "title": "CE: Delete Variable",
         "icon": "$(trash)"
       },
       {
-        "command": "mmx.openMemberEditor",
+        "command": "ce.openMemberEditor",
         "title": "CE: Open Member Editor",
         "icon": "$(edit)"
       },
       {
-        "command": "mmx.showActions",
+        "command": "ce.showActions",
         "title": "CE: Show Actions"
       },
       {
-        "command": "mmx.insertTemplate",
+        "command": "ce.insertTemplate",
         "title": "CE: Insert Template..."
       },
       {
-        "command": "mmx.manageTemplates",
+        "command": "ce.manageTemplates",
         "title": "CE: Manage Templates...",
         "icon": "$(symbol-snippet)"
       },
       {
-        "command": "mmx.implementInterface",
+        "command": "ce.implementInterface",
         "title": "CE: Implement Interface / Override Methods...",
         "icon": "$(symbol-interface)"
       },
       {
-        "command": "mmx.filterTree",
+        "command": "ce.filterTree",
         "title": "CE: Filter Members...",
         "icon": "$(filter)"
       },
       {
-        "command": "mmx.clearFilter",
+        "command": "ce.clearFilter",
         "title": "CE: Clear Member Filter",
         "icon": "$(clear-all)"
       },
       {
-        "command": "mmx.toggleGroupBy",
+        "command": "ce.toggleGroupBy",
         "title": "CE: Toggle Member Grouping",
         "icon": "$(group-by-ref-type)"
       },
       {
-        "command": "mmx.goToMember",
+        "command": "ce.goToMember",
         "title": "CE: Go to Member..."
       },
       {
-        "command": "mmx.generateGettersSetters",
+        "command": "ce.generateGettersSetters",
         "title": "Code Explorer: Generate Getters/Setters...",
         "icon": "$(symbol-property)"
       },
       {
-        "command": "mmx.insertDocHeader",
+        "command": "ce.insertDocHeader",
         "title": "CE: Insert Doc Header",
         "icon": "$(symbol-string)"
       },
@@ -231,189 +231,189 @@
         "title": "CE: Batch Generate Getters/Setters..."
       },
       {
-        "command": "mmx.manageMembers",
+        "command": "ce.manageMembers",
         "title": "CE: Open Structure (add, filter, edit, move, delete members)",
         "icon": "$(list-tree)"
       },
       {
-        "command": "mmx.lensRun",
+        "command": "ce.lensRun",
         "title": "CE: Run on Code Lens target"
       },
       {
-        "command": "mmx.goToWorkspaceMember",
+        "command": "ce.goToWorkspaceMember",
         "title": "CE: Go to Member in Workspace..."
       },
       {
-        "command": "mmx.alignSelection",
+        "command": "ce.alignSelection",
         "title": "CE: Align Selection on Text..."
       },
       {
-        "command": "mmx.addComponent",
+        "command": "ce.addComponent",
         "title": "CE: Add Delphi Component (.pas + .dfm)..."
       },
       {
-        "command": "mmx.addEventHandler",
+        "command": "ce.addEventHandler",
         "title": "CE: Add Event Handler to Delphi Component..."
       },
       {
-        "command": "mmx.plsql.syncPackage",
+        "command": "ce.plsql.syncPackage",
         "title": "CE PL/SQL: Synchronize Package Spec / Body"
       },
       {
-        "command": "mmx.plsql.newPackage",
+        "command": "ce.plsql.newPackage",
         "title": "CE PL/SQL: New Package..."
       },
       {
-        "command": "mmx.plsql.crudFromTable",
+        "command": "ce.plsql.crudFromTable",
         "title": "CE PL/SQL: CRUD Package from CREATE TABLE"
       },
       {
-        "command": "mmx.plsql.utplsql",
+        "command": "ce.plsql.utplsql",
         "title": "CE PL/SQL: Generate utPLSQL Tests from Spec"
       },
       {
-        "command": "mmx.plsql.exceptionBlock",
+        "command": "ce.plsql.exceptionBlock",
         "title": "CE PL/SQL: Insert Exception Block"
       },
       {
-        "command": "mmx.plsql.extractProcedure",
+        "command": "ce.plsql.extractProcedure",
         "title": "CE PL/SQL: Extract Procedure from Selection"
       },
       {
-        "command": "mmx.plsql.docHeader",
+        "command": "ce.plsql.docHeader",
         "title": "CE PL/SQL: Insert / Refresh PLDoc Header"
       },
       {
-        "command": "mmx.plsql.findCallers",
+        "command": "ce.plsql.findCallers",
         "title": "CE PL/SQL: Find Callers"
       },
       {
-        "command": "mmx.plsql.alignPreset",
+        "command": "ce.plsql.alignPreset",
         "title": "CE PL/SQL: Align Selection (preset)"
       },
       {
-        "command": "mmx.delphi.align",
+        "command": "ce.delphi.align",
         "title": "CE Delphi: Align / Size / Space Components..."
       },
       {
-        "command": "mmx.delphi.anchors",
+        "command": "ce.delphi.anchors",
         "title": "CE Delphi: Anchors / Docking..."
       },
       {
-        "command": "mmx.delphi.tabOrder",
+        "command": "ce.delphi.tabOrder",
         "title": "CE Delphi: TabOrder by Screen Position..."
       },
       {
-        "command": "mmx.delphi.check",
+        "command": "ce.delphi.check",
         "title": "CE Delphi: Check Form (.dfm vs .pas)"
       },
       {
-        "command": "mmx.delphi.cleanHandlers",
+        "command": "ce.delphi.cleanHandlers",
         "title": "CE Delphi: Clean Event Handlers"
       },
       {
-        "command": "mmx.delphi.copy",
+        "command": "ce.delphi.copy",
         "title": "CE Delphi: Copy Components..."
       },
       {
-        "command": "mmx.delphi.paste",
+        "command": "ce.delphi.paste",
         "title": "CE Delphi: Paste Components..."
       },
       {
-        "command": "mmx.delphi.duplicate",
+        "command": "ce.delphi.duplicate",
         "title": "CE Delphi: Duplicate Components..."
       },
       {
-        "command": "mmx.delphi.formFromFields",
+        "command": "ce.delphi.formFromFields",
         "title": "CE Delphi: Form from Fields..."
       },
       {
-        "command": "mmx.delphi.formFromClass",
+        "command": "ce.delphi.formFromClass",
         "title": "CE Delphi: Form from a Class..."
       },
       {
-        "command": "mmx.delphi.changeClass",
+        "command": "ce.delphi.changeClass",
         "title": "CE Delphi: Change Component Class..."
       },
       {
-        "command": "mmx.delphi.designer",
+        "command": "ce.delphi.designer",
         "title": "CE Delphi: Open Form Designer / Back to the Designer",
         "icon": "$(symbol-misc)"
       },
       {
-        "command": "mmx.delphi.toggleDesigner",
+        "command": "ce.delphi.toggleDesigner",
         "title": "CE Delphi: Toggle Form Designer / Code (like F12 in Delphi)",
         "icon": "$(symbol-misc)"
       },
       {
-        "command": "mmx.memo.open",
+        "command": "ce.memo.open",
         "title": "CE: Open Memo (Markdown notes per language)"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "mmx.showActions",
-          "group": "mmx@0"
+          "command": "ce.showActions",
+          "group": "ce@0"
         },
         {
-          "command": "mmx.manageMembers",
+          "command": "ce.manageMembers",
           "when": "editorTextFocus",
-          "group": "mmx@0"
+          "group": "ce@0"
         },
         {
-          "command": "mmx.editMember",
+          "command": "ce.editMember",
           "when": "editorTextFocus",
-          "group": "mmx@1"
+          "group": "ce@1"
         },
         {
-          "command": "mmx.renameVariable",
+          "command": "ce.renameVariable",
           "when": "editorTextFocus",
-          "group": "mmx@2"
+          "group": "ce@2"
         },
         {
-          "command": "mmx.changeVariableType",
+          "command": "ce.changeVariableType",
           "when": "editorTextFocus",
-          "group": "mmx@3"
+          "group": "ce@3"
         },
         {
-          "command": "mmx.deleteVariable",
+          "command": "ce.deleteVariable",
           "when": "editorTextFocus",
-          "group": "mmx@4"
+          "group": "ce@4"
         },
         {
-          "command": "mmx.extractMethod",
+          "command": "ce.extractMethod",
           "when": "editorTextFocus",
-          "group": "mmx@5"
+          "group": "ce@5"
         },
         {
-          "command": "mmx.implementInterface",
+          "command": "ce.implementInterface",
           "when": "editorTextFocus",
-          "group": "mmx@6"
+          "group": "ce@6"
         },
         {
-          "command": "mmx.alignSelection",
+          "command": "ce.alignSelection",
           "when": "editorHasSelection",
-          "group": "mmx@7"
+          "group": "ce@7"
         }
       ],
       "commandPalette": [
         {
-          "command": "mmx.navigateToMember",
+          "command": "ce.navigateToMember",
           "when": "false"
         },
         {
-          "command": "mmx.lensRun",
+          "command": "ce.lensRun",
           "when": "false"
         },
         {
-          "command": "mmx.plsql.alignPreset",
+          "command": "ce.plsql.alignPreset",
           "when": "false"
         }
       ],
       "editor/title": [
         {
-          "command": "mmx.delphi.designer",
+          "command": "ce.delphi.designer",
           "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
           "group": "navigation"
         }
@@ -422,22 +422,22 @@
     "configuration": {
       "title": "Code Explorer",
       "properties": {
-        "mmx.enableCodeLens": {
+        "ce.enableCodeLens": {
           "type": "boolean",
           "default": true,
           "description": "Show Code Lens annotations above classes and methods"
         },
-        "mmx.pascal.indentSize": {
+        "ce.pascal.indentSize": {
           "type": "number",
           "default": 2,
           "description": "Indentation size for generated Pascal code"
         },
-        "mmx.cpp.indentSize": {
+        "ce.cpp.indentSize": {
           "type": "number",
           "default": 4,
           "description": "Indentation size for generated C++ code"
         },
-        "mmx.cpp.braceStyle": {
+        "ce.cpp.braceStyle": {
           "type": "string",
           "enum": [
             "sameLine",
@@ -446,7 +446,7 @@
           "default": "newLine",
           "description": "Brace placement style for generated C++ code"
         },
-        "mmx.pascal.defaultVisibility": {
+        "ce.pascal.defaultVisibility": {
           "type": "string",
           "enum": [
             "private",
@@ -457,7 +457,7 @@
           "default": "private",
           "description": "Default visibility for new Pascal members"
         },
-        "mmx.cpp.defaultVisibility": {
+        "ce.cpp.defaultVisibility": {
           "type": "string",
           "enum": [
             "private",
@@ -467,7 +467,7 @@
           "default": "private",
           "description": "Default visibility for new C++ members"
         },
-        "mmx.sorting.scheme": {
+        "ce.sorting.scheme": {
           "type": "string",
           "enum": [
             "fieldsFirst",
@@ -477,22 +477,22 @@
           "default": "fieldsFirst",
           "description": "Default sorting scheme for class members"
         },
-        "mmx.autoSync": {
+        "ce.autoSync": {
           "type": "boolean",
           "default": true,
           "description": "Automatically synchronize declaration/implementation on save"
         },
-        "mmx.previewEdits": {
+        "ce.previewEdits": {
           "type": "boolean",
           "default": false,
           "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
         },
-        "mmx.codeLensMemberActions": {
+        "ce.codeLensMemberActions": {
           "type": "boolean",
           "default": false,
           "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)"
         },
-        "mmx.delphi.customComponents": {
+        "ce.delphi.customComponents": {
           "type": "array",
           "default": [],
           "description": "Third-party Delphi components (DevExpress, TMS, JVCL, Raize…) the Add Component tool should know: className, unit, width, height, namePrefix, events, props, tabOrder. Classes not listed here are learned from the .dfm files of the workspace.",
@@ -540,17 +540,17 @@
             }
           }
         },
-        "mmx.plsql.author": {
+        "ce.plsql.author": {
           "type": "string",
           "default": "",
           "description": "Author written in generated PL/SQL headers (default: the OS user name)."
         },
-        "mmx.delphi.removeEmptyHandlers": {
+        "ce.delphi.removeEmptyHandlers": {
           "type": "boolean",
           "default": true,
           "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty."
         },
-        "mmx.delphi.designerColumn": {
+        "ce.delphi.designerColumn": {
           "type": "string",
           "enum": [
             "active",
@@ -559,7 +559,7 @@
           "default": "active",
           "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
         },
-        "mmx.memo.folder": {
+        "ce.memo.folder": {
           "type": "string",
           "default": "",
           "description": "Folder holding the Markdown memos, one file per language (typescript.md, pascal.md, plsql.md, general.md…). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
@@ -568,132 +568,132 @@
     },
     "keybindings": [
       {
-        "command": "mmx.manageMembers",
+        "command": "ce.manageMembers",
         "key": "ctrl+k ctrl+m",
         "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
       },
       {
-        "command": "mmx.showActions",
+        "command": "ce.showActions",
         "key": "ctrl+k ctrl+a",
         "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
       },
       {
-        "command": "mmx.editMember",
+        "command": "ce.editMember",
         "key": "ctrl+k ctrl+e",
         "when": "editorTextFocus && resourceExtname =~ /^.(pas|dpr|dpk|cpp|cc|cxx|h|hpp|hxx|rs|java|py|cs|go|ts|tsx|js|jsx|pks|pkb|sql)$/"
       },
       {
-        "command": "mmx.delphi.toggleDesigner",
+        "command": "ce.delphi.toggleDesigner",
         "key": "ctrl+k ctrl+b",
-        "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'mmxFormDesigner'"
+        "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'ceFormDesigner'"
       },
       {
-        "command": "mmx.delphi.designer",
+        "command": "ce.delphi.designer",
         "key": "ctrl+k d",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.align",
+        "command": "ce.delphi.align",
         "key": "ctrl+k l",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.anchors",
+        "command": "ce.delphi.anchors",
         "key": "ctrl+k n",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.tabOrder",
+        "command": "ce.delphi.tabOrder",
         "key": "ctrl+k t",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.check",
+        "command": "ce.delphi.check",
         "key": "ctrl+k c",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.cleanHandlers",
+        "command": "ce.delphi.cleanHandlers",
         "key": "ctrl+k h",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.copy",
+        "command": "ce.delphi.copy",
         "key": "ctrl+k y",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.paste",
+        "command": "ce.delphi.paste",
         "key": "ctrl+k a",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.duplicate",
+        "command": "ce.delphi.duplicate",
         "key": "ctrl+k k",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.formFromFields",
+        "command": "ce.delphi.formFromFields",
         "key": "ctrl+k g",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.formFromClass",
+        "command": "ce.delphi.formFromClass",
         "key": "ctrl+k q",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.delphi.changeClass",
+        "command": "ce.delphi.changeClass",
         "key": "ctrl+k e",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {
-        "command": "mmx.plsql.syncPackage",
+        "command": "ce.plsql.syncPackage",
         "key": "ctrl+k y",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.newPackage",
+        "command": "ce.plsql.newPackage",
         "key": "ctrl+k n",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.crudFromTable",
+        "command": "ce.plsql.crudFromTable",
         "key": "ctrl+k c",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.extractProcedure",
+        "command": "ce.plsql.extractProcedure",
         "key": "ctrl+k x",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.exceptionBlock",
+        "command": "ce.plsql.exceptionBlock",
         "key": "ctrl+k e",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.docHeader",
+        "command": "ce.plsql.docHeader",
         "key": "ctrl+k d",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.utplsql",
+        "command": "ce.plsql.utplsql",
         "key": "ctrl+k t",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.plsql.findCallers",
+        "command": "ce.plsql.findCallers",
         "key": "ctrl+k l",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "mmx.alignSelection",
+        "command": "ce.alignSelection",
         "key": "ctrl+k j",
         "when": "editorTextFocus"
       },
       {
-        "command": "mmx.memo.open",
+        "command": "ce.memo.open",
         "key": "ctrl+k ctrl+n",
         "when": "editorTextFocus || sideBarFocus"
       }

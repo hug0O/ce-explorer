@@ -4,13 +4,13 @@ import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
 import { ClassMember, MethodScope, ParsedDocument } from '../models/types';
 import { resolveVariableAt } from '../services/VariableResolver';
 
-interface MmxAction {
+interface CeAction {
     title: string;
     cmd: string;
     group: string;
 }
 
-export class MmxCodeActionProvider implements vscode.CodeActionProvider {
+export class CeCodeActionProvider implements vscode.CodeActionProvider {
     constructor(
         private providerRegistry: ProviderRegistry,
         private scopeAnalyzer: LocalScopeAnalyzer = new LocalScopeAnalyzer(),
@@ -58,52 +58,52 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
             }
         }
 
-        const actions: MmxAction[] = [];
+        const actions: CeAction[] = [];
 
         if (onMember) {
             actions.push(
-                { title: 'CE: Edit Member', cmd: 'mmx.editMember', group: 'mmx-member' },
-                { title: 'CE: Move Member', cmd: 'mmx.moveMember', group: 'mmx-member' },
+                { title: 'CE: Edit Member', cmd: 'ce.editMember', group: 'ce-member' },
+                { title: 'CE: Move Member', cmd: 'ce.moveMember', group: 'ce-member' },
             );
             if (memberKind === 'field') {
                 actions.push(
-                    { title: 'CE: Generate Getters/Setters', cmd: 'mmx.generateGettersSetters', group: 'mmx-member' },
+                    { title: 'CE: Generate Getters/Setters', cmd: 'ce.generateGettersSetters', group: 'ce-member' },
                 );
             }
             if (memberKind === 'field' || memberKind === 'property') {
                 actions.push(
-                    { title: 'CE: Create Local Variable', cmd: 'mmx.createLocalVariable', group: 'mmx-member' },
+                    { title: 'CE: Create Local Variable', cmd: 'ce.createLocalVariable', group: 'ce-member' },
                 );
             }
         }
 
         if (onClass) {
             actions.push(
-                { title: 'CE: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
-                { title: 'CE: Add Field', cmd: 'mmx.addField', group: 'mmx-add' },
-                { title: 'CE: Add Property', cmd: 'mmx.addProperty', group: 'mmx-add' },
-                { title: 'CE: Add Constructor', cmd: 'mmx.addConstructor', group: 'mmx-add' },
+                { title: 'CE: Add Method', cmd: 'ce.addMethod', group: 'ce-add' },
+                { title: 'CE: Add Field', cmd: 'ce.addField', group: 'ce-add' },
+                { title: 'CE: Add Property', cmd: 'ce.addProperty', group: 'ce-add' },
+                { title: 'CE: Add Constructor', cmd: 'ce.addConstructor', group: 'ce-add' },
             );
         } else {
             actions.push(
-                { title: 'CE: Add Method', cmd: 'mmx.addMethod', group: 'mmx-add' },
+                { title: 'CE: Add Method', cmd: 'ce.addMethod', group: 'ce-add' },
             );
         }
 
         actions.push(
-            { title: 'CE: Insert Template', cmd: 'mmx.insertTemplate', group: 'mmx-general' },
+            { title: 'CE: Insert Template', cmd: 'ce.insertTemplate', group: 'ce-general' },
         );
         // Synchronize only makes sense for languages with a split
         // declaration/implementation (Pascal unit, C++ header/source).
         if (provider.languageId === 'pascal' || provider.languageId === 'cpp') {
             actions.push(
-                { title: 'CE: Synchronize Decl/Impl', cmd: 'mmx.synchronizeDeclImpl', group: 'mmx-general' },
+                { title: 'CE: Synchronize Decl/Impl', cmd: 'ce.synchronizeDeclImpl', group: 'ce-general' },
             );
         }
 
         if (!range.isEmpty) {
             actions.push(
-                { title: 'CE: Extract Method', cmd: 'mmx.extractMethod', group: 'mmx-general' },
+                { title: 'CE: Extract Method', cmd: 'ce.extractMethod', group: 'ce-general' },
             );
         }
 
@@ -114,10 +114,10 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
         // Analytics: surfaced at the document/class level so every language has
         // the same quick-access entry points from the lightbulb.
         actions.push(
-            { title: 'CE: Code Review', cmd: 'ce.codeReview', group: 'mmx-analyze' },
-            { title: 'CE: Detect Dead Code', cmd: 'ce.detectDeadCode', group: 'mmx-analyze' },
-            { title: 'CE: Generate Documentation', cmd: 'ce.generateDocumentation', group: 'mmx-analyze' },
-            { title: 'CE: Export Structure', cmd: 'ce.exportStructure', group: 'mmx-analyze' },
+            { title: 'CE: Code Review', cmd: 'ce.codeReview', group: 'ce-analyze' },
+            { title: 'CE: Detect Dead Code', cmd: 'ce.detectDeadCode', group: 'ce-analyze' },
+            { title: 'CE: Generate Documentation', cmd: 'ce.generateDocumentation', group: 'ce-analyze' },
+            { title: 'CE: Export Structure', cmd: 'ce.exportStructure', group: 'ce-analyze' },
         );
 
         // Unified variable refactoring: rename / change type / delete. The
@@ -130,9 +130,9 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
         const varRef = resolveVariableAt(document, provider, position);
         if (varRef) {
             actions.push(
-                { title: 'CE: Rename Variable', cmd: 'mmx.renameVariable', group: 'mmx-var' },
-                { title: 'CE: Change Variable Type', cmd: 'mmx.changeVariableType', group: 'mmx-var' },
-                { title: 'CE: Delete Variable', cmd: 'mmx.deleteVariable', group: 'mmx-var' },
+                { title: 'CE: Rename Variable', cmd: 'ce.renameVariable', group: 'ce-var' },
+                { title: 'CE: Change Variable Type', cmd: 'ce.changeVariableType', group: 'ce-var' },
+                { title: 'CE: Delete Variable', cmd: 'ce.deleteVariable', group: 'ce-var' },
             );
         }
 
@@ -143,7 +143,7 @@ export class MmxCodeActionProvider implements vscode.CodeActionProvider {
             const scope = this.scopeAnalyzer.getScope(document, provider, enclosing);
             if (scope && this.isUndeclaredAt(document, position, scope)) {
                 actions.push(
-                    { title: 'CE: Declare Local Variable', cmd: 'mmx.declareLocalVariable', group: 'mmx-local' },
+                    { title: 'CE: Declare Local Variable', cmd: 'ce.declareLocalVariable', group: 'ce-local' },
                 );
             }
         }

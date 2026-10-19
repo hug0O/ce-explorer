@@ -321,12 +321,12 @@ async function cleanEmptyHandlersOnSave(doc: vscode.TextDocument): Promise<vscod
  * On a manual save of a form unit, handlers whose body is empty are removed
  * (method, declaration and .dfm link), exactly like the Delphi IDE does.
  * Autosave is left alone so a handler that was just created is not deleted
- * while the user is about to type in it. Setting: mmx.delphi.removeEmptyHandlers.
+ * while the user is about to type in it. Setting: ce.delphi.removeEmptyHandlers.
  */
 export function registerEmptyHandlerCleanup(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(e => {
         if (e.reason !== vscode.TextDocumentSaveReason.Manual || !/\.pas$/i.test(e.document.uri.fsPath)) { return; }
-        if (!vscode.workspace.getConfiguration('mmx').get<boolean>('delphi.removeEmptyHandlers', true)) { return; }
+        if (!vscode.workspace.getConfiguration('ce').get<boolean>('delphi.removeEmptyHandlers', true)) { return; }
         e.waitUntil(cleanEmptyHandlersOnSave(e.document).catch(() => []));
     }));
 }

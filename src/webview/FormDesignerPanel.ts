@@ -92,8 +92,8 @@ export class FormDesignerPanel {
             return;
         }
         // Same editor group by default: the designer and the code are two tabs of one place, like F12 in Delphi.
-        const column = vscode.workspace.getConfiguration('mmx').get<string>('delphi.designerColumn', 'active') === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-        const panel = vscode.window.createWebviewPanel('mmxFormDesigner', 'Designer: ' + pair.dfm.fsPath.split(/[\\/]/).pop(), column, {
+        const column = vscode.workspace.getConfiguration('ce').get<string>('delphi.designerColumn', 'active') === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+        const panel = vscode.window.createWebviewPanel('ceFormDesigner', 'Designer: ' + pair.dfm.fsPath.split(/[\\/]/).pop(), column, {
             enableScripts: true, retainContextWhenHidden: true,
         });
         FormDesignerPanel.open.set(key, new FormDesignerPanel(panel, pasDoc, dfmDoc));

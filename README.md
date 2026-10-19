@@ -1,6 +1,6 @@
 # Code Explorer
 
-A multi-language class explorer and refactoring tool for VS Code — inspired by MMX Code Explorer for Delphi.
+A multi-language class explorer and refactoring tool for VS Code — inspired by CE Code Explorer for Delphi.
 
 Browse, create, edit, and refactor classes and members across **9 languages** with a visual sidebar, popup forms, and one-click operations.
 
@@ -13,7 +13,7 @@ npm run build
 npx @vscode/vsce package
 
 # install .vsix
-code --install-extension mmx-code-explorer-0.1.0.vsix
+code --install-extension ce-code-explorer-0.1.0.vsix
 
 ## Supported Languages
 
@@ -36,7 +36,7 @@ The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the m
 
 - **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
 - **Add** a field, method, property or constructor to the chosen type; insert a template; synchronise declarations and implementations; open the templates manager; refresh.
-- **Filter** the members as you type: by name, type or kind, with a regular expression when it is valid (`get|set`, `^On`), plus a *kind* list (methods, fields, properties, constructors). The *Filter Members* command (`mmx.filterTree`) puts the caret in that box.
+- **Filter** the members as you type: by name, type or kind, with a regular expression when it is valid (`get|set`, `^On`), plus a *kind* list (methods, fields, properties, constructors). The *Filter Members* command (`ce.filterTree`) puts the caret in that box.
 - **Order / group**: source order, by visibility, by kind, or A → Z (`CE: Toggle Member Grouping` cycles through them).
 - **Every member** is listed with its visibility (`+ - # ★`), kind icon, signature and type, and acts on click: *go to*, **edit**, **rename**, **getter / setter** (fields), **move to another type**, **delete**. Drag-and-drop reordering of the tree is replaced by *move to another type*.
 
@@ -108,17 +108,17 @@ All commands are prefixed with `CE:`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `mmx.enableCodeLens` | `true` | Show Code Lens annotations |
-| `mmx.previewEdits` | `false` | Show diff preview before applying edits |
-| `mmx.pascal.indentSize` | `2` | Indentation for generated Pascal |
-| `mmx.cpp.indentSize` | `4` | Indentation for generated C++ |
-| `mmx.cpp.braceStyle` | `newLine` | Brace placement for C++ |
-| `mmx.pascal.defaultVisibility` | `private` | Default visibility for Pascal |
+| `ce.enableCodeLens` | `true` | Show Code Lens annotations |
+| `ce.previewEdits` | `false` | Show diff preview before applying edits |
+| `ce.pascal.indentSize` | `2` | Indentation for generated Pascal |
+| `ce.cpp.indentSize` | `4` | Indentation for generated C++ |
+| `ce.cpp.braceStyle` | `newLine` | Brace placement for C++ |
+| `ce.pascal.defaultVisibility` | `private` | Default visibility for Pascal |
 
 ## Templates
 
 Templates use VS Code snippet syntax (`${1:placeholder}`, `$0`) and are loaded from:
-- **Workspace**: `.vscode/mmx-templates.json`
+- **Workspace**: `.vscode/ce-templates.json`
 - **Global**: Extension global storage (`templates.json`)
 
 Manage them from the **Templates** section of the Code Explorer sidebar: create, edit,
@@ -162,7 +162,7 @@ The letters avoid the ones VS Code already uses after `Ctrl+K` (`M F P R O U W Z
 
 - **CE: Go to Member in Workspace…** searches the symbols of every file (index kept up to date by a file watcher).
 - Renaming a member uses the language server when one is available (TypeScript, Java, C#, Go, Rust, Python, C++ with clangd), and otherwise falls back to a text search. The fallback offers to rename the references found in other workspace files.
-- `mmx.codeLensMemberActions` adds Edit / Delete code lenses above every member.
+- `ce.codeLensMemberActions` adds Edit / Delete code lenses above every member.
 
 ## Align selection & Delphi components
 
@@ -180,7 +180,7 @@ The letters avoid the ones VS Code already uses after `Ctrl+K` (`M F P R O U W Z
 - **Align shortcuts** are yours: type any string, click `+` to keep it, `×` to remove one. They are saved between sessions.
 - **Spacing between components** (Tools → Spacing) sets the exact edge-to-edge gap between a component and its neighbour on any side (right, below, left, above), moving what follows if you tick the box, and **Distribute** re-spaces a whole container on fixed horizontal / vertical gaps (rows detected, columns aligned).
 - **The .dfm follows the unit**: renaming a component field (explorer, Member panel…) renames the `object` in the `.dfm`, its references and its `<Component><Event>` handlers; deleting it removes the object, its children and the empty handlers; adding a field of a known component class offers to create the object. Handlers that contain code, or are shared, are never touched.
-- **Third-party components** (DevExpress, TMS, JVCL…): any class name works. The tool learns size, caption, tab stop and events from the `.dfm` files already in your workspace, remembers the unit you typed for a class, and you can describe a class once in the `mmx.delphi.customComponents` setting (`className`, `unit`, `width`, `height`, `namePrefix`, `events`, `props`, `tabOrder`). Third-party units are added to `uses` as written, never with the `Vcl.` scope.
+- **Third-party components** (DevExpress, TMS, JVCL…): any class name works. The tool learns size, caption, tab stop and events from the `.dfm` files already in your workspace, remembers the unit you typed for a class, and you can describe a class once in the `ce.delphi.customComponents` setting (`className`, `unit`, `width`, `height`, `namePrefix`, `events`, `props`, `tabOrder`). Third-party units are added to `uses` as written, never with the `Vcl.` scope.
 - Examples: `test-fixtures/delphi/ComplexForm.*` (docked panels, page control, group boxes, DevExpress controls, a list view collection) and `LayoutForm.*`.
 
 ## PL/SQL (Oracle)
@@ -203,7 +203,7 @@ Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the c
 | Review (Oracle) | `WHEN OTHERS THEN NULL`, `SELECT INTO` without `EXCEPTION`, `COMMIT` in package code, dynamic SQL by concatenation, `= NULL`, DML in loops, unclosed cursors, bad `RAISE_APPLICATION_ERROR` codes, unused variables / parameters, functions without `RETURN`, never-called private helpers |
 | Align presets | Parameters (name \| mode \| type), declarations, `:=`, `=>`, `--`, `AS` |
 
-Setting `mmx.plsql.author` is written in generated headers. Nothing connects to a database: everything works on the source text.
+Setting `ce.plsql.author` is written in generated headers. Nothing connects to a database: everything works on the source text.
 
 ### Delphi layout & checks (Tools → "Delphi layout & checks", and `CE Delphi: …` in the palette)
 
@@ -233,8 +233,8 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 #### Designer: component lists, handlers and code ⇄ designer
 
 - **Palette** and **Components** are two collapsible lists on the left. The palette shows **one type at a time** (Standard, Additional, Win32, System, DevExpress, TMS — chosen in a drop-down that says how many components each holds), so it never lists everything at once; typing in its name filter searches every type. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
-- **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `mmx.delphi.removeEmptyHandlers`.
-- **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does the *Code* button, which shows the shortcut; **F12** is no longer used). `mmx.delphi.designerColumn` can open the designer beside the code instead.
+- **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `ce.delphi.removeEmptyHandlers`.
+- **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does the *Code* button, which shows the shortcut; **F12** is no longer used). `ce.delphi.designerColumn` can open the designer beside the code instead.
 
 #### Designer: DevExpress tile control (`TdxTileControl`)
 
@@ -291,7 +291,7 @@ The **Memo** tab keeps the actions you repeat every day, one Markdown memo per l
 
 - **Edit** as plain Markdown, saved as you type; **Preview** to read it. A memo that has text opens as a preview.
 - In the preview, **task lists** (`- [ ] step`) can be ticked and stay ticked; every **fenced code block** has **Copy** and **Insert** buttons, the latter writing the block at the cursor of the editor (or on every cursor / selection); `code`, **bold**, *italic*, quotes, lists and `https` links work too. Nothing in the text can run: it is escaped, and links only open from the extension.
-- **📝 Open .md** opens the file in the editor. The files are plain `typescript.md`, `pascal.md`, `plsql.md`, `general.md`… in the extension's own storage, or in the folder of the `mmx.memo.folder` setting (a relative path starts at the workspace, so the memos can be versioned with the project and shared with the team). A memo saved from the editor refreshes the sidebar.
+- **📝 Open .md** opens the file in the editor. The files are plain `typescript.md`, `pascal.md`, `plsql.md`, `general.md`… in the extension's own storage, or in the folder of the `ce.memo.folder` setting (a relative path starts at the workspace, so the memos can be versioned with the project and shared with the team). A memo saved from the editor refreshes the sidebar.
 - `Ctrl+K Ctrl+N` or **CE: Open Memo** opens the tab.
 
 #### Sidebar → Tools: one page per set of tools

@@ -98,9 +98,9 @@ export function manageListHtml(v: ManageView): string {
     if (v.add.property) { html += `<button class="ana" data-m-add="property">🔑 Property</button>`; }
     if (v.add.constructor) { html += `<button class="ana" data-m-add="constructor">🏗️ Constructor</button>`; }
     html += `</div><div class="analyze-grid">`
-        + `<button class="ana" data-m-run="mmx.insertTemplate" title="Insert a template at the cursor">🧩 Template…</button>`
-        + `<button class="ana" data-m-run="mmx.synchronizeDeclImpl" title="Declare / create the missing declarations and implementations">🔄 Sync decl / impl</button>`
-        + `<button class="ana" data-m-run="mmx.manageTemplates" title="Create and edit your templates">📝 Templates</button>`
+        + `<button class="ana" data-m-run="ce.insertTemplate" title="Insert a template at the cursor">🧩 Template…</button>`
+        + `<button class="ana" data-m-run="ce.synchronizeDeclImpl" title="Declare / create the missing declarations and implementations">🔄 Sync decl / impl</button>`
+        + `<button class="ana" data-m-run="ce.manageTemplates" title="Create and edit your templates">📝 Templates</button>`
         + `<button class="ana" id="mRefresh" title="Parse the file again">♻️ Refresh</button>`
         + `</div></div>`;
 

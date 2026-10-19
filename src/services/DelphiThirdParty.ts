@@ -3,7 +3,7 @@
  * DevExpress (Tcx* / Tdx*) and TMS (TAdv* / TTMSFNC*). Sizes, units and
  * events are the IDE defaults as far as they are known; anything else is
  * learned from the project's .dfm files or overridden with the
- * `mmx.delphi.customComponents` setting.
+ * `ce.delphi.customComponents` setting.
  */
 import type { ComponentDef, EventDef } from './DelphiForm';
 import { UNIDAC } from './DelphiUniDac';

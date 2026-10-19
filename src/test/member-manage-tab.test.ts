@@ -156,7 +156,7 @@ test('Tools tab shows the PL/SQL block only for PL/SQL documents', () => {
     const html: string = panel.getHtml();
     assert.match(html, /id="plBlock"/);
     for (const cmd of ['syncPackage', 'newPackage', 'crudFromTable', 'extractProcedure', 'exceptionBlock', 'docHeader', 'utplsql', 'findCallers']) {
-        assert.ok(html.includes(`data-pl="mmx.plsql.${cmd}"`), cmd);
+        assert.ok(html.includes(`data-pl="ce.plsql.${cmd}"`), cmd);
     }
     for (const id of ['params', 'values', 'assign', 'arrow', 'comment', 'alias']) { assert.ok(html.includes(`data-pa="${id}"`), id); }
     assert.match(html, /command: 'plsqlAlign'/);
@@ -170,7 +170,7 @@ test('Tools tab shows the Delphi layout block only for Delphi units', () => {
     const html: string = panel.getHtml();
     assert.match(html, /id="dlBlock"/);
     for (const c of ['align', 'anchors', 'tabOrder', 'copy', 'paste', 'duplicate', 'formFromFields', 'formFromClass', 'changeClass', 'check', 'cleanHandlers']) {
-        assert.ok(html.includes(`data-dl="mmx.delphi.${c}"`), c);
+        assert.ok(html.includes(`data-dl="ce.delphi.${c}"`), c);
     }
     assert.match(html, /command: 'delphiCmd'/);
 });
@@ -272,12 +272,12 @@ test('Structure works on any type of the file, not only the one under the cursor
         panel._manageClassId = '__file__';
         await panel.handleManageAdd('method');
     } finally { vscodeMock.commands.executeCommand = real; }
-    assert.deepEqual(calls[0].slice(0, 1), ['mmx.generateGettersSetters']);
+    assert.deepEqual(calls[0].slice(0, 1), ['ce.generateGettersSetters']);
     assert.equal(calls[0][1].parentClass, b);
     assert.equal(calls[0][1].itemData.name, 'Count');
-    assert.deepEqual(calls[1].slice(0, 1), ['mmx.moveMember']);
+    assert.deepEqual(calls[1].slice(0, 1), ['ce.moveMember']);
     assert.equal(calls[1][1].itemData.name, 'GetCount');
-    assert.deepEqual(calls[2].slice(0, 1), ['mmx.addMethod']);
+    assert.deepEqual(calls[2].slice(0, 1), ['ce.addMethod']);
     assert.equal(calls[2][1].parentClass, b, 'added to the chosen type');
     assert.equal(calls[3][1], undefined, 'standalone routine: no type');
     assert.notEqual(a, b);
@@ -298,9 +298,9 @@ test('Structure: commands that used to drive the tree now drive the tab', () => 
 
 test('the Classes tree view is gone from the sidebar, with its menus', () => {
     const pkg = require('../../package.json');
-    assert.deepEqual(pkg.contributes.views['mmx-explorer'].map((v: any) => v.id), ['mmxTemplates', 'mmxViewer']);
-    assert.doesNotMatch(JSON.stringify(pkg.contributes.menus), /mmxCodeExplorer/);
-    for (const c of ['mmx.manageMembers', 'mmx.filterTree', 'mmx.toggleGroupBy', 'mmx.clearFilter', 'mmx.memo.open']) {
+    assert.deepEqual(pkg.contributes.views['ce-explorer'].map((v: any) => v.id), ['ceTemplates', 'ceViewer']);
+    assert.doesNotMatch(JSON.stringify(pkg.contributes.menus), /ceCodeExplorer/);
+    for (const c of ['ce.manageMembers', 'ce.filterTree', 'ce.toggleGroupBy', 'ce.clearFilter', 'ce.memo.open']) {
         assert.ok(pkg.contributes.commands.some((x: any) => x.command === c), c + ' stays available');
     }
 });
@@ -312,16 +312,16 @@ test('tools show their keyboard shortcut next to the button', () => {
     panel._tab = 'tools';
     panel.isDelphi = () => true;
     let html: string = panel.getHtml();
-    assert.match(html, /data-dl="mmx.delphi.designer"[^>]*>🎨 Open the visual form designer<span class="kbd"[^>]*>Ctrl\+K D<\/span>/);
-    assert.match(html, /data-dl="mmx.delphi.check"[^>]*>✅ Check form<span class="kbd"[^>]*>Ctrl\+K C<\/span>/);
+    assert.match(html, /data-dl="ce.delphi.designer"[^>]*>🎨 Open the visual form designer<span class="kbd"[^>]*>Ctrl\+K D<\/span>/);
+    assert.match(html, /data-dl="ce.delphi.check"[^>]*>✅ Check form<span class="kbd"[^>]*>Ctrl\+K C<\/span>/);
     assert.match(html, /id="alignGo"[^>]*>Align<span class="kbd"[^>]*>Ctrl\+K J<\/span>/);
     assert.equal((html.match(/class="kbd"/g) ?? []).length, 12 + 1, 'the 12 Delphi tools and the align button');
 
     panel.isDelphi = () => false;
     panel.isPlSql = () => true;
     html = panel.getHtml();
-    assert.match(html, /data-pl="mmx.plsql.syncPackage"[^>]*>🔄 Sync spec ⇄ body<span class="kbd"[^>]*>Ctrl\+K Y<\/span>/);
-    assert.match(html, /data-pl="mmx.plsql.docHeader"[^>]*>📘 PLDoc header<span class="kbd"[^>]*>Ctrl\+K D<\/span>/, 'the same letter serves the other family of files');
+    assert.match(html, /data-pl="ce.plsql.syncPackage"[^>]*>🔄 Sync spec ⇄ body<span class="kbd"[^>]*>Ctrl\+K Y<\/span>/);
+    assert.match(html, /data-pl="ce.plsql.docHeader"[^>]*>📘 PLDoc header<span class="kbd"[^>]*>Ctrl\+K D<\/span>/, 'the same letter serves the other family of files');
     assert.match(panel.getHtml(), /title="Ctrl\+K Ctrl\+N"[^>]*>Memo<\/button>|data-tab="memo" title="Ctrl\+K Ctrl\+N"/);
 });
 
@@ -361,7 +361,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 function memoPanel(): { panel: any; dir: string } {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mmx-memo-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ce-memo-'));
     const registry = { getByDocument: (d: any) => (d.lang ? { languageId: d.lang } : undefined), getAllProviders: () => [{ languageId: 'pascal', displayName: 'Delphi / Pascal' }, { languageId: 'plsql', displayName: 'Oracle PL/SQL' }] };
     const panel = makePanel({ subscriptions: [], globalStorageUri: { fsPath: dir } }, registry);
     return { panel, dir };
@@ -460,7 +460,7 @@ test('memo store: safe file names, size limit, list of the languages that have a
     assert.equal(sanitizeLang('../../Evil Name!'), 'evilname');
     assert.equal(sanitizeLang(''), 'general');
     assert.equal(sanitizeLang('C:\\x'), 'cx');
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mmx-store-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ce-store-'));
     const store = new MemoStore(path.join(dir, 'sub'));
     assert.equal(await store.read('go'), '', 'no memo yet');
     await store.write('go', '# Go');

@@ -17,7 +17,7 @@ export class TemplateStore {
         this.globalUri = vscode.Uri.file(path.join(context.globalStorageUri.fsPath, 'templates.json'));
         const wsFolders = vscode.workspace.workspaceFolders;
         if (wsFolders && wsFolders.length > 0) {
-            this.workspaceUri = vscode.Uri.file(path.join(wsFolders[0].uri.fsPath, '.vscode', 'mmx-templates.json'));
+            this.workspaceUri = vscode.Uri.file(path.join(wsFolders[0].uri.fsPath, '.vscode', 'ce-templates.json'));
         }
     }
 

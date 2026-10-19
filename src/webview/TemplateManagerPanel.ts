@@ -14,7 +14,7 @@ interface FormState {
 }
 
 export class TemplateManagerPanel {
-    public static readonly viewType = 'mmxTemplateManager';
+    public static readonly viewType = 'ceTemplateManager';
     private static currentPanel: TemplateManagerPanel | undefined;
 
     private readonly _panel: vscode.WebviewPanel;

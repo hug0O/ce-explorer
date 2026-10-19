@@ -1,7 +1,7 @@
 /**
  * Third-party (non-VCL) components: DevExpress, TMS, JVCL, Raize, FireDAC
  * visual controls… Their definitions come, in order of priority, from
- * 1. the user's `mmx.delphi.customComponents` setting,
+ * 1. the user's `ce.delphi.customComponents` setting,
  * 2. what the project's own .dfm files already do with that class
  *    (size, events wired, caption, tab stop), and
  * 3. the unit remembered from a previous use,

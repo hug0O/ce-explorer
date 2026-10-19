@@ -82,6 +82,6 @@ test('README matches the registered languages and Pascal default visibility', ()
     assert.match(readme, /\| PL\/SQL \| `\.pks` `\.pkb` `\.sql` `\.txt` \|/);
     assert.match(
         readme,
-        /\| `mmx\.pascal\.defaultVisibility` \| `private` \| Default visibility for Pascal \|/,
+        /\| `ce\.pascal\.defaultVisibility` \| `private` \| Default visibility for Pascal \|/,
     );
 });

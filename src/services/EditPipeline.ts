@@ -18,7 +18,7 @@ interface PreviewDoc {
  * Single door for every structural edit. Callers queue inserts / replaces /
  * deletes (all expressed in the coordinates of the CURRENT document state),
  * record the original texts of the affected documents, then call `apply`:
- * the Safe Preview diff is shown when `mmx.previewEdits` is enabled, and on
+ * the Safe Preview diff is shown when `ce.previewEdits` is enabled, and on
  * approval everything is committed as one WorkspaceEdit — one preview,
  * one undo step, never a partially applied operation.
  */

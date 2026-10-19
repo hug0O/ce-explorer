@@ -35,24 +35,24 @@ export function sanitizeChips(value: unknown): string[] {
 export type ShortcutFamily = 'delphi' | 'plsql' | 'global';
 export const TOOL_SHORTCUTS: Record<ShortcutFamily, Record<string, string>> = {
     delphi: {
-        'mmx.delphi.designer': 'd', 'mmx.delphi.align': 'l', 'mmx.delphi.anchors': 'n', 'mmx.delphi.tabOrder': 't',
-        'mmx.delphi.check': 'c', 'mmx.delphi.cleanHandlers': 'h', 'mmx.delphi.copy': 'y', 'mmx.delphi.paste': 'a',
-        'mmx.delphi.duplicate': 'k', 'mmx.delphi.formFromFields': 'g', 'mmx.delphi.formFromClass': 'q', 'mmx.delphi.changeClass': 'e',
+        'ce.delphi.designer': 'd', 'ce.delphi.align': 'l', 'ce.delphi.anchors': 'n', 'ce.delphi.tabOrder': 't',
+        'ce.delphi.check': 'c', 'ce.delphi.cleanHandlers': 'h', 'ce.delphi.copy': 'y', 'ce.delphi.paste': 'a',
+        'ce.delphi.duplicate': 'k', 'ce.delphi.formFromFields': 'g', 'ce.delphi.formFromClass': 'q', 'ce.delphi.changeClass': 'e',
     },
     plsql: {
-        'mmx.plsql.syncPackage': 'y', 'mmx.plsql.newPackage': 'n', 'mmx.plsql.crudFromTable': 'c', 'mmx.plsql.extractProcedure': 'x',
-        'mmx.plsql.exceptionBlock': 'e', 'mmx.plsql.docHeader': 'd', 'mmx.plsql.utplsql': 't', 'mmx.plsql.findCallers': 'l',
+        'ce.plsql.syncPackage': 'y', 'ce.plsql.newPackage': 'n', 'ce.plsql.crudFromTable': 'c', 'ce.plsql.extractProcedure': 'x',
+        'ce.plsql.exceptionBlock': 'e', 'ce.plsql.docHeader': 'd', 'ce.plsql.utplsql': 't', 'ce.plsql.findCallers': 'l',
     },
-    global: { 'mmx.alignSelection': 'j' },
+    global: { 'ce.alignSelection': 'j' },
 };
 
 /** Shortcuts that are not "Ctrl+K letter", shown as they are (Structure, Memo). */
 export const FIXED_SHORTCUTS: Record<string, string> = {
-    'mmx.manageMembers': 'Ctrl+K Ctrl+M',
-    'mmx.editMember': 'Ctrl+K Ctrl+E',
-    'mmx.showActions': 'Ctrl+K Ctrl+A',
-    'mmx.delphi.toggleDesigner': 'Ctrl+K Ctrl+B',
-    'mmx.memo.open': 'Ctrl+K Ctrl+N',
+    'ce.manageMembers': 'Ctrl+K Ctrl+M',
+    'ce.editMember': 'Ctrl+K Ctrl+E',
+    'ce.showActions': 'Ctrl+K Ctrl+A',
+    'ce.delphi.toggleDesigner': 'Ctrl+K Ctrl+B',
+    'ce.memo.open': 'Ctrl+K Ctrl+N',
 };
 
 export function shortcutOf(family: ShortcutFamily, command: string): string {
@@ -120,22 +120,22 @@ export function toolsCss(): string {
 }
 
 export const PLSQL_COMMANDS = [
-    'mmx.plsql.syncPackage', 'mmx.plsql.newPackage', 'mmx.plsql.crudFromTable', 'mmx.plsql.utplsql',
-    'mmx.plsql.exceptionBlock', 'mmx.plsql.extractProcedure', 'mmx.plsql.docHeader', 'mmx.plsql.findCallers',
+    'ce.plsql.syncPackage', 'ce.plsql.newPackage', 'ce.plsql.crudFromTable', 'ce.plsql.utplsql',
+    'ce.plsql.exceptionBlock', 'ce.plsql.extractProcedure', 'ce.plsql.docHeader', 'ce.plsql.findCallers',
 ];
 export const DELPHI_COMMANDS = [
-    'mmx.delphi.designer',
-    'mmx.delphi.align',
-    'mmx.delphi.anchors',
-    'mmx.delphi.tabOrder',
-    'mmx.delphi.check',
-    'mmx.delphi.cleanHandlers',
-    'mmx.delphi.copy',
-    'mmx.delphi.paste',
-    'mmx.delphi.duplicate',
-    'mmx.delphi.formFromFields',
-    'mmx.delphi.formFromClass',
-    'mmx.delphi.changeClass',
+    'ce.delphi.designer',
+    'ce.delphi.align',
+    'ce.delphi.anchors',
+    'ce.delphi.tabOrder',
+    'ce.delphi.check',
+    'ce.delphi.cleanHandlers',
+    'ce.delphi.copy',
+    'ce.delphi.paste',
+    'ce.delphi.duplicate',
+    'ce.delphi.formFromFields',
+    'ce.delphi.formFromClass',
+    'ce.delphi.changeClass',
 ];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
@@ -146,14 +146,14 @@ function plsqlBlock(): string {
 <div class="tools-block" id="plBlock">
 <div class="section-title">PL/SQL (Oracle)</div>
 <div class="analyze-grid">
-${btn('mmx.plsql.syncPackage', '🔄 Sync spec ⇄ body', 'Declare / stub / fix signatures between the .pks and the .pkb')}
-${btn('mmx.plsql.newPackage', '📦 New package…', 'Spec + body skeleton')}
-${btn('mmx.plsql.crudFromTable', '🗄️ CRUD from table', 'Select or copy a CREATE TABLE')}
-${btn('mmx.plsql.extractProcedure', '✂️ Extract procedure', 'Selection → procedure with detected IN / OUT parameters')}
-${btn('mmx.plsql.exceptionBlock', '⚠️ Exception block', 'NO_DATA_FOUND / TOO_MANY_ROWS / OTHERS')}
-${btn('mmx.plsql.docHeader', '📘 PLDoc header', 'Insert or refresh the /** … */ block from the signature')}
-${btn('mmx.plsql.utplsql', '🧪 utPLSQL tests', 'Test package generated from the spec')}
-${btn('mmx.plsql.findCallers', '🔎 Find callers', 'References across the workspace')}
+${btn('ce.plsql.syncPackage', '🔄 Sync spec ⇄ body', 'Declare / stub / fix signatures between the .pks and the .pkb')}
+${btn('ce.plsql.newPackage', '📦 New package…', 'Spec + body skeleton')}
+${btn('ce.plsql.crudFromTable', '🗄️ CRUD from table', 'Select or copy a CREATE TABLE')}
+${btn('ce.plsql.extractProcedure', '✂️ Extract procedure', 'Selection → procedure with detected IN / OUT parameters')}
+${btn('ce.plsql.exceptionBlock', '⚠️ Exception block', 'NO_DATA_FOUND / TOO_MANY_ROWS / OTHERS')}
+${btn('ce.plsql.docHeader', '📘 PLDoc header', 'Insert or refresh the /** … */ block from the signature')}
+${btn('ce.plsql.utplsql', '🧪 utPLSQL tests', 'Test package generated from the spec')}
+${btn('ce.plsql.findCallers', '🔎 Find callers', 'References across the workspace')}
 <button class="ana" data-review="1" title="Oracle review rules">✅ Review (Oracle)</button>
 </div>
 <div class="tool-label">Align the selection as…</div>
@@ -169,19 +169,19 @@ function delphiBlock(): string {
     return `
 <div class="tools-block" id="dlBlock">
 <div class="section-title">Delphi layout &amp; checks</div>
-<button class="ana has-kbd tool-lead" data-dl="mmx.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components">🎨 Open the visual form designer${kbdHtml('delphi', 'mmx.delphi.designer')}</button>
+<button class="ana has-kbd tool-lead" data-dl="ce.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components">🎨 Open the visual form designer${kbdHtml('delphi', 'ce.delphi.designer')}</button>
 <div class="analyze-grid">
-${btn('mmx.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
-${btn('mmx.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}
-${btn('mmx.delphi.tabOrder', '🔢 TabOrder by position', 'Reading order on screen')}
-${btn('mmx.delphi.copy', '📋 Copy components', 'With their handlers and code')}
-${btn('mmx.delphi.paste', '📥 Paste components', 'Into any container, renamed if needed')}
-${btn('mmx.delphi.duplicate', '🧬 Duplicate', 'Copy + paste next to the original')}
-${btn('mmx.delphi.formFromFields', '🧱 Form from fields', 'Label + input rows, aligned')}
-${btn('mmx.delphi.formFromClass', '🏷️ Form from a class', 'Fields of a class of the unit')}
-${btn('mmx.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit… keeping compatible properties')}
-${btn('mmx.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
-${btn('mmx.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
+${btn('ce.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
+${btn('ce.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}
+${btn('ce.delphi.tabOrder', '🔢 TabOrder by position', 'Reading order on screen')}
+${btn('ce.delphi.copy', '📋 Copy components', 'With their handlers and code')}
+${btn('ce.delphi.paste', '📥 Paste components', 'Into any container, renamed if needed')}
+${btn('ce.delphi.duplicate', '🧬 Duplicate', 'Copy + paste next to the original')}
+${btn('ce.delphi.formFromFields', '🧱 Form from fields', 'Label + input rows, aligned')}
+${btn('ce.delphi.formFromClass', '🏷️ Form from a class', 'Fields of a class of the unit')}
+${btn('ce.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit… keeping compatible properties')}
+${btn('ce.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
+${btn('ce.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
 </div>
 <div class="tool-note">Adding components and their events is done in the visual designer.</div>
 </div>
@@ -209,7 +209,7 @@ function alignBlock(alignToken: string, chipsJson: string): string {
 <div class="section-title">Align selection</div>
 <div class="tool-row">
 <input id="alignToken" class="inp" value="${escapeAttr(alignToken)}" placeholder="text to align on, e.g. :=" spellcheck="false">
-<button id="alignGo" class="ana has-kbd w-auto" title="Align the selected lines on the string">Align${kbdHtml('global', 'mmx.alignSelection')}</button>
+<button id="alignGo" class="ana has-kbd w-auto" title="Align the selected lines on the string">Align${kbdHtml('global', 'ce.alignSelection')}</button>
 </div>
 <div class="chips" id="chips" data-chips="${chipsJson}"></div>
 <div class="tool-note">Click a string to use it, <b>+</b> saves the one typed above, <b>×</b> removes it. Select the lines in the editor, then click Align. Without a selection, the block of lines around the cursor is aligned.</div>

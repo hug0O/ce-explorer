@@ -22,7 +22,7 @@ function getLog(): vscode.OutputChannel {
     }
     return _log;
 }
-function mmxLog(msg: string): void {
+function ceLog(msg: string): void {
     getLog().appendLine(msg);
 }
 export function setLogChannel(ch: vscode.OutputChannel): void {
@@ -85,16 +85,16 @@ export async function editMember(
     codeExplorer: CodeExplorerService,
     result: MemberFormResult
 ): Promise<boolean> {
-    mmxLog('[editMember] applying result for: ' + member.name + ' -> ' + result.name + ' kind=' + member.kind + ' in class ' + cls.name);
-    mmxLog('[editMember] member.range: line ' + member.range.start.line + '-' + member.range.end.line);
+    ceLog('[editMember] applying result for: ' + member.name + ' -> ' + result.name + ' kind=' + member.kind + ' in class ' + cls.name);
+    ceLog('[editMember] member.range: line ' + member.range.start.line + '-' + member.range.end.line);
 
     if (!result.name || !result.name.trim()) {
-        mmxLog('[editMember] no name in result — aborted');
+        ceLog('[editMember] no name in result — aborted');
         return false;
     }
 
     const originalInsertLine = member.range.start.line;
-    mmxLog('[editMember] originalInsertLine=' + originalInsertLine);
+    ceLog('[editMember] originalInsertLine=' + originalInsertLine);
 
     // Capture the existing implementation body so that editing a member only
     // changes its signature (name/params/return type) and preserves the body.
@@ -102,12 +102,12 @@ export async function editMember(
         ? extractImplBody(doc.getText(member.implementationRange))
         : undefined;
     if (existingBody) {
-        mmxLog('[editMember] captured existing implementation body (' + existingBody.length + ' chars) — will be preserved');
+        ceLog('[editMember] captured existing implementation body (' + existingBody.length + ' chars) — will be preserved');
     }
 
     const spec = memberFormToSpec(result);
 
-    mmxLog('[editMember] deleting old member...');
+    ceLog('[editMember] deleting old member...');
 
     // Standalone (file-level) functions have their declaration and body in a single
     // block. The delete+reinsert flow below is designed for class members where decl
@@ -119,7 +119,7 @@ export async function editMember(
         const mspec = spec as MemberSpec;
         const newFull = provider.rewriteStandaloneFunction(currentText, mspec);
         if (newFull !== undefined) {
-            mmxLog('[editMember] standalone rewrite in place: ' + spec.name);
+            ceLog('[editMember] standalone rewrite in place: ' + spec.name);
             const wsEdit = new vscode.WorkspaceEdit();
             wsEdit.replace(doc.uri, range, newFull);
             // Languages with a separate forward/interface declaration (Pascal)
@@ -131,18 +131,18 @@ export async function editMember(
                 const newDecl = provider.rewriteStandaloneDeclaration(doc.getText(member.range), mspec);
                 if (newDecl !== undefined) {
                     wsEdit.replace(doc.uri, member.range, newDecl);
-                    mmxLog('[editMember] standalone declaration synced: ' + spec.name);
+                    ceLog('[editMember] standalone declaration synced: ' + spec.name);
                 }
             }
             const ok = await vscode.workspace.applyEdit(wsEdit);
-            mmxLog('[editMember] standalone rewrite result: ' + ok);
+            ceLog('[editMember] standalone rewrite result: ' + ok);
             if (ok) {
                 codeExplorer.refresh();
                 vscode.window.showInformationMessage('CE: Updated "' + result.name + '"');
             }
             return ok;
         }
-        mmxLog('[editMember] provider has no standalone rewrite — falling back to legacy path');
+        ceLog('[editMember] provider has no standalone rewrite — falling back to legacy path');
     }
 
     // Atomic edit: the old member blocks are REPLACED in place by the newly
@@ -163,7 +163,7 @@ export async function editMember(
     if (member.implementationRange && !implInPaired && !sameFileImplRange) {
         // Overlapping declaration/implementation block and no provider rewrite
         // support (rare legacy fallback): keep the sequential delete+reinsert.
-        mmxLog('[editMember] legacy fallback (overlapping decl/impl)');
+        ceLog('[editMember] legacy fallback (overlapping decl/impl)');
         await codeGenerator.deleteMember(doc, cls, member);
         const gen = generateFromSpec(provider, cls, spec, existingBody);
         gen.declarationPosition = new vscode.Position(originalInsertLine, 0);
@@ -201,7 +201,7 @@ export async function editMember(
 
     const success = await pipeline.apply(`Edit member "${result.name}"`);
 
-    mmxLog('[editMember] final success: ' + success);
+    ceLog('[editMember] final success: ' + success);
     if (success) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + cls.name);
@@ -373,7 +373,7 @@ export async function implementInterface(
         sourceNames.push(cls.parentClass);
     }
 
-    mmxLog('[implementInterface] class=' + cls.name + ' sources=[' + sourceNames.join(', ') + ']');
+    ceLog('[implementInterface] class=' + cls.name + ' sources=[' + sourceNames.join(', ') + ']');
 
     if (sourceNames.length === 0) {
         vscode.window.showInformationMessage('CE: "' + cls.name + '" has no interface or parent class to implement.');
@@ -384,7 +384,7 @@ export async function implementInterface(
     const resolvedNames = sources.map(s => s.name);
     const unresolved = sourceNames.filter(n => !resolvedNames.includes(n));
     if (unresolved.length > 0) {
-        mmxLog('[implementInterface] not found in workspace: ' + unresolved.join(', '));
+        ceLog('[implementInterface] not found in workspace: ' + unresolved.join(', '));
     }
     if (sources.length === 0) {
         vscode.window.showInformationMessage('CE: Could not find definitions for ' + sourceNames.join(', ') + ' in the workspace.');
@@ -451,7 +451,7 @@ export async function implementInterface(
     };
 
     const success = await applyGeneratedCode(doc, provider, gen);
-    mmxLog('[implementInterface] success: ' + success);
+    ceLog('[implementInterface] success: ' + success);
     if (success) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage('CE: Implemented ' + selected.length + ' method(s) in ' + cls.name);
@@ -519,7 +519,7 @@ export async function deleteMember(
     codeGenerator: CodeGeneratorService,
     codeExplorer: CodeExplorerService
 ): Promise<boolean> {
-    mmxLog('[deleteMember] asking confirmation for: ' + member.name);
+    ceLog('[deleteMember] asking confirmation for: ' + member.name);
 
     await new Promise<void>(resolve => setTimeout(resolve, 100));
 
@@ -528,17 +528,17 @@ export async function deleteMember(
         { modal: true },
         'Delete'
     );
-    mmxLog('[deleteMember] dialog returned: ' + JSON.stringify(confirm));
+    ceLog('[deleteMember] dialog returned: ' + JSON.stringify(confirm));
     if (confirm !== 'Delete') {
-        mmxLog('[deleteMember] user cancelled');
+        ceLog('[deleteMember] user cancelled');
         return false;
     }
 
-    mmxLog('[deleteMember] confirmed — calling codeGenerator.deleteMember');
-    mmxLog('[deleteMember] member.range: line ' + member.range.start.line + '-' + member.range.end.line);
+    ceLog('[deleteMember] confirmed — calling codeGenerator.deleteMember');
+    ceLog('[deleteMember] member.range: line ' + member.range.start.line + '-' + member.range.end.line);
 
     const success = await codeGenerator.deleteMember(doc, cls, member);
-    mmxLog('[deleteMember] codeGenerator.deleteMember returned: ' + success);
+    ceLog('[deleteMember] codeGenerator.deleteMember returned: ' + success);
     if (success) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage(`Deleted member: ${member.name}`);
@@ -586,20 +586,20 @@ export async function renameMember(
     codeExplorer: CodeExplorerService,
     newName: string
 ): Promise<boolean> {
-    mmxLog('[renameMember] member=' + member.name + ' -> ' + newName + ' class=' + cls.name);
-    mmxLog('[renameMember] member.range: line ' + member.range.start.line + ' char ' + member.range.start.character);
+    ceLog('[renameMember] member=' + member.name + ' -> ' + newName + ' class=' + cls.name);
+    ceLog('[renameMember] member.range: line ' + member.range.start.line + ' char ' + member.range.start.character);
 
     if (!newName || newName === member.name) {
-        mmxLog('[renameMember] empty or same name: ' + newName);
+        ceLog('[renameMember] empty or same name: ' + newName);
         return false;
     }
 
-    mmxLog('[renameMember] new name: ' + newName);
+    ceLog('[renameMember] new name: ' + newName);
 
     const lsEdit = await languageServerRename(doc, member, newName);
     if (lsEdit) {
         const applied = await vscode.workspace.applyEdit(lsEdit);
-        mmxLog('[renameMember] language-server rename applied: ' + applied);
+        ceLog('[renameMember] language-server rename applied: ' + applied);
         if (applied) {
             codeExplorer.refresh();
             vscode.window.showInformationMessage(`Renamed "${member.name}" to "${newName}" (language server)`);
@@ -647,10 +647,10 @@ export async function renameMember(
         }
     }
 
-    mmxLog('[renameMember] replaced ' + totalReplacements + ' occurrences in ' + doc.fileName);
+    ceLog('[renameMember] replaced ' + totalReplacements + ' occurrences in ' + doc.fileName);
 
     if (totalReplacements === 0) {
-        mmxLog('[renameMember] FAIL: no occurrences found');
+        ceLog('[renameMember] FAIL: no occurrences found');
         vscode.window.showWarningMessage(`Could not locate "${member.name}" in the class body. Rename aborted.`);
         return false;
     }
@@ -666,7 +666,7 @@ export async function renameMember(
     if (provider) {
         const pairedUri = provider.findPairedFile(doc.uri);
         if (pairedUri) { touched.push(pairedUri); }
-        mmxLog('[renameMember] paired file: ' + (pairedUri?.fsPath || 'none'));
+        ceLog('[renameMember] paired file: ' + (pairedUri?.fsPath || 'none'));
         if (pairedUri) {
             const pairedDoc = await vscode.workspace.openTextDocument(pairedUri);
             pipeline.recordOriginal(pairedUri, pairedDoc.getText());
@@ -686,7 +686,7 @@ export async function renameMember(
                 pipeline.replace(pairedUri, new vscode.Range(start, end), newName);
                 count++;
             }
-            mmxLog('[renameMember] replaced ' + count + ' occurrences in paired file');
+            ceLog('[renameMember] replaced ' + count + ' occurrences in paired file');
         }
     }
 
@@ -715,12 +715,12 @@ export async function renameMember(
                 }
             }
         } catch (e) {
-            mmxLog('[renameMember] workspace scan failed: ' + (e instanceof Error ? e.message : String(e)));
+            ceLog('[renameMember] workspace scan failed: ' + (e instanceof Error ? e.message : String(e)));
         }
     }
 
     const ok = await pipeline.apply(`Rename "${member.name}"`);
-    mmxLog('[renameMember] applyEdit result: ' + ok);
+    ceLog('[renameMember] applyEdit result: ' + ok);
     if (ok) {
         codeExplorer.refresh();
         vscode.window.showInformationMessage(`Renamed "${member.name}" to "${newName}"`);

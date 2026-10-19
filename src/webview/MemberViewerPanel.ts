@@ -59,17 +59,17 @@ export interface EditSessionContext {
 // Anything outside this set is ignored, preventing arbitrary command execution
 // even if a future change introduces an unescaped interpolation in the webview.
 const ALLOWED_RUN_COMMANDS = new Set<string>([
-    'mmx.addMethod', 'mmx.addField', 'mmx.addProperty', 'mmx.addConstructor',
-    'mmx.synchronizeDeclImpl', 'mmx.insertTemplate', 'mmx.manageTemplates',
-    'mmx.refreshExplorer', 'mmx.filterTree', 'mmx.goToMember',
-    'mmx.generateGettersSetters', 'mmx.insertDocHeader',
-    'mmx.renameVariable', 'mmx.changeVariableType', 'mmx.deleteVariable',
-    'mmx.editMember', 'mmx.renameMember', 'mmx.deleteMember',
+    'ce.addMethod', 'ce.addField', 'ce.addProperty', 'ce.addConstructor',
+    'ce.synchronizeDeclImpl', 'ce.insertTemplate', 'ce.manageTemplates',
+    'ce.refreshExplorer', 'ce.filterTree', 'ce.goToMember',
+    'ce.generateGettersSetters', 'ce.insertDocHeader',
+    'ce.renameVariable', 'ce.changeVariableType', 'ce.deleteVariable',
+    'ce.editMember', 'ce.renameMember', 'ce.deleteMember',
 ]);
 
 export class MemberViewerPanel implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'mmxViewer';
-    private static readonly CHIPS_KEY = 'mmx.alignChips';
+    public static readonly viewType = 'ceViewer';
+    private static readonly CHIPS_KEY = 'ce.alignChips';
     private _view?: vscode.WebviewView;
     private _state: MemberViewerState = { member: undefined, classInfo: undefined, provider: undefined };
     private _stateKey: string = '';
@@ -186,7 +186,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     if (typeof msg.cmd === 'string' && DELPHI_COMMANDS.includes(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); }
                     break;
                 case 'plsqlAlign':
-                    if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('mmx.plsql.alignPreset', msg.id); }
+                    if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('ce.plsql.alignPreset', msg.id); }
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'toolsReady': await this.sendFormModel(); break;
@@ -211,7 +211,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'cancelVariable': this.endVariableEdit(); break;
                 case 'runAnalytics': await this.handleRunAnalytics(msg.kind as AnalyticsKind); break;
                 case 'closeAnalytics': this.endAnalytics(); break;
-                case '__diag': console.error('[MMX] webview script error:', msg.error); break;
+                case '__diag': console.error('[CE] webview script error:', msg.error); break;
             }
         });
 
@@ -479,15 +479,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /* ───────── memo: Markdown notes per language ───────── */
 
-    /** Folder of the memos: the `mmx.memo.folder` setting (relative to the workspace), else the extension's own storage. */
+    /** Folder of the memos: the `ce.memo.folder` setting (relative to the workspace), else the extension's own storage. */
     private memoFolder(): string {
-        const configured = (typeof vscode.workspace.getConfiguration === 'function' ? vscode.workspace.getConfiguration('mmx').get<string>('memo.folder', '') : '').trim();
+        const configured = (typeof vscode.workspace.getConfiguration === 'function' ? vscode.workspace.getConfiguration('ce').get<string>('memo.folder', '') : '').trim();
         if (configured) {
             if (path.isAbsolute(configured)) { return configured; }
             const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
             if (root) { return path.join(root, configured); }
         }
-        return path.join(this._extensionContext.globalStorageUri?.fsPath ?? path.join(os.tmpdir(), 'mmx-code-explorer'), 'memos');
+        return path.join(this._extensionContext.globalStorageUri?.fsPath ?? path.join(os.tmpdir(), 'ce-code-explorer'), 'memos');
     }
 
     private memoStore(): MemoStore {
@@ -614,7 +614,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** Add button of the tab: the new member goes to the chosen type, whatever the cursor is on. */
     private async handleManageAdd(kind: string): Promise<void> {
-        const command = ({ field: 'mmx.addField', method: 'mmx.addMethod', property: 'mmx.addProperty', constructor: 'mmx.addConstructor' } as Record<string, string>)[kind];
+        const command = ({ field: 'ce.addField', method: 'ce.addMethod', property: 'ce.addProperty', constructor: 'ce.addConstructor' } as Record<string, string>)[kind];
         if (!command) { return; }
         const { current } = this.manageContext();
         await vscode.commands.executeCommand(command, current ? { itemData: current, parentClass: current } : undefined);
@@ -659,8 +659,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         };
         if (act === 'go') { await reveal(); return; }
         // These two commands take the same argument as the former tree items: the member and its type.
-        if (act === 'getset' && ctx.current) { await vscode.commands.executeCommand('mmx.generateGettersSetters', { itemData: member, parentClass: ctx.current }); return; }
-        if (act === 'move' && ctx.current) { await vscode.commands.executeCommand('mmx.moveMember', { itemData: member, parentClass: ctx.current }); return; }
+        if (act === 'getset' && ctx.current) { await vscode.commands.executeCommand('ce.generateGettersSetters', { itemData: member, parentClass: ctx.current }); return; }
+        if (act === 'move' && ctx.current) { await vscode.commands.executeCommand('ce.moveMember', { itemData: member, parentClass: ctx.current }); return; }
         await this.handleMemberAction(act, { member, classInfo: ctx.current });
     }
 
@@ -1189,22 +1189,22 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
             `<button class="qa" data-cmd="${cmd}">${escapeHtml(label)}</button>`;
         const groups = [
             { title: 'Create', items: [
-                quick('➕ Add Method', 'mmx.addMethod'),
-                quick('📦 Add Field', 'mmx.addField'),
-                quick('🔑 Add Property', 'mmx.addProperty'),
-                quick('🏗️ Add Constructor', 'mmx.addConstructor'),
-                quick('🧩 Insert Template', 'mmx.insertTemplate'),
-                quick('🗂️ Manage Templates', 'mmx.manageTemplates'),
+                quick('➕ Add Method', 'ce.addMethod'),
+                quick('📦 Add Field', 'ce.addField'),
+                quick('🔑 Add Property', 'ce.addProperty'),
+                quick('🏗️ Add Constructor', 'ce.addConstructor'),
+                quick('🧩 Insert Template', 'ce.insertTemplate'),
+                quick('🗂️ Manage Templates', 'ce.manageTemplates'),
             ]},
             { title: 'Maintain', items: [
-                quick('🔎 Go to Member', 'mmx.goToMember'),
-                quick('🔄 Synchronize Decl/Impl', 'mmx.synchronizeDeclImpl'),
-                quick('🔑 Generate Getters/Setters', 'mmx.generateGettersSetters'),
-                quick('📄 Insert Doc Header', 'mmx.insertDocHeader'),
+                quick('🔎 Go to Member', 'ce.goToMember'),
+                quick('🔄 Synchronize Decl/Impl', 'ce.synchronizeDeclImpl'),
+                quick('🔑 Generate Getters/Setters', 'ce.generateGettersSetters'),
+                quick('📄 Insert Doc Header', 'ce.insertDocHeader'),
             ]},
             { title: 'Explorer', items: [
-                quick('🔍 Filter Members', 'mmx.filterTree'),
-                quick('♻️ Refresh', 'mmx.refreshExplorer'),
+                quick('🔍 Filter Members', 'ce.filterTree'),
+                quick('♻️ Refresh', 'ce.refreshExplorer'),
             ]},
         ];
         const groupsHtml = groups.map(g =>
@@ -1287,7 +1287,7 @@ ${memoScript()}
     private tabsHtml(firstLabel: string): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
             `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''}>${label}</button>`;
-        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'mmx.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'mmx.memo.open'))}\n</div>`;
+        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n</div>`;
     }
 
     /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
@@ -1495,7 +1495,7 @@ ${memoCss()}
                 html += `<div class="section"><div class="section-title">Parameters <span class="hint">(click to edit)</span></div><ul class="params-list">`;
                 for (const p of member.parameters) {
                     const dir = p.isVar ? '<span class="dir">var </span>' : p.isOut ? '<span class="dir">out </span>' : p.isConst ? '<span class="dir">const </span>' : '';
-                    html += `<li class="param-item" data-run="mmx.editMember" title="Edit parameters of ${escapeHtml(member.name)}">` +
+                    html += `<li class="param-item" data-run="ce.editMember" title="Edit parameters of ${escapeHtml(member.name)}">` +
                         `${dir}<span class="pname">${escapeHtml(p.name)}</span>: <span class="ptype">${escapeHtml(p.type)}</span>` +
                         `<span class="param-edit">✏️</span></li>`;
                 }
@@ -1534,14 +1534,14 @@ ${memoCss()}
 
             html += `<div class="divider"></div>`;
             html += `<div class="section"><div class="section-title">Add Member</div><div class="analyze-grid">`;
-            html += `<button class="ana" data-run="mmx.addField">📦 Add Field</button>`;
+            html += `<button class="ana" data-run="ce.addField">📦 Add Field</button>`;
             if (canHaveMethods && !isInterface) {
-                html += `<button class="ana" data-run="mmx.addProperty">🔑 Add Property</button>`;
-                html += `<button class="ana" data-run="mmx.addMethod">🔧 Add Method</button>`;
-                html += `<button class="ana" data-run="mmx.addConstructor">🏗️ Add Constructor</button>`;
+                html += `<button class="ana" data-run="ce.addProperty">🔑 Add Property</button>`;
+                html += `<button class="ana" data-run="ce.addMethod">🔧 Add Method</button>`;
+                html += `<button class="ana" data-run="ce.addConstructor">🏗️ Add Constructor</button>`;
             }
             if (isInterface) {
-                html += `<button class="ana" data-run="mmx.addMethod">🔧 Add Method</button>`;
+                html += `<button class="ana" data-run="ce.addMethod">🔧 Add Method</button>`;
             }
             html += `</div></div>`;
         } else {
@@ -1807,7 +1807,7 @@ ${memoScript()}
         html += 'var all=document.querySelectorAll("input:not([type=checkbox]),select");for(var i=0;i<all.length;i++){all[i].addEventListener("input",schedule);all[i].addEventListener("change",schedule);}';
         html += 'window.addEventListener("message",function(e){var m=e.data;if(m&&m.command==="updatePreview"){var p=document.getElementById("preview");if(p)p.textContent=m.preview||"";}});';
         html += 'var init=' + initParamsJson + ';for(var i=0;i<init.length;i++){addParam(init[i].name,init[i].type,init[i].isVar?"var":init[i].isOut?"out":init[i].isConst?"const":"");}';
-        html += '}catch(e){console.error("[MMX-FORM] script error:",e&&e.message||e);try{api.postMessage({command:"__diag",error:String(e&&e.message||e)});}catch(_){}}})();</script></body></html>';
+        html += '}catch(e){console.error("[CE-FORM] script error:",e&&e.message||e);try{api.postMessage({command:"__diag",error:String(e&&e.message||e)});}catch(_){}}})();</script></body></html>';
 
         return html;
     }

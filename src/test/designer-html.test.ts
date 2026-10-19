@@ -94,12 +94,12 @@ test('designer ⇄ code navigation and empty-handler clean-up are wired in packa
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pkg = require('../../package.json');
     const props = pkg.contributes.configuration.properties;
-    assert.equal(props['mmx.delphi.removeEmptyHandlers'].default, true);
-    assert.deepEqual(props['mmx.delphi.designerColumn'].enum, ['active', 'beside']);
-    assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'mmx.delphi.toggleDesigner'));
-    const key = pkg.contributes.keybindings.find((k: { command: string }) => k.command === 'mmx.delphi.toggleDesigner');
-    assert.match(key.when, /activeWebviewPanelId == 'mmxFormDesigner'/, 'the shortcut also works from inside the designer');
-    assert.ok(pkg.contributes.menus['editor/title'].some((m: { command: string }) => m.command === 'mmx.delphi.designer'), 'a title-bar button leads back to the designer');
+    assert.equal(props['ce.delphi.removeEmptyHandlers'].default, true);
+    assert.deepEqual(props['ce.delphi.designerColumn'].enum, ['active', 'beside']);
+    assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'ce.delphi.toggleDesigner'));
+    const key = pkg.contributes.keybindings.find((k: { command: string }) => k.command === 'ce.delphi.toggleDesigner');
+    assert.match(key.when, /activeWebviewPanelId == 'ceFormDesigner'/, 'the shortcut also works from inside the designer');
+    assert.ok(pkg.contributes.menus['editor/title'].some((m: { command: string }) => m.command === 'ce.delphi.designer'), 'a title-bar button leads back to the designer');
 });
 
 test('parents are easy to spot and components easy to move between them', () => {

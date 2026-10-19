@@ -5,11 +5,11 @@ import * as vscode from 'vscode';
  * user to confirm before the edit is actually applied. This is the guard that
  * prevents the fragile delete+reinsert engine from silently corrupting code.
  *
- * The module is self-contained and side-effect free when `mmx.previewEdits`
+ * The module is self-contained and side-effect free when `ce.previewEdits`
  * is disabled (it then short-circuits and returns true).
  */
 
-export const PREVIEW_SCHEME = 'mmx-preview';
+export const PREVIEW_SCHEME = 'ce-preview';
 
 interface PlannedEdit {
     uri: vscode.Uri;
@@ -42,7 +42,7 @@ export function registerSafePreview(context: vscode.ExtensionContext): void {
 }
 
 function previewEnabled(): boolean {
-    return vscode.workspace.getConfiguration('mmx').get<boolean>('previewEdits', false);
+    return vscode.workspace.getConfiguration('ce').get<boolean>('previewEdits', false);
 }
 
 /**
@@ -123,7 +123,7 @@ export async function previewAndConfirm(
                     'vscode.diff',
                     entry.uri,
                     previewUri,
-                    `MMX Preview — ${title} (${entry.label})`,
+                    `CE Preview — ${title} (${entry.label})`,
                 );
                 shownLabels.push(entry.label);
                 shownIds.push(id);

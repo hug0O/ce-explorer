@@ -20,7 +20,7 @@ export interface ClipHandler {
 }
 
 export interface ClipPayload {
-    kind: 'mmx-dfm-components';
+    kind: 'ce-dfm-components';
     version: 1;
     sourceForm: string;
     sourceClass: string;
@@ -32,7 +32,7 @@ export interface ClipPayload {
     units: string[];
 }
 
-export const CLIP_PREFIX = 'MMX-DFM:';
+export const CLIP_PREFIX = 'CE-DFM:';
 
 export function serializeClip(p: ClipPayload): string {
     return CLIP_PREFIX + JSON.stringify(p);
@@ -42,7 +42,7 @@ export function parseClip(text: string): ClipPayload | undefined {
     if (!text.startsWith(CLIP_PREFIX)) { return undefined; }
     try {
         const p = JSON.parse(text.slice(CLIP_PREFIX.length)) as ClipPayload;
-        return p && p.kind === 'mmx-dfm-components' && p.version === 1 && Array.isArray(p.objects) ? p : undefined;
+        return p && p.kind === 'ce-dfm-components' && p.version === 1 && Array.isArray(p.objects) ? p : undefined;
     } catch { return undefined; }
 }
 
@@ -80,7 +80,7 @@ export function copyComponents(pas: string, dfm: string, names: string[], unitOf
     }
     return {
         payload: {
-            kind: 'mmx-dfm-components', version: 1, sourceForm: root.name, sourceClass: unit?.formName ?? root.className,
+            kind: 'ce-dfm-components', version: 1, sourceForm: root.name, sourceClass: unit?.formName ?? root.className,
             objects: roots.map(r => reindentBlock(nodeBlock(dfm, r).text.replace(/\s+$/, ''), r.depth, 0)),
             components, handlers, units: [...units],
         },

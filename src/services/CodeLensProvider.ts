@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { MemberKind } from '../models/types';
 
-export class MmxCodeLensProvider implements vscode.CodeLensProvider {
+export class CeCodeLensProvider implements vscode.CodeLensProvider {
     private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
     readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 
@@ -13,7 +13,7 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     provideCodeLenses(document: vscode.TextDocument): vscode.ProviderResult<vscode.CodeLens[]> {
-        if (!vscode.workspace.getConfiguration('mmx').get<boolean>('enableCodeLens', true)) {
+        if (!vscode.workspace.getConfiguration('ce').get<boolean>('enableCodeLens', true)) {
             return [];
         }
 
@@ -38,7 +38,7 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
             lenses.push(new vscode.CodeLens(
                 new vscode.Range(cls.range.start.line, 0, cls.range.start.line, 0),
                 {
-                    command: 'mmx.goToMember',
+                    command: 'ce.goToMember',
                     title: `$(symbol-class) ${typeLabel} ${cls.name} — ${summary}`,
                 }
             ));
@@ -46,21 +46,21 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
             lenses.push(new vscode.CodeLens(
                 new vscode.Range(cls.range.start.line, 0, cls.range.start.line, 0),
                 {
-                    command: 'mmx.lensRun',
+                    command: 'ce.lensRun',
                     title: '$(list-tree) Structure',
-                    arguments: ['mmx.manageMembers', cls.range.start.line],
+                    arguments: ['ce.manageMembers', cls.range.start.line],
                 }
             ));
 
-            const memberActions = vscode.workspace.getConfiguration('mmx').get<boolean>('codeLensMemberActions', false);
+            const memberActions = vscode.workspace.getConfiguration('ce').get<boolean>('codeLensMemberActions', false);
             for (const member of cls.members) {
                 const lens = this.buildMemberLens(member, cls);
                 if (lens) lenses.push(lens);
                 if (memberActions) {
                     const r = new vscode.Range(member.range.start.line, 0, member.range.start.line, 0);
                     lenses.push(
-                        new vscode.CodeLens(r, { command: 'mmx.lensRun', title: '$(edit) Edit', arguments: ['mmx.editMember', member.range.start.line] }),
-                        new vscode.CodeLens(r, { command: 'mmx.lensRun', title: '$(trash) Delete', arguments: ['mmx.deleteMember', member.range.start.line] }),
+                        new vscode.CodeLens(r, { command: 'ce.lensRun', title: '$(edit) Edit', arguments: ['ce.editMember', member.range.start.line] }),
+                        new vscode.CodeLens(r, { command: 'ce.lensRun', title: '$(trash) Delete', arguments: ['ce.deleteMember', member.range.start.line] }),
                     );
                 }
             }
@@ -75,35 +75,35 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
 
         if (member.modifiers.includes('override') || member.isOverride) {
             return new vscode.CodeLens(range, {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: '$(arrow-up) overrides parent',
                 arguments: [member.range.start],
             });
         }
         if (member.isAbstract) {
             return new vscode.CodeLens(range, {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: '$(circle-outline) abstract — must be implemented',
                 arguments: [member.range.start],
             });
         }
         if (member.isStatic) {
             return new vscode.CodeLens(range, {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: '$(symbol-keyword) static',
                 arguments: [member.range.start],
             });
         }
         if (member.isVirtual) {
             return new vscode.CodeLens(range, {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: '$(zap) virtual — can be overridden',
                 arguments: [member.range.start],
             });
         }
         if (member.kind === MemberKind.Constructor) {
             return new vscode.CodeLens(range, {
-                command: 'mmx.navigateToMember',
+                command: 'ce.navigateToMember',
                 title: '$(zap) constructor',
                 arguments: [member.range.start],
             });

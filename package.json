@@ -559,6 +559,11 @@
           "default": "active",
           "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
         },
+        "ce.delphi.designerAutoSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together."
+        },
         "ce.memo.folder": {
           "type": "string",
           "default": "",

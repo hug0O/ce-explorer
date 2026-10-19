@@ -1,15 +1,16 @@
 import * as vscode from 'vscode';
 import { TextEdit } from '../services/DelphiForm';
-import { parseDfmTree, findNode } from '../services/DelphiLayout';
+import { DfmNode, parseDfmTree, findNode, isContainer } from '../services/DelphiLayout';
+import { copyComponents, parseClip, serializeClip } from '../services/DelphiClip';
 import { ALIGN_OPS, AlignOp, alignComponents } from '../services/DelphiAlign';
 import { addEventToComponent, resolveFormPair } from '../services/FormCommands';
 import { loadComponentDef } from '../services/FormLibrary';
 import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
 import { planAddEvent } from '../services/DelphiEvents';
 import {
-    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
+    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
-import { applyTextEdits } from '../services/DelphiForm';
+import { applyTextEdits, normalizeEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
 
 interface HistoryEntry {
@@ -49,25 +50,34 @@ export class FormDesignerPanel {
     private redoStack: HistoryEntry[] = [];
     private refreshTimer: ReturnType<typeof setTimeout> | undefined;
     private applying = false;
+    /** Messages from the webview are handled one at a time, in order: each reads the files as the previous one left them. */
+    private queue: Promise<void> = Promise.resolve();
     private lastSelection: string[] = [];
+    /** Components cut (Ctrl+X) and not pasted yet: pasting them moves the real ones, with their names and handlers. */
+    private cut: { clip: string; names: string[] } | undefined;
     /** Full screen of the designer = VS Code's Zen mode, which can only be toggled: its state is tracked here. */
     private zen = false;
 
     private constructor(
         private readonly panel: vscode.WebviewPanel,
-        private readonly pasDoc: vscode.TextDocument,
-        private readonly dfmDoc: vscode.TextDocument,
+        private pasDoc: vscode.TextDocument,
+        private dfmDoc: vscode.TextDocument,
     ) {
         panel.webview.html = designerHtml(nonce());
         this.disposables.push(
             panel.onDidChangeViewState(e => { if (e.webviewPanel.visible) { this.sendModel(); } }),
             panel.onDidDispose(() => this.dispose()),
-            panel.webview.onDidReceiveMessage(m => { void this.onMessage(m); }),
+            panel.webview.onDidReceiveMessage(m => { this.queue = this.queue.then(() => this.onMessage(m)); }),
             vscode.workspace.onDidChangeTextDocument(e => {
-                if (e.document === this.dfmDoc || e.document === this.pasDoc) { this.scheduleRefresh(); }
+                if (this.isOurs(e.document)) { this.scheduleRefresh(); }
+            }),
+            // VS Code lets go of a file nobody has open after a while: a document object that was closed no longer follows the file.
+            vscode.workspace.onDidCloseTextDocument(d => { if (this.isOurs(d)) { void this.reopenDocs(); } }),
+            vscode.workspace.onDidSaveTextDocument(d => {
+                if (this.isOurs(d)) { this.scheduleRefresh(); }
             }),
             vscode.window.onDidChangeTextEditorSelection(e => {
-                if (e.textEditor.document !== this.dfmDoc || this.applying) { return; }
+                if (e.textEditor.document.uri.toString() !== this.dfmDoc.uri.toString() || this.applying) { return; }
                 const name = nodeAtLine(this.dfmDoc.getText(), e.selections[0].active.line);
                 if (name && !(this.lastSelection.length === 1 && this.lastSelection[0] === name)) {
                     this.lastSelection = [name];
@@ -107,6 +117,23 @@ export class FormDesignerPanel {
         await FormDesignerPanel.createOrShow(doc);
     }
 
+    private isOurs(d: vscode.TextDocument): boolean {
+        const u = d.uri.toString();
+        return u === this.dfmDoc.uri.toString() || u === this.pasDoc.uri.toString();
+    }
+
+    /**
+     * Makes sure the two documents are the live ones. A text document VS Code closed (nobody had the file open) keeps its
+     * last text but no longer follows the file: offsets taken from it would land in the wrong place.
+     */
+    private async reopenDocs(): Promise<void> {
+        try {
+            if (this.dfmDoc.isClosed) { this.dfmDoc = await vscode.workspace.openTextDocument(this.dfmDoc.uri); }
+            if (this.pasDoc.isClosed) { this.pasDoc = await vscode.workspace.openTextDocument(this.pasDoc.uri); }
+        } catch { /* the file is gone: the next action reports it */ }
+        this.scheduleRefresh();
+    }
+
     /** Enters / leaves VS Code's Zen mode (no side bar, no status bar, full screen) so that a complex form gets the whole screen. */
     private async setZen(on: boolean): Promise<void> {
         if (on === this.zen) { return; }
@@ -138,7 +165,20 @@ export class FormDesignerPanel {
         void this.panel.webview.postMessage({
             type: 'model', model, palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })),
             canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
+            dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
+    }
+
+    /** Saves the .dfm and the .pas together, the way the designer's Save button and Ctrl+S ask. */
+    private async saveAll(): Promise<void> {
+        const names = [this.dfmDoc, this.pasDoc].filter(d => d.isDirty).map(d => d.uri.fsPath.split(/[\\/]/).pop());
+        if (names.length === 0) { this.sendModel(undefined, 'Nothing to save: the .dfm and the .pas are saved.'); return; }
+        const saved = await Promise.all([this.dfmDoc, this.pasDoc].map(d => (d.isDirty ? d.save() : Promise.resolve(true))));
+        this.sendModel(undefined, saved.every(Boolean) ? 'Saved ' + names.join(' and ') : 'Could not save every file: see the editor for the reason.');
+    }
+
+    private get autoSave(): boolean {
+        return vscode.workspace.getConfiguration('ce').get<boolean>('delphi.designerAutoSave', false);
     }
 
     /* ───────────── applying edits ───────────── */
@@ -151,45 +191,87 @@ export class FormDesignerPanel {
         }
     }
 
+    /** One replacement per document, limited to what differs: the way out when the editor refuses the detailed edits. */
+    private wholeEdit(edit: vscode.WorkspaceEdit, doc: vscode.TextDocument, before: string, after: string): void {
+        if (before === after) { return; }
+        let head = 0;
+        while (head < before.length && head < after.length && before[head] === after[head]) { head++; }
+        let tail = 0;
+        while (tail < before.length - head && tail < after.length - head && before[before.length - 1 - tail] === after[after.length - 1 - tail]) { tail++; }
+        edit.replace(doc.uri, new vscode.Range(doc.positionAt(head), doc.positionAt(before.length - tail)), after.slice(head, after.length - tail));
+    }
+
+    private async tryApply(edit: vscode.WorkspaceEdit): Promise<boolean> {
+        this.applying = true;
+        try { return await vscode.workspace.applyEdit(edit); }
+        catch { return false; }
+        finally { this.applying = false; }
+    }
+
     private async replaceAll(doc: vscode.TextDocument, text: string): Promise<boolean> {
         const edit = new vscode.WorkspaceEdit();
-        edit.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), text);
-        return vscode.workspace.applyEdit(edit);
+        this.wholeEdit(edit, doc, doc.getText(), text);
+        return this.tryApply(edit);
+    }
+
+    /** Why the editor would not take a change, in words the user can act on. */
+    private async refusalReason(): Promise<string> {
+        const problems: string[] = [];
+        for (const doc of [this.dfmDoc, this.pasDoc]) {
+            const name = doc.uri.fsPath.split(/[\\/]/).pop();
+            if (doc.isClosed) { problems.push(`${name} was closed: reopen the unit and the designer`); continue; }
+            try {
+                const st = await vscode.workspace.fs.stat(doc.uri);
+                if (st.permissions !== undefined && (st.permissions & vscode.FilePermission.Readonly)) {
+                    problems.push(`${name} is read-only (file attribute, files.readonlyInclude or version control): make it writable`);
+                }
+            } catch { /* not a file on disk */ }
+        }
+        return problems.length ? problems.join('; ') : 'the editor rejected the change (is one of the files shown in a read-only view such as a diff?)';
     }
 
     /** Applies a designer action as one workspace edit and records it for undo. */
     private async commit(label: string, result: DesignResult, selection?: string[], expect: EditExpectation = {}): Promise<boolean> {
-        if ('error' in result) {
-            this.sendModel(undefined, result.error);
-            vscode.window.showWarningMessage('CE: ' + result.error);
+        const refuse = (text: string, warn = true): false => {
+            this.sendModel(undefined, text);
+            if (warn) { vscode.window.showWarningMessage('CE: ' + text); }
             return false;
-        }
+        };
+        if ('error' in result) { return refuse(result.error); }
         if (result.dfmEdits.length === 0 && result.pasEdits.length === 0) { this.sendModel(selection, 'Nothing to change.'); return true; }
         const dfmBefore = this.dfmDoc.getText();
         const pasBefore = this.pasDoc.getText();
+        // Changes that overlap would make the editor refuse everything: tidy them up, or say which ones clash.
+        const dfmEdits = normalizeEdits(result.dfmEdits);
+        const pasEdits = normalizeEdits(result.pasEdits);
+        if ('error' in dfmEdits) { return refuse(`This change was not applied: in the .dfm, ${dfmEdits.error}. Nothing was modified.`); }
+        if ('error' in pasEdits) { return refuse(`This change was not applied: in the unit, ${pasEdits.error}. Nothing was modified.`); }
+        const dfmAfter = applyTextEdits(dfmBefore, dfmEdits.edits);
+        const pasAfter = applyTextEdits(pasBefore, pasEdits.edits);
         // Never touch what the action is not about: components the designer does not understand
         // must stay exactly as they are. If the edit would alter anything else, refuse it.
-        const problem = verifyEdit(dfmBefore, applyTextEdits(dfmBefore, result.dfmEdits), expect);
-        if (problem) {
-            const text = `Refused: this change would also alter the .dfm elsewhere (${problem}). Nothing was modified.`;
-            this.sendModel(undefined, text);
-            vscode.window.showWarningMessage('CE: ' + text);
-            return false;
+        const problem = verifyEdit(dfmBefore, dfmAfter, expect);
+        if (problem) { return refuse(`Refused: this change would also alter the .dfm elsewhere (${problem}). Nothing was modified.`); }
+        const detailed = new vscode.WorkspaceEdit();
+        this.toWorkspaceEdit(detailed, this.dfmDoc, dfmEdits.edits);
+        this.toWorkspaceEdit(detailed, this.pasDoc, pasEdits.edits);
+        let ok = await this.tryApply(detailed);
+        if (!ok) {
+            // Same result, expressed as one replacement per file.
+            const whole = new vscode.WorkspaceEdit();
+            this.wholeEdit(whole, this.dfmDoc, dfmBefore, dfmAfter);
+            this.wholeEdit(whole, this.pasDoc, pasBefore, pasAfter);
+            ok = await this.tryApply(whole);
         }
-        const edit = new vscode.WorkspaceEdit();
-        this.toWorkspaceEdit(edit, this.dfmDoc, result.dfmEdits);
-        this.toWorkspaceEdit(edit, this.pasDoc, result.pasEdits);
-        this.applying = true;
-        const ok = await vscode.workspace.applyEdit(edit);
-        this.applying = false;
-        if (!ok) { vscode.window.showErrorMessage('CE: VS Code refused the edit.'); return false; }
+        if (!ok) { return refuse(`VS Code refused the edit: ${await this.refusalReason()}. Nothing was modified.`); }
         this.undoStack.push({
             label, dfmBefore, dfmAfter: this.dfmDoc.getText(),
-            pasBefore: result.pasEdits.length ? pasBefore : undefined, pasAfter: result.pasEdits.length ? this.pasDoc.getText() : undefined,
+            pasBefore: pasEdits.edits.length ? pasBefore : undefined, pasAfter: pasEdits.edits.length ? this.pasDoc.getText() : undefined,
         });
         if (this.undoStack.length > 100) { this.undoStack.shift(); }
         this.redoStack = [];
         this.lastSelection = selection ?? this.lastSelection;
+        if (this.autoSave) { await Promise.all([this.dfmDoc, this.pasDoc].map(d => (d.isDirty ? d.save() : Promise.resolve(true)))); }
         this.sendModel(selection, result.note);
         return true;
     }
@@ -214,10 +296,21 @@ export class FormDesignerPanel {
         this.sendModel(undefined, `${direction === 'undo' ? 'Undone' : 'Redone'}: ${entry.label}`);
     }
 
+    /** Unit of every class under the given components, for the `uses` clause of a form that receives them. */
+    private async unitsOf(root: DfmNode, list: string[]): Promise<(c: string) => string> {
+        const classes = new Set<string>();
+        const walk = (n: DfmNode): void => { classes.add(n.className); n.children.forEach(walk); };
+        for (const n of list) { const node = findNode(root, n); if (node) { walk(node); } }
+        const map = new Map<string, string>();
+        for (const c of classes) { map.set(c, (await loadComponentDef(c)).unit); }
+        return c => map.get(c) ?? '';
+    }
+
     /* ───────────── messages ───────────── */
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
         try {
+            if (this.dfmDoc.isClosed || this.pasDoc.isClosed) { await this.reopenDocs(); }
             await this.handle(m);
         } catch (e) {
             // A message the designer cannot process must never break it: report and carry on.
@@ -231,6 +324,8 @@ export class FormDesignerPanel {
         const root = parseDfmTree(dfm);
         switch (m.type) {
             case 'ready': this.sendModel(); return;
+            case 'save': await this.saveAll(); return;
+            case 'uncut': this.cut = undefined; this.sendModel(); return;
             case 'undo': await this.step('undo'); return;
             case 'redo': await this.step('redo'); return;
             case 'fullscreen': await this.setZen(m.on === true); return;
@@ -262,11 +357,48 @@ export class FormDesignerPanel {
                 const className = str(m.className);
                 if (!CLASS_RE.test(className)) { this.sendModel(undefined, 'Not a valid class name.'); return; }
                 const def = await loadComponentDef(className);
-                const r = addEdits(pas, dfm, {
+                // the files are read again: they may have changed while the library was read
+                const r = addEdits(this.pasDoc.getText(), this.dfmDoc.getText(), {
                     className, parentName: NAME_RE.test(str(m.parent)) ? str(m.parent) : undefined,
                     left: num(m.left) ?? 16, top: num(m.top) ?? 16, width: num(m.width), height: num(m.height), unit: def.unit || undefined,
                 });
                 await this.commit('Add ' + className, r, 'name' in r && r.name ? [r.name] : undefined, { added: 'name' in r && r.name ? [r.name] : [] });
+                return;
+            }
+            case 'copy':
+            case 'cut': {
+                const list = names(m.names);
+                const r = copyComponents(pas, dfm, list, await this.unitsOf(root, list));
+                if ('error' in r) { this.sendModel(undefined, r.error); return; }
+                const text = serializeClip(r.payload);
+                await vscode.env.clipboard.writeText(text);
+                const roots = r.payload.objects.map(o => parseDfmTree(o)?.name).filter((n): n is string => !!n);
+                this.cut = m.type === 'cut' ? { clip: text, names: roots } : undefined;
+                const count = r.payload.components.length;
+                this.sendModel(list, m.type === 'cut'
+                    ? `${roots.join(', ')} cut: select a container and paste (Ctrl+V) to move ${roots.length > 1 ? 'them' : 'it'}.`
+                    : `${count} component(s) copied: paste (Ctrl+V) into this form or another one.`);
+                return;
+            }
+            case 'paste': {
+                const text = await vscode.env.clipboard.readText();
+                const clip = parseClip(text);
+                if (!clip) { this.sendModel(undefined, 'The clipboard holds no components copied from the designer (select some, then Ctrl+C or Ctrl+X).'); return; }
+                const target = NAME_RE.test(str(m.target)) ? findNode(root, str(m.target)) : root;
+                if (!target) { this.sendModel(undefined, 'Container not found.'); return; }
+                if (this.cut && this.cut.clip === text && this.cut.names.every(n => findNode(root, n))) {
+                    // Cut then paste = move: the very same components, in their new container.
+                    const into = isContainer(target) ? target : (target.parent ?? root);
+                    const moved = this.cut.names.map(n => findNode(root, n)).filter((n): n is DfmNode => !!n);
+                    if (moved.every(n => n.parent === into)) { this.cut = undefined; this.sendModel(moved.map(n => n.name), `Already in ${into.name}.`); return; }
+                    const list = moved.map(n => n.name);
+                    const ok = await this.commit('Move into ' + into.name,
+                        reparentEdits(dfm, list, into.name, moved.map(n => ({ left: n.left ?? 16, top: n.top ?? 16 }))), list, { touched: list, props: ['Left', 'Top'], reparented: list });
+                    if (ok) { this.cut = undefined; this.sendModel(list); }
+                    return;
+                }
+                const r = pasteEdits(pas, dfm, clip, target.name);
+                await this.commit(`Paste ${clip.components.length} component(s)`, r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
                 return;
             }
             case 'delete': {

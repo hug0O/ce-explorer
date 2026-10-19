@@ -9,6 +9,7 @@
  */
 import { MemberKind, Visibility } from '../models/types';
 import { sortMembersForDisplay } from '../utils/memberNavigation';
+import { LineHit, MAX_HITS } from '../utils/memberSearch';
 
 export type ManageGroup = 'source' | 'visibility' | 'kind' | 'alpha';
 export const MANAGE_GROUPS: ManageGroup[] = ['source', 'visibility', 'kind', 'alpha'];
@@ -29,6 +30,21 @@ export interface ManageRow {
     line: number;
 }
 
+/** The member the tab is about (the one under the cursor, or the one last clicked): where it is used, and a search in its code. */
+export interface FocusView {
+    id: string;
+    name: string;
+    kindLabel: string;
+    /** Lines of the current file that use the member (the first rows) and how many there are. */
+    usages: LineHit[];
+    usageTotal: number;
+    /** A member with a body: its code can be searched. */
+    searchable: boolean;
+    search: string;
+    searchHits: LineHit[];
+    searchTotal: number;
+}
+
 export interface ManageView {
     /** One entry per type of the file (and the file-level routines); the selector is hidden when there is only one. */
     typeOptions: { id: string; label: string }[];
@@ -44,6 +60,7 @@ export interface ManageView {
     group: ManageGroup;
     /** Put the caret in the filter box once the tab is shown ("Filter Members" command / shortcut). */
     focusFilter?: boolean;
+    focus?: FocusView;
 }
 
 function esc(s: string): string {
@@ -78,7 +95,39 @@ export function manageCss(): string {
 .mgroup { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 8px 0 2px 2px; list-style: none; }
 .mrow .vis { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); width: 10px; flex: none; text-align: center; }
 .madd { margin-bottom: 4px; }
+.mfocus { border-top: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3)); margin-top: 10px; padding-top: 8px; }
+.mfocus .mfname { font-family: var(--vscode-editor-font-family, monospace); font-weight: 700; }
+.mdet > summary { cursor: pointer; font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 4px; }
+.mhits { list-style: none; max-height: 190px; overflow: auto; margin: 2px 0 6px; }
+.mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
+.mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
+.mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
+.mhit .mtx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mmore { font-size: 10px; color: var(--vscode-descriptionForeground); padding: 1px 4px; }
+.msearchinfo { font-size: 10px; color: var(--vscode-descriptionForeground); min-height: 13px; }
 `;
+}
+
+function hitRowsHtml(hits: LineHit[], total: number): string {
+    return hits.map(h => `<li class="mhit" data-m-line="${h.line}" title="Go to line ${h.line + 1}"><span class="mln">${h.line + 1}</span><span class="mtx">${esc(h.text)}</span></li>`).join('')
+        + (total > hits.length ? `<li class="mmore">… ${total - hits.length} more not listed (first ${MAX_HITS} shown)</li>` : '');
+}
+
+/** Where the member is used in this file, and a search box over its own code. */
+export function focusHtml(f: FocusView): string {
+    let html = `<div class="mfocus" id="mFocus"><div class="section-title">${esc(f.kindLabel)} <span class="mfname">${esc(f.name)}</span></div>`;
+    html += `<details class="mdet" open><summary>Used in this file (<span id="mUsageCount">${f.usageTotal}</span>)</summary>`;
+    html += f.usageTotal
+        ? `<ul class="mhits" id="mUsages">${hitRowsHtml(f.usages, f.usageTotal)}</ul>`
+        : `<p class="empty-section">Not used elsewhere in this file.</p>`;
+    html += `</details>`;
+    if (f.searchable) {
+        html += `<div class="tool-row mfilter"><input id="mSearch" class="inp" type="text" spellcheck="false" placeholder="Search in the code of ${esc(f.name)}… (regex ok)" value="${esc(f.search)}">`
+            + `<button class="mclear${f.search ? ' on' : ''}" id="mSearchClear" title="Clear the search">×</button></div>`
+            + `<div class="msearchinfo" id="mSearchInfo">${f.search ? (f.searchTotal ? f.searchTotal + ' line(s) match' : 'No line matches') : ''}</div>`
+            + `<ul class="mhits" id="mSearchHits">${hitRowsHtml(f.searchHits, f.searchTotal)}</ul>`;
+    }
+    return html + `</div>`;
 }
 
 export function manageListHtml(v: ManageView): string {
@@ -142,6 +191,7 @@ export function manageListHtml(v: ManageView): string {
         html += `</ul><p class="empty-section" id="mNone" hidden>No member matches the filter.</p>`;
     }
     html += `</div>`;
+    if (v.focus) { html += focusHtml(v.focus); }
     return html;
 }
 
@@ -156,6 +206,33 @@ function initManage(api) {
     document.querySelectorAll('[data-m-run]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'run', cmd: b.getAttribute('data-m-run') }); });
     });
+    // Rows of the usage and search lists: go to the line. A delegated listener, since the search list is rebuilt while typing.
+    document.addEventListener('click', function (ev) {
+        var row = ev.target && ev.target.closest ? ev.target.closest('[data-m-line]') : null;
+        if (row) { api.postMessage({ command: 'manageLine', line: Number(row.getAttribute('data-m-line')) }); }
+    });
+    var ms = $('mSearch');
+    if (ms) {
+        var timer = null;
+        var send = function () { api.postMessage({ command: 'manageSearch', text: ms.value }); $('mSearchClear').classList.toggle('on', !!ms.value); };
+        ms.addEventListener('input', function () { if (timer) { clearTimeout(timer); } timer = setTimeout(send, 160); });
+        ms.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ms.value = ''; send(); } });
+        $('mSearchClear').addEventListener('click', function () { ms.value = ''; send(); ms.focus(); });
+        window.addEventListener('message', function (ev) {
+            var m = ev.data;
+            if (!m || m.command !== 'memberHits') { return; }
+            var ul = $('mSearchHits');
+            while (ul.firstChild) { ul.removeChild(ul.firstChild); }
+            (m.hits || []).forEach(function (h) {
+                var li = document.createElement('li'); li.className = 'mhit'; li.setAttribute('data-m-line', String(h.line)); li.title = 'Go to line ' + (h.line + 1);
+                var a = document.createElement('span'); a.className = 'mln'; a.textContent = String(h.line + 1);
+                var b = document.createElement('span'); b.className = 'mtx'; b.textContent = h.text;
+                li.appendChild(a); li.appendChild(b); ul.appendChild(li);
+            });
+            if (m.total > (m.hits || []).length) { var more = document.createElement('li'); more.className = 'mmore'; more.textContent = '… ' + (m.total - m.hits.length) + ' more not listed'; ul.appendChild(more); }
+            $('mSearchInfo').textContent = !m.query ? '' : (m.total ? m.total + ' line(s) match' : 'No line matches');
+        });
+    }
     if ($('mRefresh')) { $('mRefresh').addEventListener('click', function () { api.postMessage({ command: 'manageRefresh' }); }); }
     if ($('mType')) { $('mType').addEventListener('change', function () { api.postMessage({ command: 'manageClass', id: $('mType').value }); }); }
     if ($('mGroup')) { $('mGroup').addEventListener('change', function () { api.postMessage({ command: 'manageGroup', mode: $('mGroup').value }); }); }

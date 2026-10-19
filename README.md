@@ -38,6 +38,7 @@ The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the m
 - **Add** a field, method, property or constructor to the chosen type; insert a template; synchronise declarations and implementations; open the templates manager; refresh.
 - **Filter** the members as you type: by name, type or kind, with a regular expression when it is valid (`get|set`, `^On`), plus a *kind* list (methods, fields, properties, constructors). The *Filter Members* command (`ce.filterTree`) puts the caret in that box.
 - **Order / group**: source order, by visibility, by kind, or A → Z (`CE: Toggle Member Grouping` cycles through them).
+- **The selected member** (the one under the cursor, or the last one you clicked) gets its own section under the list: **Used in this file** — the lines of the current file that use it, listed with their line number, highlighted in the editor (a tint on the line and on the name, a mark in the ruler) and one click away — and, for a member with a body, **Search in its code**: a box that filters the lines of that member only (regular expression when valid, plain text otherwise), with the same list and highlights. Going to a line from these lists keeps the member being looked at, so you can browse its usages in other members; moving the cursor yourself elsewhere takes the selection back. The highlights go away when you leave the Structure tab. Usages are found by name in the file (whole word), so a string that mentions the name counts.
 - **Every member** is listed with its visibility (`+ - # ★`), kind icon, signature and type, and acts on click: *go to*, **edit**, **rename**, **getter / setter** (fields), **move to another type**, **delete**. Drag-and-drop reordering of the tree is replaced by *move to another type*.
 
 ### Visual Member Editor
@@ -114,6 +115,7 @@ All commands are prefixed with `CE:`:
 | `ce.cpp.indentSize` | `4` | Indentation for generated C++ |
 | `ce.cpp.braceStyle` | `newLine` | Brace placement for C++ |
 | `ce.pascal.defaultVisibility` | `private` | Default visibility for Pascal |
+| `ce.delphi.designerAutoSave` | `false` | Save the `.dfm` and the `.pas` after every change made in the form designer |
 
 ## Templates
 
@@ -140,6 +142,8 @@ MIT
 | `Ctrl+K Ctrl+E` | Edit the member under the cursor |
 | `Ctrl+K Ctrl+B` | Toggle the Delphi form designer ⇄ code |
 | `Ctrl+K J` | Align the selection on a string (any language) |
+
+Inside the form designer (key presses in an inspector field are left to VS Code, so the shortcuts above also work there): `Ctrl+S` save the `.dfm` and the `.pas` · `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut, paste components · `Ctrl+Z` / `Ctrl+Y` undo, redo · `Ctrl+A` select all · `Delete` · arrows (`Shift` = grid step, `Ctrl` = resize) · `Esc` parent / cancel a tool or a cut · `P` / `I` / `F` palette, inspector, full screen.
 
 **Tools shortcuts: `Ctrl+K`, release, then a letter.** Each one works only in the files it is about, so the same letter serves both families. They are **shown on the buttons of the Tools tab**, next to the tool, so there is nothing to look up.
 
@@ -220,8 +224,9 @@ Setting `ce.plsql.author` is written in generated headers. Nothing connects to a
 
 ### Visual form designer (Delphi) — `CE Delphi: Open Form Designer`, the 🎨 button of Tools, or the icon in the title bar of a `.pas` / `.dfm`
 
-The text `.dfm` drawn as a form, next to the code. The VCL docking rules are applied (`alTop`, `alBottom`, `alLeft`, `alRight`, `alClient`, panels' bevels, page controls, splitters), so what you see is the layout Delphi would give.
+The text `.dfm` drawn as a form, next to the code. Where a change goes in the unit: a new component's **field is added right under the last component field** of the form class (before the first `private` / `public`), its handler declaration under the last method declaration, and the units it needs at the end of `uses` — a long list wraps onto the next lines instead of making one very long line. Fields declared on several lines, several names in one declaration (`A, B: TEdit;`) and comments among them are read correctly. Each change reaches VS Code as one tidy edit (overlapping removals merged, duplicates dropped); if the editor still refuses it, the message says why (read-only file, closed document…) and nothing is modified, and a document VS Code closed in the meantime is reopened before the next change. The VCL docking rules are applied (`alTop`, `alBottom`, `alLeft`, `alRight`, `alClient`, panels' bevels, page controls, splitters), so what you see is the layout Delphi would give.
 
+- **Save**: the **💾 Save** button (and **Ctrl+S**, also while typing in an inspector field) saves the `.dfm` and the `.pas` together; a dot on the button says there is something to save. `ce.delphi.designerAutoSave` saves after every change instead.
 - **Select** (click, Shift+click, drag a rectangle, outline list), **move** (drag, arrow keys, snapped to a grid), **resize** (handles; docked controls only expose the handle of their docking side), **drag into another container** (panel, group box, page…), **Delete**.
 - **Palette**: VCL, **DevExpress** and **TMS** components with a filter, or any class by name (`Other class…`). Click for the default size, or draw the rectangle. Fields and `uses` (including the units the IDE adds for DevExpress / TMS) go into the `.pas`.
 - **Inspector**, in collapsible sections: a card with the name and class and the breadcrumb of its parents, then **Position & size** (Left / Top / Width / Height in a grid, `Align`, `Anchors`), **Content** (caption / text, written the Delphi way, accents as `#233`), **State** (visible, enabled, `TabOrder`) and **Events**. Renaming a component renames its field and its handlers too. **Double-click** a component to create / open its default handler. With nothing selected the inspector shows how to use the designer.
@@ -232,8 +237,12 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 
 #### Designer: component lists, handlers and code ⇄ designer
 
+- **The Components tree folds**: a ▾ / ▸ in front of every container hides or shows what it holds, **Expand all** / **Collapse all** act on the whole list, and a component selected on the form opens the containers above it. What is folded is remembered. (Filtered or flat lists have no tree to fold.)
+- **The panels are resized with the mouse**: drag the thin bar between the palette and the form, or between the form and the inspector (double-click it for the default width); the component list can also be pulled taller by its bottom-right corner. Widths are remembered, and *Fit window* follows.
+
 - **Palette** and **Components** are two collapsible lists on the left. The palette shows **one type at a time** (Standard, Additional, Win32, System, DevExpress, TMS — chosen in a drop-down that says how many components each holds), so it never lists everything at once; typing in its name filter searches every type. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
 - **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `ce.delphi.removeEmptyHandlers`.
+- **Copy, cut and paste components** (toolbar ⎘ ✂ 📋, or **Ctrl+C / Ctrl+X / Ctrl+V** in the designer): *copy* then *paste* duplicates the selection — with its children, its fields in the unit, its handlers and their code, names changed where they would clash — into the selected container, or the container around the selected component, or the form when nothing is selected. *Cut* dims the components until you paste them: pasting then **moves** the very same components (names, handlers and code unchanged) into the new parent — the easy way to move many components from one parent to another (**Esc** cancels the cut). The copy also goes to the clipboard in the format of the *CE Delphi: Copy / Paste components* commands, so it can be pasted into another form's designer (a cut pasted into another form is a copy). Tiles, grid parts and dataset fields only go into their own kind of host.
 - **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does the *Code* button, which shows the shortcut; **F12** is no longer used). `ce.delphi.designerColumn` can open the designer beside the code instead.
 
 #### Designer: DevExpress tile control (`TdxTileControl`)

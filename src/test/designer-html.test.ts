@@ -180,3 +180,63 @@ test('inspector: sections, one drop-down for the events, grid parts and the how-
     for (const prop of ["'DataBinding.FieldName'", "'GridView'"]) { assert.ok(html.includes(prop), prop); }
     assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
 });
+
+test('the inspector fields leave their keys to VS Code, so Ctrl+K Ctrl+B works while text is selected in one', () => {
+    const html = designerHtml('N');
+    assert.doesNotMatch(html, /stopPropagation/, 'no field of the designer swallows the keyboard events VS Code reads its shortcuts from');
+    assert.match(html, /The keys are left to bubble/);
+    assert.match(html, /Ctrl\+K Ctrl\+B/);
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+    const bind = pkg.contributes.keybindings.find((k: { key: string }) => k.key === 'ctrl+k ctrl+b');
+    assert.match(bind.when, /activeWebviewPanelId == 'ceFormDesigner'/, 'the shortcut belongs to the designer panel by its id');
+});
+
+test('components list: containers fold and unfold, with expand all / collapse all, kept with the interface state', () => {
+    const html = designerHtml('N');
+    assert.match(html, /data-twist/, 'a twisty on every container row');
+    assert.match(html, /function toggleCollapse/);
+    assert.match(html, /function collapseAll\(on\)/);
+    assert.ok(html.includes('id="cexp"') && html.includes('id="ccol"'), 'expand all / collapse all');
+    assert.match(html, /hideBelow = state\.collapsed\[n\.name\] && hasKids\[n\.name\] \? n\.depth : -1/, 'the children of a folded row are not listed');
+    assert.match(html, /a selection made elsewhere \(on the form\) opens the containers above it/);
+    assert.match(html, /collapsed: state\.collapsed/, 'remembered with the rest of the interface state');
+    assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
+});
+
+test('the palette and the inspector are resized with the mouse (bars between them and the form)', () => {
+    const html = designerHtml('N');
+    assert.ok(html.includes('id="splitL"') && html.includes('id="splitR"'), 'one bar on each side');
+    assert.match(html, /#left, #right \{ width: var\(--wl, 210px\)/);
+    assert.match(html, /width: var\(--wr, 240px\)/);
+    assert.match(html, /addEventListener\('pointerdown'/);
+    assert.match(html, /setPointerCapture/, 'the drag goes on outside the bar');
+    assert.match(html, /addEventListener\('dblclick', function \(\) \{ setPanelWidth\(key, 0\)/, 'double-click gives the default width back');
+    assert.match(html, /wl: state\.ui\.wl, wr: state\.ui\.wr/, 'widths are remembered');
+    assert.match(html, /body\.hide-left #splitL, body\.hide-right #splitR \{ display: none; \}/, 'no bar next to a hidden panel');
+    assert.match(html, /#outline \{[^}]*resize: vertical/, 'the component list is also resizable in height');
+});
+
+test('copy, cut and paste: copies are pasted into the chosen container, a cut moves the very same components', () => {
+    const html = designerHtml('N');
+    for (const id of ['copy', 'cut', 'paste']) { assert.ok(html.includes(`id="${id}"`), id); }
+    assert.match(html, /doCopy\(kc === 'x'\)/);
+    assert.match(html, /post\(\{ type: cut \? 'cut' : 'copy', names: state\.sel\.slice\(\) \}\)/);
+    assert.match(html, /post\(\{ type: 'paste', target: prim && byName\[prim\] \? prim : rootName\(\) \}\)/, 'pasted into the selected container, else around the selected component, else the form');
+    assert.match(html, /\.ctl\.cutmark \{ opacity: 0\.4/, 'a cut component is dimmed until it is pasted');
+    assert.match(html, /clearCut\(true\)/, 'Esc cancels a cut');
+    for (const type of ['copy', 'cut', 'paste', 'uncut', 'save']) {
+        const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'FormDesignerPanel.ts'), 'utf8');
+        assert.ok(panel.includes(`case '${type}'`), 'the panel handles ' + type);
+    }
+});
+
+test('save: a button and Ctrl+S save the .dfm and the .pas together, the button shows unsaved changes', () => {
+    const html = designerHtml('N');
+    assert.ok(html.includes('id="save"') && html.includes('id="dirty"'));
+    assert.match(html, /Ctrl\+S saves both files, also from a field of the inspector/);
+    assert.match(html, /post\(\{ type: 'save' \}\)/);
+    assert.match(html, /function showDirty/);
+    assert.match(html, /state\.dirty = !!m\.dirty/);
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+    assert.equal(pkg.contributes.configuration.properties['ce.delphi.designerAutoSave'].default, false);
+});

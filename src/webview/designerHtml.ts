@@ -90,8 +90,12 @@ button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBack
 button:disabled { opacity: 0.4; cursor: default; }
 button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 #main { flex: 1; display: flex; min-height: 0; position: relative; }
-#left, #right { width: 210px; overflow-y: auto; padding: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
-#right { border-right: none; border-left: 1px solid var(--vscode-panel-border, #444); width: 240px; }
+#left, #right { width: var(--wl, 210px); overflow-y: auto; padding: 8px; border-right: 1px solid var(--vscode-panel-border, #444); flex: none; }
+#right { border-right: none; border-left: 1px solid var(--vscode-panel-border, #444); width: var(--wr, 240px); }
+.split { flex: none; width: 5px; margin: 0 -2px; z-index: 20; cursor: col-resize; background: transparent; touch-action: none; }
+.split:hover, .split.drag { background: var(--vscode-sash-hoverBorder, #0a84ff); opacity: 0.8; }
+body.resizing { cursor: col-resize; user-select: none; }
+body.hide-left #splitL, body.hide-right #splitR { display: none; }
 #center { flex: 1; overflow: auto; background: var(--vscode-editorWidget-background, #2d2d2d); padding: 20px; }
 h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); }
 .pal { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -99,7 +103,12 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .sec > summary { cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 4px; }
 .pal-head { font-size: 10px; color: var(--vscode-descriptionForeground); margin: 6px 0 2px; }
 .pal-group > summary { cursor: pointer; font-size: 10px; color: var(--vscode-descriptionForeground); margin: 4px 0 2px; }
-#outline { max-height: 42vh; min-height: 120px; overflow: auto; }
+#outline { max-height: 42vh; min-height: 120px; overflow: auto; resize: vertical; }
+.outline .tw { display: inline-block; width: 12px; text-align: center; cursor: pointer; opacity: 0.8; font-size: 10px; }
+.outline .tw:hover { opacity: 1; }
+.outline div.cutrow { opacity: 0.5; font-style: italic; }
+.ctl.cutmark { opacity: 0.4; outline: 1px dashed #888; }
+#dirty { color: #e8a800; margin-left: 3px; }
 .outline .ico { display: inline-block; width: 16px; text-align: center; }
 .outline .cls { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; }
 .outline .par { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; opacity: 0.7; }
@@ -258,7 +267,13 @@ body.full #toolbar { padding: 3px 8px; }
 <body>
 <div id="toolbar">
   <div class="tg">
+    <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button>
+  </div>
+  <div class="tg">
     <button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
+  </div>
+  <div class="tg" title="Copy, cut and paste components: cut then paste into another container moves them">
+    <button id="copy" class="ib" title="Copy the selected components (Ctrl+C)">⎘</button><button id="cut" class="ib" title="Cut the selected components (Ctrl+X): paste them into another container to move them">✂</button><button id="paste" class="ib" title="Paste into the selected container, or the container of the selected component (Ctrl+V)">📋</button>
   </div>
   <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
   <div class="tg">
@@ -286,11 +301,14 @@ body.full #toolbar { padding: 3px 8px; }
     <details open class="sec" id="compsec"><summary>Components <span class="hint" id="compcount"></span></summary>
       <div class="row"><input type="text" id="cfname" placeholder="Filter by name or class…"></div>
       <div class="row"><select id="cftype" title="Filter by type"></select></div>
+      <div class="row"><button id="cexp" title="Expand every container of the list">▾ Expand all</button><button id="ccol" title="Collapse every container of the list">▸ Collapse all</button></div>
       <div class="row"><select id="cfsort" title="Sort"><option value="form">Form order</option><option value="name">By name</option><option value="type">By type</option><option value="pos">By position</option></select><label title="One flat list instead of the tree"><input type="checkbox" id="cfflat"> flat</label></div>
       <div id="outline" class="outline"></div>
     </details>
   </div>
+  <div id="splitL" class="split" title="Drag to resize the palette (double-click: default width)"></div>
   <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div><div id="hov"></div></div></div></div></div>
+  <div id="splitR" class="split" title="Drag to resize the inspector (double-click: default width)"></div>
   <div id="right"><div id="inspector"></div></div>
   <button id="edgeR" class="edge" title="Show the inspector (I)">◂ Inspector</button>
 </div>
@@ -299,7 +317,7 @@ body.full #toolbar { padding: 3px 8px; }
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null }, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -511,6 +529,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (state.fit) { fitZoom(true); } else { applyZoom(); }
     drawSel(); renderOutline(); renderInspector(); renderStatus();
     $('undo').disabled = !state.canUndo; $('redo').disabled = !state.canRedo;
+    markCut(); showDirty();
   }
   function applyZoom() {
     var z = state.zoom;
@@ -542,7 +561,7 @@ body.full #toolbar { padding: 3px 8px; }
     var key = state.sel.join(',');
     var flash = key !== state.selKey;
     state.selKey = key;
-    updateAlignBar();
+    updateAlignBar(); updateEditBar();
     drawParents(o);
     state.sel.forEach(function (name, i) {
       var e = els[name];
@@ -748,8 +767,21 @@ body.full #toolbar { padding: 3px 8px; }
     else if (f.sort === 'type') { rows.sort(function (a, b) { return a.cls === b.cls ? (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1) : (a.cls < b.cls ? -1 : 1); }); }
     else if (f.sort === 'pos') { rows.sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); }); }
     var tree = !f.flat && !filtered && f.sort === 'form';
+    var hasKids = {};
+    nodes.forEach(function (n) { if (parentOf[n.name]) { hasKids[parentOf[n.name]] = true; } });
+    // a selection made elsewhere (on the form) opens the containers above it
+    var rk = state.sel.join(',');
+    if (rk !== state.revealKey) { state.revealKey = rk; state.sel.forEach(function (s0) { var up = parentOf[s0]; while (up) { delete state.collapsed[up]; up = parentOf[up]; } }); }
+    if (tree) {
+      var hideBelow = -1;
+      rows = rows.filter(function (n) {
+        if (hideBelow >= 0 && n.depth > hideBelow) { return false; }
+        hideBelow = state.collapsed[n.name] && hasKids[n.name] ? n.depth : -1;
+        return true;
+      });
+    }
     state.listOrder = rows.map(function (n) { return n.name; });
-    $('compcount').textContent = rows.length + '/' + nodes.length;
+    $('compcount').textContent = (filtered || !tree ? rows.length : nodes.length) + '/' + nodes.length;
     if (!f.text && !f.type) {
       var rr = el('div', 'rootrow', '⌂ ' + state.model.root.name + ' (form)');
       rr.setAttribute('data-pick', state.model.root.name);
@@ -757,11 +789,16 @@ body.full #toolbar { padding: 3px 8px; }
       o.appendChild(rr);
     }
     rows.forEach(function (n) {
-      var d = el('div', state.sel.indexOf(n.name) >= 0 ? 'sel' : '');
+      var d = el('div', (state.sel.indexOf(n.name) >= 0 ? 'sel' : '') + (state.cut.indexOf(n.name) >= 0 ? ' cutrow' : ''));
       d.setAttribute('data-pick', n.name);
       d.draggable = true;
       d.title = n.name + ' : ' + n.cls + (n.caption ? ' — ' + n.caption : '');
       d.style.paddingLeft = (tree ? n.depth * 10 : 4) + 'px';
+      if (tree) {
+        var tw = el('span', 'tw', hasKids[n.name] ? (state.collapsed[n.name] ? '▸' : '▾') : '');
+        if (hasKids[n.name]) { tw.setAttribute('data-twist', n.name); tw.title = state.collapsed[n.name] ? 'Expand' : 'Collapse'; }
+        d.appendChild(tw);
+      }
       d.appendChild(el('span', 'ico', iconOf(n)));
       d.appendChild(document.createTextNode(n.name));
       d.appendChild(el('span', 'cls', n.cls));
@@ -772,6 +809,13 @@ body.full #toolbar { padding: 3px 8px; }
     if (!rows.length) { o.appendChild(el('div', 'hint', 'No component matches.')); }
     var picked = o.querySelector('.sel');
     if (picked && picked.scrollIntoView) { picked.scrollIntoView({ block: 'nearest' }); }
+  }
+  function toggleCollapse(name) { if (state.collapsed[name]) { delete state.collapsed[name]; } else { state.collapsed[name] = true; } saveUi(); renderOutline(); }
+  function collapseAll(on) {
+    state.collapsed = {};
+    if (on && state.model) { allNodes().forEach(function (n) { if (n.children && n.children.length) { state.collapsed[n.name] = true; } }); }
+    state.revealKey = state.sel.join(',');
+    saveUi(); renderOutline();
   }
   /* ───────── drag a row of the components list onto a container row ───────── */
   (function () {
@@ -831,7 +875,7 @@ body.full #toolbar { padding: 3px 8px; }
     var i = el('input'); i.type = type || 'text'; i.value = value === undefined ? '' : value;
     var commit = function () { if (String(i.value) !== String(value === undefined ? '' : value)) { onCommit(i.value); } };
     i.addEventListener('change', commit);
-    i.addEventListener('keydown', function (ev) { ev.stopPropagation(); if (ev.key === 'Enter') { commit(); i.blur(); } });
+    i.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { commit(); i.blur(); } });
     return i;
   }
   /* ───────── inspector: identity, position, content, state, events — in collapsible sections ───────── */
@@ -1025,7 +1069,7 @@ body.full #toolbar { padding: 3px 8px; }
       var v = inp.value.trim();
       if (v) { post({ type: 'addEvent', name: n.name, event: v, open: state.openAfter }); inp.value = ''; row.style.display = 'none'; }
     };
-    inp.addEventListener('keydown', function (e3) { e3.stopPropagation(); if (e3.key === 'Enter') { create(); } });
+    inp.addEventListener('keydown', function (e3) { if (e3.key === 'Enter') { create(); } });
     var add = el('button', '', '＋'); add.title = 'Create a handler for this event'; add.addEventListener('click', create);
     row.appendChild(inp); row.appendChild(add); box.appendChild(row);
     sel.addEventListener('change', function () {
@@ -1331,6 +1375,8 @@ body.full #toolbar { padding: 3px 8px; }
       if (state.tool && state.palHost[state.tool]) { var sh = selectedHost(state.palHost[state.tool]); if (sh) { placeInHost(sh); } }
       return;
     }
+    var twist = t.closest && t.closest('[data-twist]');
+    if (twist) { toggleCollapse(twist.getAttribute('data-twist')); ev.preventDefault(); return; }
     var crumb = t.closest && t.closest('[data-crumb]');
     if (crumb) { var cn = crumb.getAttribute('data-crumb'); if (cn === rootName()) { select([]); } else { listClick(cn, ev); } return; }
     var pick = t.closest && t.closest('[data-pick]');
@@ -1484,6 +1530,12 @@ body.full #toolbar { padding: 3px 8px; }
 
   document.addEventListener('keydown', function (ev) {
     var tag = ev.target && ev.target.tagName;
+    // Ctrl+S saves both files, also from a field of the inspector (leaving the field first commits what was typed)
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key && ev.key.toLowerCase() === 's') {
+      if (ev.target && ev.target.blur && (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA')) { ev.target.blur(); }
+      post({ type: 'save' }); ev.preventDefault(); return;
+    }
+    // The keys are left to bubble: VS Code reads its own shortcuts (Ctrl+K Ctrl+B…) from them, whatever has the focus.
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
     if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       var k0 = ev.key.toLowerCase();
@@ -1491,7 +1543,17 @@ body.full #toolbar { padding: 3px 8px; }
       if (k0 === 'i') { toggleRight(); ev.preventDefault(); return; }
       if (k0 === 'f') { setFull(!state.ui.full); ev.preventDefault(); return; }
     }
-    if (ev.key === 'Escape') { if (state.tool) { state.tool = null; renderPalette(); renderStatus(); } else { selectParent(); } return; }
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key) {
+      var kc = ev.key.toLowerCase();
+      if ((kc === 'c' || kc === 'x') && state.sel.length) { doCopy(kc === 'x'); ev.preventDefault(); return; }
+      if (kc === 'v') { doPaste(); ev.preventDefault(); return; }
+    }
+    if (ev.key === 'Escape') {
+      if (state.tool) { state.tool = null; renderPalette(); renderStatus(); }
+      else if (state.cut.length) { clearCut(true); }
+      else { selectParent(); }
+      return;
+    }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A') && state.model) { select(state.model.root.children.map(function (c) { return c.name; })); ev.preventDefault(); return; }
@@ -1508,11 +1570,35 @@ body.full #toolbar { padding: 3px 8px; }
     }
   });
 
+  /* ───────── clipboard: copy duplicates, cut + paste moves into the container that receives it ───────── */
+  function markCut() {
+    Object.keys(els).forEach(function (n) { if (els[n] && els[n].classList) { els[n].classList.toggle('cutmark', state.cut.indexOf(n) >= 0 && n !== rootName()); } });
+  }
+  function clearCut(tell) { state.cut = []; if (tell) { post({ type: 'uncut' }); } markCut(); renderOutline(); }
+  function doCopy(cut) {
+    if (!state.sel.length) { state.notice = 'Select the components to ' + (cut ? 'cut' : 'copy') + ' first.'; renderStatus(); return; }
+    state.cut = cut ? state.sel.slice() : [];
+    markCut(); renderOutline();
+    post({ type: cut ? 'cut' : 'copy', names: state.sel.slice() });
+  }
+  function doPaste() {
+    var prim = state.sel[state.sel.length - 1];
+    post({ type: 'paste', target: prim && byName[prim] ? prim : rootName() });
+  }
+  function updateEditBar() { $('copy').disabled = !state.sel.length; $('cut').disabled = !state.sel.length; }
+  function showDirty() { $('dirty').hidden = !state.dirty; $('save').classList.toggle('active', state.dirty); }
+  $('copy').addEventListener('click', function () { doCopy(false); });
+  $('cut').addEventListener('click', function () { doCopy(true); });
+  $('paste').addEventListener('click', doPaste);
+  $('save').addEventListener('click', function () { post({ type: 'save' }); });
+  $('cexp').addEventListener('click', function () { collapseAll(false); });
+  $('ccol').addEventListener('click', function () { collapseAll(true); });
+
   /* ───────── toolbar ───────── */
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, fit: state.fit, zoom: state.zoom, after: state.openAfter }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -1544,6 +1630,33 @@ body.full #toolbar { padding: 3px 8px; }
     z = Math.floor(Math.max(0.2, Math.min(2, z)) * 100) / 100;
     if (force || Math.abs(z - state.zoom) >= 0.01) { state.zoom = z; applyZoom(); drawSel(); }
   }
+  /* The palette and the inspector are resized with the mouse (drag the thin bar between them and the form). */
+  function setPanelWidth(key, w, quiet) {
+    var max = Math.max(200, Math.round(window.innerWidth * 0.6));
+    w = w ? Math.max(140, Math.min(max, Math.round(w))) : 0;
+    state.ui[key] = w;
+    document.documentElement.style.setProperty(key === 'wl' ? '--wl' : '--wr', w ? w + 'px' : (key === 'wl' ? '210px' : '240px'));
+    if (!quiet) { if (state.fit) { fitZoom(false); } drawSel(); }
+  }
+  function splitter(id, key, dir) {
+    var bar = $(id);
+    bar.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) { return; }
+      var x0 = ev.clientX, w0 = $(key === 'wl' ? 'left' : 'right').offsetWidth;
+      try { bar.setPointerCapture(ev.pointerId); } catch (err) { /* no capture: the bar still follows the mouse over the page */ }
+      bar.classList.add('drag'); document.body.classList.add('resizing');
+      var move = function (e) { setPanelWidth(key, w0 + dir * (e.clientX - x0)); };
+      var up = function () {
+        bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
+        bar.classList.remove('drag'); document.body.classList.remove('resizing'); saveUi();
+      };
+      bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+      ev.preventDefault();
+    });
+    bar.addEventListener('dblclick', function () { setPanelWidth(key, 0); saveUi(); });
+  }
+  splitter('splitL', 'wl', 1);
+  splitter('splitR', 'wr', -1);
   $('togleft').addEventListener('click', toggleLeft);
   $('togright').addEventListener('click', toggleRight);
   $('edgeL').addEventListener('click', toggleLeft);
@@ -1555,6 +1668,9 @@ body.full #toolbar { padding: 3px 8px; }
     try { st = vscode.getState(); } catch (err) { st = null; }
     if (st && typeof st === 'object') {
       state.ui.left = st.left !== false; state.ui.right = st.right !== false; state.openAfter = !!st.after;
+      if (st.collapsed && typeof st.collapsed === 'object') { state.collapsed = st.collapsed; }
+      if (st.wl >= 120) { setPanelWidth('wl', st.wl, true); }
+      if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       state.fit = !!st.fit;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.5 && st.zoom <= 2) { state.zoom = st.zoom; $('zoom').value = String(st.zoom); if ($('zoom').value !== String(st.zoom)) { $('zoom').value = '1'; state.zoom = 1; } }
@@ -1601,6 +1717,7 @@ body.full #toolbar { padding: 3px 8px; }
         buildAlignBar(m.ops);
       }
       state.canUndo = !!m.canUndo; state.canRedo = !!m.canRedo; state.notice = m.notice || '';
+      state.cut = Array.isArray(m.cut) ? m.cut : []; state.dirty = !!m.dirty;
       if (m.selection) { state.sel = m.selection; }
       render();
     } else if (m.type === 'select') {

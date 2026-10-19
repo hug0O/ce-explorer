@@ -14,7 +14,8 @@ import { Family, familyOf } from './DelphiThirdParty';
 import { hasSql, isConnection, isDataset, isDatasetField, isDataSource } from './DelphiData';
 import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
-import { findHost, isNestedNode, nestedRuleOf } from './DelphiNested';
+import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
+import { ClipPayload, pasteComponents } from './DelphiClip';
 
 /* ───────────────────────── value helpers ───────────────────────── */
 
@@ -449,9 +450,12 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
     const edits: TextEdit[] = [];
     const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
     const texts: string[] = [];
+    // A component selected together with its own container travels inside it: moving both would remove the same block twice.
+    const picked = names.map(n => findNode(root, n)).filter((n): n is DfmNode => !!n);
+    const inside = new Set(picked.filter(n => picked.some(o => o !== n && descendants(o).includes(n))));
     names.forEach((name, i) => {
         const node = findNode(root, name);
-        if (!node || node.depth === 0 || descendants(node).includes(target)) { return; }
+        if (!node || node.depth === 0 || inside.has(node) || descendants(node).includes(target)) { return; }
         const block = nodeBlock(dfm, node);
         let text = reindentBlock(block.text.replace(/\s+$/, ''), node.depth, 0);
         const sub = parseDfmTree(text);
@@ -468,6 +472,39 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
     const starts = lineStartOffsets(dfm);
     edits.push({ offset: starts[target.endLine], length: 0, text: texts.join(eol) + eol });
     return { dfmEdits: edits, pasEdits: [] };
+}
+
+/**
+ * Pastes copied components into the container the designer points at: the selected container, or the one around the
+ * selected component. Parts (tiles, grid levels, columns, dataset fields) only go into their own host.
+ */
+export function pasteEdits(pas: string, dfm: string, payload: ClipPayload, targetName?: string): DesignResult & { roots?: string[]; added?: string[] } {
+    const root = parseDfmTree(dfm);
+    if (!root) { return fail('The .dfm is not in text format.'); }
+    const picked = targetName ? findNode(root, targetName) : root;
+    if (!picked) { return fail(`Container "${targetName}" not found.`); }
+    const parts = payload.objects.map(o => parseDfmTree(o));
+    if (parts.length === 0 || parts.some(p => !p)) { return fail('The copied components are not readable.'); }
+    const roots = parts as DfmNode[];
+    if (new Set(roots.map(p => nestedRuleOf(p.className)?.id ?? '')).size > 1) { return fail('Tiles, grid parts and fields cannot be pasted together with ordinary controls.'); }
+    let target = isContainer(picked) ? picked : (picked.parent ?? root);
+    const rule = nestedRuleOf(roots[0].className);
+    if (rule) {
+        const host = findHost(rule, picked);
+        if (!host) { return fail(`${roots[0].className} goes inside ${rule.what}: select one first.`); }
+        target = host;
+    } else {
+        const only = onlyHolds(target);
+        if (only) { return fail(`${only}: select another container to paste into.`); }
+    }
+    const r = pasteComponents(pas, dfm, payload, target.depth === 0 ? undefined : target.name, payload.sourceForm.toLowerCase() === root.name.toLowerCase() ? 16 : 0);
+    if ('error' in r) { return fail(r.error); }
+    const final = (n: string): string => r.renamed.find(x => x.from.toLowerCase() === n.toLowerCase())?.to ?? n;
+    return {
+        dfmEdits: [r.dfmEdit], pasEdits: r.pasEdits,
+        note: [r.renamed.length ? `renamed: ${r.renamed.map(x => `${x.from}→${x.to}`).join(', ')}` : '', r.createdHandlers.length ? `${r.createdHandlers.length} handler(s) created` : ''].filter(Boolean).join(' · ') || undefined,
+        roots: roots.map(p => final(p.name)), added: payload.components.map(c => final(c.name)),
+    };
 }
 
 function pasFieldEdit(pas: string, name: string): TextEdit | undefined {

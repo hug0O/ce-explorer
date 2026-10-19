@@ -16,7 +16,8 @@ import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
 import { MemoStore, GENERAL_MEMO, sanitizeLang } from '../services/MemoStore';
 import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
-import { FILE_LEVEL_ID, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
+import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
+import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
 import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, buildFormModel, getLastAlignToken } from '../services/FormCommands';
 import type { Direction } from '../services/DelphiSpacing';
@@ -88,6 +89,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _manageGroup: ManageGroup = 'source';
     private _manageClassId = '';
     private _focusFilter = false;
+    // The member the Structure tab is about: the one last clicked in its list or its usage lines ('' = the one under the cursor).
+    private _focusId = '';
+    // Moment of the last jump made from this view: the cursor events it causes must not change the member being looked at.
+    private _ownJumpAt = 0;
+    private _memberSearch = '';
+    private _hiLine?: vscode.TextEditorDecorationType;
+    private _hiUse?: vscode.TextEditorDecorationType;
+    private _hiFind?: vscode.TextEditorDecorationType;
+    private _hiEditor?: vscode.TextEditor;
     // Memo tab: Markdown notes per language. '' = the language of the file being edited; '' mode = preview when there is text, else edit.
     private _memoLang = '';
     private _memoMode: MemoMode | '' = '';
@@ -200,6 +210,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageGroup': if ((MANAGE_GROUPS as string[]).includes(msg.mode)) { this._manageGroup = msg.mode as ManageGroup; this.setTab('manage'); } break;
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
                 case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
+                case 'manageLine': this.handleManageLine(Number(msg.line)); break;
+                case 'manageSearch': this.handleMemberSearch(String(msg.text ?? '')); break;
                 case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
                 case 'memberAction': await this.handleMemberAction(msg.act as string); break;
@@ -277,6 +289,19 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
 
         const newKey = (foundMember ? foundMember.id : '') + ':' + (foundCls ? foundCls.id : '') + (this._tab === 'memo' ? ':' + this.memoLang() : '');
+        // A jump made from the Structure tab (to a usage line, a search hit) lands in other members: the tab keeps
+        // looking at the member it was about. A cursor moved by the user anywhere else takes the focus back.
+        const ownJump = Date.now() - this._ownJumpAt < 700;
+        if (this._focusId && !ownJump && (foundMember?.id ?? '') !== this._focusId) {
+            this._focusId = '';
+            this._stateKey = '';
+        } else if (this._focusId && ownJump && (foundMember?.id ?? '') !== this._focusId && this._tab === 'manage') {
+            this._stateKey = newKey;
+            this._state.member = foundMember;
+            this._state.classInfo = foundCls;
+            this._state.provider = provider;
+            return;
+        }
         if (newKey === this._stateKey && this._view) {
             return;
         }
@@ -295,8 +320,10 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
         if (this._mode === 'view') {
             this._view.webview.html = this.getHtml();
+            this.syncHighlights();
             return;
         }
+        this.clearHighlights();
         if (this._mode === 'analytics') {
             this._view.webview.html = this.getAnalyticsHtml();
             return;
@@ -310,6 +337,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     private clearView(): void {
         this._stateKey = '';
+        this._focusId = '';
+        this.clearHighlights();
         this._state = { member: undefined, classInfo: undefined, provider: undefined };
         if (this._view && this._mode === 'view') {
             this._view.webview.html = this.getEmptyHtml();
@@ -612,6 +641,87 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return ctx.current ? [...ctx.current.members].sort((a, b) => a.range.start.line - b.range.start.line) : [...ctx.standalone];
     }
 
+    /** The member the Structure tab is about: the one clicked last, else the one under the cursor. */
+    private focusMember(): ClassMember | undefined {
+        if (this._focusId) {
+            const m = this.manageTargets().find(x => x.id === this._focusId);
+            if (m) { return m; }
+        }
+        return this._state.member;
+    }
+
+    /** Where the focused member is used in the current file, and the search inside its code. */
+    private focusData(): FocusView | undefined {
+        const member = this.focusMember();
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!member || !doc) { return undefined; }
+        const lines = doc.getText().split(/\r?\n/);
+        const skip = new Set<number>([member.range.start.line]);
+        if (member.implementationRange) { skip.add(member.implementationRange.start.line); }
+        const use = usageLines(lines, member.name, skip);
+        const searchable = member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
+        const found = searchable && this._memberSearch ? searchLines(lines, memberLineRanges(member), this._memberSearch) : { hits: [] as LineHit[], total: 0 };
+        const kindLabel = member.kind.charAt(0).toUpperCase() + member.kind.slice(1);
+        return {
+            id: member.id, name: member.name, kindLabel, usages: use.hits, usageTotal: use.total,
+            searchable, search: this._memberSearch, searchHits: found.hits, searchTotal: found.total,
+        };
+    }
+
+    /** Go to a line of the usage or search lists, keeping the member being looked at. */
+    private handleManageLine(line: number): void {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || !Number.isInteger(line) || line < 0 || line >= editor.document.lineCount) { return; }
+        this._focusId = this.focusMember()?.id ?? '';
+        this._ownJumpAt = Date.now();
+        const text = editor.document.lineAt(line).text;
+        const pos = new vscode.Position(line, Math.max(0, text.length - text.trimStart().length));
+        void vscode.window.showTextDocument(editor.document, { viewColumn: editor.viewColumn, selection: new vscode.Range(pos, pos), preserveFocus: false });
+    }
+
+    /** Search box of the Structure tab: lines of the focused member's code that match; only the list below the box is replaced. */
+    private handleMemberSearch(text: string): void {
+        this._memberSearch = text.slice(0, 200);
+        const f = this.focusData();
+        void this._view?.webview.postMessage({ command: 'memberHits', hits: f?.searchHits ?? [], total: f?.searchTotal ?? 0, query: this._memberSearch.trim() });
+        this.syncHighlights();
+    }
+
+    private clearHighlights(): void {
+        const editor = this._hiEditor;
+        if (editor) {
+            for (const d of [this._hiLine, this._hiUse, this._hiFind]) { if (d) { editor.setDecorations(d, []); } }
+        }
+        this._hiEditor = undefined;
+    }
+
+    /** The lines that use the focused member, and the lines found by the search, shown in the editor of the file. */
+    private syncHighlights(): void {
+        const editor = vscode.window.activeTextEditor;
+        if (this._tab !== 'manage' || this._mode !== 'view' || !editor || typeof vscode.window.createTextEditorDecorationType !== 'function') {
+            this.clearHighlights();
+            return;
+        }
+        const f = this.focusData();
+        if (!f) { this.clearHighlights(); return; }
+        if (this._hiEditor && this._hiEditor !== editor) { this.clearHighlights(); }
+        this._hiLine ??= vscode.window.createTextEditorDecorationType({
+            isWholeLine: true, backgroundColor: 'rgba(255, 200, 0, 0.10)',
+            overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.wordHighlightForeground'), overviewRulerLane: vscode.OverviewRulerLane.Center,
+        });
+        this._hiUse ??= vscode.window.createTextEditorDecorationType({ backgroundColor: new vscode.ThemeColor('editor.wordHighlightBackground') });
+        this._hiFind ??= vscode.window.createTextEditorDecorationType({
+            isWholeLine: true, backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+            overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'), overviewRulerLane: vscode.OverviewRulerLane.Right,
+        });
+        const at = (h: LineHit) => new vscode.Range(h.line, h.start, h.line, h.end);
+        const row = (h: LineHit) => new vscode.Range(h.line, 0, h.line, 0);
+        editor.setDecorations(this._hiLine, f.usages.map(row));
+        editor.setDecorations(this._hiUse, f.usages.map(at));
+        editor.setDecorations(this._hiFind, f.searchHits.map(row));
+        this._hiEditor = editor;
+    }
+
     /** Add button of the tab: the new member goes to the chosen type, whatever the cursor is on. */
     private async handleManageAdd(kind: string): Promise<void> {
         const command = ({ field: 'ce.addField', method: 'ce.addMethod', property: 'ce.addProperty', constructor: 'ce.addConstructor' } as Record<string, string>)[kind];
@@ -657,7 +767,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             const pos = member.implementationRange?.start ?? member.range.start;
             await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
         };
-        if (act === 'go') { await reveal(); return; }
+        if (act === 'go') {
+            this._focusId = member.id;
+            this._memberSearch = '';
+            this._ownJumpAt = Date.now();
+            await reveal();
+            return;
+        }
         // These two commands take the same argument as the former tree items: the member and its type.
         if (act === 'getset' && ctx.current) { await vscode.commands.executeCommand('ce.generateGettersSetters', { itemData: member, parentClass: ctx.current }); return; }
         if (act === 'move' && ctx.current) { await vscode.commands.executeCommand('ce.moveMember', { itemData: member, parentClass: ctx.current }); return; }
@@ -1318,7 +1434,8 @@ ${memoScript()}
 
     /** "Structure" tab: add to any type of the file, then filter / group / edit / rename / move / delete its members. */
     private getManageHtml(): string {
-        const { member, provider } = this._state;
+        const { provider } = this._state;
+        const member = this.focusMember();
         const ctx = this.manageContext();
         const { current, isFile } = ctx;
 
@@ -1339,6 +1456,7 @@ ${memoScript()}
             add: { field: !!current, method: canHaveMethods, property: !!current && canHaveMethods && !current.isInterface, constructor: !!current && canHaveMethods && !current.isInterface },
             canMove: ctx.classes.length > 1, rows,
             filter: this._manageFilter, kindFilter: this._manageKind, group: this._manageGroup, focusFilter: this._focusFilter,
+            focus: this.focusData(),
         };
         this._focusFilter = false;
         let html = manageListHtml(view);

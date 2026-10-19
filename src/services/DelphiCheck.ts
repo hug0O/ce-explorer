@@ -3,7 +3,7 @@
  * that can be applied automatically (missing handlers, orphan handlers,
  * duplicate TabOrder).
  */
-import { TextEdit, eventDefFor, findFormClass, unitInsertionPoints } from './DelphiForm';
+import { TextEdit, eventDefFor, eventDefOf, findFormClass, resolveComponentDef, unitInsertionPoints } from './DelphiForm';
 import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
 import { handlerImplementation } from './DelphiSync';
 import { wiredEvents } from './DelphiEvents';
@@ -184,7 +184,8 @@ export function fixIssue(pas: string, dfm: string, issue: FormIssue, fix: IssueF
     if (fix === 'createHandler') {
         const points = unitInsertionPoints(pas, unit.formName);
         if (!points || !issue.handler || !issue.event) { return { error: 'Cannot place the handler.' }; }
-        const params = eventDefFor(issue.event).params;
+        const owner = issue.component ? findNode(root, issue.component) : undefined;
+        const params = (owner ? eventDefOf(resolveComponentDef(owner.className), issue.event) : eventDefFor(issue.event)).params;
         return {
             ...none,
             pasEdits: [

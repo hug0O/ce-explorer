@@ -4,7 +4,8 @@ import { parseDfmTree, findNode } from '../services/DelphiLayout';
 import { ALIGN_OPS, AlignOp, alignComponents } from '../services/DelphiAlign';
 import { addEventToComponent, resolveFormPair } from '../services/FormCommands';
 import { loadComponentDef } from '../services/FormLibrary';
-import { EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
+import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
+import { planAddEvent } from '../services/DelphiEvents';
 import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
 } from '../services/DesignerModel';
@@ -281,11 +282,31 @@ export class FormDesignerPanel {
                 await this.commit(ALIGN_OPS.find(o => o.id === op)!.label, 'error' in r ? r : { dfmEdits: r.edits, pasEdits: [] }, list.map(n => n.name), { touched: list.map(n => n.name), props: ['Left', 'Top', 'Width', 'Height'] });
                 return;
             }
+            case 'addEvent': {
+                // One click in the inspector's event list: the handler is created (method, declaration, link in the .dfm) without leaving the designer.
+                const name = str(m.name);
+                const event = str(m.event);
+                if (!NAME_RE.test(name) || !EVENT_PROP_RE.test(event)) { this.sendModel(undefined, `"${event}" is not an event name (expected OnXxx).`); return; }
+                const plan = planAddEvent(pas, dfm, { componentName: name, eventName: event });
+                if ('error' in plan) { this.sendModel(undefined, plan.error); return; }
+                if (!plan.alreadyWired && plan.dfmEdit) {
+                    const created = plan.handler.split('.').pop();
+                    const ok = await this.commit(`${name}.${event}`, { dfmEdits: [plan.dfmEdit], pasEdits: plan.pasEdits, note: `${event} → ${created} created` }, [name], { touched: [name], props: [event] });
+                    if (!ok) { return; }
+                }
+                if (m.open === true) { await addEventToComponent(this.pasDoc, name, event, this.panel.viewColumn); }
+                return;
+            }
             case 'open': {
                 const name = str(m.name);
                 const node = name === root.name ? root : findNode(root, name);
                 if (!node) { return; }
                 const requested = str(m.event);
+                const known = COMPONENTS.find(c => c.className.toLowerCase() === node.className.toLowerCase());
+                if (!requested && known && known.events.length === 0) {
+                    void this.panel.webview.postMessage({ type: 'notice', text: `${node.className} has no events.` });
+                    return;
+                }
                 const event = EVENT_PROP_RE.test(requested) ? requested
                     : node.depth === 0 ? 'OnCreate' : (resolveComponentDef(node.className).events[0]?.name ?? 'OnClick');
                 // The code opens in the designer's own editor group: its tab stays there to come back to.

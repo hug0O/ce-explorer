@@ -207,9 +207,25 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 
 #### Designer: component lists, handlers and code ⇄ designer
 
-- **Palette** and **Components** are two collapsible lists on the left. The palette is grouped by family (Standard, Additional, Win32, System, DevExpress, TMS) with a name filter and a family filter. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
+- **Palette** and **Components** are two collapsible lists on the left. The palette shows **one type at a time** (Standard, Additional, Win32, System, DevExpress, TMS — chosen in a drop-down that says how many components each holds), so it never lists everything at once; typing in its name filter searches every type. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
 - **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `mmx.delphi.removeEmptyHandlers`.
 - **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does **F12** and the *Code* button). `mmx.delphi.designerColumn` can open the designer beside the code instead.
+
+#### Designer: DevExpress tile control (`TdxTileControl`)
+
+- The **tile control** is drawn with its title, its **groups** (`TdxTileControlGroup`) side by side and its **tiles** (`TdxTileControlItem`) flowing in columns by size (small, regular, large, extra large), with the tile colour and texts. Groups and tiles have no `Left` / `Top` in the `.dfm`: the control places them, so they are selectable but never dragged, and a tile cannot be moved out of its control.
+- **Add** them from the palette (type *DevExpress*): select the tile control (or any of its tiles) and click `TdxTileControlItem` / `TdxTileControlGroup` / `TdxTileControlDetailSite`, or arm the tool and click the control on the form. A new tile goes to the last group; a new group gets the next `Index`. Nothing but tiles, groups and detail pages can enter a tile control.
+- **Inspector of a tile**: `Text1`, `Text2`, `Size`, and the **Group** it belongs to (`GroupIndex`); of a group: its caption. The **detail page** (`TdxTileControlDetailSite`) is an ordinary container; when hidden it is drawn only while it, or something in it, is selected.
+- **Events** with their real signatures: `OnClick`, `OnActivateDetail`, `OnDeactivateDetail` of a tile (`Sender: TdxTileControlItem`), `OnItemActivateDetail`, `OnItemDeactivateDetail`, `OnItemCheck` of the control (`Sender: TdxCustomTileControl; AItem: TdxTileControlItem`). The unit's `uses` receives `dxCustomTileControl` and the other DevExpress units, once.
+
+#### Designer: list of events, one click to create a handler
+
+The inspector lists **every event of the selected component** (from the catalog: standard VCL, DevExpress, TMS), wired or not. A filled dot means the event already has a handler, shown with its name; an empty dot shows the name the handler *will* have.
+
+- **Click a free event**: the handler is created — method and declaration in the unit, `OnXxx = Handler` in the `.dfm` — and the code stays closed, so you can create several listeners in a row; it is one undoable step of the designer. The **↗** at the end of the row creates it *and* opens it in the code.
+- **Click a wired event**: opens its handler in the code.
+- **Other event**: a text box under the list creates any event by name (`OnMouseEnter`, `Properties.OnChange`…); it is the way to add events of a class the designer does not know, whose own list stays empty rather than guessing.
+- Handlers use the signature of the component's own event (`Sender: TdxTileControlItem`, `AButtonIndex: Integer`…), also in *Check form* and *Add event handler*.
 
 #### Designer: seeing and changing a component's parent
 

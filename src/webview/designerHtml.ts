@@ -10,6 +10,8 @@ export interface PaletteEntry {
     cls: string;
     group: string;
     icon: string;
+    /** Goes inside a component of this kind (tiles, groups and detail pages go inside a tile control). */
+    host?: 'tile';
 }
 
 export const PALETTE: PaletteEntry[] = [
@@ -25,6 +27,7 @@ export const PALETTE: PaletteEntry[] = [
 ];
 
 const ICONS: [RegExp, string][] = [
+    [/TileControlItem$/, '◼'], [/TileControlGroup$/, '▤'], [/TileControl$/, '🟦'], [/DetailSite$/, '▢'],
     [/Button$|Btn$/, '🔘'], [/Label$/, '🅰'], [/(Memo|RichEdit)$/, '📝'], [/CheckBox$|CheckGroup$/, '☑'], [/Radio(Button|Group)$/, '◉'],
     [/(ComboBox)$/, '▾'], [/(List|Check)Box$/, '☰'], [/Panel$/, '▢'], [/(Group|Scroll)Box$/, '⛶'], [/(Pager|PageControl|PC)$/, '🗂'],
     [/Grid$/, '▦'], [/Image$/, '🏞'], [/Progress(Bar)?$/, '▰'], [/TrackBar$/, '⎯'], [/Tree(List|View)$/, '🌳'], [/(Date|Time)(Edit|Picker)$/, '📅'],
@@ -37,7 +40,7 @@ function iconFor(def: ComponentDef): string {
 for (const [group, defs] of [['DevExpress', DEVEXPRESS], ['TMS', TMS]] as [string, ComponentDef[]][]) {
     for (const d of defs) {
         if (/(TabSheet|OfficePage)$/.test(d.className)) { continue; }
-        PALETTE.push({ cls: d.className, group, icon: iconFor(d) });
+        PALETTE.push({ cls: d.className, group, icon: iconFor(d), host: /TileControl(Item|Group)$|TileControlDetailSite$/.test(d.className) ? 'tile' : undefined });
     }
 }
 
@@ -54,6 +57,15 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 #toolbar label { display: inline-flex; gap: 3px; align-items: center; color: var(--vscode-descriptionForeground); }
 #toolbar .sep { width: 1px; height: 18px; background: var(--vscode-panel-border, #444); margin: 0 2px; }
 button, select, input[type=text], input[type=number] { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 2px 6px; }
+.evlist { margin: 2px 0 6px; }
+.evrow { display: flex; gap: 5px; align-items: center; padding: 1px 3px; cursor: pointer; font-size: 11px; border-radius: 2px; }
+.evrow:hover { background: var(--vscode-list-hoverBackground); }
+.evrow .dot { width: 10px; flex: none; color: var(--vscode-descriptionForeground); }
+.evrow.wired .dot { color: #e8a800; }
+.evrow .evn { flex: none; }
+.evrow .evh { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evrow .evgo { flex: none; padding: 0 4px; opacity: 0.6; }
+.evrow .evgo:hover { opacity: 1; }
 button { cursor: pointer; color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2)); }
 button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3)); }
 button:disabled { opacity: 0.4; cursor: default; }
@@ -66,6 +78,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .pal { display: flex; flex-wrap: wrap; gap: 3px; }
 .pal button { padding: 2px 5px; font-size: 11px; }
 .sec > summary { cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 4px; }
+.pal-head { font-size: 10px; color: var(--vscode-descriptionForeground); margin: 6px 0 2px; }
 .pal-group > summary { cursor: pointer; font-size: 10px; color: var(--vscode-descriptionForeground); margin: 4px 0 2px; }
 #outline { max-height: 340px; overflow: auto; }
 .outline .ico { display: inline-block; width: 16px; text-align: center; }
@@ -153,6 +166,16 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .ctl.broken > .chrome { color: #b00020; }
 .fam-tag { font-size: 9px; padding: 0 3px; border-radius: 3px; margin-left: 4px; color: #fff; }
 .fam-tag.dx { background: #1c6fc4; } .fam-tag.tms { background: #c4511c; }
+.k-tilecontrol { overflow: hidden; }
+.k-tilecontrol > .chrome { background: #2b2d33; border: 1px solid #1c1d21; }
+.tilettl { position: absolute; left: 24px; top: 12px; color: #fff; font: 300 24px/30px 'Segoe UI Light', 'Segoe UI', sans-serif; white-space: nowrap; }
+.k-tilegroup > .chrome { color: #b9bcc6; font: 12px/22px 'Segoe UI', sans-serif; white-space: nowrap; border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
+.k-tile > .chrome { background: #2d89ef; color: #fff; padding: 4px 6px; display: flex; flex-direction: column; justify-content: flex-end; font-size: 11px; line-height: 1.25; }
+.k-tile .t1 { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.k-tile .t1.dim { font-weight: 400; opacity: 0.7; font-size: 10px; }
+.k-tile .t2 { opacity: 0.85; font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
+.k-tile.sz-tcissmall > .chrome { padding: 2px; }
+.k-tile.sz-tcissmall .t1, .k-tile.sz-tcissmall .t2 { font-size: 8px; }
 .k-pages > .chrome { overflow: visible; }
 .k-pages > .tabs { position: absolute; left: 0; top: 0; right: 0; height: 24px; display: flex; gap: 1px; pointer-events: none; }
 .k-pages > .tabs > .tab { pointer-events: auto; padding: 3px 9px; border: 1px solid #a0a0a0; border-bottom: none; background: #e8e8e8; cursor: pointer; white-space: nowrap; height: 22px; margin-top: 2px; }
@@ -190,7 +213,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   <div id="left">
     <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
       <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
-      <div class="row"><select id="palgroup" title="Filter by family"></select></div>
+      <div class="row"><select id="palgroup" title="Component type: only the components of this type are listed"></select></div>
       <div id="palette"></div>
       <div class="row"><input type="text" id="otherclass" placeholder="Other class, e.g. TcxButton"><button id="otherbtn" title="Use this class as the tool">＋</button></div>
     </details>
@@ -209,7 +232,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -219,6 +242,10 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   /* ───────── classification ───────── */
   function kind(c) {
     var l = c.toLowerCase();
+    if (l === 'tdxtilecontrol') { return 'tilecontrol'; }
+    if (l === 'tdxtilecontrolitem') { return 'tile'; }
+    if (l === 'tdxtilecontrolgroup') { return 'tilegroup'; }
+    if (l.slice(-10) === 'detailsite') { return 'panel'; }
     if (l.indexOf('officepager') >= 0 || l.indexOf('pagecontrol') >= 0 || l === 'tcxpc') { return 'pages'; }
     if (l.indexOf('officepage') >= 0 || l.indexOf('tabsheet') >= 0) { return 'sheet'; }
     if (l.indexOf('radiogroup') >= 0 || l.indexOf('checkgroup') >= 0) { return 'radiogroup'; }
@@ -294,6 +321,15 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     else if (k === 'statusbar' || k === 'toolbar') { chrome.textContent = k === 'statusbar' ? cap : ''; }
     else if (k === 'generic') { chrome.textContent = n.cls + (cap ? ' – ' + cap : ''); }
     else if (k === 'sheet') { chrome.style.background = n.color || '#fff'; }
+    else if (k === 'tilecontrol') { if (n.tileTexts && n.tileTexts[0]) { e.appendChild(el('div', 'tilettl', n.tileTexts[0])); } }
+    else if (k === 'tilegroup') { chrome.textContent = n.caption || n.name; }
+    else if (k === 'tile') {
+      chrome.style.background = n.color || '#2d89ef';
+      var tx = n.tileTexts || [];
+      e.classList.add('sz-' + String(n.tileSize || 'tcisRegular').toLowerCase());
+      if (tx[0]) { chrome.appendChild(el('div', 't1', tx[0])); } else if (!tx[1]) { chrome.appendChild(el('div', 't1 dim', n.name)); }
+      if (tx[1]) { chrome.appendChild(el('div', 't2', tx[1])); }
+    }
     if (n.nonVisual) { chrome.textContent = n.cls === 'TTimer' ? '⏱' : '⚙'; e.appendChild(el('div', 'nvname', n.name)); }
   }
   function mkInner(n, parent) {
@@ -301,6 +337,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + (n.family === 'devexpress' ? 'dx' : 'tms') : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : ''));
     e.setAttribute('data-name', n.name);
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
+    // A hidden detail page of a tile control would cover the tiles: it is drawn only while it (or something in it) is selected.
+    if (isDetail(n) && !n.visible && !state.details[n.name]) { e.style.display = 'none'; }
     e.style.width = (n.nonVisual ? 28 : n.w) + 'px'; e.style.height = (n.nonVisual ? 28 : n.h) + 'px';
     var chrome = el('div', 'chrome');
     e.appendChild(chrome);
@@ -350,6 +388,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     if (!m) { return; }
     byName = {}; parentOf = {}; els = {};
     index(m.root, '');
+    state.details = wantedDetails();
     var client = $('client');
     var overlay = $('overlay');
     var hov = $('hov');
@@ -426,40 +465,58 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
   function iconOf(n) { return n.nonVisual ? '⚙' : (ICONS[kind(n.cls)] || '◻'); }
+  /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
     var p = $('palette'); while (p.firstChild) { p.removeChild(p.firstChild); }
-    var flt = (state.filter || '').toLowerCase(), grp = state.palGroup || '';
+    var flt = (state.filter || '').toLowerCase();
     var groups = [], byGroup = {}, shown = 0;
     state.palette.forEach(function (it) {
       if (!byGroup[it.group]) { byGroup[it.group] = []; groups.push(it.group); }
-      if (grp && it.group !== grp) { return; }
-      if (flt && it.cls.toLowerCase().indexOf(flt) < 0) { return; }
-      byGroup[it.group].push(it); shown++;
+      byGroup[it.group].push(it);
     });
-    groups.forEach(function (g) {
-      var items = byGroup[g];
+    if (!byGroup[state.palGroup]) { state.palGroup = groups[0] || ''; }
+    $('palgroup').value = state.palGroup;
+    (flt ? groups : [state.palGroup]).forEach(function (g) {
+      var items = (byGroup[g] || []).filter(function (it) { return !flt || it.cls.toLowerCase().indexOf(flt) >= 0; });
       if (!items.length) { return; }
-      var d = el('details', 'pal-group');
-      d.open = flt || grp ? true : state.palOpen[g] !== false;
-      d.addEventListener('toggle', function () { if (!flt && !grp) { state.palOpen[g] = d.open; } });
-      d.appendChild(el('summary', '', g + ' (' + items.length + ')'));
+      if (flt) { p.appendChild(el('div', 'pal-head', g + ' (' + items.length + ')')); }
       var box = el('div', 'pal');
       items.forEach(function (it) {
         var b = el('button', state.tool === it.cls ? 'active' : '', it.icon + ' ' + it.cls.slice(1));
-        b.title = it.cls; b.setAttribute('data-tool', it.cls); box.appendChild(b);
+        b.title = it.cls + (it.host ? ' - goes inside a TdxTileControl (select one, or click one on the form)' : '');
+        b.setAttribute('data-tool', it.cls); box.appendChild(b);
       });
-      d.appendChild(box); p.appendChild(d);
+      p.appendChild(box); shown += items.length;
     });
-    $('palcount').textContent = shown + '/' + state.palette.length;
+    if (!shown) { p.appendChild(el('div', 'hint', 'No component matches.')); }
+    $('palcount').textContent = flt ? shown + ' found' : (byGroup[state.palGroup] || []).length + ' in ' + state.palGroup;
     document.body.classList.toggle('tool-on', !!state.tool);
   }
   function fillPalGroups() {
     var sel = $('palgroup'); while (sel.firstChild) { sel.removeChild(sel.firstChild); }
-    var seen = {}; var all = el('option', '', 'All families'); all.value = ''; sel.appendChild(all);
-    state.palette.forEach(function (it) { if (!seen[it.group]) { seen[it.group] = 1; var o = el('option', '', it.group); o.value = it.group; sel.appendChild(o); } });
+    var count = {}, order = [];
+    state.palHost = {};
+    state.palette.forEach(function (it) {
+      if (!count[it.group]) { count[it.group] = 0; order.push(it.group); }
+      count[it.group]++;
+      if (it.host) { state.palHost[it.cls] = it.host; }
+    });
+    order.forEach(function (g) { var o = el('option', '', g + ' (' + count[g] + ')'); o.value = g; sel.appendChild(o); });
   }
+  /* Tiles, groups and detail pages go inside a tile control: the selected one, or the one that is clicked. */
+  function selectedHost() {
+    var c = state.sel[state.sel.length - 1];
+    while (c) { if (byName[c] && kind(byName[c].cls) === 'tilecontrol') { return c; } c = parentOf[c]; }
+    return '';
+  }
+  function placeInHost(host) {
+    if (!host) { state.notice = state.tool + ' goes inside a TdxTileControl: select one, or click one on the form.'; renderStatus(); return; }
+    post({ type: 'add', className: state.tool, parent: host, left: 16, top: 16 });
+    state.tool = null; renderPalette(); renderStatus();
+  }
+  function isTilePart(name) { var n = byName[name]; return !!n && (kind(n.cls) === 'tile' || kind(n.cls) === 'tilegroup'); }
 
   /* ───────── components list: filter by name and type, sort, tree or flat ───────── */
   function allNodes() {
@@ -544,7 +601,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     function clearDrop() { Array.prototype.forEach.call(oc.querySelectorAll('.dropok'), function (r) { r.classList.remove('dropok'); }); }
     oc.addEventListener('dragstart', function (ev) {
       var row = ev.target.closest ? ev.target.closest('[data-pick]') : null;
-      if (!row || row.getAttribute('data-pick') === rootName()) { ev.preventDefault(); return; }
+      if (!row || row.getAttribute('data-pick') === rootName() || isTilePart(row.getAttribute('data-pick'))) { ev.preventDefault(); return; }
       var name = row.getAttribute('data-pick');
       state.dragNames = state.sel.indexOf(name) >= 0 ? state.sel.slice() : [name];
       ev.dataTransfer.setData('text/plain', state.dragNames.join(','));
@@ -599,6 +656,73 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     i.addEventListener('keydown', function (ev) { ev.stopPropagation(); if (ev.key === 'Enter') { commit(); i.blur(); } });
     return i;
   }
+  /* Tiles and groups of a tile control: what can be changed here is the text, the size and the group. */
+  var TILE_SIZES = ['tcisSmall', 'tcisRegular', 'tcisLarge', 'tcisExtraLarge'];
+  function tileFields(box, n) {
+    if (kind(n.cls) === 'tilegroup') {
+      box.appendChild(field('Caption', textInput(n.caption, function (v) { post({ type: 'setProp', name: n.name, prop: 'Caption.Text', value: v }); })));
+      box.appendChild(el('div', 'hint', 'A group of tiles: a tile joins it through its own Group field.'));
+      return;
+    }
+    var tx = n.tileTexts || [];
+    box.appendChild(field('Text 1', textInput(tx[0], function (v) { post({ type: 'setProp', name: n.name, prop: 'Text1.Value', value: v }); })));
+    box.appendChild(field('Text 2', textInput(tx[1], function (v) { post({ type: 'setProp', name: n.name, prop: 'Text2.Value', value: v }); })));
+    var sz = el('select');
+    TILE_SIZES.forEach(function (z) { var o = el('option', '', z.slice(4)); o.value = z; if ((n.tileSize || 'tcisRegular') === z) { o.selected = true; } sz.appendChild(o); });
+    sz.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'Size', value: sz.value }); });
+    box.appendChild(field('Size', sz));
+    var gs = el('select');
+    var host = byName[parentOf[n.name]];
+    var groups = host ? host.children.filter(function (c) { return kind(c.cls) === 'tilegroup'; }) : [];
+    var cur = Number(n.props['GroupIndex'] || 0), known = {};
+    groups.forEach(function (g) { var gi = Number(g.props['Index'] || 0); known[gi] = 1; var o = el('option', '', gi + ' · ' + (g.caption || g.name)); o.value = String(gi); gs.appendChild(o); });
+    if (!known[cur]) { var o2 = el('option', '', cur + ' · (no such group)'); o2.value = String(cur); gs.appendChild(o2); }
+    gs.value = String(cur);
+    gs.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'GroupIndex', value: Number(gs.value) }); });
+    box.appendChild(field('Group', gs));
+    box.appendChild(el('div', 'hint', 'A tile is placed by its tile control: change its size or group here, it cannot be dragged.'));
+  }
+  /* Name of the handler the IDE would create: Button1 + OnClick = Button1Click, cxEdit1 + Properties.OnChange = cxEdit1PropertiesChange. */
+  function previewHandler(name, ev) {
+    var s = ev.split('.On').join('.');
+    if (s.indexOf('On') === 0) { s = s.slice(2); }
+    return name + s.split('.').join('');
+  }
+  /* Every event of the class, wired or not. One click on a free one creates its handler (the code stays closed); a wired one opens it. */
+  function eventsList(box, n) {
+    box.appendChild(el('h4', '', 'Events'));
+    var names = n.eventNames.slice();
+    Object.keys(n.events).forEach(function (e0) { if (names.indexOf(e0) < 0) { names.push(e0); } });
+    var list = el('div', 'evlist');
+    names.forEach(function (e1) {
+      var h = n.events[e1];
+      var r = el('div', 'evrow' + (h ? ' wired' : ''));
+      r.setAttribute('data-event', e1);
+      r.appendChild(el('span', 'dot', h ? '●' : '○'));
+      r.appendChild(el('span', 'evn', e1));
+      r.appendChild(el('span', 'evh', h ? h : previewHandler(n.name, e1)));
+      if (h) {
+        r.title = 'Open ' + h + ' in the code';
+        r.addEventListener('click', function () { post({ type: 'open', name: n.name, event: e1 }); });
+      } else {
+        r.title = 'Click to create the handler ' + previewHandler(n.name, e1) + ' (the code stays closed)';
+        r.addEventListener('click', function () { post({ type: 'addEvent', name: n.name, event: e1 }); });
+        var go = el('span', 'evgo', '↗'); go.title = 'Create the handler and open it in the code';
+        go.addEventListener('click', function (e2) { e2.stopPropagation(); post({ type: 'addEvent', name: n.name, event: e1, open: true }); });
+        r.appendChild(go);
+      }
+      list.appendChild(r);
+    });
+    box.appendChild(list);
+    if (!names.length) { box.appendChild(el('div', 'hint', 'No event is known for this class: type its name below.')); }
+    var row = el('div', 'row');
+    var inp = el('input'); inp.type = 'text'; inp.placeholder = 'Other event, e.g. OnMouseEnter';
+    var create = function () { var v = inp.value.trim(); if (v) { post({ type: 'addEvent', name: n.name, event: v }); inp.value = ''; } };
+    inp.addEventListener('keydown', function (e3) { e3.stopPropagation(); if (e3.key === 'Enter') { create(); } });
+    var add = el('button', '', '＋'); add.title = 'Create a handler for this event';
+    add.addEventListener('click', create);
+    row.appendChild(inp); row.appendChild(add); box.appendChild(row);
+  }
   function renderInspector() {
     var box = $('inspector'); while (box.firstChild) { box.removeChild(box.firstChild); }
     if (!state.model) { return; }
@@ -624,6 +748,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
       crumbs.appendChild(c);
     });
     box.appendChild(crumbs);
+    var tilePart = isTilePart(n.name);
     var psel = el('select');
     var rn0 = rootName();
     var popt = el('option', '', rn0 + ' (form)'); popt.value = rn0; psel.appendChild(popt);
@@ -634,11 +759,13 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     psel.value = parentOf[n.name];
     psel.title = 'Move into another container (keeps the position on screen)';
     psel.addEventListener('change', function () { moveToParent(n.name, psel.value); });
-    box.appendChild(field('Parent', psel));
+    if (!tilePart) { box.appendChild(field('Parent', psel)); }
     box.appendChild(field('Name', textInput(n.name, function (v) { post({ type: 'rename', from: n.name, to: v.trim() }); })));
     var clsRow = el('span', 'hint', n.cls);
     if (n.family) { clsRow.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DevExpress' : 'TMS')); }
     box.appendChild(field('Class', clsRow));
+    if (tilePart) { tileFields(box, n); }
+    else {
     var num = function (prop, label, v) { box.appendChild(field(label, textInput(v, function (val) { post({ type: 'setProp', name: n.name, prop: prop, value: Number(val) }); }, 'number'))); };
     var rawNum = function (p) { return n.props[p] !== undefined ? Number(n.props[p]) : undefined; };
     if (!n.docked || n.align === 'alLeft' || n.align === 'alRight') { if (!n.docked) { num('Left', 'Left', rawNum('Left') !== undefined ? rawNum('Left') : n.x); num('Top', 'Top', rawNum('Top') !== undefined ? rawNum('Top') : n.y); } num('Width', 'Width', rawNum('Width') !== undefined ? rawNum('Width') : n.w); }
@@ -674,18 +801,14 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     if (kind(n.cls) === 'generic' && !n.nonVisual) {
       box.appendChild(el('div', 'hint', 'This class is not recognised by the designer. It is drawn as a placeholder; only its name, position, size, alignment and visibility are offered here. Every other property stays exactly as written in the .dfm.'));
     }
-    box.appendChild(el('h4', '', 'Events'));
-    var evs = Object.keys(n.events);
-    if (!evs.length) { box.appendChild(el('div', 'hint', 'none — double-click the component to create its default handler')); }
-    evs.forEach(function (ev) {
-      var d = el('div', 'ev', '⚡ ' + ev + ' → ' + n.events[ev]);
-      d.title = 'Open the handler';
-      d.addEventListener('click', function () { post({ type: 'open', name: n.name, event: ev }); });
-      box.appendChild(d);
-    });
-    var open = el('button', '', 'Open default handler');
-    open.addEventListener('click', function () { post({ type: 'open', name: n.name }); });
-    box.appendChild(open);
+    }
+    if (kind(n.cls) === 'tilecontrol') { box.appendChild(el('div', 'hint', 'Add tiles and groups with the palette (type DevExpress) while this control is selected; its detail pages go here too.')); }
+    eventsList(box, n);
+    if (n.eventNames.length || Object.keys(n.events).length) {
+      var open = el('button', '', 'Open default handler');
+      open.addEventListener('click', function () { post({ type: 'open', name: n.name }); });
+      box.appendChild(open);
+    }
     var del = el('button', '', '🗑 Delete');
     del.style.marginLeft = '6px';
     del.addEventListener('click', function () { post({ type: 'delete', names: [n.name] }); });
@@ -697,7 +820,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var s = m.root.name + ' · ' + count + ' component(s)';
     if (state.sel.length === 1) { var n = byName[state.sel[0]]; s += ' · ' + pathOf(n.name).join(' › ') + ' (' + n.x + ', ' + n.y + ') ' + n.w + '×' + n.h + (n.align ? ' · ' + n.align : ''); }
     else if (state.sel.length > 1) { s += ' · ' + state.sel.length + ' selected'; }
-    if (state.tool) { s += ' · tool: ' + state.tool + ' (Esc to cancel)'; }
+    if (state.tool) { s += ' · tool: ' + state.tool + (state.palHost[state.tool] ? ' — click a TdxTileControl on the form' : '') + ' (Esc to cancel)'; }
     $('status').textContent = state.notice ? state.notice : s;
   }
 
@@ -768,7 +891,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     if (!state.model || !byName[target]) { return false; }
     if (target !== rootName() && !byName[target].container) { return false; }
     var chain = pathOf(target);
-    return names.every(function (n) { return chain.indexOf(n) < 0; });
+    return names.every(function (n) { return chain.indexOf(n) < 0 && !isTilePart(n); });
   }
   function dropTargetName(name) {
     var n = byName[name];
@@ -825,7 +948,21 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     return c || $('client');
   }
   function nameOfContainer(e) { return e === $('client') ? state.model.root.name : e.getAttribute('data-name'); }
-  function select(names) { state.sel = names; drawSel(); renderOutline(); renderInspector(); renderStatus(); }
+  function isDetail(n) { return n.cls.toLowerCase().slice(-10) === 'detailsite'; }
+  /* Hidden detail pages that must be drawn: the ones holding the selection. */
+  function wantedDetails() {
+    var o = {};
+    state.sel.forEach(function (s0) {
+      var c = s0;
+      while (c) { if (byName[c] && isDetail(byName[c]) && !byName[c].visible) { o[c] = true; } c = parentOf[c]; }
+    });
+    return o;
+  }
+  function select(names) {
+    state.sel = names;
+    if (Object.keys(wantedDetails()).sort().join() !== Object.keys(state.details).sort().join()) { render(); return; }
+    drawSel(); renderOutline(); renderInspector(); renderStatus();
+  }
 
   document.addEventListener('mousedown', function (ev) {
     if (ev.button !== 0) { return; }
@@ -833,7 +970,11 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     var inClient = t.closest && t.closest('#client');
     var tab = t.closest && t.closest('.tab');
     var pal = t.closest && t.closest('[data-tool]');
-    if (pal) { state.tool = state.tool === pal.getAttribute('data-tool') ? null : pal.getAttribute('data-tool'); renderPalette(); renderStatus(); return; }
+    if (pal) {
+      state.tool = state.tool === pal.getAttribute('data-tool') ? null : pal.getAttribute('data-tool'); renderPalette(); renderStatus();
+      if (state.tool && state.palHost[state.tool]) { var sh = selectedHost(); if (sh) { placeInHost(sh); } }
+      return;
+    }
     var crumb = t.closest && t.closest('[data-crumb]');
     if (crumb) { var cn = crumb.getAttribute('data-crumb'); if (cn === rootName()) { select([]); } else { listClick(cn, ev); } return; }
     var pick = t.closest && t.closest('[data-pick]');
@@ -847,7 +988,10 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     }
     var handle = t.closest('.handle');
     if (handle) { startResize(ev, handle.getAttribute('data-h')); return; }
-    if (state.tool) { startPlace(ev); return; }
+    if (state.tool) {
+      if (state.palHost[state.tool]) { var he = t.closest('.k-tilecontrol'); placeInHost(he ? he.getAttribute('data-name') : ''); return; }
+      startPlace(ev); return;
+    }
     var ctl = t.closest('.ctl');
     if (!ctl) { startMarquee(ev); return; }
     var name = ctl.getAttribute('data-name');
@@ -862,6 +1006,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 
   function startMove(ev) {
     var names = state.sel.slice();
+    // Tiles and groups are placed by their tile control: they are selected, never dragged.
+    if (names.some(isTilePart)) { return; }
     var orig = {}; names.forEach(function (n) { orig[n] = { x: byName[n].x, y: byName[n].y }; });
     // Docked components cannot be placed by hand, but they can still be dragged into another container.
     drag = { kind: 'move', sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, ddx: 0, ddy: 0, target: null, dockedOnly: !names.every(isFree) };
@@ -1016,7 +1162,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     post({ type: 'align', op: $('alignop').value, names: state.sel.slice() });
   });
   $('palfilter').addEventListener('input', function () { state.filter = $('palfilter').value.trim(); renderPalette(); });
-  $('palgroup').addEventListener('change', function () { state.palGroup = $('palgroup').value; renderPalette(); });
+  $('palgroup').addEventListener('change', function () { state.palGroup = $('palgroup').value; $('palfilter').value = ''; state.filter = ''; renderPalette(); });
   $('cfname').addEventListener('input', function () { state.cf.text = $('cfname').value.trim(); renderOutline(); });
   $('cftype').addEventListener('change', function () { state.cf.type = $('cftype').value; renderOutline(); });
   $('cfsort').addEventListener('change', function () { state.cf.sort = $('cfsort').value; renderOutline(); });

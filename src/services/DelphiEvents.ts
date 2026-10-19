@@ -4,7 +4,7 @@
  * declaration and empty implementation in the .pas unit.
  */
 import {
-    COMPONENTS, EVENT_PROP_RE, TextEdit, buildUnitEdits, eventDefFor, handlerName, resolveComponentDef,
+    COMPONENTS, EVENT_PROP_RE, TextEdit, buildUnitEdits, eventDefOf, handlerName, resolveComponentDef,
 } from './DelphiForm';
 import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
 
@@ -61,7 +61,7 @@ export function planAddEvent(pas: string, dfm: string, req: AddEventRequest): Ad
     if (!EVENT_PROP_RE.test(req.eventName)) { return { error: `"${req.eventName}" is not an event name (expected OnXxx).` } }
     if (req.methodName && !/^[A-Za-z_]\w*$/.test(req.methodName)) { return { error: `"${req.methodName}" is not a valid method name.` }; }
 
-    const event = eventDefFor(req.eventName);
+    const event = eventDefOf(resolveComponentDef(node.className), req.eventName);
     const method = req.methodName || handlerName(node.name, req.eventName);
     const formClass = root.className;
 

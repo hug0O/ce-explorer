@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { alignLines } from '../utils/alignText';
-import { COMPONENTS, eventDefFor, handlerName, nextComponentName, resolveComponentDef, existingNames } from './DelphiForm';
+import { COMPONENTS, eventDefOf, handlerName, nextComponentName, resolveComponentDef, existingNames } from './DelphiForm';
 import {
     AddComponentRequest, Side, listContainers, parseDfmTree, planAddComponent,
 } from './DelphiLayout';
@@ -238,7 +238,7 @@ export async function addComponent(): Promise<void> {
 
     const def = resolveComponentDef(className, unit);
     const eventPick = await vscode.window.showQuickPick(
-        [...def.events.map(e => ({ label: e.name, description: handlerName(name, e.name) + '(' + eventDefFor(e.name).params + ')' })), { label: 'None', description: 'field only, no handler' }],
+        [...def.events.map(e => ({ label: e.name, description: handlerName(name, e.name) + '(' + eventDefOf(def, e.name).params + ')' })), { label: 'None', description: 'field only, no handler' }],
         { title: `CE: Event handler for ${name}` },
     );
     if (!eventPick) { return; }

@@ -11,6 +11,7 @@ import { wiredEvents } from './DelphiEvents';
 import { nodeBlock, reindentBlock, renameIdentifiers, setProp, lineStartOffsets, deleteProp, parseAnchors } from '../utils/dfmEdit';
 import { applyTextEdits } from './DelphiForm';
 import { familyOf } from './DelphiThirdParty';
+import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
 
 /* ───────────────────────── value helpers ───────────────────────── */
 
@@ -53,8 +54,10 @@ export function cssColor(value: string | undefined): string | undefined {
     if (!value) { return undefined; }
     if (NAMED_COLORS[value]) { return NAMED_COLORS[value]; }
     const m = value.match(/^\$([0-9A-Fa-f]{6,8})$/);
-    if (!m) { return undefined; }
-    const v = parseInt(m[1], 16);
+    // Delphi writes colours that have no name as plain integers (Color = 16770764). System colours are negative: left alone.
+    const dec = /^\d{1,8}$/.test(value) ? Number(value) : undefined;
+    if (!m && (dec === undefined || dec > 0xFFFFFF)) { return undefined; }
+    const v = m ? parseInt(m[1], 16) : dec!;
     const hex = (n: number) => n.toString(16).padStart(2, '0');
     return '#' + hex(v & 255) + hex((v >> 8) & 255) + hex((v >> 16) & 255);
 }
@@ -116,6 +119,11 @@ export interface DNode {
     anchors: string[];
     tab?: number;
     events: Record<string, string>;
+    /** Events of the component's catalog entry (empty when the class is unknown): the inspector lists them all. */
+    eventNames: string[];
+    /** Texts of a tile (Text1…Text4), `Size` of a tile. */
+    tileTexts?: string[];
+    tileSize?: string;
     activePage?: string;
     bevel: number;
     startLine: number;
@@ -136,7 +144,7 @@ const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TcxStyleRepository|TcxGri
 
 /** A component with no visual presence (timers, controllers, style repositories…): drawn as a small icon. */
 export function isNonVisual(n: DfmNode): boolean {
-    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className)) { return false; }
+    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className)) { return false; }
     if (FIXED_SIZE_CLASSES.test(n.className)) { return true; }
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     if (known) { return known.width === undefined && known.height === undefined; }
@@ -191,7 +199,13 @@ function editValueText(v: string | undefined): string | undefined {
 function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: number; h: number }, docked: boolean, align: string | undefined): DNode {
     const fontHeight = num(n.props['Font.Height']);
     const style = n.props['Font.Style'] ?? '';
-    const caption = n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : undefined;
+    const tile = isTileItem(n.className);
+    const tileTexts = tile ? [1, 2, 3, 4].map(i => (n.props[`Text${i}.Value`] !== undefined ? fromDfmString(n.props[`Text${i}.Value`]) : ''))
+        : isTileHost(n.className) ? [n.props['Title.Text'] !== undefined ? fromDfmString(n.props['Title.Text']) : ''] : undefined;
+    const caption = tile ? tileTexts![0]
+        : isTileGroup(n.className) ? (n.props['Caption.Text'] !== undefined ? fromDfmString(n.props['Caption.Text']) : '')
+        : n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : undefined;
+    const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     const text = n.props['Text'] !== undefined ? fromDfmString(n.props['Text']) : undefined;
     const lines = n.props['Lines.Strings'] !== undefined ? multilineStrings(dfm, n, 'Lines.Strings')
         : n.props['Items.Strings'] !== undefined ? multilineStrings(dfm, n, 'Items.Strings')
@@ -204,7 +218,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         container: isContainer(n),
         caption, text: text ?? editValueText(n.props['EditValue']), lines,
         family: familyOf(n.className),
-        color: cssColor(n.props['Color']),
+        color: cssColor(tile ? n.props['Style.GradientBeginColor'] : n.props['Color']),
         fontColor: cssColor(n.props['Font.Color']),
         bold: /fsBold/.test(style),
         fontSize: fontHeight !== undefined ? Math.max(8, Math.round(Math.abs(fontHeight) * 0.75 + 0.4)) : 9,
@@ -213,6 +227,9 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         anchors: [...parseAnchors(n.props['Anchors'])],
         tab: num(n.props['TabOrder']),
         events: wiredEvents(n),
+        eventNames: known ? known.events.map(e => e.name) : [],
+        tileTexts,
+        tileSize: tile ? tileSizeOf(n) : undefined,
         activePage: n.props['ActivePage'] ?? n.props['Properties.ActivePage'],
         bevel: n.className.toLowerCase() === 'tpanel' ? ((n.props['BevelOuter'] ?? 'bvRaised') === 'bvNone' ? 0 : 1) : 0,
         startLine: n.startLine,
@@ -224,7 +241,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
 function fallbackNode(n: DfmNode, rect: { x: number; y: number; w: number; h: number }): DNode {
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked: false, nonVisual: false, container: false, lines: [], bold: false, fontSize: 9,
-        visible: true, enabled: true, anchors: ['akLeft', 'akTop'], events: {}, bevel: 0, startLine: n.startLine, props: {}, children: [],
+        visible: true, enabled: true, anchors: ['akLeft', 'akTop'], events: {}, eventNames: [], bevel: 0, startLine: n.startLine, props: {}, children: [],
     };
 }
 
@@ -233,7 +250,8 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     const ins = inset(n);
     const area = { l: ins.l, t: ins.t, r: w - ins.r, b: h - ins.b };
     // Sub-objects with no geometry at all (grid views, levels, column collections) are not controls: not drawn.
-    const kids = n.children.filter(k => isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
+    const tiles = isTileHost(n.className) ? tileLayout(n) : undefined;
+    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
     const alignOf = (k: DfmNode): string | undefined => k.align ?? DEFAULT_ALIGN[k.className.toLowerCase()];
     const placed = new Map<DfmNode, { x: number; y: number; w: number; h: number; docked: boolean; align?: string }>();
 
@@ -268,6 +286,8 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     const isPages = isPagesClass(n.className);
     return kids.map(k => {
         let rect = placed.get(k);
+        const tileRect = tiles?.items.get(k) ?? tiles?.groups.get(k);
+        if (!rect && tileRect) { rect = { ...tileRect, docked: true }; }
         if (!rect) {
             const size = isNonVisual(k) ? { w: 28, h: 28 } : defaultSize(k);
             rect = { x: k.left ?? 0, y: k.top ?? 0, w: size.w, h: size.h, docked: false };
@@ -337,6 +357,8 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
     if (!root) { return fail('The .dfm is not in text format.'); }
     const target = findNode(root, targetName);
     if (!target) { return fail(`Container "${targetName}" not found.`); }
+    const tileChild = names.map(n => findNode(root, n)).find(n => n && isTileChild(n.className));
+    if (tileChild) { return fail(`${tileChild.name} belongs to its tile control and cannot move to another container: change its group instead.`); }
     if (!isContainer(target)) { return fail(`${target.name} cannot contain other components.`); }
     const edits: TextEdit[] = [];
     const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
@@ -418,8 +440,15 @@ export function renameEdits(pas: string, dfm: string, from: string, to: string):
 export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors'> = {
     Left: 'int', Top: 'int', Width: 'int', Height: 'int', TabOrder: 'int', Caption: 'string', Text: 'string', Hint: 'string',
     Visible: 'bool', Enabled: 'bool', ShowHint: 'bool', ReadOnly: 'bool', Checked: 'bool', TabStop: 'bool', Align: 'enum', Anchors: 'anchors',
+    // DevExpress tile control: tiles and groups.
+    Size: 'enum', GroupIndex: 'int', IndexInGroup: 'int', 'Text1.Value': 'string', 'Text2.Value': 'string', 'Caption.Text': 'string',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
+const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
+/** Properties that exist only on some classes: refused on any other. */
+const PROP_CLASS: Record<string, (cls: string) => boolean> = {
+    Size: isTileItem, GroupIndex: isTileItem, IndexInGroup: isTileItem, 'Text1.Value': isTileItem, 'Text2.Value': isTileItem, 'Caption.Text': isTileGroup,
+};
 
 /** One property edit from the inspector, validated and written the way Delphi would. */
 export function setPropertyEdits(dfm: string, name: string, prop: string, value: unknown): DesignResult {
@@ -429,6 +458,7 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
     if (!node) { return fail(`Component "${name}" not found.`); }
     const kind = EDITABLE_PROPS[prop];
     if (!kind) { return fail(`${prop} cannot be edited here.`); }
+    if (PROP_CLASS[prop] && !PROP_CLASS[prop](node.className)) { return fail(`${node.className} has no ${prop} property.`); }
     let text: string;
     if (kind === 'int') {
         const v = clampInt(value, -2000, 5000);
@@ -439,8 +469,8 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
     } else if (kind === 'bool') {
         text = value === true || value === 'True' ? 'True' : 'False';
     } else if (kind === 'enum') {
-        if (typeof value !== 'string' || !ALIGN_VALUES.includes(value)) { return fail('Unknown Align value.'); }
-        if (value === 'alNone') {
+        if (typeof value !== 'string' || !(ENUM_VALUES[prop] ?? []).includes(value)) { return fail(`Unknown ${prop} value.`); }
+        if (prop === 'Align' && value === 'alNone') {
             const e = deleteProp(dfm, node, 'Align');
             return { dfmEdits: e ? [e] : [], pasEdits: [] };
         }
@@ -475,7 +505,13 @@ export function addEdits(pas: string, dfm: string, req: AddRequest): DesignResul
     const name = nextComponentName(def.namePrefix, existingNames(dfm, pas));
     const sized = { ...def, width: req.width ?? def.width, height: req.height ?? def.height };
     const parent = req.parentName ? findNode(root, req.parentName) : root;
-    const container = parent && isContainer(parent) ? parent : (parent?.parent ?? root);
+    let container = parent && isContainer(parent) ? parent : (parent?.parent ?? root);
+    if (isTileChild(req.className) || /TileControlDetailSite$/i.test(req.className)) {
+        // Tiles, groups and detail pages live inside a tile control: the one under the drop point, or the one of the selected tile.
+        const host = [parent, parent?.parent].find(p => p && isTileHost(p.className));
+        if (!host) { return fail(`${req.className} goes inside a TdxTileControl: select one, or drop it onto one.`); }
+        container = host;
+    }
     const plan = planAddComponent(pas, dfm, {
         className: req.className, name, side: 'auto', parentName: container.depth === 0 ? undefined : container.name,
         def: sized, position: { left: Math.max(0, Math.round(req.left)), top: Math.max(0, Math.round(req.top)) },

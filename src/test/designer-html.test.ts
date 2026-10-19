@@ -76,13 +76,17 @@ test('add a DevExpress edit with its Properties.OnChange handler and the units t
     assert.match(applyTextEdits(pas, e.pasEdits), /procedure cxComboBox1PropertiesChange\(Sender: TObject\);/);
 });
 
-test('components list: filter by name and type, sort, flat / tree; palette: collapsible families with filters', () => {
+test('components list: filter by name and type, sort, flat / tree; palette: one list per type', () => {
     const html = designerHtml('N');
     for (const id of ['cfname', 'cftype', 'cfsort', 'cfflat', 'compcount', 'palfilter', 'palgroup', 'palcount']) { assert.ok(html.includes(`id="${id}"`), id); }
     for (const v of ['@container', '@nonvisual', '@events', '@unknown', '@dx', '@tms']) { assert.ok(html.includes(`'${v}'`), 'type filter ' + v); }
     assert.match(html, /function revealNode/, 'a component on a hidden page is revealed from the list');
-    assert.match(html, /createElement\('details'|el\('details'/, 'palette families collapse');
     assert.match(html, /key === 'F12'/, 'F12 goes back to the code');
+    // the palette no longer dumps every component: only the chosen type is listed, a name filter searches them all
+    assert.match(html, /\(flt \? groups : \[state\.palGroup\]\)/, 'one type at a time, unless a name is being searched');
+    assert.doesNotMatch(html, /All families/, 'there is no "all" entry any more');
+    assert.doesNotMatch(html, /el\('details', 'pal-group'/, 'no stacked collapsible families');
+    assert.match(html, /g \+ ' \(' \+ count\[g\] \+ '\)'/, 'the type list shows how many components each type has');
 });
 
 test('designer ⇄ code navigation and empty-handler clean-up are wired in package.json', () => {

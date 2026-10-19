@@ -13,6 +13,9 @@ const ev = (name: string, params = SENDER): EventDef => ({ name, params });
 const DX_BASE = ['cxGraphics', 'cxControls', 'cxLookAndFeels', 'cxLookAndFeelPainters'];
 const DX_EDIT = [...DX_BASE, 'cxContainer', 'cxEdit'];
 const DX_DB = ['Data.DB', 'cxDBEdit'];
+/** Handler signatures of the tile control: the item is the sender of its own events, the control sends (control, item). */
+const TILE_ITEM = 'Sender: TdxTileControlItem';
+const TILE_OPERATION = 'Sender: TdxCustomTileControl; AItem: TdxTileControlItem';
 
 const COMMON = [ev('OnClick'), ev('OnEnter'), ev('OnExit'), ev('OnDblClick')];
 const DX_EDIT_EVENTS = [ev('Properties.OnChange'), ev('Properties.OnEditValueChanged'), ev('OnEnter'), ev('OnExit'), ev('OnKeyPress', `${SENDER}; var Key: Char`), ev('OnClick')];
@@ -60,6 +63,14 @@ export const DEVEXPRESS: ComponentDef[] = [
     def('TcxDBLookupComboBox', 'cxDBLookupComboBox', 'cxDBLookupComboBox', 145, 21, [], true, DX_EDIT_EVENTS, [...DX_EDIT, 'cxDBLookupEdit', 'cxLookupEdit', 'cxDropDownEdit', ...DX_DB]),
     def('TdxStatusBar', 'dxStatusBar', 'dxStatusBar', undefined, 20, [], false, [ev('OnClick')], [...DX_BASE, 'dxCore', 'dxCoreClasses', 'cxClasses']),
     def('TdxLayoutControl', 'dxLayoutControl', 'dxLayoutControl', 300, 200, [], false, [ev('OnResize')], [...DX_BASE, 'dxLayoutContainer', 'dxLayoutControlAdapters', 'dxLayoutLookAndFeels', 'cxClasses']),
+    // Tile control: tiles and groups are named components nested in it (no Left / Top: the control lays them out).
+    def('TdxTileControl', 'dxTileControl', 'dxTileControl', 400, 300, [], true,
+        [ev('OnClick'), ev('OnDblClick'), ev('OnItemActivateDetail', TILE_OPERATION), ev('OnItemDeactivateDetail', TILE_OPERATION), ev('OnItemCheck', TILE_OPERATION), ev('OnEnter'), ev('OnExit'), ev('OnResize')],
+        [...DX_BASE, 'cxClasses', 'dxCore', 'dxCoreClasses', 'dxCustomTileControl']),
+    { ...def('TdxTileControlItem', 'dxTileControlItem', 'dxCustomTileControl', 120, 120, ["Text1.Value = '%NAME%'", '?GroupIndex = %LASTGROUP%'], false,
+        [ev('OnClick', TILE_ITEM), ev('OnActivateDetail', TILE_ITEM), ev('OnDeactivateDetail', TILE_ITEM)], []), nested: true },
+    { ...def('TdxTileControlGroup', 'dxTileControlGroup', 'dxCustomTileControl', 200, 22, ["Caption.Text = '%NAME%'", 'Index = %INDEX%'], false, [], []), nested: true },
+    def('TdxTileControlDetailSite', 'dxTileControlDetailSite', 'dxCustomTileControl', 200, 200, [], false, [ev('OnClick'), ev('OnResize'), ev('OnEnter'), ev('OnExit')], DX_BASE),
     def('TdxBarManager', 'dxBarManager', 'dxBar', undefined, undefined, [], false, [], ['cxClasses', 'dxCore']),
     def('TcxLookAndFeelController', 'cxLookAndFeelController', 'cxLookAndFeels', undefined, undefined, [], false, [], ['cxGraphics', 'cxControls', 'cxLookAndFeelPainters']),
     def('TcxStyleRepository', 'cxStyleRepository', 'cxStyles', undefined, undefined, [], false, [], ['cxClasses', 'cxGraphics']),

@@ -5,8 +5,9 @@
  * inside any container (form, panel, group box…).
  */
 import {
-    ComponentDef, TextEdit, buildUnitEdits, eventDefFor, existingNames, handlerName, isValidIdentifier, resolveComponentDef,
+    ComponentDef, TextEdit, buildUnitEdits, eventDefOf, existingNames, handlerName, isValidIdentifier, resolveComponentDef,
 } from './DelphiForm';
+import { isTileChild, isTileGroup, isTileHost } from './DelphiTiles';
 
 export interface DfmNode {
     name: string;
@@ -29,12 +30,15 @@ export interface DfmNode {
 }
 
 // Standard and third-party containers (TcxGroupBox, TAdvPanel, TRzPanel, TJvPageControl, TsPanel…).
-const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Pnl|Pane|Group|Container|Page|Sheet|Pager|LayoutControl|LayoutGroup|Ribbon|RibbonTab|NavBar)$/i;
+const CONTAINER_RE = /(Panel|GroupBox|ScrollBox|TabSheet|Frame|PageControl|Form|Pnl|Pane|Group|Container|Page|Sheet|Pager|LayoutControl|LayoutGroup|Ribbon|RibbonTab|NavBar|DetailSite)$/i;
 // Names that end like a container but hold items, not child controls.
 const NOT_CONTAINER_RE = /(RadioGroup|CheckGroup|ButtonGroup|CheckBox|ComboBox|ListBox|CheckListBox)$/i;
 
 export function isContainer(node: DfmNode): boolean {
-    return node.depth === 0 || node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));
+    if (node.depth === 0) { return true; }
+    // A tile control holds tiles and groups, which it places itself: no control can be dropped into it (or into a tile).
+    if (isTileHost(node.className) || isTileChild(node.className)) { return false; }
+    return node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));
 }
 
 /** Parses the component hierarchy of a text DFM. Returns the form (root) node, or undefined. */
@@ -112,7 +116,7 @@ export function findNode(root: DfmNode, name: string): DfmNode | undefined {
 export function listContainers(root: DfmNode): { node: DfmNode; label: string }[] {
     const out: { node: DfmNode; label: string }[] = [];
     const walk = (n: DfmNode): void => {
-        if (isContainer(n)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
+        if (isContainer(n) || isTileHost(n.className)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
         n.children.forEach(walk);
     };
     walk(root);
@@ -182,12 +186,21 @@ export function buildComponentObject(
     const inner = pad + '  ';
     const tabIndex = parent.children.reduce((max, c) => Math.max(max, c.props['TabOrder'] !== undefined ? Number(c.props['TabOrder']) + 1 : 0), 0);
     const lines: string[] = [`${pad}object ${name}: ${def.className}`];
-    lines.push(`${inner}Left = ${place.left}`, `${inner}Top = ${place.top}`);
-    if (def.width !== undefined) { lines.push(`${inner}Width = ${def.width}`); }
-    if (def.height !== undefined) { lines.push(`${inner}Height = ${def.height}`); }
-    if (place.align) { lines.push(`${inner}Align = ${place.align}`); }
-    for (const p of def.props) { lines.push(inner + p.replace(/%NAME%/g, name)); }
-    if (def.tabOrder) { lines.push(`${inner}TabOrder = ${tabIndex}`); }
+    if (!def.nested) {
+        lines.push(`${inner}Left = ${place.left}`, `${inner}Top = ${place.top}`);
+        if (def.width !== undefined) { lines.push(`${inner}Width = ${def.width}`); }
+        if (def.height !== undefined) { lines.push(`${inner}Height = ${def.height}`); }
+        if (place.align) { lines.push(`${inner}Align = ${place.align}`); }
+    }
+    // %INDEX%: rank among the siblings of the same class; %LASTGROUP%: index of the last tile group. A line starting with `?` is dropped when its value is 0.
+    const same = parent.children.filter(c => c.className === def.className).length;
+    for (const raw of def.props) {
+        const optional = raw.startsWith('?');
+        const line = (optional ? raw.slice(1) : raw).replace(/%NAME%/g, name).replace(/%INDEX%/g, String(same)).replace(/%LASTGROUP%/g, String(Math.max(0, parent.children.filter(c => isTileGroup(c.className)).length - 1)));
+        if (optional && /=s*0s*$/.test(line)) { continue; }
+        lines.push(inner + line);
+    }
+    if (def.tabOrder && !def.nested) { lines.push(`${inner}TabOrder = ${tabIndex}`); }
     if (handler) { lines.push(`${inner}${handler.event} = ${handler.method}`); }
     lines.push(`${pad}end`);
     return lines.join(eol) + eol;
@@ -258,12 +271,16 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
     }
 
     const def = req.def ?? resolveComponentDef(req.className, req.unit);
-    const event = req.eventName && req.eventName.trim() ? eventDefFor(req.eventName.trim()) : undefined;
+    const event = req.eventName && req.eventName.trim() ? eventDefOf(def, req.eventName.trim()) : undefined;
     if (event && !/^On\w+$/.test(event.name)) { return { error: `"${event.name}" is not an event name (expected OnXxx).` }; }
     const method = event ? handlerName(req.name, event.name) : undefined;
 
     // A reference in another container: position relative to it inside ITS container.
     const container = ref && ref.parent && ref.parent !== parent && !req.parentName ? ref.parent : parent;
+    // Tiles, groups and detail pages live in a tile control, and a tile control holds nothing else.
+    const tileOnly = isTileChild(req.className) || /TileControlDetailSite$/i.test(req.className);
+    if (tileOnly && !isTileHost(container.className)) { return { error: `${req.className} goes inside a TdxTileControl: pick one as the container.` }; }
+    if (!tileOnly && isTileHost(container.className)) { return { error: `A TdxTileControl only holds tiles, groups and detail pages: pick another container for ${req.className}.` }; }
     const place = req.position ? { left: req.position.left, top: req.position.top } : computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side, req.gap ?? MARGIN);
 
     const unit = buildUnitEdits(pas, { formClass: root.className, componentName: req.name, def, event, skipField: req.fieldExists });

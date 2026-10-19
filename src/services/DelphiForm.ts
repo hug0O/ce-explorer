@@ -38,6 +38,8 @@ export interface ComponentDef {
     /** Whether the component takes a TabOrder. */
     tabOrder: boolean;
     events: EventDef[];
+    /** A component nested in another one that places it (tile, group…): no Left / Top / Width / Height / TabOrder in the .dfm. */
+    nested?: boolean;
 }
 
 const SENDER = 'Sender: TObject';
@@ -112,6 +114,11 @@ export const EVENT_PARAMS: Record<string, string> = {
 
 export function eventDefFor(eventName: string): EventDef {
     return { name: eventName, params: EVENT_PARAMS[eventName] ?? SENDER };
+}
+
+/** The event as the component's own catalog entry declares it (its handler signature may differ from `Sender: TObject`). */
+export function eventDefOf(def: ComponentDef, eventName: string): EventDef {
+    return def.events.find(e => e.name === eventName) ?? eventDefFor(eventName);
 }
 
 /**

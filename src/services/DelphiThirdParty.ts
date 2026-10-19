@@ -16,6 +16,23 @@ const DX_DB = ['Data.DB', 'cxDBEdit'];
 /** Handler signatures of the tile control: the item is the sender of its own events, the control sends (control, item). */
 const TILE_ITEM = 'Sender: TdxTileControlItem';
 const TILE_OPERATION = 'Sender: TdxCustomTileControl; AItem: TdxTileControlItem';
+/** Handler signatures of the grid's views and columns (from the DevExpress VCL reference). */
+const GRID_VIEW = 'Sender: TcxCustomGridTableView';
+const GRID_CELL_CLICK = `${GRID_VIEW}; ACellViewInfo: TcxGridTableDataCellViewInfo; AButton: TMouseButton; AShift: TShiftState; var AHandled: Boolean`;
+const GRID_CUSTOM_DRAW = `${GRID_VIEW}; ACanvas: TcxCanvas; AViewInfo: TcxGridTableDataCellViewInfo; var ADone: Boolean`;
+const GRID_VIEW_EVENTS = [
+    ev('OnCellClick', GRID_CELL_CLICK), ev('OnCellDblClick', GRID_CELL_CLICK),
+    ev('OnFocusedRecordChanged', `${GRID_VIEW}; APrevFocusedRecord, AFocusedRecord: TcxCustomGridRecord; ANewItemRecordFocusingChanged: Boolean`),
+    ev('OnSelectionChanged', GRID_VIEW), ev('OnEditValueChanged', `${GRID_VIEW}; AItem: TcxCustomGridTableItem`), ev('OnCustomDrawCell', GRID_CUSTOM_DRAW),
+];
+const GRID_COLUMN_EVENTS = [
+    ev('OnGetDisplayText', 'Sender: TcxCustomGridTableItem; ARecord: TcxCustomGridRecord; var AText: string'), ev('OnCustomDrawCell', GRID_CUSTOM_DRAW),
+    ev('Properties.OnEditValueChanged'), ev('Properties.OnChange'),
+];
+const DX_GRID_VIEW = [...DX_BASE, 'cxStyles', 'cxCustomData', 'cxFilter', 'cxData', 'cxDataStorage', 'cxEdit', 'cxNavigator', 'cxGridCustomTableView', 'cxGridTableView', 'cxGridCustomView', 'cxClasses', 'cxGridLevel', 'cxGrid'];
+const DX_GRID_DB_VIEW = [...DX_GRID_VIEW, 'Data.DB', 'cxDBData'];
+/** A part of a grid: named component nested in it, with no Left / Top. `%PARENT%` in the prefix is the name of the grid / view it goes into. */
+const gridPart = (cls: string, prefix: string, unit: string, events: EventDef[], units: string[]): ComponentDef => ({ ...def(cls, prefix, unit, 64, 22, [], false, events, units), nested: true });
 
 const COMMON = [ev('OnClick'), ev('OnEnter'), ev('OnExit'), ev('OnDblClick')];
 const DX_EDIT_EVENTS = [ev('Properties.OnChange'), ev('Properties.OnEditValueChanged'), ev('OnEnter'), ev('OnExit'), ev('OnKeyPress', `${SENDER}; var Key: Char`), ev('OnClick')];
@@ -56,6 +73,16 @@ export const DEVEXPRESS: ComponentDef[] = [
     def('TcxSplitter', 'cxSplitter', 'cxSplitter', 8, 100, [], false, [ev('OnMoved')], DX_BASE),
     def('TcxGrid', 'cxGrid', 'cxGrid', 320, 150, [], true, [ev('OnEnter'), ev('OnExit')],
         [...DX_BASE, 'cxStyles', 'cxCustomData', 'cxFilter', 'cxData', 'cxDataStorage', 'cxEdit', 'cxNavigator', 'cxGridCustomTableView', 'cxGridTableView', 'cxGridCustomView', 'cxClasses', 'cxGridLevel']),
+    // Grid: levels, views and columns are named components nested in it (the grid draws them; they have no Left / Top).
+    gridPart('TcxGridLevel', '%PARENT%Level', 'cxGridLevel', [], DX_GRID_VIEW),
+    gridPart('TcxGridTableView', '%PARENT%TableView', 'cxGridTableView', GRID_VIEW_EVENTS, DX_GRID_VIEW),
+    gridPart('TcxGridDBTableView', '%PARENT%DBTableView', 'cxGridDBTableView', GRID_VIEW_EVENTS, DX_GRID_DB_VIEW),
+    gridPart('TcxGridBandedTableView', '%PARENT%BandedTableView', 'cxGridBandedTableView', GRID_VIEW_EVENTS, [...DX_GRID_VIEW, 'cxGridBandedTableView']),
+    gridPart('TcxGridDBBandedTableView', '%PARENT%DBBandedTableView', 'cxGridDBBandedTableView', GRID_VIEW_EVENTS, [...DX_GRID_DB_VIEW, 'cxGridBandedTableView']),
+    gridPart('TcxGridColumn', '%PARENT%Column', 'cxGridTableView', GRID_COLUMN_EVENTS, []),
+    gridPart('TcxGridDBColumn', '%PARENT%Column', 'cxGridDBTableView', GRID_COLUMN_EVENTS, []),
+    gridPart('TcxGridBandedColumn', '%PARENT%Column', 'cxGridBandedTableView', GRID_COLUMN_EVENTS, []),
+    gridPart('TcxGridDBBandedColumn', '%PARENT%Column', 'cxGridDBBandedTableView', GRID_COLUMN_EVENTS, []),
     def('TcxTreeList', 'cxTreeList', 'cxTL', 320, 150, [], true, [ev('OnClick'), ev('OnDblClick'), ev('OnFocusedNodeChanged', `${SENDER}; APrevFocusedNode, AFocusedNode: TcxTreeListNode`)],
         [...DX_BASE, 'cxStyles', 'cxCustomData', 'cxStorage', 'cxEdit', 'cxTLdxBarBuiltInMenu', 'cxInplaceContainer']),
     def('TcxDBTextEdit', 'cxDBTextEdit', 'cxDBEdit', 121, 21, [], true, DX_EDIT_EVENTS, [...DX_EDIT, ...DX_DB, 'cxTextEdit']),

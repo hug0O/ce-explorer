@@ -41,10 +41,18 @@ export function readUnit(pas: string, formClass: string): UnitInfo | undefined {
         const l = lines[i];
         if (/^\s*end\s*;/i.test(l)) { break; }
         if (/^\s*(strict\s+)?(private|protected|public|published)\b/i.test(l)) { managed = false; continue; }
+        // A declaration whose parameters wrap onto the next lines (`AShift: TShiftState; var AHandled: Boolean);` must not read as a field).
+        const m = l.match(/^\s*(?:procedure|function)\s+(\w+)/i);
+        if (m) {
+            let text = l;
+            let j = i;
+            while (text.split('(').length > text.split(')').length && j + 1 < lines.length) { j++; text += ' ' + lines[j].trim(); }
+            info.methods.push({ name: m[1], params: text.match(/\(([^)]*)\)/)?.[1] ?? '', line: i, ideManaged: managed });
+            i = j;
+            continue;
+        }
         const f = l.match(/^\s*(\w+(?:\s*,\s*\w+)*)\s*:\s*([\w.]+)\s*;/);
-        if (f) { for (const n of f[1].split(',')) { info.fields.push({ name: n.trim(), type: f[2], line: i, ideManaged: managed }); } continue; }
-        const m = l.match(/^\s*(?:procedure|function)\s+(\w+)\s*(?:\(([^)]*)\))?/i);
-        if (m) { info.methods.push({ name: m[1], params: m[2] ?? '', line: i, ideManaged: managed }); }
+        if (f) { for (const n of f[1].split(',')) { info.fields.push({ name: n.trim(), type: f[2], line: i, ideManaged: managed }); } }
     }
     return info;
 }

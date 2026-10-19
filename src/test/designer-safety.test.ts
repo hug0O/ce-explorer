@@ -190,5 +190,6 @@ test('real third-party fixture: DevExpress and TMS forms are drawn, pages and ra
     assert.equal(find(model.root, 'AdvOfficePager1')!.family, 'tms');
     assert.equal(find(model.root, 'AdvOfficePage1')!.x, 1, 'TMS pages follow the pager area');
     assert.equal(find(model.root, 'AdvStringGrid1')!.props['ColCount'], '5');
-    assert.equal(find(model.root, 'cxGrid1')!.children.length, 0, 'the grid views are not drawn as controls');
+    const grid = find(model.root, 'cxGrid1')!;
+    assert.deepEqual(grid.children.map(c => [c.name, c.structural, c.fixed]), [['cxGrid1DBTableView1', true, true], ['cxGrid1Level1', true, true]], 'the grid views and levels are in the model, as structure that is never painted');
 });

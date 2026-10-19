@@ -224,8 +224,8 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 
 - **Select** (click, Shift+click, drag a rectangle, outline list), **move** (drag, arrow keys, snapped to a grid), **resize** (handles; docked controls only expose the handle of their docking side), **drag into another container** (panel, group box, page…), **Delete**.
 - **Palette**: VCL, **DevExpress** and **TMS** components with a filter, or any class by name (`Other class…`). Click for the default size, or draw the rectangle. Fields and `uses` (including the units the IDE adds for DevExpress / TMS) go into the `.pas`.
-- **Inspector**: name (renames the field and its handlers too), position, size, caption / text (written the Delphi way, accents as `#233`), `Align`, `Anchors`, `TabOrder`, visibility, events. **Double-click** a component to create / open its default handler.
-- **Align** menu (edges, centres, same size, equal spacing), zoom, grid, component names, undo / redo of the designer's own actions.
+- **Inspector**, in collapsible sections: a card with the name and class and the breadcrumb of its parents, then **Position & size** (Left / Top / Width / Height in a grid, `Align`, `Anchors`), **Content** (caption / text, written the Delphi way, accents as `#233`), **State** (visible, enabled, `TabOrder`) and **Events**. Renaming a component renames its field and its handlers too. **Double-click** a component to create / open its default handler. With nothing selected the inspector shows how to use the designer.
+- **Toolbar**, in groups: undo / redo · **align, size and distribute icons** (left / centre / right, top / middle / bottom, same width / height / size, space equally horizontally / vertically — enabled when two, or three for the spacing, components are selected; hover for the name) · zoom, grid, names, containers · panels and full screen · the *Code* button with its shortcut.
 - **Two-way**: edits made in the text editor redraw the form at once, and putting the cursor on an `object` in the `.dfm` selects it in the designer.
 - **Third-party components**: DevExpress (`Tcx…`, `Tdx…`) and TMS (`TAdv…`, `TTMSFNC…`) are drawn with a family look, their editors, radio groups, page controls (`TcxPageControl`, `TAdvOfficePager`), grids and non-visual controllers included; nested events such as `Properties.OnChange` are supported.
 - **Classes it does not know are never altered.** They are drawn as a labelled placeholder (`?`), the rest of the form is unaffected if one of them cannot be drawn, and every action is checked before it is applied: if it would change anything other than what you asked for in the `.dfm`, it is **refused** and nothing is modified.
@@ -234,7 +234,7 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 
 - **Palette** and **Components** are two collapsible lists on the left. The palette shows **one type at a time** (Standard, Additional, Win32, System, DevExpress, TMS — chosen in a drop-down that says how many components each holds), so it never lists everything at once; typing in its name filter searches every type. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
 - **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `mmx.delphi.removeEmptyHandlers`.
-- **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does **F12** and the *Code* button). `mmx.delphi.designerColumn` can open the designer beside the code instead.
+- **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does the *Code* button, which shows the shortcut; **F12** is no longer used). `mmx.delphi.designerColumn` can open the designer beside the code instead.
 
 #### Designer: DevExpress tile control (`TdxTileControl`)
 
@@ -243,14 +243,24 @@ The text `.dfm` drawn as a form, next to the code. The VCL docking rules are app
 - **Inspector of a tile**: `Text1`, `Text2`, `Size`, and the **Group** it belongs to (`GroupIndex`); of a group: its caption. The **detail page** (`TdxTileControlDetailSite`) is an ordinary container; when hidden it is drawn only while it, or something in it, is selected.
 - **Events** with their real signatures: `OnClick`, `OnActivateDetail`, `OnDeactivateDetail` of a tile (`Sender: TdxTileControlItem`), `OnItemActivateDetail`, `OnItemDeactivateDetail`, `OnItemCheck` of the control (`Sender: TdxCustomTileControl; AItem: TdxTileControlItem`). The unit's `uses` receives `dxCustomTileControl` and the other DevExpress units, once.
 
-#### Designer: list of events, one click to create a handler
+#### Designer: the events of a component in a drop-down
 
-The inspector lists **every event of the selected component** (from the catalog: standard VCL, DevExpress, TMS), wired or not. A filled dot means the event already has a handler, shown with its name; an empty dot shows the name the handler *will* have.
+The **Events** section of the inspector has **one drop-down listing every event of the selected component** (from the catalog: standard VCL, DevExpress, TMS), in two groups:
 
-- **Click a free event**: the handler is created — method and declaration in the unit, `OnXxx = Handler` in the `.dfm` — and the code stays closed, so you can create several listeners in a row; it is one undoable step of the designer. The **↗** at the end of the row creates it *and* opens it in the code.
-- **Click a wired event**: opens its handler in the code.
-- **Other event**: a text box under the list creates any event by name (`OnMouseEnter`, `Properties.OnChange`…); it is the way to add events of a class the designer does not know, whose own list stays empty rather than guessing.
+- **Create a handler**: the events that have none yet, each with the name the handler *will* have (`OnClick → Button1Click`). Picking one creates it — method and declaration in the unit, `OnXxx = Handler` in the `.dfm` — as one undoable step. The code stays closed so that you can create several listeners in a row, unless you tick **open the code after creating** (remembered).
+- **Open the code of**: the events that are already wired (`● OnClick → Button1Click`); picking one opens its handler. The wired ones are also listed under the drop-down.
+- **Other event…** shows a text box to create any event by name (`OnMouseEnter`, `Properties.OnChange`…); it is the way to add events of a class the designer does not know, whose own list stays empty rather than guessing.
 - Handlers use the signature of the component's own event (`Sender: TdxTileControlItem`, `AButtonIndex: Integer`…), also in *Check form* and *Add event handler*.
+
+#### Designer: DevExpress grid (`TcxGrid`): levels, views and columns
+
+- The **levels** (`TcxGridLevel`), **views** (`TcxGridDBTableView`, `TcxGridTableView`, banded, card… of any flavour) and **columns** (`TcxGridDBColumn`…) of a grid are components nested in it, with no `Left` / `Top`. They are **listed in the Components tree** under their grid and edited in the inspector.
+- The grid **draws the columns of the view its first level shows** as header cells, side by side with their `Width`, the `Caption` (else the field, else the name), the group-by band unless `OptionsView.GroupByBox = False`, and `OptionsView.ColumnAutoWidth` stretching them. A column with `Visible = False`, or of another view, is listed but not drawn. Click a header to select the column; columns are placed by the grid, so they are never dragged or moved out of their view.
+- **Inspector**: a column — caption, field (`DataBinding.FieldName`), width, visible; a level — the view it shows (`GridView`); a view — its columns, one click to select each.
+- **Add** from the palette (type *DevExpress*): *Level*, *TableView*, *DBTableView* go into the grid, *Column*, *DBColumn* into a view (the selected one, the one of the selected column, or the view the selected grid shows). They are named like the IDE does (`cxGrid1DBTableView1`, `cxGrid1DBTableView1Column1`), with the field in the `.pas` and the units in `uses`.
+- **Delete** a view and its columns go with it, and the level that showed it is unlinked (the IDE does the same: it would not load otherwise). Renaming a view follows the level.
+- **Events** with the signatures of the DevExpress reference: `OnCellClick`, `OnCellDblClick`, `OnFocusedRecordChanged`, `OnSelectionChanged`, `OnEditValueChanged`, `OnCustomDrawCell` of a view; `OnGetDisplayText`, `OnCustomDrawCell`, `Properties.OnEditValueChanged` of a column.
+- *Check form* now reads declarations whose parameters wrap onto several lines (the long grid handlers) as methods, not as fields.
 
 #### Designer: room for complex forms
 

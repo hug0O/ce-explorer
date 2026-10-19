@@ -12,6 +12,8 @@ import { nodeBlock, reindentBlock, renameIdentifiers, setProp, lineStartOffsets,
 import { applyTextEdits } from './DelphiForm';
 import { familyOf } from './DelphiThirdParty';
 import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
+import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
+import { findHost, isNestedChild, nestedRuleOf } from './DelphiNested';
 
 /* ───────────────────────── value helpers ───────────────────────── */
 
@@ -124,6 +126,15 @@ export interface DNode {
     /** Texts of a tile (Text1…Text4), `Size` of a tile. */
     tileTexts?: string[];
     tileSize?: string;
+    /** Placed by its parent control (tile, grid column…): selected and edited, never dragged, resized or moved to another parent. */
+    fixed?: boolean;
+    /** Structure with nothing to draw (grid views, levels, hidden columns): listed and edited, not painted. */
+    structural?: boolean;
+    /** Grid: the view whose columns are drawn, and whether the group-by band shows above them. */
+    shownView?: string;
+    gridBand?: boolean;
+    /** Grid column: the field it is bound to (`DataBinding.FieldName`). */
+    gridField?: string;
     activePage?: string;
     bevel: number;
     startLine: number;
@@ -144,7 +155,7 @@ const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TcxStyleRepository|TcxGri
 
 /** A component with no visual presence (timers, controllers, style repositories…): drawn as a small icon. */
 export function isNonVisual(n: DfmNode): boolean {
-    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className)) { return false; }
+    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className) || isGridChild(n.className)) { return false; }
     if (FIXED_SIZE_CLASSES.test(n.className)) { return true; }
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     if (known) { return known.width === undefined && known.height === undefined; }
@@ -204,6 +215,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : isTileHost(n.className) ? [n.props['Title.Text'] !== undefined ? fromDfmString(n.props['Title.Text']) : ''] : undefined;
     const caption = tile ? tileTexts![0]
         : isTileGroup(n.className) ? (n.props['Caption.Text'] !== undefined ? fromDfmString(n.props['Caption.Text']) : '')
+        : isGridColumn(n.className) ? (n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : n.props['DataBinding.FieldName'] !== undefined ? fromDfmString(n.props['DataBinding.FieldName']) : '')
         : n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : undefined;
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     const text = n.props['Text'] !== undefined ? fromDfmString(n.props['Text']) : undefined;
@@ -230,6 +242,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         eventNames: known ? known.events.map(e => e.name) : [],
         tileTexts,
         tileSize: tile ? tileSizeOf(n) : undefined,
+        gridField: isGridColumn(n.className) && n.props['DataBinding.FieldName'] !== undefined ? fromDfmString(n.props['DataBinding.FieldName']) : undefined,
         activePage: n.props['ActivePage'] ?? n.props['Properties.ActivePage'],
         bevel: n.className.toLowerCase() === 'tpanel' ? ((n.props['BevelOuter'] ?? 'bvRaised') === 'bvNone' ? 0 : 1) : 0,
         startLine: n.startLine,
@@ -245,13 +258,37 @@ function fallbackNode(n: DfmNode, rect: { x: number; y: number; w: number; h: nu
     };
 }
 
+const NO_RECT = { x: 0, y: 0, w: 0, h: 0 };
+
+/**
+ * A level, view or column of a DevExpress grid. They are structure: listed and edited, never painted — except
+ * the visible columns of the view the grid shows, which get the header strip they occupy in the grid.
+ */
+function gridNode(dfm: string, k: DfmNode, ctx?: { w: number; h: number; shown?: DfmNode }): DNode {
+    const part = (node: DfmNode, rect: { x: number; y: number; w: number; h: number }, structural: boolean): DNode => {
+        let d: DNode;
+        try { d = toDNode(dfm, node, rect, true, undefined); } catch { d = fallbackNode(node, rect); }
+        d.fixed = true; d.structural = structural; d.container = false; d.nonVisual = false; d.docked = true; d.children = [];
+        return d;
+    };
+    const d = part(k, NO_RECT, true);
+    if (isGridView(k.className)) {
+        const rects = ctx && ctx.shown === k ? columnRects(k, ctx.w, ctx.h) : undefined;
+        d.children = k.children.filter(c => isGridChild(c.className)).map(c => part(c, rects?.get(c) ?? NO_RECT, !rects?.get(c)));
+    } else {
+        d.children = k.children.filter(c => isGridChild(c.className)).map(c => gridNode(dfm, c, ctx));
+    }
+    return d;
+}
+
 /** Lays out the children of `n` inside a client area of w × h, applying the VCL docking order. */
 function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] {
     const ins = inset(n);
     const area = { l: ins.l, t: ins.t, r: w - ins.r, b: h - ins.b };
     // Sub-objects with no geometry at all (grid views, levels, column collections) are not controls: not drawn.
     const tiles = isTileHost(n.className) ? tileLayout(n) : undefined;
-    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
+    const gridHost = isGridHost(n.className);
+    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isGridChild(k.className) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
     const alignOf = (k: DfmNode): string | undefined => k.align ?? DEFAULT_ALIGN[k.className.toLowerCase()];
     const placed = new Map<DfmNode, { x: number; y: number; w: number; h: number; docked: boolean; align?: string }>();
 
@@ -285,6 +322,7 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
 
     const isPages = isPagesClass(n.className);
     return kids.map(k => {
+        if (isGridChild(k.className)) { return gridNode(dfm, k, gridHost ? { w, h, shown: shownView(n) } : undefined); }
         let rect = placed.get(k);
         const tileRect = tiles?.items.get(k) ?? tiles?.groups.get(k);
         if (!rect && tileRect) { rect = { ...tileRect, docked: true }; }
@@ -302,6 +340,7 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
             d = toDNode(dfm, k, rect, rect.docked, rect.align);
             const client = clientSizeOf(k, rect.w, rect.h);
             d.children = layoutChildren(dfm, k, client.w, client.h);
+            if (isGridHost(k.className)) { const sv = shownView(k); d.shownView = sv?.name; d.gridBand = hasGroupBand(sv); }
         } catch {
             d = fallbackNode(k, rect);
         }
@@ -357,8 +396,12 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
     if (!root) { return fail('The .dfm is not in text format.'); }
     const target = findNode(root, targetName);
     if (!target) { return fail(`Container "${targetName}" not found.`); }
-    const tileChild = names.map(n => findNode(root, n)).find(n => n && isTileChild(n.className));
-    if (tileChild) { return fail(`${tileChild.name} belongs to its tile control and cannot move to another container: change its group instead.`); }
+    const nested = names.map(n => findNode(root, n)).find(n => n && isNestedChild(n.className));
+    if (nested) {
+        return fail(isTileChild(nested.className)
+            ? `${nested.name} belongs to its tile control and cannot move to another container: change its group instead.`
+            : `${nested.name} is part of its grid and cannot move to another container.`);
+    }
     if (!isContainer(target)) { return fail(`${target.name} cannot contain other components.`); }
     const edits: TextEdit[] = [];
     const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
@@ -412,7 +455,19 @@ export function deleteEdits(pas: string, dfm: string, names: string[], formClass
         if (own && !seen.has(own.offset + ':' + own.length)) { seen.add(own.offset + ':' + own.length); pasEdits.push(own); }
         handlers += plan.removedHandlers.length;
     }
+    // A grid level that pointed to a view going away is unlinked, as the IDE does (it would not load otherwise).
+    for (const level of danglingGridViews(root, names)) {
+        const e = deleteProp(dfm, level, 'GridView');
+        if (e) { dfmEdits.push(e); }
+    }
     return { dfmEdits, pasEdits, note: handlers ? `${handlers} empty handler(s) removed` : undefined };
+}
+
+/** Grid levels (outside the deletion) whose `GridView` points to a component that is being deleted. */
+export function danglingGridViews(root: DfmNode, names: string[]): DfmNode[] {
+    const gone = new Set<string>();
+    for (const n of names) { const node = findNode(root, n); if (node) { descendants(node).forEach(d => gone.add(d.name.toLowerCase())); } }
+    return descendants(root).filter(n => !gone.has(n.name.toLowerCase()) && n.props['GridView'] !== undefined && gone.has(n.props['GridView'].toLowerCase()));
 }
 
 /** Renames a component everywhere: .dfm object and references, the unit's field, and its `<Name><Event>` handlers. */
@@ -437,17 +492,20 @@ export function renameEdits(pas: string, dfm: string, from: string, to: string):
     return { dfmEdits: plan.dfmEdits, pasEdits, note: plan.handlers.length ? `handlers renamed: ${plan.handlers.map(h => h.from + '→' + h.to).join(', ')}` : undefined };
 }
 
-export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors'> = {
+export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref'> = {
     Left: 'int', Top: 'int', Width: 'int', Height: 'int', TabOrder: 'int', Caption: 'string', Text: 'string', Hint: 'string',
     Visible: 'bool', Enabled: 'bool', ShowHint: 'bool', ReadOnly: 'bool', Checked: 'bool', TabStop: 'bool', Align: 'enum', Anchors: 'anchors',
     // DevExpress tile control: tiles and groups.
     Size: 'enum', GroupIndex: 'int', IndexInGroup: 'int', 'Text1.Value': 'string', 'Text2.Value': 'string', 'Caption.Text': 'string',
+    // DevExpress grid: the field of a column, the view of a level.
+    'DataBinding.FieldName': 'string', GridView: 'ref',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
 const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
 /** Properties that exist only on some classes: refused on any other. */
 const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     Size: isTileItem, GroupIndex: isTileItem, IndexInGroup: isTileItem, 'Text1.Value': isTileItem, 'Text2.Value': isTileItem, 'Caption.Text': isTileGroup,
+    'DataBinding.FieldName': isGridColumn, GridView: isGridLevel,
 };
 
 /** One property edit from the inspector, validated and written the way Delphi would. */
@@ -468,6 +526,13 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         text = toDfmString(String(value ?? ''));
     } else if (kind === 'bool') {
         text = value === true || value === 'True' ? 'True' : 'False';
+    } else if (kind === 'ref') {
+        // A link to another component of the form: a grid level points to one of the views, empty unlinks it.
+        const target = typeof value === 'string' ? value.trim() : '';
+        if (!target) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
+        const view = findNode(root, target);
+        if (!view || !isGridView(view.className)) { return fail(`${target} is not a grid view of this form.`); }
+        text = view.name;
     } else if (kind === 'enum') {
         if (typeof value !== 'string' || !(ENUM_VALUES[prop] ?? []).includes(value)) { return fail(`Unknown ${prop} value.`); }
         if (prop === 'Align' && value === 'alNone') {
@@ -502,16 +567,19 @@ export function addEdits(pas: string, dfm: string, req: AddRequest): DesignResul
     const root = parseDfmTree(dfm);
     if (!root) { return fail('The .dfm is not in text format.'); }
     const def = resolveComponentDef(req.className, req.unit);
-    const name = nextComponentName(def.namePrefix, existingNames(dfm, pas));
     const sized = { ...def, width: req.width ?? def.width, height: req.height ?? def.height };
     const parent = req.parentName ? findNode(root, req.parentName) : root;
     let container = parent && isContainer(parent) ? parent : (parent?.parent ?? root);
-    if (isTileChild(req.className) || /TileControlDetailSite$/i.test(req.className)) {
-        // Tiles, groups and detail pages live inside a tile control: the one under the drop point, or the one of the selected tile.
-        const host = [parent, parent?.parent].find(p => p && isTileHost(p.className));
-        if (!host) { return fail(`${req.className} goes inside a TdxTileControl: select one, or drop it onto one.`); }
+    const rule = nestedRuleOf(req.className);
+    if (rule) {
+        // Tiles, groups, detail pages, grid levels, views and columns live inside their own host: the one under the drop point,
+        // the one of the selected part, or (a column dropped on a grid) the view the grid shows.
+        const host = findHost(rule, parent);
+        if (!host) { return fail(`${req.className} goes inside ${rule.what}: select one, or drop it onto one.`); }
         container = host;
     }
+    // `%PARENT%` in a name prefix: the IDE names a grid's view cxGrid1DBTableView1 and its column cxGrid1DBTableView1Column1.
+    const name = nextComponentName(def.namePrefix.replace('%PARENT%', container.name), existingNames(dfm, pas));
     const plan = planAddComponent(pas, dfm, {
         className: req.className, name, side: 'auto', parentName: container.depth === 0 ? undefined : container.name,
         def: sized, position: { left: Math.max(0, Math.round(req.left)), top: Math.max(0, Math.round(req.top)) },

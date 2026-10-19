@@ -11,7 +11,7 @@ export interface PaletteEntry {
     group: string;
     icon: string;
     /** Goes inside a component of this kind (tiles, groups and detail pages go inside a tile control). */
-    host?: 'tile';
+    host?: 'tile' | 'grid' | 'view';
 }
 
 export const PALETTE: PaletteEntry[] = [
@@ -27,6 +27,7 @@ export const PALETTE: PaletteEntry[] = [
 ];
 
 const ICONS: [RegExp, string][] = [
+    [/^TcxGrid(DB)?(Banded)?Column$/, '▮'], [/^TcxGrid\w*View$/, '▦'], [/^TcxGridLevel$/, '🗂'],
     [/TileControlItem$/, '◼'], [/TileControlGroup$/, '▤'], [/TileControl$/, '🟦'], [/DetailSite$/, '▢'],
     [/Button$|Btn$/, '🔘'], [/Label$/, '🅰'], [/(Memo|RichEdit)$/, '📝'], [/CheckBox$|CheckGroup$/, '☑'], [/Radio(Button|Group)$/, '◉'],
     [/(ComboBox)$/, '▾'], [/(List|Check)Box$/, '☰'], [/Panel$/, '▢'], [/(Group|Scroll)Box$/, '⛶'], [/(Pager|PageControl|PC)$/, '🗂'],
@@ -37,10 +38,17 @@ function iconFor(def: ComponentDef): string {
     if (def.width === undefined && def.height === undefined) { return '⚙'; }
     return (ICONS.find(([re]) => re.test(def.className)) ?? [/./, '◻'])[1];
 }
+/** Parts that go inside another component: tiles into a tile control, levels and views into a grid, columns into a view. */
+function hostOf(cls: string): PaletteEntry['host'] {
+    if (/TileControl(Item|Group)$|TileControlDetailSite$/.test(cls)) { return 'tile'; }
+    if (/^TcxGrid(DB)?(Table)?View$|^TcxGridLevel$/.test(cls)) { return 'grid'; }
+    if (/^TcxGrid(DB)?Column$/.test(cls)) { return 'view'; }
+    return undefined;
+}
 for (const [group, defs] of [['DevExpress', DEVEXPRESS], ['TMS', TMS]] as [string, ComponentDef[]][]) {
     for (const d of defs) {
-        if (/(TabSheet|OfficePage)$/.test(d.className)) { continue; }
-        PALETTE.push({ cls: d.className, group, icon: iconFor(d), host: /TileControl(Item|Group)$|TileControlDetailSite$/.test(d.className) ? 'tile' : undefined });
+        if (/(TabSheet|OfficePage)$/.test(d.className) || /Banded/.test(d.className)) { continue; }
+        PALETTE.push({ cls: d.className, group, icon: iconFor(d), host: hostOf(d.className) });
     }
 }
 
@@ -80,7 +88,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .sec > summary { cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 4px; }
 .pal-head { font-size: 10px; color: var(--vscode-descriptionForeground); margin: 6px 0 2px; }
 .pal-group > summary { cursor: pointer; font-size: 10px; color: var(--vscode-descriptionForeground); margin: 4px 0 2px; }
-#outline { max-height: 340px; overflow: auto; }
+#outline { max-height: 42vh; min-height: 120px; overflow: auto; }
 .outline .ico { display: inline-block; width: 16px; text-align: center; }
 .outline .cls { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; }
 .outline .par { color: var(--vscode-descriptionForeground); margin-left: 4px; font-size: 10px; opacity: 0.7; }
@@ -201,21 +209,58 @@ body.hide-left #left, body.hide-right #right { display: none; }
 #edgeR { right: 0; border-radius: 5px 0 0 5px; }
 body.hide-left #edgeL, body.hide-right #edgeR { display: block; }
 body.full #toolbar { padding: 3px 8px; }
+#toolbar { gap: 4px 8px; }
+.tg { display: flex; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
+.tg.end { margin-left: auto; border-right: none; padding-right: 0; }
+.tg:empty { display: none; }
+.ib { min-width: 26px; padding: 2px 6px; }
+.ag { display: inline-flex; gap: 1px; padding: 0 3px; border-right: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3)); }
+.ag:last-child { border-right: none; }
+.aicon { padding: 2px 4px; line-height: 0; }
+.aico { stroke: currentColor; stroke-width: 1.2; fill: none; }
+.aico rect { fill: currentColor; fill-opacity: 0.28; }
+.kbd { font-size: 9px; padding: 0 4px; margin-left: 4px; border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 3px; opacity: 0.8; }
+.icard { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 5px; background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.12)); margin-bottom: 6px; }
+.icard .ico.big { font-size: 20px; width: 26px; text-align: center; }
+.icard .meta { min-width: 0; }
+.icard .iname { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.icard .sub { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.insec { border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3)); margin-top: 6px; padding-top: 2px; }
+.insec > summary { cursor: pointer; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); margin: 4px 0; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin-bottom: 2px; }
+.f { display: flex; flex-direction: column; gap: 1px; margin: 3px 0; min-width: 0; }
+.f > span { font-size: 10px; color: var(--vscode-descriptionForeground); }
+.f input, .f select { min-width: 0; width: 100%; }
+.chk { display: flex; gap: 4px; align-items: center; margin: 3px 0; }
+.anch { display: flex; gap: 10px; align-items: center; margin: 4px 0; }
+.anch > span { font-size: 10px; color: var(--vscode-descriptionForeground); }
+.danger { width: 100%; margin-top: 10px; }
+.evsel { width: 100%; }
+.colrow { padding: 1px 4px; cursor: pointer; border-radius: 2px; font-size: 11px; }
+.colrow:hover { background: var(--vscode-list-hoverBackground); }
+.tips { margin: 4px 0 0 16px; padding: 0; font-size: 11px; line-height: 1.6; color: var(--vscode-descriptionForeground); }
+.k-grid { overflow: hidden; }
+.k-gridcolumn > .chrome { border-right: 1px solid #d4d4d4; background: transparent; }
+.k-gridcolumn .gh { height: 22px; background: linear-gradient(#fafafa, #e9e9e9); border-bottom: 1px solid #b4b4b4; padding: 3px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style></head>
 <body>
 <div id="toolbar">
-  <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels"><option value="fit">Fit window</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
-  <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
-  <label><input type="checkbox" id="names"> names</label>
-  <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
-  <span class="sep"></span>
-  <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
-  <span class="sep"></span>
-  <button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
-  <span class="sep"></span>
-  <select id="alignop" title="Select two or more components first"></select><button id="alignbtn">Apply</button>
-  <span class="sep"></span>
-  <button id="opencode" title="Switch to the code of the unit (F12); come back with the Designer tab, the title-bar button or Ctrl+K Ctrl+B">&lt;/&gt; Code (F12)</button><button id="opendfm">.dfm</button>
+  <div class="tg">
+    <button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
+  </div>
+  <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
+  <div class="tg">
+    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels"><option value="fit">Fit window</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+    <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
+    <label title="Show the name of every component"><input type="checkbox" id="names"> names</label>
+    <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
+  </div>
+  <div class="tg">
+    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
+  </div>
+  <div class="tg end">
+    <button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
+  </div>
 </div>
 <div id="main">
   <button id="edgeL" class="edge" title="Show the palette and the component list (P)">▸ Palette</button>
@@ -242,7 +287,7 @@ body.full #toolbar { padding: 3px 8px; }
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, ui: { left: true, right: true, full: false, before: null }, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null }, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -256,6 +301,11 @@ body.full #toolbar { padding: 3px 8px; }
     if (l === 'tdxtilecontrolitem') { return 'tile'; }
     if (l === 'tdxtilecontrolgroup') { return 'tilegroup'; }
     if (l.slice(-10) === 'detailsite') { return 'panel'; }
+    if (l.indexOf('tcxgrid') === 0 && l !== 'tcxgrid' && l.indexOf('popupmenu') < 0 && l.indexOf('repository') < 0) {
+      if (l.slice(-5) === 'level') { return 'gridlevel'; }
+      if (l.slice(-6) === 'column') { return 'gridcolumn'; }
+      return 'gridview';
+    }
     if (l.indexOf('officepager') >= 0 || l.indexOf('pagecontrol') >= 0 || l === 'tcxpc') { return 'pages'; }
     if (l.indexOf('officepage') >= 0 || l.indexOf('tabsheet') >= 0) { return 'sheet'; }
     if (l.indexOf('radiogroup') >= 0 || l.indexOf('checkgroup') >= 0) { return 'radiogroup'; }
@@ -325,12 +375,17 @@ body.full #toolbar { padding: 3px 8px; }
     else if (k === 'grid') {
       var rh = Number(n.props['DefaultRowHeight'] || 24), cw = Number(n.props['DefaultColWidth'] || 64);
       chrome.style.backgroundSize = cw + 'px ' + rh + 'px';
-      if (n.family === 'devexpress') { chrome.appendChild(el('div', 'dxband', 'Drag a column header here to group by that column')); }
+      if (n.family === 'devexpress') {
+        // rows only: the columns draw their own vertical lines
+        chrome.style.backgroundImage = 'linear-gradient(#ececec 1px, transparent 1px)'; chrome.style.backgroundSize = '100% 21px';
+        if (n.gridBand !== false) { chrome.appendChild(el('div', 'dxband', 'Drag a column header here to group by that column')); }
+      }
       else { var hd = el('div', 'gridhead'); hd.style.height = (Number(n.props['FixedRows'] || 1) * rh) + 'px'; chrome.appendChild(hd); var fx = el('div', 'gridfix'); fx.style.width = (Number(n.props['FixedCols'] || 1) * cw) + 'px'; chrome.appendChild(fx); }
     }
     else if (k === 'statusbar' || k === 'toolbar') { chrome.textContent = k === 'statusbar' ? cap : ''; }
     else if (k === 'generic') { chrome.textContent = n.cls + (cap ? ' – ' + cap : ''); }
     else if (k === 'sheet') { chrome.style.background = n.color || '#fff'; }
+    else if (k === 'gridcolumn') { chrome.appendChild(el('div', 'gh', n.caption || columnTitle(n))); }
     else if (k === 'tilecontrol') { if (n.tileTexts && n.tileTexts[0]) { e.appendChild(el('div', 'tilettl', n.tileTexts[0])); } }
     else if (k === 'tilegroup') { chrome.textContent = n.caption || n.name; }
     else if (k === 'tile') {
@@ -358,6 +413,8 @@ body.full #toolbar { padding: 3px 8px; }
     if (state.names && !n.nonVisual && n.depth > 0) { e.appendChild(el('span', 'nm', n.name)); }
     els[n.name] = e;
     parent.appendChild(e);
+    // Structure (grid views, levels, hidden columns) is listed and edited, never painted; the columns of a shown view sit in the grid itself.
+    if (n.structural) { e.style.display = 'none'; n.children.forEach(function (c) { mk(c, parent); }); return; }
     if (k === 'pages') {
       var active = activeSheet(n);
       var tabs = el('div', 'tabs');
@@ -448,6 +505,7 @@ body.full #toolbar { padding: 3px 8px; }
     var key = state.sel.join(',');
     var flash = key !== state.selKey;
     state.selKey = key;
+    updateAlignBar();
     drawParents(o);
     state.sel.forEach(function (name, i) {
       var e = els[name];
@@ -475,7 +533,7 @@ body.full #toolbar { padding: 3px 8px; }
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
   function iconOf(n) { return n.nonVisual ? '⚙' : (ICONS[kind(n.cls)] || '◻'); }
   /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
@@ -495,7 +553,7 @@ body.full #toolbar { padding: 3px 8px; }
       var box = el('div', 'pal');
       items.forEach(function (it) {
         var b = el('button', state.tool === it.cls ? 'active' : '', it.icon + ' ' + it.cls.slice(1));
-        b.title = it.cls + (it.host ? ' - goes inside a TdxTileControl (select one, or click one on the form)' : '');
+        b.title = it.cls + (it.host ? ' - goes inside ' + HOST_LABEL[it.host] + ' (select one, or click one on the form)' : '');
         b.setAttribute('data-tool', it.cls); box.appendChild(b);
       });
       p.appendChild(box); shown += items.length;
@@ -515,18 +573,87 @@ body.full #toolbar { padding: 3px 8px; }
     });
     order.forEach(function (g) { var o = el('option', '', g + ' (' + count[g] + ')'); o.value = g; sel.appendChild(o); });
   }
-  /* Tiles, groups and detail pages go inside a tile control: the selected one, or the one that is clicked. */
-  function selectedHost() {
-    var c = state.sel[state.sel.length - 1];
-    while (c) { if (byName[c] && kind(byName[c].cls) === 'tilecontrol') { return c; } c = parentOf[c]; }
+  /* Parts go inside a host: tiles into a tile control, levels and views into a grid, columns into a view. The selected one, or the one that is clicked. */
+  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view' };
+  function hostMatch(h, name) {
+    var n = byName[name];
+    if (!n) { return false; }
+    if (h === 'tile') { return kind(n.cls) === 'tilecontrol'; }
+    if (h === 'grid') { return n.cls === 'TcxGrid'; }
+    if (h === 'view') { return kind(n.cls) === 'gridview' && n.cls.slice(-4) === 'View'; }
+    return false;
+  }
+  function viewOfGrid(g) {
+    if (g.shownView) { return g.shownView; }
+    var v = g.children.filter(function (c) { return hostMatch('view', c.name); })[0];
+    return v ? v.name : '';
+  }
+  function hostAbove(h, name) {
+    var c = name;
+    while (c) {
+      if (hostMatch(h, c)) { return c; }
+      if (h === 'view' && byName[c] && byName[c].cls === 'TcxGrid') { return viewOfGrid(byName[c]); }
+      c = parentOf[c];
+    }
+    return '';
+  }
+  function selectedHost(h) { var s0 = state.sel[state.sel.length - 1]; return s0 ? hostAbove(h, s0) : ''; }
+  function hostFromElement(h, elem) {
+    var c = elem.closest ? elem.closest('.ctl') : null;
+    while (c) {
+      var found = hostAbove(h, c.getAttribute('data-name'));
+      if (found) { return found; }
+      c = c.parentElement && c.parentElement.closest ? c.parentElement.closest('.ctl') : null;
+    }
     return '';
   }
   function placeInHost(host) {
-    if (!host) { state.notice = state.tool + ' goes inside a TdxTileControl: select one, or click one on the form.'; renderStatus(); return; }
+    if (!host) { state.notice = state.tool + ' goes inside ' + HOST_LABEL[state.palHost[state.tool]] + ': select one, or click one on the form.'; renderStatus(); return; }
     post({ type: 'add', className: state.tool, parent: host, left: 16, top: 16 });
     state.tool = null; renderPalette(); renderStatus();
   }
+  function isFixed(name) { var n = byName[name]; return !!n && !!n.fixed; }
   function isTilePart(name) { var n = byName[name]; return !!n && (kind(n.cls) === 'tile' || kind(n.cls) === 'tilegroup'); }
+
+  /* ───────── align, size and distribute: icon buttons, enabled when enough components are selected ───────── */
+  var ALIGN_ICONS = {
+    left: '<path d="M2 1v14"/><rect x="4" y="3" width="10" height="4"/><rect x="4" y="9" width="6" height="4"/>',
+    centerX: '<path d="M8 1v14"/><rect x="3" y="3" width="10" height="4"/><rect x="5" y="9" width="6" height="4"/>',
+    right: '<path d="M14 1v14"/><rect x="2" y="3" width="10" height="4"/><rect x="6" y="9" width="6" height="4"/>',
+    top: '<path d="M1 2h14"/><rect x="3" y="4" width="4" height="10"/><rect x="9" y="4" width="4" height="6"/>',
+    centerY: '<path d="M1 8h14"/><rect x="3" y="3" width="4" height="10"/><rect x="9" y="5" width="4" height="6"/>',
+    bottom: '<path d="M1 14h14"/><rect x="3" y="2" width="4" height="10"/><rect x="9" y="6" width="4" height="6"/>',
+    sameWidth: '<rect x="2" y="2" width="12" height="4"/><rect x="2" y="10" width="12" height="4"/><path d="M2 8h12M2 8l2-1.5M2 8l2 1.5M14 8l-2-1.5M14 8l-2 1.5"/>',
+    sameHeight: '<rect x="2" y="2" width="4" height="12"/><rect x="10" y="2" width="4" height="12"/><path d="M8 2v12M8 2l-1.5 2M8 2l1.5 2M8 14l-1.5-2M8 14l1.5-2"/>',
+    sameSize: '<rect x="1" y="1" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/><path d="M9 3h5M9 5h5M2 9v5M4 9v5"/>',
+    spaceH: '<path d="M1 1v14M15 1v14"/><rect x="4" y="4" width="2" height="8"/><rect x="10" y="4" width="2" height="8"/>',
+    spaceV: '<path d="M1 1h14M1 15h14"/><rect x="4" y="4" width="8" height="2"/><rect x="4" y="10" width="8" height="2"/>'
+  };
+  var ALIGN_GROUPS = [['left', 'centerX', 'right'], ['top', 'centerY', 'bottom'], ['sameWidth', 'sameHeight', 'sameSize'], ['spaceH', 'spaceV']];
+  function buildAlignBar(ops) {
+    var bar = $('alignbar'); while (bar.firstChild) { bar.removeChild(bar.firstChild); }
+    var by = {}; ops.forEach(function (o) { by[o.id] = o; });
+    ALIGN_GROUPS.forEach(function (g) {
+      var group = el('span', 'ag');
+      g.forEach(function (id) {
+        var o = by[id]; if (!o) { return; }
+        var b = el('button', 'ib aicon'); b.setAttribute('data-op', id);
+        b.title = o.label + (id === 'spaceH' || id === 'spaceV' ? ' (select three or more components)' : ' (select two or more components)');
+        b.innerHTML = '<svg class="aico" viewBox="0 0 16 16" width="16" height="16">' + (ALIGN_ICONS[id] || '') + '</svg>';
+        b.addEventListener('click', function () { post({ type: 'align', op: id, names: state.sel.slice() }); });
+        group.appendChild(b);
+      });
+      bar.appendChild(group);
+    });
+    updateAlignBar();
+  }
+  function updateAlignBar() {
+    var n = state.sel.length;
+    Array.prototype.forEach.call(document.querySelectorAll('#alignbar [data-op]'), function (b) {
+      var id = b.getAttribute('data-op');
+      b.disabled = n < (id === 'spaceH' || id === 'spaceV' ? 3 : 2);
+    });
+  }
 
   /* ───────── components list: filter by name and type, sort, tree or flat ───────── */
   function allNodes() {
@@ -611,7 +738,7 @@ body.full #toolbar { padding: 3px 8px; }
     function clearDrop() { Array.prototype.forEach.call(oc.querySelectorAll('.dropok'), function (r) { r.classList.remove('dropok'); }); }
     oc.addEventListener('dragstart', function (ev) {
       var row = ev.target.closest ? ev.target.closest('[data-pick]') : null;
-      if (!row || row.getAttribute('data-pick') === rootName() || isTilePart(row.getAttribute('data-pick'))) { ev.preventDefault(); return; }
+      if (!row || row.getAttribute('data-pick') === rootName() || isFixed(row.getAttribute('data-pick'))) { ev.preventDefault(); return; }
       var name = row.getAttribute('data-pick');
       state.dragNames = state.sel.indexOf(name) >= 0 ? state.sel.slice() : [name];
       ev.dataTransfer.setData('text/plain', state.dragNames.join(','));
@@ -666,21 +793,44 @@ body.full #toolbar { padding: 3px 8px; }
     i.addEventListener('keydown', function (ev) { ev.stopPropagation(); if (ev.key === 'Enter') { commit(); i.blur(); } });
     return i;
   }
-  /* Tiles and groups of a tile control: what can be changed here is the text, the size and the group. */
+  /* ───────── inspector: identity, position, content, state, events — in collapsible sections ───────── */
   var TILE_SIZES = ['tcisSmall', 'tcisRegular', 'tcisLarge', 'tcisExtraLarge'];
+  var PART_TITLES = { tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level' };
+  function section(box, title, key, build) {
+    var d = el('details', 'insec');
+    d.open = state.insOpen[key] !== false;
+    d.addEventListener('toggle', function () { state.insOpen[key] = d.open; });
+    d.appendChild(el('summary', '', title));
+    build(d);
+    box.appendChild(d);
+  }
+  function labelled(label, node) { var l = el('label', 'f'); l.appendChild(el('span', '', label)); l.appendChild(node); return l; }
+  function checkbox(label, checked, onChange) {
+    var l = el('label', 'chk'); var c = el('input'); c.type = 'checkbox'; c.checked = checked;
+    c.addEventListener('change', function () { onChange(c.checked); });
+    l.appendChild(c); l.appendChild(document.createTextNode(' ' + label));
+    return l;
+  }
+  function setter(n, prop) { return function (v) { post({ type: 'setProp', name: n.name, prop: prop, value: v }); }; }
+  /* What a grid column shows when it has no caption and no field: its name without the name of its view. */
+  function columnTitle(n) {
+    var v = parentOf[n.name];
+    return v && n.name.indexOf(v) === 0 && n.name.length > v.length ? n.name.slice(v.length) : n.name;
+  }
+  /* Tiles and groups of a tile control: what can be changed here is the text, the size and the group. */
   function tileFields(box, n) {
     if (kind(n.cls) === 'tilegroup') {
-      box.appendChild(field('Caption', textInput(n.caption, function (v) { post({ type: 'setProp', name: n.name, prop: 'Caption.Text', value: v }); })));
+      box.appendChild(labelled('Caption', textInput(n.caption, setter(n, 'Caption.Text'))));
       box.appendChild(el('div', 'hint', 'A group of tiles: a tile joins it through its own Group field.'));
       return;
     }
     var tx = n.tileTexts || [];
-    box.appendChild(field('Text 1', textInput(tx[0], function (v) { post({ type: 'setProp', name: n.name, prop: 'Text1.Value', value: v }); })));
-    box.appendChild(field('Text 2', textInput(tx[1], function (v) { post({ type: 'setProp', name: n.name, prop: 'Text2.Value', value: v }); })));
+    box.appendChild(labelled('Text 1', textInput(tx[0], setter(n, 'Text1.Value'))));
+    box.appendChild(labelled('Text 2', textInput(tx[1], setter(n, 'Text2.Value'))));
     var sz = el('select');
     TILE_SIZES.forEach(function (z) { var o = el('option', '', z.slice(4)); o.value = z; if ((n.tileSize || 'tcisRegular') === z) { o.selected = true; } sz.appendChild(o); });
     sz.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'Size', value: sz.value }); });
-    box.appendChild(field('Size', sz));
+    box.appendChild(labelled('Size', sz));
     var gs = el('select');
     var host = byName[parentOf[n.name]];
     var groups = host ? host.children.filter(function (c) { return kind(c.cls) === 'tilegroup'; }) : [];
@@ -689,8 +839,39 @@ body.full #toolbar { padding: 3px 8px; }
     if (!known[cur]) { var o2 = el('option', '', cur + ' · (no such group)'); o2.value = String(cur); gs.appendChild(o2); }
     gs.value = String(cur);
     gs.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'GroupIndex', value: Number(gs.value) }); });
-    box.appendChild(field('Group', gs));
+    box.appendChild(labelled('Group', gs));
     box.appendChild(el('div', 'hint', 'A tile is placed by its tile control: change its size or group here, it cannot be dragged.'));
+  }
+  /* Levels, views and columns of a DevExpress grid. */
+  function gridFields(box, n) {
+    var k = kind(n.cls);
+    if (k === 'gridcolumn') {
+      box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
+      box.appendChild(labelled('Field', textInput(n.gridField || '', setter(n, 'DataBinding.FieldName'))));
+      box.appendChild(labelled('Width', textInput(n.props['Width'] !== undefined ? Number(n.props['Width']) : 64, function (v) { post({ type: 'setProp', name: n.name, prop: 'Width', value: Number(v) }); }, 'number')));
+      box.appendChild(checkbox('Visible', n.props['Visible'] !== 'False', setter(n, 'Visible')));
+      box.appendChild(el('div', 'hint', 'Drawn in the header of the view the grid shows, in the order of the .dfm.'));
+    } else if (k === 'gridlevel') {
+      var vs = el('select');
+      var none = el('option', '', '(no view)'); none.value = ''; vs.appendChild(none);
+      allNodes().forEach(function (c) { if (hostMatch('view', c.name)) { var o = el('option', '', c.name + ' : ' + c.cls); o.value = c.name; vs.appendChild(o); } });
+      vs.value = n.props['GridView'] || '';
+      vs.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'GridView', value: vs.value }); });
+      box.appendChild(labelled('View', vs));
+      box.appendChild(el('div', 'hint', 'The view this level shows. The first level of a grid decides which view is drawn.'));
+    } else {
+      var cols = n.children.filter(function (c) { return kind(c.cls) === 'gridcolumn'; });
+      box.appendChild(el('div', 'hint', cols.length + ' column(s). Add some with the palette (type DevExpress) while this view or its grid is selected.'));
+      cols.forEach(function (c) {
+        var r = el('div', 'colrow', '▮ ' + (c.caption || columnTitle(c)) + (c.structural ? ' (not shown)' : ''));
+        r.setAttribute('data-pick', c.name); r.title = c.name;
+        box.appendChild(r);
+      });
+    }
+  }
+  function partFields(box, n) {
+    var k = kind(n.cls);
+    if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else { gridFields(box, n); }
   }
   /* Name of the handler the IDE would create: Button1 + OnClick = Button1Click, cxEdit1 + Properties.OnChange = cxEdit1PropertiesChange. */
   function previewHandler(name, ev) {
@@ -698,58 +879,98 @@ body.full #toolbar { padding: 3px 8px; }
     if (s.indexOf('On') === 0) { s = s.slice(2); }
     return name + s.split('.').join('');
   }
-  /* Every event of the class, wired or not. One click on a free one creates its handler (the code stays closed); a wired one opens it. */
+  /* The events of the class in ONE drop-down: a free one gets its handler (the code stays closed unless asked), a wired one opens it. */
   function eventsList(box, n) {
-    box.appendChild(el('h4', '', 'Events'));
     var names = n.eventNames.slice();
     Object.keys(n.events).forEach(function (e0) { if (names.indexOf(e0) < 0) { names.push(e0); } });
-    var list = el('div', 'evlist');
-    names.forEach(function (e1) {
-      var h = n.events[e1];
-      var r = el('div', 'evrow' + (h ? ' wired' : ''));
-      r.setAttribute('data-event', e1);
-      r.appendChild(el('span', 'dot', h ? '●' : '○'));
-      r.appendChild(el('span', 'evn', e1));
-      r.appendChild(el('span', 'evh', h ? h : previewHandler(n.name, e1)));
-      if (h) {
-        r.title = 'Open ' + h + ' in the code';
-        r.addEventListener('click', function () { post({ type: 'open', name: n.name, event: e1 }); });
-      } else {
-        r.title = 'Click to create the handler ' + previewHandler(n.name, e1) + ' (the code stays closed)';
-        r.addEventListener('click', function () { post({ type: 'addEvent', name: n.name, event: e1 }); });
-        var go = el('span', 'evgo', '↗'); go.title = 'Create the handler and open it in the code';
-        go.addEventListener('click', function (e2) { e2.stopPropagation(); post({ type: 'addEvent', name: n.name, event: e1, open: true }); });
-        r.appendChild(go);
-      }
-      list.appendChild(r);
-    });
-    box.appendChild(list);
-    if (!names.length) { box.appendChild(el('div', 'hint', 'No event is known for this class: type its name below.')); }
-    var row = el('div', 'row');
-    var inp = el('input'); inp.type = 'text'; inp.placeholder = 'Other event, e.g. OnMouseEnter';
-    var create = function () { var v = inp.value.trim(); if (v) { post({ type: 'addEvent', name: n.name, event: v }); inp.value = ''; } };
+    var free = names.filter(function (e) { return !n.events[e]; });
+    var wired = names.filter(function (e) { return !!n.events[e]; });
+    var sel = el('select', 'evsel');
+    sel.title = 'Events of this component: pick a free one to create its handler, a wired one to open it';
+    var first = el('option', '', free.length ? '＋ Add an event handler…' : (wired.length ? 'Every known event is wired' : 'No event known for this class'));
+    first.value = ''; sel.appendChild(first);
+    if (free.length) {
+      var g1 = el('optgroup'); g1.label = 'Create a handler';
+      free.forEach(function (e1) { var o = el('option', '', e1 + '  →  ' + previewHandler(n.name, e1)); o.value = 'new:' + e1; g1.appendChild(o); });
+      sel.appendChild(g1);
+    }
+    if (wired.length) {
+      var g2 = el('optgroup'); g2.label = 'Open the code of';
+      wired.forEach(function (e2) { var o = el('option', '', '● ' + e2 + '  →  ' + n.events[e2]); o.value = 'open:' + e2; g2.appendChild(o); });
+      sel.appendChild(g2);
+    }
+    var other = el('option', '', 'Other event…'); other.value = 'other'; sel.appendChild(other);
+    box.appendChild(sel);
+    box.appendChild(checkbox('open the code after creating', state.openAfter, function (v) { state.openAfter = v; saveUi(); }));
+    var row = el('div', 'row'); row.style.display = 'none';
+    var inp = el('input'); inp.type = 'text'; inp.placeholder = 'OnMouseEnter, Properties.OnChange…';
+    var create = function () {
+      var v = inp.value.trim();
+      if (v) { post({ type: 'addEvent', name: n.name, event: v, open: state.openAfter }); inp.value = ''; row.style.display = 'none'; }
+    };
     inp.addEventListener('keydown', function (e3) { e3.stopPropagation(); if (e3.key === 'Enter') { create(); } });
-    var add = el('button', '', '＋'); add.title = 'Create a handler for this event';
-    add.addEventListener('click', create);
+    var add = el('button', '', '＋'); add.title = 'Create a handler for this event'; add.addEventListener('click', create);
     row.appendChild(inp); row.appendChild(add); box.appendChild(row);
+    sel.addEventListener('change', function () {
+      var v = sel.value; sel.value = '';
+      if (v.indexOf('new:') === 0) { post({ type: 'addEvent', name: n.name, event: v.slice(4), open: state.openAfter }); }
+      else if (v.indexOf('open:') === 0) { post({ type: 'open', name: n.name, event: v.slice(5) }); }
+      else if (v === 'other') { row.style.display = 'flex'; inp.focus(); }
+    });
+    wired.forEach(function (e4) {
+      var r = el('div', 'evrow wired'); r.setAttribute('data-event', e4);
+      r.appendChild(el('span', 'dot', '●')); r.appendChild(el('span', 'evn', e4)); r.appendChild(el('span', 'evh', n.events[e4]));
+      r.title = 'Open ' + n.events[e4] + ' in the code';
+      r.addEventListener('click', function () { post({ type: 'open', name: n.name, event: e4 }); });
+      box.appendChild(r);
+    });
+  }
+  function formInfo(box) {
+    var root = state.model.root;
+    var card = el('div', 'icard');
+    card.appendChild(el('span', 'ico big', '🗔'));
+    var meta = el('div', 'meta');
+    meta.appendChild(el('div', 'iname', root.name));
+    meta.appendChild(el('div', 'sub', root.cls + ' · ' + (Object.keys(byName).length - 1) + ' component(s)'));
+    card.appendChild(meta); box.appendChild(card);
+    box.appendChild(el('h4', '', 'How to'));
+    var ul = el('ul', 'tips');
+    ['Click a component to select it; Shift / Ctrl + click adds to the selection; drag a rectangle to select several.',
+      'Drag to move, use the handles to resize; drop on a container to change its parent.',
+      'Palette: click a component, then click or draw on the form.',
+      'Double-click a component for its default handler; the Events list of the inspector creates any other.',
+      'The align icons of the toolbar need two components selected.',
+      'Esc selects the parent · Delete removes · Ctrl+K Ctrl+B switches to the code.'].forEach(function (t) { ul.appendChild(el('li', '', t)); });
+    box.appendChild(ul);
+  }
+  function multiInfo(box) {
+    var card = el('div', 'icard');
+    card.appendChild(el('span', 'ico big', '⧉'));
+    var meta = el('div', 'meta');
+    meta.appendChild(el('div', 'iname', state.sel.length + ' components'));
+    meta.appendChild(el('div', 'sub', 'Use the align icons of the toolbar'));
+    card.appendChild(meta); box.appendChild(card);
+    state.sel.forEach(function (name) {
+      var r = el('div', 'colrow', (byName[name] ? iconOf(byName[name]) + ' ' : '') + name);
+      r.setAttribute('data-pick', name);
+      box.appendChild(r);
+    });
   }
   function renderInspector() {
     var box = $('inspector'); while (box.firstChild) { box.removeChild(box.firstChild); }
     if (!state.model) { return; }
-    if (state.sel.length === 0) {
-      box.appendChild(el('h4', '', 'Form'));
-      box.appendChild(el('div', 'hint', state.model.root.name + ' : ' + state.model.root.cls));
-      box.appendChild(el('div', 'hint', 'Click a component to select it, drag to move, use the handles to resize. Shift+click adds to the selection. Double-click opens its event handler. Delete removes it.'));
-      return;
-    }
-    if (state.sel.length > 1) {
-      box.appendChild(el('h4', '', state.sel.length + ' components'));
-      box.appendChild(el('div', 'hint', state.sel.join(', ')));
-      box.appendChild(el('div', 'hint', 'Use the Align menu of the toolbar: edges, centres, same size, equal spacing.'));
-      return;
-    }
+    if (state.sel.length === 0) { formInfo(box); return; }
+    if (state.sel.length > 1) { multiInfo(box); return; }
     var n = byName[state.sel[0]];
-    box.appendChild(el('h4', '', 'Properties'));
+    var k = kind(n.cls);
+    var fixed = !!n.fixed;
+    var card = el('div', 'icard');
+    card.appendChild(el('span', 'ico big', iconOf(n)));
+    var meta = el('div', 'meta');
+    meta.appendChild(el('div', 'iname', n.name));
+    var sub = el('div', 'sub', n.cls);
+    if (n.family) { sub.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DevExpress' : 'TMS')); }
+    meta.appendChild(sub); card.appendChild(meta); box.appendChild(card);
     var crumbs = el('div', 'crumbs');
     pathOf(n.name).forEach(function (p, i, arr) {
       if (i) { crumbs.appendChild(document.createTextNode(' › ')); }
@@ -758,69 +979,67 @@ body.full #toolbar { padding: 3px 8px; }
       crumbs.appendChild(c);
     });
     box.appendChild(crumbs);
-    var tilePart = isTilePart(n.name);
-    var psel = el('select');
-    var rn0 = rootName();
-    var popt = el('option', '', rn0 + ' (form)'); popt.value = rn0; psel.appendChild(popt);
-    allNodes().forEach(function (c) {
-      if (!c.container || c.name === n.name || !canDropInto([n.name], c.name)) { return; }
-      var o = el('option', '', new Array(c.depth).join('· ') + c.name + ' : ' + c.cls); o.value = c.name; psel.appendChild(o);
-    });
-    psel.value = parentOf[n.name];
-    psel.title = 'Move into another container (keeps the position on screen)';
-    psel.addEventListener('change', function () { moveToParent(n.name, psel.value); });
-    if (!tilePart) { box.appendChild(field('Parent', psel)); }
-    box.appendChild(field('Name', textInput(n.name, function (v) { post({ type: 'rename', from: n.name, to: v.trim() }); })));
-    var clsRow = el('span', 'hint', n.cls);
-    if (n.family) { clsRow.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DevExpress' : 'TMS')); }
-    box.appendChild(field('Class', clsRow));
-    if (tilePart) { tileFields(box, n); }
-    else {
-    var num = function (prop, label, v) { box.appendChild(field(label, textInput(v, function (val) { post({ type: 'setProp', name: n.name, prop: prop, value: Number(val) }); }, 'number'))); };
-    var rawNum = function (p) { return n.props[p] !== undefined ? Number(n.props[p]) : undefined; };
-    if (!n.docked || n.align === 'alLeft' || n.align === 'alRight') { if (!n.docked) { num('Left', 'Left', rawNum('Left') !== undefined ? rawNum('Left') : n.x); num('Top', 'Top', rawNum('Top') !== undefined ? rawNum('Top') : n.y); } num('Width', 'Width', rawNum('Width') !== undefined ? rawNum('Width') : n.w); }
-    if (!n.docked || n.align === 'alTop' || n.align === 'alBottom') { num('Height', 'Height', rawNum('Height') !== undefined ? rawNum('Height') : n.h); }
-    if (n.caption !== undefined || ['button', 'label', 'check', 'radio', 'panel', 'group', 'sheet', 'statusbar'].indexOf(kind(n.cls)) >= 0) {
-      box.appendChild(field('Caption', textInput(n.caption, function (v) { post({ type: 'setProp', name: n.name, prop: 'Caption', value: v }); })));
-    }
-    if (n.text !== undefined || ['edit', 'combo'].indexOf(kind(n.cls)) >= 0) {
-      box.appendChild(field('Text', textInput(n.text, function (v) { post({ type: 'setProp', name: n.name, prop: 'Text', value: v }); })));
-    }
-    var al = el('select');
-    ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'].forEach(function (a) { var o = el('option', '', a); o.value = a; if ((n.props['Align'] || 'alNone') === a) { o.selected = true; } al.appendChild(o); });
-    al.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'Align', value: al.value }); });
-    box.appendChild(field('Align', al));
-    var ar = el('div', 'row'); ar.appendChild(el('span', '', 'Anchors'));
-    ['Left', 'Top', 'Right', 'Bottom'].forEach(function (a) {
-      var l = el('label'); var c = el('input'); c.type = 'checkbox'; c.checked = n.anchors.indexOf('ak' + a) >= 0;
-      c.addEventListener('change', function () {
-        var set = ['Left', 'Top', 'Right', 'Bottom'].filter(function (x) { return x === a ? c.checked : n.anchors.indexOf('ak' + x) >= 0; }).map(function (x) { return 'ak' + x; });
-        post({ type: 'setProp', name: n.name, prop: 'Anchors', value: '[' + set.join(', ') + ']' });
+    box.appendChild(labelled('Name', textInput(n.name, function (v) { post({ type: 'rename', from: n.name, to: v.trim() }); })));
+    if (!fixed) {
+      var psel = el('select');
+      var rn0 = rootName();
+      var popt = el('option', '', rn0 + ' (form)'); popt.value = rn0; psel.appendChild(popt);
+      allNodes().forEach(function (c) {
+        if (!c.container || c.name === n.name || !canDropInto([n.name], c.name)) { return; }
+        var o = el('option', '', new Array(c.depth).join('· ') + c.name + ' : ' + c.cls); o.value = c.name; psel.appendChild(o);
       });
-      l.appendChild(c); l.appendChild(document.createTextNode(a.charAt(0))); l.title = 'ak' + a; ar.appendChild(l);
-    });
-    box.appendChild(ar);
-    if (n.tab !== undefined) { box.appendChild(field('TabOrder', textInput(n.tab, function (v) { post({ type: 'setProp', name: n.name, prop: 'TabOrder', value: Number(v) }); }, 'number'))); }
-    var flags = el('div', 'row'); flags.appendChild(el('span', '', ''));
-    [['Visible', n.visible], ['Enabled', n.enabled]].forEach(function (f) {
-      var l = el('label'); var c = el('input'); c.type = 'checkbox'; c.checked = f[1];
-      c.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: f[0], value: c.checked }); });
-      l.appendChild(c); l.appendChild(document.createTextNode(f[0] + ' ')); flags.appendChild(l);
-    });
-    box.appendChild(flags);
-    if (kind(n.cls) === 'generic' && !n.nonVisual) {
+      psel.value = parentOf[n.name];
+      psel.title = 'Move into another container (keeps the position on screen)';
+      psel.addEventListener('change', function () { moveToParent(n.name, psel.value); });
+      box.appendChild(labelled('Parent', psel));
+    }
+    if (fixed) {
+      section(box, PART_TITLES[k] || 'Part', 'part', function (b) { partFields(b, n); });
+    } else {
+      section(box, 'Position & size', 'pos', function (b) {
+        var g = el('div', 'g2');
+        var num = function (prop, label, v) { g.appendChild(labelled(label, textInput(v, function (val) { post({ type: 'setProp', name: n.name, prop: prop, value: Number(val) }); }, 'number'))); };
+        var rawNum = function (p) { return n.props[p] !== undefined ? Number(n.props[p]) : undefined; };
+        if (!n.docked) { num('Left', 'Left', rawNum('Left') !== undefined ? rawNum('Left') : n.x); num('Top', 'Top', rawNum('Top') !== undefined ? rawNum('Top') : n.y); }
+        if (!n.docked || n.align === 'alLeft' || n.align === 'alRight') { num('Width', 'Width', rawNum('Width') !== undefined ? rawNum('Width') : n.w); }
+        if (!n.docked || n.align === 'alTop' || n.align === 'alBottom') { num('Height', 'Height', rawNum('Height') !== undefined ? rawNum('Height') : n.h); }
+        b.appendChild(g);
+        var al = el('select');
+        ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'].forEach(function (a) { var o = el('option', '', a); o.value = a; if ((n.props['Align'] || 'alNone') === a) { o.selected = true; } al.appendChild(o); });
+        al.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'Align', value: al.value }); });
+        b.appendChild(labelled('Align', al));
+        var ar = el('div', 'anch'); ar.appendChild(el('span', '', 'Anchors'));
+        ['Left', 'Top', 'Right', 'Bottom'].forEach(function (a) {
+          var l = el('label'); var c = el('input'); c.type = 'checkbox'; c.checked = n.anchors.indexOf('ak' + a) >= 0;
+          c.addEventListener('change', function () {
+            var set = ['Left', 'Top', 'Right', 'Bottom'].filter(function (x) { return x === a ? c.checked : n.anchors.indexOf('ak' + x) >= 0; }).map(function (x) { return 'ak' + x; });
+            post({ type: 'setProp', name: n.name, prop: 'Anchors', value: '[' + set.join(', ') + ']' });
+          });
+          l.appendChild(c); l.appendChild(document.createTextNode(a.charAt(0))); l.title = 'ak' + a; ar.appendChild(l);
+        });
+        b.appendChild(ar);
+      });
+      var hasCap = n.caption !== undefined || ['button', 'label', 'check', 'radio', 'panel', 'group', 'sheet', 'statusbar'].indexOf(k) >= 0;
+      var hasText = n.text !== undefined || ['edit', 'combo'].indexOf(k) >= 0;
+      if (hasCap || hasText) {
+        section(box, 'Content', 'content', function (b) {
+          if (hasCap) { b.appendChild(labelled('Caption', textInput(n.caption, setter(n, 'Caption')))); }
+          if (hasText) { b.appendChild(labelled('Text', textInput(n.text, setter(n, 'Text')))); }
+        });
+      }
+      section(box, 'State', 'state', function (b) {
+        b.appendChild(checkbox('Visible', n.visible, setter(n, 'Visible')));
+        b.appendChild(checkbox('Enabled', n.enabled, setter(n, 'Enabled')));
+        if (n.tab !== undefined) { b.appendChild(labelled('TabOrder', textInput(n.tab, function (v) { post({ type: 'setProp', name: n.name, prop: 'TabOrder', value: Number(v) }); }, 'number'))); }
+      });
+    }
+    if (k === 'generic' && !n.nonVisual) {
       box.appendChild(el('div', 'hint', 'This class is not recognised by the designer. It is drawn as a placeholder; only its name, position, size, alignment and visibility are offered here. Every other property stays exactly as written in the .dfm.'));
     }
-    }
-    if (kind(n.cls) === 'tilecontrol') { box.appendChild(el('div', 'hint', 'Add tiles and groups with the palette (type DevExpress) while this control is selected; its detail pages go here too.')); }
-    eventsList(box, n);
-    if (n.eventNames.length || Object.keys(n.events).length) {
-      var open = el('button', '', 'Open default handler');
-      open.addEventListener('click', function () { post({ type: 'open', name: n.name }); });
-      box.appendChild(open);
-    }
-    var del = el('button', '', '🗑 Delete');
-    del.style.marginLeft = '6px';
+    if (k === 'tilecontrol') { box.appendChild(el('div', 'hint', 'Add tiles and groups with the palette (type DevExpress) while this control is selected; its detail pages go here too.')); }
+    if (n.cls === 'TcxGrid') { box.appendChild(el('div', 'hint', 'Add levels, views and columns with the palette (type DevExpress) while this grid is selected. The columns of the view its first level shows are drawn in its header.')); }
+    section(box, 'Events', 'events', function (b) { eventsList(b, n); });
+    var del = el('button', 'danger', '🗑 Delete ' + n.name);
     del.addEventListener('click', function () { post({ type: 'delete', names: [n.name] }); });
     box.appendChild(del);
   }
@@ -830,7 +1049,7 @@ body.full #toolbar { padding: 3px 8px; }
     var s = m.root.name + ' · ' + count + ' component(s)';
     if (state.sel.length === 1) { var n = byName[state.sel[0]]; s += ' · ' + pathOf(n.name).join(' › ') + ' (' + n.x + ', ' + n.y + ') ' + n.w + '×' + n.h + (n.align ? ' · ' + n.align : ''); }
     else if (state.sel.length > 1) { s += ' · ' + state.sel.length + ' selected'; }
-    if (state.tool) { s += ' · tool: ' + state.tool + (state.palHost[state.tool] ? ' — click a TdxTileControl on the form' : '') + ' (Esc to cancel)'; }
+    if (state.tool) { s += ' · tool: ' + state.tool + (state.palHost[state.tool] ? ' — click ' + HOST_LABEL[state.palHost[state.tool]] + ' on the form' : '') + ' (Esc to cancel)'; }
     $('status').textContent = state.notice ? state.notice : s;
   }
 
@@ -840,8 +1059,15 @@ body.full #toolbar { padding: 3px 8px; }
   function pathOf(name) { var p = [], c = name; while (c) { p.unshift(c); c = parentOf[c]; } return p; }
   function areaOf(name) {
     if (name === rootName()) { return { x: 0, y: 0, w: state.model.width, h: state.model.height }; }
-    var e = els[name];
-    return e && e.offsetParent !== null ? relRect(e) : null;
+    // a part that is not painted (grid view, hidden column…) is located by the nearest ancestor that is
+    var guard = 0;
+    while (name && guard++ < 20) {
+      if (name === rootName()) { return { x: 0, y: 0, w: state.model.width, h: state.model.height }; }
+      var e = els[name];
+      if (e && e.offsetParent !== null) { return relRect(e); }
+      name = parentOf[name];
+    }
+    return null;
   }
   function placeBox(cls, r, color) {
     var b = el('div', cls);
@@ -901,7 +1127,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (!state.model || !byName[target]) { return false; }
     if (target !== rootName() && !byName[target].container) { return false; }
     var chain = pathOf(target);
-    return names.every(function (n) { return chain.indexOf(n) < 0 && !isTilePart(n); });
+    return names.every(function (n) { return chain.indexOf(n) < 0 && !isFixed(n); });
   }
   function dropTargetName(name) {
     var n = byName[name];
@@ -982,7 +1208,7 @@ body.full #toolbar { padding: 3px 8px; }
     var pal = t.closest && t.closest('[data-tool]');
     if (pal) {
       state.tool = state.tool === pal.getAttribute('data-tool') ? null : pal.getAttribute('data-tool'); renderPalette(); renderStatus();
-      if (state.tool && state.palHost[state.tool]) { var sh = selectedHost(); if (sh) { placeInHost(sh); } }
+      if (state.tool && state.palHost[state.tool]) { var sh = selectedHost(state.palHost[state.tool]); if (sh) { placeInHost(sh); } }
       return;
     }
     var crumb = t.closest && t.closest('[data-crumb]');
@@ -999,7 +1225,7 @@ body.full #toolbar { padding: 3px 8px; }
     var handle = t.closest('.handle');
     if (handle) { startResize(ev, handle.getAttribute('data-h')); return; }
     if (state.tool) {
-      if (state.palHost[state.tool]) { var he = t.closest('.k-tilecontrol'); placeInHost(he ? he.getAttribute('data-name') : ''); return; }
+      if (state.palHost[state.tool]) { placeInHost(hostFromElement(state.palHost[state.tool], t)); return; }
       startPlace(ev); return;
     }
     var ctl = t.closest('.ctl');
@@ -1016,8 +1242,8 @@ body.full #toolbar { padding: 3px 8px; }
 
   function startMove(ev) {
     var names = state.sel.slice();
-    // Tiles and groups are placed by their tile control: they are selected, never dragged.
-    if (names.some(isTilePart)) { return; }
+    // Parts placed by their parent (tiles, grid columns…) are selected, never dragged.
+    if (names.some(isFixed)) { return; }
     var orig = {}; names.forEach(function (n) { orig[n] = { x: byName[n].x, y: byName[n].y }; });
     // Docked components cannot be placed by hand, but they can still be dragged into another container.
     drag = { kind: 'move', sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, ddx: 0, ddy: 0, target: null, dockedOnly: !names.every(isFree) };
@@ -1145,7 +1371,6 @@ body.full #toolbar { padding: 3px 8px; }
       if (k0 === 'i') { toggleRight(); ev.preventDefault(); return; }
       if (k0 === 'f') { setFull(!state.ui.full); ev.preventDefault(); return; }
     }
-    if (ev.key === 'F12') { post({ type: 'openCode' }); ev.preventDefault(); return; }
     if (ev.key === 'Escape') { if (state.tool) { state.tool = null; renderPalette(); renderStatus(); } else { selectParent(); } return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
@@ -1167,7 +1392,7 @@ body.full #toolbar { padding: 3px 8px; }
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, fit: state.fit, zoom: state.zoom }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, fit: state.fit, zoom: state.zoom, after: state.openAfter }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -1209,7 +1434,7 @@ body.full #toolbar { padding: 3px 8px; }
     var st = null;
     try { st = vscode.getState(); } catch (err) { st = null; }
     if (st && typeof st === 'object') {
-      state.ui.left = st.left !== false; state.ui.right = st.right !== false;
+      state.ui.left = st.left !== false; state.ui.right = st.right !== false; state.openAfter = !!st.after;
       state.fit = !!st.fit;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.5 && st.zoom <= 2) { state.zoom = st.zoom; $('zoom').value = String(st.zoom); if ($('zoom').value !== String(st.zoom)) { $('zoom').value = '1'; state.zoom = 1; } }
@@ -1230,10 +1455,6 @@ body.full #toolbar { padding: 3px 8px; }
   $('redo').addEventListener('click', function () { post({ type: 'redo' }); });
   $('opencode').addEventListener('click', function () { post({ type: 'openCode' }); });
   $('opendfm').addEventListener('click', function () { post({ type: 'openDfm' }); });
-  $('alignbtn').addEventListener('click', function () {
-    if (state.sel.length < 2) { state.notice = 'Select two or more components to align (Shift+click, or drag a rectangle).'; renderStatus(); return; }
-    post({ type: 'align', op: $('alignop').value, names: state.sel.slice() });
-  });
   $('palfilter').addEventListener('input', function () { state.filter = $('palfilter').value.trim(); renderPalette(); });
   $('palgroup').addEventListener('change', function () { state.palGroup = $('palgroup').value; $('palfilter').value = ''; state.filter = ''; renderPalette(); });
   $('cfname').addEventListener('input', function () { state.cf.text = $('cfname').value.trim(); renderOutline(); });
@@ -1257,7 +1478,7 @@ body.full #toolbar { padding: 3px 8px; }
       if (m.palette && !state.palette.length) { state.palette = m.palette; fillPalGroups(); renderPalette(); }
       if (m.ops && !state.ops.length) {
         state.ops = m.ops;
-        m.ops.forEach(function (o) { var op = el('option', '', o.label); op.value = o.id; $('alignop').appendChild(op); });
+        buildAlignBar(m.ops);
       }
       state.canUndo = !!m.canUndo; state.canRedo = !!m.canRedo; state.notice = m.notice || '';
       if (m.selection) { state.sel = m.selection; }

@@ -81,7 +81,8 @@ test('components list: filter by name and type, sort, flat / tree; palette: one 
     for (const id of ['cfname', 'cftype', 'cfsort', 'cfflat', 'compcount', 'palfilter', 'palgroup', 'palcount']) { assert.ok(html.includes(`id="${id}"`), id); }
     for (const v of ['@container', '@nonvisual', '@events', '@unknown', '@dx', '@tms']) { assert.ok(html.includes(`'${v}'`), 'type filter ' + v); }
     assert.match(html, /function revealNode/, 'a component on a hidden page is revealed from the list');
-    assert.match(html, /key === 'F12'/, 'F12 goes back to the code');
+    assert.doesNotMatch(html, /F12/, 'F12 is no longer the way back to the code: it is Ctrl+K Ctrl+B');
+    assert.match(html, /Ctrl\+K Ctrl\+B/, 'the shortcut is shown on the Code button');
     // the palette no longer dumps every component: only the chosen type is listed, a name filter searches them all
     assert.match(html, /\(flt \? groups : \[state\.palGroup\]\)/, 'one type at a time, unless a name is being searched');
     assert.doesNotMatch(html, /All families/, 'there is no "all" entry any more');
@@ -113,7 +114,7 @@ test('parents are easy to spot and components easy to move between them', () => 
     assert.match(html, /\.ctl\.droptarget::after/, 'the drop target is highlighted');
     assert.match(html, /↳ Drop into /);
     assert.match(html, /dockedOnly/, 'docked controls can be dragged to another container');
-    assert.match(html, /box\.appendChild\(field\('Parent', psel\)\)/, 'the inspector has a Parent selector');
+    assert.match(html, /box\.appendChild\(labelled\('Parent', psel\)\)/, 'the inspector has a Parent selector');
     assert.match(html, /addEventListener\('dragstart'/, 'list rows can be dragged');
     assert.match(html, /d\.draggable = true/);
     assert.match(html, /function canDropInto/, 'never into itself or one of its own children');
@@ -142,5 +143,40 @@ test('room for complex forms: each side panel hides, Fit window scales the form,
     assert.match(html, /vscode\.setState\(\{ left: state\.ui\.left, right: state\.ui\.right/, 'the choice is remembered');
     assert.match(html, /post\(\{ type: 'fullscreen', on: on \}\)/, 'full screen asks VS Code for its Zen mode');
     for (const key of ["k0 === 'p'", "k0 === 'i'", "k0 === 'f'"]) { assert.ok(html.includes(key), 'shortcut ' + key); }
+    assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
+});
+
+import { ALIGN_OPS } from '../services/DelphiAlign';
+
+test('toolbar: align operations are icon buttons, one per operation, and the old menu is gone', () => {
+    const html = designerHtml('N');
+    assert.ok(html.includes('id="alignbar"'));
+    assert.doesNotMatch(html, /id="alignop"|id="alignbtn"/, 'no select + Apply any more');
+    for (const op of ALIGN_OPS) { assert.ok(html.includes(`    ${op.id}: '<`), 'an icon for ' + op.id); }
+    assert.match(html, /function buildAlignBar/);
+    assert.match(html, /function updateAlignBar/, 'enabled only with enough components selected');
+    assert.match(html, /\.aico rect \{ fill: currentColor/, 'icons follow the theme colour');
+    for (const group of ['class="tg"', 'class="tg end"']) { assert.ok(html.includes(group), group); }
+});
+
+test('inspector: sections, one drop-down for the events, grid parts and the how-to when nothing is selected', () => {
+    const html = designerHtml('N');
+    for (const title of ["'Position & size'", "'Content'", "'State'", "'Events'", "'Column'"]) { assert.ok(html.includes(title), title); }
+    assert.match(html, /el\('details', 'insec'\)/, 'collapsible sections');
+    assert.match(html, /el\('select', 'evsel'\)/, 'one drop-down for the events');
+    assert.match(html, /g1\.label = 'Create a handler'/);
+    assert.match(html, /g2\.label = 'Open the code of'/);
+    assert.match(html, /'open the code after creating'/);
+    assert.match(html, /function formInfo/, 'a how-to when nothing is selected');
+    assert.doesNotMatch(html, /class="ev"|'⚡ ' \+ ev/, 'the old clickable list of events is gone');
+    // the name of a component in the card must not reuse the class of the name tags drawn on the form
+    assert.match(html, /el\('div', 'iname', n\.name\)/);
+    // DevExpress grid parts
+    for (const k of ["'gridcolumn'", "'gridview'", "'gridlevel'"]) { assert.ok(html.includes(k), k); }
+    assert.match(html, /\.k-gridcolumn \.gh/);
+    assert.match(html, /if \(n\.structural\) \{ e\.style\.display = 'none'/, 'structure is listed, never painted');
+    assert.match(html, /HOST_LABEL = \{ tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view' \}/);
+    assert.match(html, /function hostFromElement/);
+    for (const prop of ["'DataBinding.FieldName'", "'GridView'"]) { assert.ok(html.includes(prop), prop); }
     assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
 });

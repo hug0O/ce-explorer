@@ -7,7 +7,7 @@ import { loadComponentDef } from '../services/FormLibrary';
 import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
 import { planAddEvent } from '../services/DelphiEvents';
 import {
-    DesignResult, EditExpectation, addEdits, buildDesignModel, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
+    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingGridViews, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { applyTextEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
@@ -271,7 +271,7 @@ export class FormDesignerPanel {
             }
             case 'delete': {
                 const list = names(m.names);
-                await this.commit('Delete ' + list.join(', '), deleteEdits(pas, dfm, list, root.className), [], { removed: list.flatMap(n => namesWithin(dfm, n)) });
+                await this.commit('Delete ' + list.join(', '), deleteEdits(pas, dfm, list, root.className), [], { removed: list.flatMap(n => namesWithin(dfm, n)), touched: danglingGridViews(root, list).map(l => l.name), props: ['GridView'] });
                 return;
             }
             case 'rename': {

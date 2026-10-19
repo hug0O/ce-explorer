@@ -181,18 +181,18 @@ test('webview: tiles are drawn, edited and placed through the palette; events ar
     assert.match(html, /function fillPalGroups/);
     assert.match(html, /state\.palHost\[state\.tool\]/, 'tiles and groups are placed inside a tile control');
     assert.match(html, /function selectedHost/);
-    assert.match(html, /goes inside a TdxTileControl/);
+    assert.match(html, /HOST_LABEL = \{ tile: 'a TdxTileControl'/);
     // drawing + inspector
     for (const k of ["'tilecontrol'", "'tile'", "'tilegroup'"]) { assert.ok(html.includes(k), k); }
     assert.match(html, /\.k-tile > \.chrome/);
     assert.match(html, /function tileFields/);
     for (const p of ["'Text1.Value'", "'Size'", "'GroupIndex'", "'Caption.Text'"]) { assert.ok(html.includes(p), p); }
-    assert.match(html, /if \(names\.some\(isTilePart\)\) \{ return; \}/, 'tiles are never dragged');
+    assert.match(html, /if \(names\.some\(isFixed\)\) \{ return; \}/, 'tiles are never dragged');
     // events
     assert.match(html, /function eventsList/);
-    assert.match(html, /type: 'addEvent', name: n\.name, event: e1 \}/, 'one click on a free event creates its handler');
-    assert.match(html, /type: 'open', name: n\.name, event: e1/, 'a wired event opens its handler');
-    assert.match(html, /Other event, e\.g\. OnMouseEnter/, 'any other event can be typed');
+    assert.match(html, /type: 'addEvent', name: n\.name, event: v\.slice\(4\), open: state\.openAfter/, 'picking a free event in the drop-down creates its handler');
+    assert.match(html, /type: 'open', name: n\.name, event: v\.slice\(5\)/, 'a wired event opens its handler');
+    assert.match(html, /Other event…/, 'any other event can be typed');
     assert.match(html, /function previewHandler/);
 });
 

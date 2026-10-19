@@ -8,6 +8,8 @@ import {
     ComponentDef, TextEdit, buildUnitEdits, eventDefOf, existingNames, handlerName, isValidIdentifier, resolveComponentDef,
 } from './DelphiForm';
 import { isTileChild, isTileGroup, isTileHost } from './DelphiTiles';
+import { isGridChild, isGridHost, isGridView } from './DelphiGrid';
+import { nestedRuleOf, onlyHolds } from './DelphiNested';
 
 export interface DfmNode {
     name: string;
@@ -36,8 +38,8 @@ const NOT_CONTAINER_RE = /(RadioGroup|CheckGroup|ButtonGroup|CheckBox|ComboBox|L
 
 export function isContainer(node: DfmNode): boolean {
     if (node.depth === 0) { return true; }
-    // A tile control holds tiles and groups, which it places itself: no control can be dropped into it (or into a tile).
-    if (isTileHost(node.className) || isTileChild(node.className)) { return false; }
+    // A tile control or a grid holds parts that it places itself (tiles, levels, views, columns): no control can be dropped into it.
+    if (isTileHost(node.className) || isTileChild(node.className) || isGridHost(node.className) || isGridChild(node.className)) { return false; }
     return node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));
 }
 
@@ -116,7 +118,7 @@ export function findNode(root: DfmNode, name: string): DfmNode | undefined {
 export function listContainers(root: DfmNode): { node: DfmNode; label: string }[] {
     const out: { node: DfmNode; label: string }[] = [];
     const walk = (n: DfmNode): void => {
-        if (isContainer(n) || isTileHost(n.className)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
+        if (isContainer(n) || isTileHost(n.className) || isGridHost(n.className) || isGridView(n.className)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
         n.children.forEach(walk);
     };
     walk(root);
@@ -277,10 +279,11 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
 
     // A reference in another container: position relative to it inside ITS container.
     const container = ref && ref.parent && ref.parent !== parent && !req.parentName ? ref.parent : parent;
-    // Tiles, groups and detail pages live in a tile control, and a tile control holds nothing else.
-    const tileOnly = isTileChild(req.className) || /TileControlDetailSite$/i.test(req.className);
-    if (tileOnly && !isTileHost(container.className)) { return { error: `${req.className} goes inside a TdxTileControl: pick one as the container.` }; }
-    if (!tileOnly && isTileHost(container.className)) { return { error: `A TdxTileControl only holds tiles, groups and detail pages: pick another container for ${req.className}.` }; }
+    // Tiles, groups, detail pages, grid levels, views and columns live in their own host, and a host holds nothing else.
+    const rule = nestedRuleOf(req.className);
+    if (rule && !rule.host(container)) { return { error: `${req.className} goes inside ${rule.what}: pick one as the container.` }; }
+    const only = rule ? undefined : onlyHolds(container);
+    if (only) { return { error: `${only}: pick another container for ${req.className}.` }; }
     const place = req.position ? { left: req.position.left, top: req.position.top } : computePlacement(def.width ?? 75, def.height ?? 25, container, ref && ref.parent === container ? ref : undefined, req.side, req.gap ?? MARGIN);
 
     const unit = buildUnitEdits(pas, { formClass: root.className, componentName: req.name, def, event, skipField: req.fieldExists });

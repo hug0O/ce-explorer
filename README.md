@@ -252,6 +252,12 @@ The inspector lists **every event of the selected component** (from the catalog:
 - **Other event**: a text box under the list creates any event by name (`OnMouseEnter`, `Properties.OnChange`…); it is the way to add events of a class the designer does not know, whose own list stays empty rather than guessing.
 - Handlers use the signature of the component's own event (`Sender: TdxTileControlItem`, `AButtonIndex: Integer`…), also in *Check form* and *Add event handler*.
 
+#### Designer: room for complex forms
+
+- **Hide the side panels**: *◧ Palette* (the palette and the component list, key **P**) and *Inspector ◨* (key **I**) in the toolbar. A hidden panel leaves a small tab on its edge: click it to bring the panel back. The choice is remembered.
+- **Zoom → Fit window** scales the form to the room that is left, and follows the window and the panels as they change.
+- **⛶ Full screen** (key **F**) hides both panels and asks VS Code for its **Zen mode** (no side bar, no status bar, full screen), then fits the form to the whole screen. Press it again to get the panels and the VS Code interface back. If you leave Zen mode yourself (`Esc Esc`), press the button twice to resynchronise it. Closing the designer leaves Zen mode too.
+
 #### Designer: seeing and changing a component's parent
 
 - **The parent is always visible.** Select a component and its parent container is outlined with an orange dashed frame and a `⬑ parent: name : class` tag. The inspector starts with a breadcrumb (`Form › pnlCentre › pgcDetails › … › edtNom`) where each ancestor is clickable, and the status bar shows the same path.

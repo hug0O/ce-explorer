@@ -70,7 +70,7 @@ button { cursor: pointer; color: var(--vscode-button-secondaryForeground, var(--
 button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3)); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-#main { flex: 1; display: flex; min-height: 0; }
+#main { flex: 1; display: flex; min-height: 0; position: relative; }
 #left, #right { width: 210px; overflow-y: auto; padding: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
 #right { border-right: none; border-left: 1px solid var(--vscode-panel-border, #444); width: 240px; }
 #center { flex: 1; overflow: auto; background: var(--vscode-editorWidget-background, #2d2d2d); padding: 20px; }
@@ -195,13 +195,21 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .sellabel { position: absolute; background: #0a84ff; color: #fff; font: 600 10px/14px 'Segoe UI', sans-serif; padding: 0 6px; border-radius: 3px; white-space: nowrap; pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
 .band { position: absolute; border: 1px dashed #0078d7; background: rgba(0, 120, 215, 0.12); pointer-events: none; }
 .tool-on #client { cursor: crosshair; }
+body.hide-left #left, body.hide-right #right { display: none; }
+.edge { position: absolute; top: 40%; z-index: 30; display: none; writing-mode: vertical-rl; padding: 10px 3px; font-size: 11px; opacity: 0.9; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+#edgeL { left: 0; border-radius: 0 5px 5px 0; }
+#edgeR { right: 0; border-radius: 5px 0 0 5px; }
+body.hide-left #edgeL, body.hide-right #edgeR { display: block; }
+body.full #toolbar { padding: 3px 8px; }
 </style></head>
 <body>
 <div id="toolbar">
-  <label>Zoom <select id="zoom"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+  <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels"><option value="fit">Fit window</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
   <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
   <label><input type="checkbox" id="names"> names</label>
   <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
+  <span class="sep"></span>
+  <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
   <span class="sep"></span>
   <button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button>
   <span class="sep"></span>
@@ -210,6 +218,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   <button id="opencode" title="Switch to the code of the unit (F12); come back with the Designer tab, the title-bar button or Ctrl+K Ctrl+B">&lt;/&gt; Code (F12)</button><button id="opendfm">.dfm</button>
 </div>
 <div id="main">
+  <button id="edgeL" class="edge" title="Show the palette and the component list (P)">▸ Palette</button>
   <div id="left">
     <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
       <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
@@ -226,13 +235,14 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   </div>
   <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div><div id="hov"></div></div></div></div></div>
   <div id="right"><div id="inspector"></div></div>
+  <button id="edgeR" class="edge" title="Show the inspector (I)">◂ Inspector</button>
 </div>
 <div id="status"></div>
 <div id="droplabel"></div>
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, ui: { left: true, right: true, full: false, before: null }, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -404,7 +414,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
     m.root.children.forEach(function (c) { mk(c, client); });
     els[m.root.name] = client;
     state.sel = state.sel.filter(function (s) { return byName[s] && s !== m.root.name; });
-    applyZoom();
+    if (state.fit) { fitZoom(true); } else { applyZoom(); }
     drawSel(); renderOutline(); renderInspector(); renderStatus();
     $('undo').disabled = !state.canUndo; $('redo').disabled = !state.canRedo;
   }
@@ -1129,6 +1139,12 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   document.addEventListener('keydown', function (ev) {
     var tag = ev.target && ev.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
+    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      var k0 = ev.key.toLowerCase();
+      if (k0 === 'p') { toggleLeft(); ev.preventDefault(); return; }
+      if (k0 === 'i') { toggleRight(); ev.preventDefault(); return; }
+      if (k0 === 'f') { setFull(!state.ui.full); ev.preventDefault(); return; }
+    }
     if (ev.key === 'F12') { post({ type: 'openCode' }); ev.preventDefault(); return; }
     if (ev.key === 'Escape') { if (state.tool) { state.tool = null; renderPalette(); renderStatus(); } else { selectParent(); } return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
@@ -1148,7 +1164,64 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
   });
 
   /* ───────── toolbar ───────── */
-  $('zoom').addEventListener('change', function () { state.zoom = Number($('zoom').value); applyZoom(); drawSel(); });
+  /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
+     and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
+  function saveUi() {
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, fit: state.fit, zoom: state.zoom }); } catch (err) { /* no state available */ }
+  }
+  function applyUi() {
+    document.body.classList.toggle('hide-left', !state.ui.left);
+    document.body.classList.toggle('hide-right', !state.ui.right);
+    document.body.classList.toggle('full', state.ui.full);
+    $('togleft').classList.toggle('active', state.ui.left);
+    $('togright').classList.toggle('active', state.ui.right);
+    $('full').classList.toggle('active', state.ui.full);
+    $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen';
+    if (state.fit) { fitZoom(true); }
+    saveUi();
+  }
+  function toggleLeft() { state.ui.left = !state.ui.left; applyUi(); }
+  function toggleRight() { state.ui.right = !state.ui.right; applyUi(); }
+  function setFull(on) {
+    if (on === state.ui.full) { return; }
+    if (on) { state.ui.before = { left: state.ui.left, right: state.ui.right }; state.ui.left = false; state.ui.right = false; }
+    else { var b = state.ui.before || { left: true, right: true }; state.ui.left = b.left; state.ui.right = b.right; state.ui.before = null; }
+    state.ui.full = on;
+    applyUi();
+    post({ type: 'fullscreen', on: on });
+  }
+  function fitZoom(force) {
+    if (!state.model) { return; }
+    var c = $('center');
+    var aw = c.clientWidth - 44, ah = c.clientHeight - 44;
+    if (aw < 80 || ah < 80) { return; }
+    var z = Math.min(aw / (state.model.width + 2), ah / (state.model.height + 33));
+    z = Math.floor(Math.max(0.2, Math.min(2, z)) * 100) / 100;
+    if (force || Math.abs(z - state.zoom) >= 0.01) { state.zoom = z; applyZoom(); drawSel(); }
+  }
+  $('togleft').addEventListener('click', toggleLeft);
+  $('togright').addEventListener('click', toggleRight);
+  $('edgeL').addEventListener('click', toggleLeft);
+  $('edgeR').addEventListener('click', toggleRight);
+  $('full').addEventListener('click', function () { setFull(!state.ui.full); });
+  if (window.ResizeObserver) { new ResizeObserver(function () { if (state.fit) { fitZoom(false); } }).observe($('center')); }
+  (function () {
+    var st = null;
+    try { st = vscode.getState(); } catch (err) { st = null; }
+    if (st && typeof st === 'object') {
+      state.ui.left = st.left !== false; state.ui.right = st.right !== false;
+      state.fit = !!st.fit;
+      if (state.fit) { $('zoom').value = 'fit'; }
+      else if (st.zoom >= 0.5 && st.zoom <= 2) { state.zoom = st.zoom; $('zoom').value = String(st.zoom); if ($('zoom').value !== String(st.zoom)) { $('zoom').value = '1'; state.zoom = 1; } }
+    }
+    applyUi();
+  })();
+  $('zoom').addEventListener('change', function () {
+    var v = $('zoom').value;
+    state.fit = v === 'fit';
+    if (state.fit) { fitZoom(true); } else { state.zoom = Number(v); applyZoom(); drawSel(); }
+    saveUi();
+  });
   $('grid').addEventListener('change', function () { state.grid = Number($('grid').value); });
   $('names').addEventListener('change', function () { state.names = $('names').checked; render(); });
   $('showparents').addEventListener('change', function () { state.showParents = $('showparents').checked; drawSel(); });

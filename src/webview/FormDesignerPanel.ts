@@ -50,6 +50,8 @@ export class FormDesignerPanel {
     private refreshTimer: ReturnType<typeof setTimeout> | undefined;
     private applying = false;
     private lastSelection: string[] = [];
+    /** Full screen of the designer = VS Code's Zen mode, which can only be toggled: its state is tracked here. */
+    private zen = false;
 
     private constructor(
         private readonly panel: vscode.WebviewPanel,
@@ -105,7 +107,16 @@ export class FormDesignerPanel {
         await FormDesignerPanel.createOrShow(doc);
     }
 
+    /** Enters / leaves VS Code's Zen mode (no side bar, no status bar, full screen) so that a complex form gets the whole screen. */
+    private async setZen(on: boolean): Promise<void> {
+        if (on === this.zen) { return; }
+        this.zen = on;
+        try { await vscode.commands.executeCommand('workbench.action.toggleZenMode'); } catch { this.zen = !on; }
+    }
+
     private dispose(): void {
+        // Closing the designer must not leave the window stripped of its interface.
+        if (this.zen) { this.zen = false; void vscode.commands.executeCommand('workbench.action.toggleZenMode'); }
         FormDesignerPanel.open.delete(this.dfmDoc.uri.toString());
         if (this.refreshTimer) { clearTimeout(this.refreshTimer); }
         this.disposables.forEach(d => d.dispose());
@@ -222,6 +233,7 @@ export class FormDesignerPanel {
             case 'ready': this.sendModel(); return;
             case 'undo': await this.step('undo'); return;
             case 'redo': await this.step('redo'); return;
+            case 'fullscreen': await this.setZen(m.on === true); return;
             case 'openCode': await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn }); return;
             case 'openDfm': await vscode.window.showTextDocument(this.dfmDoc, { viewColumn: this.panel.viewColumn }); return;
             default: break;

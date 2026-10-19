@@ -130,3 +130,17 @@ test('selection is unmistakable: above every control, strong outline, handles, n
     assert.match(html, /\.outline div\.sel \{[^}]*#0a84ff/, 'the selected list row has a visible fallback colour');
     assert.match(html, /state\.sel\.length \+ ' selected/);
 });
+
+test('room for complex forms: each side panel hides, Fit window scales the form, Full screen hides everything', () => {
+    const html = designerHtml('N');
+    for (const id of ['togleft', 'togright', 'full', 'edgeL', 'edgeR']) { assert.ok(html.includes(`id="${id}"`), id); }
+    assert.match(html, /body\.hide-left #left, body\.hide-right #right \{ display: none; \}/, 'the panels hide');
+    assert.match(html, /body\.hide-left #edgeL, body\.hide-right #edgeR \{ display: block; \}/, 'a tab on the edge brings a hidden panel back');
+    assert.match(html, /<option value="fit">Fit window<\/option>/);
+    assert.match(html, /function fitZoom/);
+    assert.match(html, /new ResizeObserver/, 'the fit follows the room left by the panels and the window');
+    assert.match(html, /vscode\.setState\(\{ left: state\.ui\.left, right: state\.ui\.right/, 'the choice is remembered');
+    assert.match(html, /post\(\{ type: 'fullscreen', on: on \}\)/, 'full screen asks VS Code for its Zen mode');
+    for (const key of ["k0 === 'p'", "k0 === 'i'", "k0 === 'f'"]) { assert.ok(html.includes(key), 'shortcut ' + key); }
+    assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));
+});

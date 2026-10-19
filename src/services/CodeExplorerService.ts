@@ -144,9 +144,9 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
 
 /**
  * Parses the active document once per version and answers "what is in this file":
- * classes, members, standalone routines. The sidebar's Add / Delete tab, the member
+ * classes, members, standalone routines. The sidebar's Structure tab, the member
  * view and the "Go to Member" command all read it; the filtering and the grouping
- * of the members are the Add / Delete tab's business (the Classes tree is gone).
+ * of the members are the Structure tab's business (the Classes tree is gone).
  */
 export class CodeExplorerService {
     private providers: Map<string, ILanguageProvider> = new Map();

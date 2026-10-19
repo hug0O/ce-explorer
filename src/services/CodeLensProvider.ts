@@ -47,7 +47,7 @@ export class MmxCodeLensProvider implements vscode.CodeLensProvider {
                 new vscode.Range(cls.range.start.line, 0, cls.range.start.line, 0),
                 {
                     command: 'mmx.lensRun',
-                    title: '$(add) Add / Delete members',
+                    title: '$(list-tree) Structure',
                     arguments: ['mmx.manageMembers', cls.range.start.line],
                 }
             ));

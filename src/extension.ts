@@ -572,7 +572,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'mmx.addEventHandler' },
                 { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'mmx.addComponent' },
                 { label: '$(search) Go to Member in Workspace', description: '', cmd: 'mmx.goToWorkspaceMember' },
-                { label: '$(list-tree) Add / Delete Members', description: 'Ctrl+K Ctrl+M', cmd: 'mmx.manageMembers' },
+                { label: '$(list-tree) Structure (members of the file)', description: 'Ctrl+K Ctrl+M', cmd: 'mmx.manageMembers' },
                 { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'mmx.memo.open' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
                 { label: '$(refresh) Refresh Explorer', description: '', cmd: 'mmx.refreshExplorer' },
@@ -801,7 +801,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        // The members are filtered and grouped in the Add / Delete tab of the sidebar (it replaced the Classes tree).
+        // The members are filtered and grouped in the Structure tab of the sidebar (it replaced the Classes tree).
         vscode.commands.registerCommand('mmx.filterTree', async () => {
             await memberViewer.focusManageFilter();
         }),

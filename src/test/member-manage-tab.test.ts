@@ -58,11 +58,13 @@ function makePanel(ctx: any = { subscriptions: [] }, registry: any = { getByDocu
 test('Member view shows a tab bar and keeps the Details tab by default', () => {
     const html = makePanel().getHtml();
     assert.match(html, /data-tab="detail"/);
-    assert.match(html, /data-tab="manage"/);
+    assert.match(html, /data-tab="manage"[^>]*>Structure<\/button>/, 'the tab is called Structure, as in the Delphi IDE');
+    assert.doesNotMatch(html, /Add \/ Delete/, 'its old name is gone');
+    assert.match(html, /title="Members of the file: add, filter, edit, rename, move, delete - Ctrl\+K Ctrl\+M"/);
     assert.doesNotMatch(html, /data-m-act="delete"/, 'no manage rows on the Details tab');
 });
 
-test('Add / Delete tab lists every member (sorted by line) with edit / rename / delete and add buttons', () => {
+test('Structure tab lists every member (sorted by line) with edit / rename / delete and add buttons', () => {
     const panel = makePanel();
     panel._tab = 'manage';
     const html: string = panel.getHtml();
@@ -203,7 +205,7 @@ test('Tools are split into sub-tabs; only the pages that apply to the file are o
     assert.match(sql, /command: 'toolsTab'/);
 });
 
-/* ───────────── Add / Delete: filter, grouping, type selector, same abilities as the former Classes tree ───────────── */
+/* ───────────── Structure: filter, grouping, type selector, same abilities as the former Classes tree ───────────── */
 
 function cls(id: string, name: string, members: any[], extra: any = {}): any {
     return { id, name, classType: 'class', members, range: new FakeRange(0, 0, 40, 0), isInterface: false, isRecord: false, isSealed: false, interfaces: [], ...extra };
@@ -221,7 +223,7 @@ function twoClassPanel(): { panel: any; a: any; b: any } {
     return { panel, a, b };
 }
 
-test('Add / Delete has a live filter, a kind filter and a grouping, like the Classes tree had', () => {
+test('Structure has a live filter, a kind filter and a grouping, like the Classes tree had', () => {
     const { panel } = twoClassPanel();
     panel._manageFilter = 'get|run';
     panel._manageKind = 'method';
@@ -240,7 +242,7 @@ test('Add / Delete has a live filter, a kind filter and a grouping, like the Cla
     assert.match(panel.getManageHtml(), /data-focus="1"/, 'the Filter Members command puts the caret in the box');
 });
 
-test('Add / Delete works on any type of the file, not only the one under the cursor', async () => {
+test('Structure works on any type of the file, not only the one under the cursor', async () => {
     const { panel, a, b } = twoClassPanel();
     let html: string = panel.getManageHtml();
     assert.match(html, /<select id="mType"/);
@@ -282,7 +284,7 @@ test('Add / Delete works on any type of the file, not only the one under the cur
     vscodeMock.window.activeTextEditor = undefined;
 });
 
-test('Add / Delete: commands that used to drive the tree now drive the tab', () => {
+test('Structure: commands that used to drive the tree now drive the tab', () => {
     const { panel } = twoClassPanel();
     assert.equal(panel.cycleManageGroup(), 'visibility');
     assert.equal(panel.cycleManageGroup(), 'kind');

@@ -82,7 +82,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _tab: SidebarTab = 'detail';
     // Sub-tab of the Tools tab (form / components / spacing / plsql / align); '' = the first one that applies.
     private _toolsTab = '';
-    // Add / Delete tab: filter text and kind, grouping, and the type being managed ('' = the one under the cursor).
+    // Structure tab: filter text and kind, grouping, and the type being managed ('' = the one under the cursor).
     private _manageFilter = '';
     private _manageKind = '';
     private _manageGroup: ManageGroup = 'source';
@@ -126,7 +126,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 // and other documents also fire this event), and typing is
                 // debounced longer than a cursor move to avoid re-parsing per key.
                 if (editor && e.document === editor.document) {
-                    // The Add / Delete list must follow the text, even when the cursor stays on the same member.
+                    // The Structure list must follow the text, even when the cursor stays on the same member.
                     if (this._tab === 'manage') { this._stateKey = ''; }
                     this.scheduleCursorUpdate(editor, 300);
                 }
@@ -424,7 +424,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
      * member CURRENTLY DISPLAYED in the panel — no cursor re-resolution, so the
      * buttons always act on exactly what the user sees.
      */
-    /** Reveals the sidebar on the Add / Delete tab (command, keybinding and code lens entry point). */
+    /** Reveals the sidebar on the Structure tab (command, keybinding and code lens entry point). */
     public async showManageTab(): Promise<void> {
         this._tab = 'manage';
         try { await vscode.commands.executeCommand(`${MemberViewerPanel.viewType}.focus`); } catch { /* view unavailable */ }
@@ -588,7 +588,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (editor && this._mode === 'view') { this.onCursorChanged(editor); } else { this.updateView(); }
     }
 
-    /** What the Add / Delete tab manages: a type of the file (the chosen one, else the one under the cursor), or its standalone routines. */
+    /** What the Structure tab manages: a type of the file (the chosen one, else the one under the cursor), or its standalone routines. */
     private manageContext(): { classes: ClassInfo[]; standalone: ClassMember[]; current: ClassInfo | undefined; isFile: boolean } {
         const doc = vscode.window.activeTextEditor?.document;
         const parsed = doc && typeof this._codeExplorer?.getParsedDocument === 'function' ? this._codeExplorer.getParsedDocument(doc) : undefined;
@@ -620,7 +620,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         await vscode.commands.executeCommand(command, current ? { itemData: current, parentClass: current } : undefined);
     }
 
-    /** Filter box of the Add / Delete tab, from the "Filter Members" command or its shortcut. */
+    /** Filter box of the Structure tab, from the "Filter Members" command or its shortcut. */
     public async focusManageFilter(): Promise<void> {
         this._focusFilter = true;
         await this.showManageTab();
@@ -1287,7 +1287,7 @@ ${memoScript()}
     private tabsHtml(firstLabel: string): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
             `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''}>${label}</button>`;
-        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Add / Delete', shortcutOf('global', 'mmx.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'mmx.memo.open'))}\n</div>`;
+        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'mmx.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'mmx.memo.open'))}\n</div>`;
     }
 
     /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
@@ -1316,7 +1316,7 @@ ${memoScript()}
         return html;
     }
 
-    /** "Add / Delete" tab: add to any type of the file, then filter / group / edit / rename / move / delete its members. */
+    /** "Structure" tab: add to any type of the file, then filter / group / edit / rename / move / delete its members. */
     private getManageHtml(): string {
         const { member, provider } = this._state;
         const ctx = this.manageContext();
@@ -1434,7 +1434,7 @@ ${memoCss()}
         html += this.tabsHtml('Details');
 
         if (this._tab === 'memo' || this._tab === 'manage') {
-            // the memo is not about the member under the cursor, and the type selector of Add / Delete already names the type
+            // the memo is not about the member under the cursor, and the type selector of Structure already names the type
         } else if (classInfo) {
             html += `<div class="class-header">
 <div class="name">${escapeHtml(classInfo.name)}</div>

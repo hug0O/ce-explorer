@@ -1,5 +1,5 @@
 /**
- * "Add / Delete" tab of the sidebar: add a member to any type of the file, and
+ * "Structure" tab of the sidebar: add a member to any type of the file, and
  * filter, group, go to, edit, rename, move or delete the members of the chosen
  * type. This tab replaces the former "Classes" tree view, with the same
  * abilities (filter, grouping, add / edit / rename / delete / move, accessors,

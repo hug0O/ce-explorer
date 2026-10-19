@@ -46,7 +46,7 @@ export const TOOL_SHORTCUTS: Record<ShortcutFamily, Record<string, string>> = {
     global: { 'mmx.alignSelection': 'j' },
 };
 
-/** Shortcuts that are not "Ctrl+K letter", shown as they are (Add / Delete, Memo). */
+/** Shortcuts that are not "Ctrl+K letter", shown as they are (Structure, Memo). */
 export const FIXED_SHORTCUTS: Record<string, string> = {
     'mmx.manageMembers': 'Ctrl+K Ctrl+M',
     'mmx.editMember': 'Ctrl+K Ctrl+E',

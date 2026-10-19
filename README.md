@@ -31,8 +31,8 @@ code --install-extension mmx-code-explorer-0.1.0.vsix
 
 ## Features
 
-### Sidebar: Add / Delete, Tools, Memo
-The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the member under the cursor), **Add / Delete**, **Tools** and **Memo**. The former *Classes* tree is gone: the Add / Delete tab does everything it did, on the types of the active file.
+### Sidebar: Structure, Tools, Memo
+The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the member under the cursor), **Structure**, **Tools** and **Memo**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file.
 
 - **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
 - **Add** a field, method, property or constructor to the chosen type; insert a template; synchronise declarations and implementations; open the templates manager; refresh.
@@ -52,7 +52,7 @@ The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the m
 - **Rename** — Update member name across declaration and implementation
 - **Delete** — Remove member with confirmation
 - **Move** — Transfer a member to another class
-- **Filter, group, go to** — in the Add / Delete tab of the sidebar
+- **Filter, group, go to** — in the Structure tab of the sidebar
 
 ### Code Generation
 - **Implement Interface** — Auto-generate method stubs from interface/parent definitions
@@ -134,7 +134,7 @@ MIT
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+K Ctrl+M` | Open the **Add / Delete** tab of the Member sidebar |
+| `Ctrl+K Ctrl+M` | Open the **Structure** tab of the Member sidebar |
 | `Ctrl+K Ctrl+N` | Open the **Memo** tab |
 | `Ctrl+K Ctrl+A` | Show the Code Explorer action menu |
 | `Ctrl+K Ctrl+E` | Edit the member under the cursor |

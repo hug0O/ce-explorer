@@ -232,7 +232,7 @@
       },
       {
         "command": "mmx.manageMembers",
-        "title": "CE: Manage Members (Add / Delete)",
+        "title": "CE: Open Structure (add, filter, edit, move, delete members)",
         "icon": "$(list-tree)"
       },
       {
@@ -490,7 +490,7 @@
         "mmx.codeLensMemberActions": {
           "type": "boolean",
           "default": false,
-          "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Add / Delete lens)"
+          "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)"
         },
         "mmx.delphi.customComponents": {
           "type": "array",

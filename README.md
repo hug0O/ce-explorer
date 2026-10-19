@@ -31,11 +31,14 @@ code --install-extension mmx-code-explorer-0.1.0.vsix
 
 ## Features
 
-### Class Explorer Tree
-- Side panel showing all classes, interfaces, structs, traits, and enums
-- Type-specific icons (struct, interface, enum, impl, class)
-- Expandable member lists with visibility, return types, and modifiers
-- Real-time filter and grouping (by kind, visibility, or alphabetical)
+### Sidebar: Add / Delete, Tools, Memo
+The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the member under the cursor), **Add / Delete**, **Tools** and **Memo**. The former *Classes* tree is gone: the Add / Delete tab does everything it did, on the types of the active file.
+
+- **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
+- **Add** a field, method, property or constructor to the chosen type; insert a template; synchronise declarations and implementations; open the templates manager; refresh.
+- **Filter** the members as you type: by name, type or kind, with a regular expression when it is valid (`get|set`, `^On`), plus a *kind* list (methods, fields, properties, constructors). The *Filter Members* command (`mmx.filterTree`) puts the caret in that box.
+- **Order / group**: source order, by visibility, by kind, or A → Z (`CE: Toggle Member Grouping` cycles through them).
+- **Every member** is listed with its visibility (`+ - # ★`), kind icon, signature and type, and acts on click: *go to*, **edit**, **rename**, **getter / setter** (fields), **move to another type**, **delete**. Drag-and-drop reordering of the tree is replaced by *move to another type*.
 
 ### Visual Member Editor
 - Popup webview form for creating and editing methods, fields, and properties
@@ -49,7 +52,7 @@ code --install-extension mmx-code-explorer-0.1.0.vsix
 - **Rename** — Update member name across declaration and implementation
 - **Delete** — Remove member with confirmation
 - **Move** — Transfer a member to another class
-- **Drag-and-drop** — Reorder members within a class by dragging in the tree
+- **Filter, group, go to** — in the Add / Delete tab of the sidebar
 
 ### Code Generation
 - **Implement Interface** — Auto-generate method stubs from interface/parent definitions
@@ -132,8 +135,30 @@ MIT
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+K Ctrl+M` | Open the **Add / Delete** tab of the Member sidebar |
+| `Ctrl+K Ctrl+N` | Open the **Memo** tab |
 | `Ctrl+K Ctrl+A` | Show the Code Explorer action menu |
 | `Ctrl+K Ctrl+E` | Edit the member under the cursor |
+| `Ctrl+K Ctrl+B` | Toggle the Delphi form designer ⇄ code |
+| `Ctrl+K J` | Align the selection on a string (any language) |
+
+**Tools shortcuts: `Ctrl+K`, release, then a letter.** Each one works only in the files it is about, so the same letter serves both families. They are **shown on the buttons of the Tools tab**, next to the tool, so there is nothing to look up.
+
+| Delphi (`.pas` `.dfm` `.dpr`) | | PL/SQL (`.pks` `.pkb` `.sql` `.pls` `.plb` `.txt`) | |
+|---|---|---|---|
+| `Ctrl+K D` | Open the form designer | `Ctrl+K D` | PLDoc header |
+| `Ctrl+K L` | Align components | `Ctrl+K Y` | Sync spec ⇄ body |
+| `Ctrl+K N` | Anchors / docking | `Ctrl+K N` | New package |
+| `Ctrl+K T` | TabOrder by position | `Ctrl+K C` | CRUD from table |
+| `Ctrl+K C` | Check form | `Ctrl+K X` | Extract procedure |
+| `Ctrl+K H` | Clean handlers | `Ctrl+K E` | Exception block |
+| `Ctrl+K Y` | Copy components | `Ctrl+K T` | utPLSQL tests |
+| `Ctrl+K A` | Paste components | `Ctrl+K L` | Find callers |
+| `Ctrl+K K` | Duplicate | | |
+| `Ctrl+K G` | Form from fields | | |
+| `Ctrl+K Q` | Form from a class | | |
+| `Ctrl+K E` | Change class | | |
+
+The letters avoid the ones VS Code already uses after `Ctrl+K` (`M F P R O U W Z V S`). They can be changed in *Keyboard Shortcuts* like any other; the sidebar shows the default ones.
 
 - **CE: Go to Member in Workspace…** searches the symbols of every file (index kept up to date by a file watcher).
 - Renaming a member uses the language server when one is available (TypeScript, Java, C#, Go, Rust, Python, C++ with clangd), and otherwise falls back to a text search. The fallback offers to rename the references found in other workspace files.
@@ -147,13 +172,13 @@ MIT
 ### Sidebar tools (Member view → Tools tab)
 
 - **Align selection**: type a string (or click `:=`, `:`, `=`, `=>`, `//`, `,`), select lines in the editor, click *Align*. Also shown when the cursor is outside any member.
-- **Delphi component**: for a `.pas` with a text `.dfm`, add *any* class (pick from the list or type e.g. `TSpinEdit`, optional unit for `uses`), choose the container (form, panel, group box…), a reference control and the side (right of / below / left of / above). The component is aligned with it (vertically centred beside, left edges aligned above/below; docked siblings such as `alTop` are continued) and the event handler is created.
-- **Event on an existing component**: pick a component of the form (or the form itself) and an event (`OnClick`, `OnChange`, `OnClose`…): the link is added to the `.dfm`, the handler declared and stubbed in the `.pas`, and the cursor jumps into it. If the event is already wired, the existing handler is opened instead. Also available as **CE: Add Event Handler to Delphi Component…**.
+- **Delphi components and events** are added in the **visual form designer** (palette by type, drop on the form, one-click event handlers): the sidebar no longer has its own *Components* form, since the designer does the same thing visually. The command palette keeps **CE: Add Delphi Component…** and **CE: Add Event Handler to Delphi Component…**.
+- **Keyboard shortcuts** of the tools are shown on their buttons (see *Keyboard shortcuts*).
 
 ### More Delphi tools
 
 - **Align shortcuts** are yours: type any string, click `+` to keep it, `×` to remove one. They are saved between sessions.
-- **Gap**: the *Add to form* block has a pixel gap (default 8) used between the new component and its reference. **Spacing between components** sets the exact edge-to-edge gap between a component and its neighbour on any side (right, below, left, above), moving what follows if you tick the box, and **Distribute** re-spaces a whole container on fixed horizontal / vertical gaps (rows detected, columns aligned).
+- **Spacing between components** (Tools → Spacing) sets the exact edge-to-edge gap between a component and its neighbour on any side (right, below, left, above), moving what follows if you tick the box, and **Distribute** re-spaces a whole container on fixed horizontal / vertical gaps (rows detected, columns aligned).
 - **The .dfm follows the unit**: renaming a component field (explorer, Member panel…) renames the `object` in the `.dfm`, its references and its `<Component><Event>` handlers; deleting it removes the object, its children and the empty handlers; adding a field of a known component class offers to create the object. Handlers that contain code, or are shared, are never touched.
 - **Third-party components** (DevExpress, TMS, JVCL…): any class name works. The tool learns size, caption, tab stop and events from the `.dfm` files already in your workspace, remembers the unit you typed for a class, and you can describe a class once in the `mmx.delphi.customComponents` setting (`className`, `unit`, `width`, `height`, `namePrefix`, `events`, `props`, `tabOrder`). Third-party units are added to `uses` as written, never with the `Vcl.` scope.
 - Examples: `test-fixtures/delphi/ComplexForm.*` (docked panels, page control, group boxes, DevExpress controls, a list view collection) and `LayoutForm.*`.
@@ -234,6 +259,15 @@ The inspector lists **every event of the selected component** (from the catalog:
 - **Move to another parent**, four ways: drag the component onto another container (the target turns green and a tag says `Drop into … : class`; dropping on the form itself takes it out of its container); pick one in the inspector's **Parent** list (the component stays where it is on screen when possible); drag a row of the Components list onto a container row, or onto the `⌂ form` row at its top; or drag a *docked* control (alTop, alClient…) — it keeps its `Align`. A component is always kept inside its new parent, and never goes into itself or its own children.
 - **Esc** selects the parent of the selection (the usual Delphi habit); it first cancels the palette tool if one is armed.
 
+#### Sidebar → Memo: Markdown notes per language
+
+The **Memo** tab keeps the actions you repeat every day, one Markdown memo per language (Delphi, PL/SQL, TypeScript… and *General*). The language follows the file you are editing (or pick one in the list; a • marks the languages that already have a memo).
+
+- **Edit** as plain Markdown, saved as you type; **Preview** to read it. A memo that has text opens as a preview.
+- In the preview, **task lists** (`- [ ] step`) can be ticked and stay ticked; every **fenced code block** has **Copy** and **Insert** buttons, the latter writing the block at the cursor of the editor (or on every cursor / selection); `code`, **bold**, *italic*, quotes, lists and `https` links work too. Nothing in the text can run: it is escaped, and links only open from the extension.
+- **📝 Open .md** opens the file in the editor. The files are plain `typescript.md`, `pascal.md`, `plsql.md`, `general.md`… in the extension's own storage, or in the folder of the `mmx.memo.folder` setting (a relative path starts at the workspace, so the memos can be versioned with the project and shared with the team). A memo saved from the editor refreshes the sidebar.
+- `Ctrl+K Ctrl+N` or **CE: Open Memo** opens the tab.
+
 #### Sidebar → Tools: one page per set of tools
 
-The Tools tab is split into sub-tabs, and only the ones that apply to the active file are shown: **Form** (visual designer, layout and checks), **Components** (add a component, create an event handler on an existing one) and **Spacing** for a Delphi unit; **PL/SQL** for Oracle files; **Align** for everything. The last sub-tab you used is remembered.
+The Tools tab is split into sub-tabs, and only the ones that apply to the active file are shown: **Form** (visual designer, layout and checks), and **Spacing** for a Delphi unit (components and their events are added in the visual designer, which does it visually: the sidebar no longer duplicates it); **PL/SQL** for Oracle files; **Align** for everything. The last sub-tab you used is remembered.

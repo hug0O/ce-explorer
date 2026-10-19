@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassInfo, ClassMember, MemberKind, Visibility, ParsedDocument } from '../models/types';
-import { compileFilter, nameMatchesFilter, sortMembersForDisplay as sortMembersUtil, GroupMode, CompiledFilter } from '../utils/memberNavigation';
 
 export class CodeExplorerTreeItem extends vscode.TreeItem {
     constructor(
@@ -143,51 +142,18 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
     }
 }
 
-class ClassInfoSymbol {
-    constructor(public readonly name: string) {}
-}
-
-function isClassInfo(obj: unknown): obj is ClassInfo {
-    return typeof obj === 'object' && obj !== null && 'members' in obj;
-}
-
-export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorerTreeItem> {
-    private _onDidChangeTreeData = new vscode.EventEmitter<CodeExplorerTreeItem | undefined | null>();
-    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-
+/**
+ * Parses the active document once per version and answers "what is in this file":
+ * classes, members, standalone routines. The sidebar's Add / Delete tab, the member
+ * view and the "Go to Member" command all read it; the filtering and the grouping
+ * of the members are the Add / Delete tab's business (the Classes tree is gone).
+ */
+export class CodeExplorerService {
     private providers: Map<string, ILanguageProvider> = new Map();
     private providersByExtension: Map<string, ILanguageProvider> = new Map();
     private currentDocument: vscode.TextDocument | undefined;
     private parsedCache: Map<string, ParsedDocument> = new Map();
     private parsedVersion: Map<string, number> = new Map();
-
-    // Navigation state (Step 4): live regex filter + pluggable grouping.
-    // The compiled filter is cached and only rebuilt when setFilter changes the
-    // pattern, so the tree-view hot path never recompiles a RegExp per name.
-    private filterPattern: string = '';
-    private compiledFilter: CompiledFilter = compileFilter('');
-    private groupBy: GroupMode = 'visibility';
-    private refreshTimer: NodeJS.Timeout | undefined;
-
-    private matchesFilter(name: string): boolean {
-        return nameMatchesFilter(name, this.compiledFilter);
-    }
-
-    setFilter(pattern: string): void {
-        this.filterPattern = pattern;
-        this.compiledFilter = compileFilter(pattern);
-        this._onDidChangeTreeData.fire(null);
-    }
-
-    getFilter(): string {
-        return this.filterPattern;
-    }
-
-    cycleGroupBy(): GroupMode {
-        this.groupBy = this.groupBy === 'visibility' ? 'kind' : this.groupBy === 'kind' ? 'alpha' : 'visibility';
-        this._onDidChangeTreeData.fire(null);
-        return this.groupBy;
-    }
 
     /**
      * Flat list of every navigable symbol in the active document (classes,
@@ -244,7 +210,6 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
             this.currentDocument = editor.document;
             this.parsedCache.delete(editor.document.uri.toString());
             this.parsedVersion.delete(editor.document.uri.toString());
-            this._onDidChangeTreeData.fire(null);
         }
     }
 
@@ -252,15 +217,6 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
         if (e.document === this.currentDocument) {
             this.parsedCache.delete(e.document.uri.toString());
             this.parsedVersion.delete(e.document.uri.toString());
-            // Debounce: the tree re-parses the document, so firing on every
-            // keystroke would re-parse per character while typing.
-            if (this.refreshTimer) {
-                clearTimeout(this.refreshTimer);
-            }
-            this.refreshTimer = setTimeout(() => {
-                this.refreshTimer = undefined;
-                this._onDidChangeTreeData.fire(null);
-            }, 300);
         }
     }
 
@@ -272,14 +228,10 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
         return this.providersByExtension.has(ext);
     }
 
+    /** Forgets every parse: the next read parses the document again. */
     refresh(): void {
-        if (this.refreshTimer) {
-            clearTimeout(this.refreshTimer);
-            this.refreshTimer = undefined;
-        }
         this.parsedCache.clear();
         this.parsedVersion.clear();
-        this._onDidChangeTreeData.fire(null);
     }
 
     getParsedDocument(doc: vscode.TextDocument): ParsedDocument | undefined {
@@ -299,67 +251,5 @@ export class CodeExplorerService implements vscode.TreeDataProvider<CodeExplorer
         this.parsedCache.set(key, parsed);
         this.parsedVersion.set(key, doc.version);
         return parsed;
-    }
-
-    getTreeItem(element: CodeExplorerTreeItem): vscode.TreeItem {
-        return element;
-    }
-
-    getChildren(element?: CodeExplorerTreeItem): CodeExplorerTreeItem[] {
-        const doc = this.currentDocument ?? vscode.window.activeTextEditor?.document;
-        if (!doc || !this.isSupportedDocument(doc)) {
-            return [];
-        }
-
-        const provider = this.providerForDocument(doc);
-        if (!provider) {
-            return [];
-        }
-
-        const cacheKey = doc.uri.toString();
-        let parsed = this.parsedCache.get(cacheKey);
-        if (!parsed) {
-            parsed = provider.parseDocument(doc);
-            this.parsedCache.set(cacheKey, parsed);
-        }
-
-        if (!element) {
-            const classItems = parsed.classes
-                .filter(cls => {
-                    if (!this.filterPattern) {
-                        return true;
-                    }
-                    if (this.matchesFilter(cls.name)) {
-                        return true;
-                    }
-                    return cls.members.some(m => this.matchesFilter(m.name));
-                })
-                .map(cls => new CodeExplorerTreeItem(cls, undefined, provider));
-            const procItems = parsed.standaloneProcedures
-                .filter(proc => this.matchesFilter(proc.name))
-                .map(proc => new CodeExplorerTreeItem(proc, undefined, provider));
-            return [...classItems, ...procItems];
-        }
-
-        if (isClassInfo(element.itemData)) {
-            const cls = element.itemData as ClassInfo;
-            const members = cls.members.filter(m => this.matchesFilter(m.name));
-            const sorted = this.sortMembersForDisplay(members);
-            return sorted.map(member => new CodeExplorerTreeItem(member, cls, provider));
-        }
-
-        return [];
-    }
-
-    private sortMembersForDisplay(members: ClassMember[]): ClassMember[] {
-        return sortMembersUtil(members, this.groupBy);
-    }
-
-    getParent(_element: CodeExplorerTreeItem): vscode.ProviderResult<CodeExplorerTreeItem> {
-        return null;
-    }
-
-    resolveTreeItem(item: CodeExplorerTreeItem, _element: CodeExplorerTreeItem): vscode.ProviderResult<CodeExplorerTreeItem> {
-        return item;
     }
 }

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ProviderRegistry } from './providers/ProviderRegistry';
 import { CodeExplorerService, CodeExplorerTreeItem } from './services/CodeExplorerService';
 import { CodeGeneratorService } from './services/CodeGeneratorService';
+import { MANAGE_GROUP_LABELS } from './webview/manageSection';
 import { MemberViewerPanel } from './webview/MemberViewerPanel';
 import { ClassInfo, ClassMember, MemberKind, Visibility, PropertySpec, GeneratedCode, MemberFormResult, ExtractSpec, LocalVariable } from './models/types';
 import { memberFormToSpec, generateFromSpec } from './services/memberForm';
@@ -16,7 +17,6 @@ import { TemplateManagerPanel } from './webview/TemplateManagerPanel';
 import { TemplateSidebarPanel } from './webview/TemplateSidebarPanel';
 import { MmxCodeActionProvider } from './providers/MmxCodeActionProvider';
 import { MmxCodeLensProvider } from './services/CodeLensProvider';
-import { MemberDragAndDropController } from './services/DragAndDropController';
 import * as ops from './services/MemberOperations';
 import { EditPipeline } from './services/EditPipeline';
 import { registerSafePreview } from './services/SafePreview';
@@ -114,13 +114,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         vscode.commands.executeCommand('setContext', 'mmx:isActive', true);
 
-        const dragDropController = new MemberDragAndDropController(() => codeExplorer.refresh());
-        const classesTree = vscode.window.createTreeView('mmxCodeExplorer', {
-            treeDataProvider: codeExplorer,
-            showCollapseAll: true,
-            dragAndDropController: dragDropController,
-        });
-
         const codeLensProvider = new MmxCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];
         for (const ext of providerRegistry.getSupportedExtensions()) {
@@ -131,8 +124,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             codeLensProvider
         );
         context.subscriptions.push(codeLensRegistration);
-
-        context.subscriptions.push(classesTree);
 
         memberViewer = new MemberViewerPanel(context.extensionUri, providerRegistry, codeExplorer, codeGenerator, context);
         context.subscriptions.push(
@@ -513,6 +504,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await memberViewer.showManageTab();
         }),
 
+        vscode.commands.registerCommand('mmx.memo.open', async () => {
+            await memberViewer.showMemoTab();
+        }),
+
         // Code-lens entry point: put the cursor on the lens's member first, so
         // the cursor-based commands act on the member the user clicked.
         vscode.commands.registerCommand('mmx.lensRun', async (cmd: string, line: number) => {
@@ -577,7 +572,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'mmx.addEventHandler' },
                 { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'mmx.addComponent' },
                 { label: '$(search) Go to Member in Workspace', description: '', cmd: 'mmx.goToWorkspaceMember' },
-                { label: '$(list-tree) Add / Delete Members', description: '', cmd: 'mmx.manageMembers' },
+                { label: '$(list-tree) Add / Delete Members', description: 'Ctrl+K Ctrl+M', cmd: 'mmx.manageMembers' },
+                { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'mmx.memo.open' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'mmx.toggleGroupBy' },
                 { label: '$(refresh) Refresh Explorer', description: '', cmd: 'mmx.refreshExplorer' },
             ];
@@ -805,27 +801,18 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
+        // The members are filtered and grouped in the Add / Delete tab of the sidebar (it replaced the Classes tree).
         vscode.commands.registerCommand('mmx.filterTree', async () => {
-            const value = await vscode.window.showInputBox({
-                title: 'CE: Filter Members',
-                prompt: 'Filter the explorer by name (regex supported). Empty clears the filter.',
-                value: codeExplorer.getFilter(),
-                placeHolder: 'e.g. get|set',
-            });
-            if (value === undefined) {
-                return;
-            }
-            codeExplorer.setFilter(value);
+            await memberViewer.focusManageFilter();
         }),
 
         vscode.commands.registerCommand('mmx.clearFilter', () => {
-            codeExplorer.setFilter('');
+            memberViewer.clearManageFilter();
         }),
 
         vscode.commands.registerCommand('mmx.toggleGroupBy', () => {
-            const mode = codeExplorer.cycleGroupBy();
-            const label = mode === 'visibility' ? 'Visibility' : mode === 'kind' ? 'Member kind' : 'Alphabetical';
-            vscode.window.showInformationMessage('CE: Grouping by ' + label);
+            const mode = memberViewer.cycleManageGroup();
+            vscode.window.showInformationMessage('CE: Members ordered by ' + MANAGE_GROUP_LABELS[mode]);
         }),
 
         vscode.commands.registerCommand('mmx.goToWorkspaceMember', async () => {

@@ -53,12 +53,6 @@
     "views": {
       "mmx-explorer": [
         {
-          "id": "mmxCodeExplorer",
-          "name": "Classes",
-          "when": "mmx:isActive",
-          "visibility": "collapsed"
-        },
-        {
           "id": "mmxTemplates",
           "name": "Templates",
           "when": "mmx:isActive",
@@ -350,118 +344,13 @@
         "command": "mmx.delphi.toggleDesigner",
         "title": "CE Delphi: Toggle Form Designer / Code (like F12 in Delphi)",
         "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "mmx.memo.open",
+        "title": "CE: Open Memo (Markdown notes per language)"
       }
     ],
     "menus": {
-      "view/title": [
-        {
-          "command": "mmx.refreshExplorer",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "mmx.filterTree",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "mmx.toggleGroupBy",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "mmx.manageTemplates",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "mmx.addMethod",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "mmx.clearFilter",
-          "when": "view == mmxCodeExplorer",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "mmx.addMethod",
-          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
-          "group": "inline@1"
-        },
-        {
-          "command": "mmx.addField",
-          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
-          "group": "inline@2"
-        },
-        {
-          "command": "mmx.addProperty",
-          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
-          "group": "inline@3"
-        },
-        {
-          "command": "mmx.addConstructor",
-          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
-          "group": "inline@4"
-        },
-        {
-          "command": "mmx.editMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "inline@1"
-        },
-        {
-          "command": "mmx.renameMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "inline@2"
-        },
-        {
-          "command": "mmx.deleteMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "inline@3"
-        },
-        {
-          "command": "mmx.editMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "1_edit@1"
-        },
-        {
-          "command": "mmx.renameMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "1_edit@2"
-        },
-        {
-          "command": "mmx.deleteMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "1_edit@3"
-        },
-        {
-          "command": "mmx.navigateToMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "2_nav@1"
-        },
-        {
-          "command": "mmx.generateGettersSetters",
-          "when": "view == mmxCodeExplorer && viewItem == field",
-          "group": "1_edit@5"
-        },
-        {
-          "command": "mmx.moveMember",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|field|property|constructor|destructor/",
-          "group": "1_edit@6"
-        },
-        {
-          "command": "mmx.insertTemplate",
-          "when": "view == mmxCodeExplorer && viewItem =~ /^(class|interface|record)$/",
-          "group": "3_refactor@2"
-        },
-        {
-          "command": "mmx.synchronizeDeclImpl",
-          "when": "view == mmxCodeExplorer && viewItem =~ /method|constructor|destructor/",
-          "group": "3_refactor@3"
-        }
-      ],
       "editor/context": [
         {
           "command": "mmx.showActions",
@@ -669,6 +558,11 @@
           ],
           "default": "active",
           "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
+        },
+        "mmx.memo.folder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder holding the Markdown memos, one file per language (typescript.md, pascal.md, plsql.md, general.md…). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
         }
       }
     },
@@ -692,6 +586,116 @@
         "command": "mmx.delphi.toggleDesigner",
         "key": "ctrl+k ctrl+b",
         "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'mmxFormDesigner'"
+      },
+      {
+        "command": "mmx.delphi.designer",
+        "key": "ctrl+k d",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.align",
+        "key": "ctrl+k l",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.anchors",
+        "key": "ctrl+k n",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.tabOrder",
+        "key": "ctrl+k t",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.check",
+        "key": "ctrl+k c",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.cleanHandlers",
+        "key": "ctrl+k h",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.copy",
+        "key": "ctrl+k y",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.paste",
+        "key": "ctrl+k a",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.duplicate",
+        "key": "ctrl+k k",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.formFromFields",
+        "key": "ctrl+k g",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.formFromClass",
+        "key": "ctrl+k q",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.delphi.changeClass",
+        "key": "ctrl+k e",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "mmx.plsql.syncPackage",
+        "key": "ctrl+k y",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.newPackage",
+        "key": "ctrl+k n",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.crudFromTable",
+        "key": "ctrl+k c",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.extractProcedure",
+        "key": "ctrl+k x",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.exceptionBlock",
+        "key": "ctrl+k e",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.docHeader",
+        "key": "ctrl+k d",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.utplsql",
+        "key": "ctrl+k t",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.plsql.findCallers",
+        "key": "ctrl+k l",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "mmx.alignSelection",
+        "key": "ctrl+k j",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "mmx.memo.open",
+        "key": "ctrl+k ctrl+n",
+        "when": "editorTextFocus || sideBarFocus"
       }
     ]
   },

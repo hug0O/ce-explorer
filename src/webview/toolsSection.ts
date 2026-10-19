@@ -1,10 +1,11 @@
 /**
  * Sidebar "Tools" section shared by the Member view's pages: align the
- * selection on a string, and drop a component on the active Delphi form
- * (any class, in any container, placed against an existing control).
+ * selection on a string, the Delphi layout tools, the Oracle PL/SQL tools.
+ * Every button that has a keyboard shortcut shows it, so nobody has to look
+ * for it (the shortcuts are declared in package.json and listed here).
  *
- * The markup is static; the Delphi part is filled from the extension through
- * `formModel` / `suggestedName` messages (see MemberViewerPanel).
+ * The markup is static; the Delphi spacing page is filled from the extension
+ * through `formModel` messages (see MemberViewerPanel).
  */
 
 function escapeAttr(s: string): string {
@@ -24,6 +25,45 @@ export function sanitizeChips(value: unknown): string[] {
         if (out.length >= 40) { break; }
     }
     return out;
+}
+
+/**
+ * Keyboard shortcuts of the tools: `Ctrl+K` then one letter. The same letter can serve both
+ * families because each one only exists in its own files (Delphi units / PL/SQL sources), see the
+ * `when` clauses of the keybindings in package.json, which a test keeps in step with this table.
+ */
+export type ShortcutFamily = 'delphi' | 'plsql' | 'global';
+export const TOOL_SHORTCUTS: Record<ShortcutFamily, Record<string, string>> = {
+    delphi: {
+        'mmx.delphi.designer': 'd', 'mmx.delphi.align': 'l', 'mmx.delphi.anchors': 'n', 'mmx.delphi.tabOrder': 't',
+        'mmx.delphi.check': 'c', 'mmx.delphi.cleanHandlers': 'h', 'mmx.delphi.copy': 'y', 'mmx.delphi.paste': 'a',
+        'mmx.delphi.duplicate': 'k', 'mmx.delphi.formFromFields': 'g', 'mmx.delphi.formFromClass': 'q', 'mmx.delphi.changeClass': 'e',
+    },
+    plsql: {
+        'mmx.plsql.syncPackage': 'y', 'mmx.plsql.newPackage': 'n', 'mmx.plsql.crudFromTable': 'c', 'mmx.plsql.extractProcedure': 'x',
+        'mmx.plsql.exceptionBlock': 'e', 'mmx.plsql.docHeader': 'd', 'mmx.plsql.utplsql': 't', 'mmx.plsql.findCallers': 'l',
+    },
+    global: { 'mmx.alignSelection': 'j' },
+};
+
+/** Shortcuts that are not "Ctrl+K letter", shown as they are (Add / Delete, Memo). */
+export const FIXED_SHORTCUTS: Record<string, string> = {
+    'mmx.manageMembers': 'Ctrl+K Ctrl+M',
+    'mmx.editMember': 'Ctrl+K Ctrl+E',
+    'mmx.showActions': 'Ctrl+K Ctrl+A',
+    'mmx.delphi.toggleDesigner': 'Ctrl+K Ctrl+B',
+    'mmx.memo.open': 'Ctrl+K Ctrl+N',
+};
+
+export function shortcutOf(family: ShortcutFamily, command: string): string {
+    const k = TOOL_SHORTCUTS[family][command];
+    return k ? 'Ctrl+K ' + k.toUpperCase() : (FIXED_SHORTCUTS[command] ?? '');
+}
+
+/** `<span class="kbd">Ctrl+K D</span>`, or nothing when the command has no shortcut. */
+export function kbdHtml(family: ShortcutFamily, command: string): string {
+    const s = shortcutOf(family, command);
+    return s ? `<span class="kbd" title="Keyboard shortcut (works in the editor)">${escapeAttr(s)}</span>` : '';
 }
 
 export function toolsCss(): string {
@@ -67,6 +107,15 @@ export function toolsCss(): string {
 .subtab { padding: 2px 11px; border-radius: 12px; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.45)); background: transparent; color: var(--vscode-foreground); font-size: 11px; cursor: pointer; }
 .subtab:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
 .subtab.active { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); border-color: transparent; font-weight: 600; }
+[hidden] { display: none; }
+.ana.w-auto { width: auto; }
+.ana.tool-lead { margin-bottom: 6px; font-weight: 600; }
+.mt4 { margin-top: 4px; }
+.mt10 { margin-top: 10px; }
+.tool-select.grow { flex: 1; }
+.inp.narrow { max-width: 64px; }
+.ana.has-kbd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 6px; }
+.kbd { font-family: var(--vscode-editor-font-family, monospace); font-size: 9px; line-height: 14px; padding: 0 5px; border-radius: 3px; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.45)); background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.17)); color: var(--vscode-keybindingLabel-foreground, var(--vscode-descriptionForeground)); white-space: nowrap; margin-left: auto; }
 `;
 }
 
@@ -91,7 +140,7 @@ export const DELPHI_COMMANDS = [
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
-    const btn = (cmd: string, label: string, title: string) => `<button class="ana" data-pl="${cmd}" title="${escapeAttr(title)}">${label}</button>`;
+    const btn = (cmd: string, label: string, title: string) => `<button class="ana has-kbd" data-pl="${cmd}" title="${escapeAttr(title)}">${label}${kbdHtml('plsql', cmd)}</button>`;
     const chip = (id: string, label: string, title: string) => `<button class="chip" data-pa="${id}" title="${escapeAttr(title)}">${escapeAttr(label)}</button>`;
     return `
 <div class="tools-block" id="plBlock">
@@ -116,11 +165,11 @@ ${chip('params', 'Parameters', 'name | IN / OUT | type')}${chip('values', 'Decla
 }
 
 function delphiBlock(): string {
-    const btn = (cmd: string, label: string, title: string) => `<button class="ana" data-dl="${cmd}" title="${escapeAttr(title)}">${label}</button>`;
+    const btn = (cmd: string, label: string, title: string) => `<button class="ana has-kbd" data-dl="${cmd}" title="${escapeAttr(title)}">${label}${kbdHtml('delphi', cmd)}</button>`;
     return `
 <div class="tools-block" id="dlBlock">
 <div class="section-title">Delphi layout &amp; checks</div>
-<button class="ana" data-dl="mmx.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components" style="margin-bottom:6px;font-weight:600">🎨 Open the visual form designer</button>
+<button class="ana has-kbd tool-lead" data-dl="mmx.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components">🎨 Open the visual form designer${kbdHtml('delphi', 'mmx.delphi.designer')}</button>
 <div class="analyze-grid">
 ${btn('mmx.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
 ${btn('mmx.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}
@@ -134,19 +183,20 @@ ${btn('mmx.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit…
 ${btn('mmx.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
 ${btn('mmx.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
 </div>
+<div class="tool-note">Adding components and their events is done in the visual designer.</div>
 </div>
 `;
 }
 
-export type ToolsSub = 'form' | 'components' | 'spacing' | 'plsql' | 'align';
+export type ToolsSub = 'form' | 'spacing' | 'plsql' | 'align';
 
-export const TOOLS_SUBS: ToolsSub[] = ['form', 'components', 'spacing', 'plsql', 'align'];
+export const TOOLS_SUBS: ToolsSub[] = ['form', 'spacing', 'plsql', 'align'];
 
 /** The sub-tabs relevant to the active file: Delphi tools only for a Delphi unit, PL/SQL tools only for PL/SQL. */
 export function availableSubs(plsql: boolean, delphi: boolean): { id: ToolsSub; label: string }[] {
     const subs: { id: ToolsSub; label: string }[] = [];
     if (delphi) {
-        subs.push({ id: 'form', label: 'Form' }, { id: 'components', label: 'Components' }, { id: 'spacing', label: 'Spacing' });
+        subs.push({ id: 'form', label: 'Form' }, { id: 'spacing', label: 'Spacing' });
     }
     if (plsql) { subs.push({ id: 'plsql', label: 'PL/SQL' }); }
     subs.push({ id: 'align', label: 'Align' });
@@ -159,54 +209,10 @@ function alignBlock(alignToken: string, chipsJson: string): string {
 <div class="section-title">Align selection</div>
 <div class="tool-row">
 <input id="alignToken" class="inp" value="${escapeAttr(alignToken)}" placeholder="text to align on, e.g. :=" spellcheck="false">
-<button id="alignGo" class="ana" style="width:auto">Align</button>
+<button id="alignGo" class="ana has-kbd w-auto" title="Align the selected lines on the string">Align${kbdHtml('global', 'mmx.alignSelection')}</button>
 </div>
 <div class="chips" id="chips" data-chips="${chipsJson}"></div>
 <div class="tool-note">Click a string to use it, <b>+</b> saves the one typed above, <b>×</b> removes it. Select the lines in the editor, then click Align. Without a selection, the block of lines around the cursor is aligned.</div>
-</div>`;
-}
-
-function componentsBlock(): string {
-    return `
-<div class="tools-block" id="dForm">
-<div class="section-title">Delphi component</div>
-<div class="tool-note" id="dMsg">Loading form…</div>
-<div id="dFields" style="display:none">
-<div class="tool-label">Class (pick or type any class)</div>
-<input id="dClass" class="inp" list="dClasses" value="TButton" spellcheck="false" style="width:100%">
-<datalist id="dClasses"></datalist>
-<div class="tool-note" id="dHint"></div>
-<div class="tool-label">Unit for uses <span class="hint">(optional)</span></div>
-<input id="dUnit" class="inp" placeholder="auto" spellcheck="false" style="width:100%">
-<div class="tool-label">Name</div>
-<input id="dName" class="inp" spellcheck="false" style="width:100%">
-<div class="tool-label">Event to implement <span class="hint">(empty = field only)</span></div>
-<input id="dEvent" class="inp" list="dEvents" value="OnClick" spellcheck="false" style="width:100%">
-<datalist id="dEvents"></datalist>
-<div class="tool-label">Place inside</div>
-<select id="dParent" class="tool-select"></select>
-<div class="tool-label">Relative to</div>
-<select id="dRef" class="tool-select"></select>
-<div class="tool-label">Side, and gap in px</div>
-<div class="tool-row"><select id="dSide" class="tool-select" style="flex:1">
-<option value="right">right of</option>
-<option value="below">below</option>
-<option value="left">left of</option>
-<option value="above">above</option>
-</select>
-<input id="dGap" class="inp" type="number" min="0" max="500" value="8" style="max-width:64px" title="Space between the new component and its reference"></div>
-<button id="dAdd" class="tool-primary">Add to form</button>
-</div>
-<div id="eFields" style="display:none">
-<div class="section-title" style="margin-top:14px">Event on an existing component</div>
-<div class="tool-label">Component</div>
-<select id="eComp" class="tool-select"></select>
-<div class="tool-label">Event <span class="hint">(pick or type)</span></div>
-<input id="eEvent" class="inp" list="eEvents" spellcheck="false" style="width:100%">
-<datalist id="eEvents"></datalist>
-<div class="tool-note" id="eNote"></div>
-<button id="eAdd" class="tool-primary">Create / open handler</button>
-</div>
 </div>`;
 }
 
@@ -215,18 +221,18 @@ function spacingBlock(): string {
 <div class="tools-block" id="sForm">
 <div class="section-title">Spacing between components</div>
 <div class="tool-note" id="sMsg">Loading form…</div>
-<div id="sFields" style="display:none">
+<div id="sFields" hidden>
 <div class="tool-label">Gap between a component and the next one…</div>
 <select id="sComp" class="tool-select"></select>
-<div class="tool-row" style="margin-top:4px">
-<select id="sDir" class="tool-select" style="flex:1"><option value="right">to its right</option><option value="below">below it</option><option value="left">to its left</option><option value="above">above it</option></select>
-<input id="sGap" class="inp" type="number" min="-50" max="500" value="8" style="max-width:64px" title="Pixels, edge to edge">
+<div class="tool-row mt4">
+<select id="sDir" class="tool-select grow"><option value="right">to its right</option><option value="below">below it</option><option value="left">to its left</option><option value="above">above it</option></select>
+<input id="sGap" class="inp narrow" type="number" min="-50" max="500" value="8" title="Pixels, edge to edge">
 </div>
 <label class="tool-note"><input type="checkbox" id="sCascade" checked> move the components that follow too</label>
 <button id="sApply" class="tool-primary">Set gap</button>
-<div class="tool-label" style="margin-top:10px">Distribute a whole container</div>
+<div class="tool-label mt10">Distribute a whole container</div>
 <select id="sCont" class="tool-select"></select>
-<div class="tool-row" style="margin-top:4px">
+<div class="tool-row mt4">
 <input id="sH" class="inp" type="number" min="-50" max="500" value="8" title="Horizontal gap (px)">
 <input id="sV" class="inp" type="number" min="-50" max="500" value="8" title="Vertical gap (px)">
 </div>
@@ -238,8 +244,8 @@ function spacingBlock(): string {
 
 /**
  * The Tools tab, split into sub-tabs so that each set of tools has its own page:
- * Form · Components · Spacing (Delphi), PL/SQL, Align. Only the pages that make
- * sense for the active file are offered; `activeSub` is the one shown.
+ * Form · Spacing (Delphi), PL/SQL, Align. Only the pages that make sense for the
+ * active file are offered; `activeSub` is the one shown.
  */
 export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false, activeSub = ''): string {
     const chipsJson = escapeAttr(JSON.stringify(chipList));
@@ -247,7 +253,6 @@ export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN
     const active = subs.some(s => s.id === activeSub) ? activeSub : subs[0].id;
     const pages: Record<ToolsSub, string> = {
         form: delphi ? delphiBlock() : '',
-        components: delphi ? componentsBlock() : '',
         spacing: delphi ? spacingBlock() : '',
         plsql: plsql ? plsqlBlock() : '',
         align: alignBlock(alignToken, chipsJson),
@@ -255,7 +260,7 @@ export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN
     const bar = subs.length > 1
         ? `<div class="subtabs">${subs.map(s => `<button class="subtab${s.id === active ? ' active' : ''}" data-sub-tab="${s.id}">${s.label}</button>`).join('')}</div>`
         : '';
-    const body = subs.map(s => `<div data-sub="${s.id}"${s.id === active ? '' : ' style="display:none"'}>${pages[s.id]}</div>`).join('\n');
+    const body = subs.map(s => `<div data-sub="${s.id}"${s.id === active ? '' : ' hidden'}>${pages[s.id]}</div>`).join('\n');
     return `\n${bar}\n${body}\n`;
 }
 
@@ -270,7 +275,7 @@ function initTools(api) {
     document.querySelectorAll('[data-sub-tab]').forEach(function (b) {
         b.addEventListener('click', function () {
             var id = b.getAttribute('data-sub-tab');
-            document.querySelectorAll('[data-sub]').forEach(function (p) { p.style.display = p.getAttribute('data-sub') === id ? '' : 'none'; });
+            document.querySelectorAll('[data-sub]').forEach(function (p) { p.hidden = p.getAttribute('data-sub') !== id; });
             document.querySelectorAll('[data-sub-tab]').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-sub-tab') === id); });
             api.postMessage({ command: 'toolsTab', tab: id });
         });
@@ -303,7 +308,7 @@ function initTools(api) {
                 var x = document.createElement('span');
                 x.className = 'x';
                 x.title = 'Remove';
-                x.textContent = '\u00d7';
+                x.textContent = '\\u00d7';
                 x.addEventListener('click', function (ev) { ev.stopPropagation(); chips.splice(i, 1); saveChips(); });
                 b.appendChild(x);
                 b.addEventListener('click', function () { tok.value = t; tok.focus(); });
@@ -323,72 +328,11 @@ function initTools(api) {
         $('alignGo').addEventListener('click', function () { api.postMessage({ command: 'alignSelection', token: tok.value }); });
         tok.addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('alignGo').click(); } });
     }
-    if (!$('dForm')) { return; }
+    if (!$('sForm')) { return; }
 
     var model = null;
-    var nameTouched = false;
-    var knownClass = {};
-
     function option(value, text) { var o = document.createElement('option'); o.value = value; o.textContent = text; return o; }
     function clear(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
-
-    function fillRef() {
-        var ref = $('dRef');
-        clear(ref);
-        ref.appendChild(option('', 'automatic (below the others)'));
-        var parent = $('dParent').value;
-        (model.containers || []).forEach(function (c) {
-            if (c.name === parent) { c.children.forEach(function (k) { ref.appendChild(option(k.name, k.label)); }); }
-        });
-        $('dSide').disabled = true;
-    }
-
-    function onClassChange() {
-        var cls = $('dClass').value.trim();
-        var info = knownClass[cls.toLowerCase()];
-        $('dUnit').placeholder = info ? info.unit + ' (auto)' : 'auto';
-        var events = $('dEvents');
-        clear(events);
-        var list = info ? info.events : ['OnClick', 'OnChange'];
-        list.forEach(function (n) { events.appendChild(option(n, '')); });
-        $('dEvent').value = list.length ? list[0] : '';
-        if (cls) { api.postMessage({ command: 'suggestName', className: cls }); api.postMessage({ command: 'classInfo', className: cls }); }
-    }
-
-    function currentComp() {
-        var name = $('eComp').value;
-        var found = null;
-        (model.components || []).forEach(function (c) { if (c.name === name) { found = c; } });
-        return found;
-    }
-
-    function onEventInput() {
-        var c = currentComp();
-        var ev = $('eEvent').value.trim();
-        var handler = c && c.wired ? c.wired[ev] : '';
-        $('eNote').textContent = handler ? ev + ' is already wired to ' + handler + ' - the button opens it.' : '';
-    }
-
-    function onCompChange() {
-        var c = currentComp();
-        var list = $('eEvents');
-        clear(list);
-        var events = c ? c.events : [];
-        events.forEach(function (n) { list.appendChild(option(n, c.wired && c.wired[n] ? '-> ' + c.wired[n] : '')); });
-        var firstFree = '';
-        events.forEach(function (n) { if (!firstFree && !(c.wired && c.wired[n])) { firstFree = n; } });
-        $('eEvent').value = firstFree || (events.length ? events[0] : '');
-        onEventInput();
-    }
-
-    function fillComponents() {
-        var sel = $('eComp');
-        var keep = sel.value;
-        clear(sel);
-        (model.components || []).forEach(function (c) { sel.appendChild(option(c.name, c.label)); });
-        if (keep) { sel.value = keep; }
-        onCompChange();
-    }
 
     function fillSpacing() {
         var comp = $('sComp');
@@ -403,89 +347,27 @@ function initTools(api) {
         if (keepC) { cont.value = keepC; }
     }
 
-    function showClassInfo(info) {
-        if ($('dClass').value.trim().toLowerCase() !== String(info.className).toLowerCase()) { return; }
-        var notes = {
-            catalog: '',
-            setting: 'Defined in your mmx.delphi.customComponents setting.',
-            project: 'Third-party class learned from the .dfm files of your project.',
-            generic: 'Unknown class: generic 75x25 control. Type its unit below (remembered next time) or describe it in mmx.delphi.customComponents.'
-        };
-        $('dHint').textContent = notes[info.source] || '';
-        $('dUnit').placeholder = info.unit ? info.unit + ' (auto)' : 'auto';
-        var events = $('dEvents');
-        clear(events);
-        info.events.forEach(function (n) { events.appendChild(option(n, '')); });
-        if (info.events.length && info.events.indexOf($('dEvent').value) < 0) { $('dEvent').value = info.events[0]; }
-    }
-
     function fillModel() {
         if (!model || !model.ok) {
-            $('dMsg').textContent = (model && model.reason) || 'No Delphi form here.';
-            if ($('sMsg')) { $('sMsg').textContent = $('dMsg').textContent; }
-            $('dFields').style.display = 'none';
-            $('eFields').style.display = 'none';
-            $('sFields').style.display = 'none';
+            $('sMsg').textContent = (model && model.reason) || 'No Delphi form here.';
+            $('sFields').hidden = true;
             return;
         }
-        $('dMsg').textContent = 'Form ' + model.formName;
-        if ($('sMsg')) { $('sMsg').textContent = 'Form ' + model.formName; }
-        $('dFields').style.display = 'block';
-        $('eFields').style.display = 'block';
-        $('sFields').style.display = 'block';
-        fillComponents();
+        $('sMsg').textContent = 'Form ' + model.formName;
+        $('sFields').hidden = false;
         fillSpacing();
-        var classes = $('dClasses');
-        clear(classes);
-        model.classes.forEach(function (c) {
-            knownClass[c.className.toLowerCase()] = c;
-            classes.appendChild(option(c.className, c.unit));
-        });
-        var parent = $('dParent');
-        clear(parent);
-        model.containers.forEach(function (c) { parent.appendChild(option(c.name, c.label)); });
-        fillRef();
-        onClassChange();
     }
 
     window.addEventListener('message', function (e) {
         var m = e.data;
-        if (!m) { return; }
-        if (m.command === 'formModel') { model = m.model; fillModel(); }
-        else if (m.command === 'suggestedName' && !nameTouched) { $('dName').value = m.name; }
-        else if (m.command === 'classInfo') { showClassInfo(m.info); }
+        if (m && m.command === 'formModel') { model = m.model; fillModel(); }
     });
 
-    $('dClass').addEventListener('change', function () { nameTouched = false; onClassChange(); });
-    $('dName').addEventListener('input', function () { nameTouched = true; });
-    $('dParent').addEventListener('change', fillRef);
     $('sApply').addEventListener('click', function () {
         api.postMessage({ command: 'setSpacing', componentName: $('sComp').value, direction: $('sDir').value, gap: Number($('sGap').value), cascade: $('sCascade').checked });
     });
     $('sDist').addEventListener('click', function () {
         api.postMessage({ command: 'distribute', containerName: $('sCont').value, horizontal: Number($('sH').value), vertical: Number($('sV').value) });
-    });
-    $('eComp').addEventListener('change', onCompChange);
-    $('eEvent').addEventListener('input', onEventInput);
-    $('eAdd').addEventListener('click', function () {
-        api.postMessage({ command: 'addEvent', componentName: $('eComp').value, eventName: $('eEvent').value.trim() });
-    });
-    $('dRef').addEventListener('change', function () { $('dSide').disabled = !$('dRef').value; });
-    $('dAdd').addEventListener('click', function () {
-        api.postMessage({
-            command: 'addComponent',
-            req: {
-                className: $('dClass').value.trim(),
-                unit: $('dUnit').value.trim(),
-                name: $('dName').value.trim(),
-                eventName: $('dEvent').value.trim(),
-                parentName: $('dParent').value,
-                refName: $('dRef').value,
-                side: $('dRef').value ? $('dSide').value : 'auto',
-                gap: Number($('dGap').value)
-            }
-        });
-        nameTouched = false;
     });
 
     api.postMessage({ command: 'toolsReady' });

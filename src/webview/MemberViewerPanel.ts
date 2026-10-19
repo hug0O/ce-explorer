@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { ClassInfo, ClassMember, MemberKind, MemberFormResult, ExtractSpec, FieldSpec, Visibility } from '../models/types';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
@@ -10,11 +13,13 @@ import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, toolsCss, toolsHtml, toolsScript } from './toolsSection';
-import { addComponentToForm, addEventToComponent, alignSelection, buildFormModel, getLastAlignToken, suggestComponentName } from '../services/FormCommands';
-import type { Side } from '../services/DelphiLayout';
+import { MemoStore, GENERAL_MEMO, sanitizeLang } from '../services/MemoStore';
+import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
+import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
+import { FILE_LEVEL_ID, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
+import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { alignSelection, buildFormModel, getLastAlignToken } from '../services/FormCommands';
 import type { Direction } from '../services/DelphiSpacing';
-import { describeClass } from '../services/FormCommands';
 import { distributeSpacing, setSpacing } from '../services/FormSync';
 
 interface MemberViewerState {
@@ -22,6 +27,9 @@ interface MemberViewerState {
     classInfo: ClassInfo | undefined;
   provider: ILanguageProvider | undefined;
 }
+
+/** Tabs of the Member view. */
+export type SidebarTab = 'detail' | 'manage' | 'tools' | 'memo';
 
 export type ViewerMode = 'view' | 'edit' | 'add' | 'extract' | 'analytics' | 'variable';
 
@@ -71,9 +79,22 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _mode: ViewerMode = 'view';
     // Active tab of the member view: 'detail' (selected member) or 'manage'
     // (add / edit / rename / delete any member of the current type at any time).
-    private _tab: 'detail' | 'manage' | 'tools' = 'detail';
+    private _tab: SidebarTab = 'detail';
     // Sub-tab of the Tools tab (form / components / spacing / plsql / align); '' = the first one that applies.
     private _toolsTab = '';
+    // Add / Delete tab: filter text and kind, grouping, and the type being managed ('' = the one under the cursor).
+    private _manageFilter = '';
+    private _manageKind = '';
+    private _manageGroup: ManageGroup = 'source';
+    private _manageClassId = '';
+    private _focusFilter = false;
+    // Memo tab: Markdown notes per language. '' = the language of the file being edited; '' mode = preview when there is text, else edit.
+    private _memoLang = '';
+    private _memoMode: MemoMode | '' = '';
+    // The text of every memo shown or edited, so the page never waits for the disk and a save never races the next render.
+    private readonly _memoCache = new Map<string, string>();
+    private _memoFolder = '';
+    private _memoWrites: Promise<void> = Promise.resolve();
     private _sessionCtx?: EditSessionContext;
     private _resolveSession?: (result: MemberFormResult | ExtractSpec | undefined) => void;
     // The local variable currently being edited inline (mode 'variable').
@@ -98,12 +119,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     this.scheduleCursorUpdate(editor);
                 }
             }),
+            vscode.workspace.onDidSaveTextDocument?.(doc => this.onMemoFileSaved(doc)),
             vscode.workspace.onDidChangeTextDocument(e => {
                 const editor = vscode.window.activeTextEditor;
                 // Only edits of the document being shown matter (output-channel
                 // and other documents also fire this event), and typing is
                 // debounced longer than a cursor move to avoid re-parsing per key.
                 if (editor && e.document === editor.document) {
+                    // The Add / Delete list must follow the text, even when the cursor stays on the same member.
+                    if (this._tab === 'manage') { this._stateKey = ''; }
                     this.scheduleCursorUpdate(editor, 300);
                 }
             })
@@ -144,7 +168,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : 'detail'); break;
+                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : 'detail'); break;
+                case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
+                case 'memoLang': this._memoLang = msg.id === FOLLOW_ID ? '' : sanitizeLang(String(msg.id)); this.setTab('memo'); break;
+                case 'memoMode': this._memoMode = msg.mode === 'preview' ? 'preview' : 'edit'; this.setTab('memo'); break;
+                case 'memoOpen': await this.handleMemoOpen(String(msg.lang)); break;
+                case 'memoCopy': await this.handleMemoBlock(Number(msg.index), 'copy'); break;
+                case 'memoInsert': await this.handleMemoBlock(Number(msg.index), 'insert'); break;
+                case 'memoToggle': this.handleMemoToggle(Number(msg.line)); break;
+                case 'memoLink': if (typeof msg.url === 'string' && /^https?:[/][/]/i.test(msg.url)) { await vscode.env.openExternal(vscode.Uri.parse(msg.url)); } break;
                 case 'alignSelection': await alignSelection(typeof msg.token === 'string' ? msg.token : ''); break;
                 case 'saveAlignChips': void this._extensionContext.globalState.update(MemberViewerPanel.CHIPS_KEY, sanitizeChips(msg.chips)); break;
                 case 'plsql':
@@ -158,19 +190,17 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'toolsReady': await this.sendFormModel(); break;
-                case 'suggestName': await this.sendSuggestedName(String(msg.className ?? '')); break;
-                case 'addComponent': await this.handleAddComponent(msg.req); break;
-                case 'classInfo': await this.sendClassInfo(String(msg.className ?? '')); break;
                 case 'setSpacing': await this.handleSetSpacing(msg); break;
                 case 'distribute': await this.handleDistribute(msg); break;
-                case 'addEvent':
-                    if (typeof msg.componentName === 'string' && typeof msg.eventName === 'string' && msg.componentName && msg.eventName) {
-                        if (await addEventToComponent(vscode.window.activeTextEditor?.document, msg.componentName, msg.eventName)) { await this.sendFormModel(); }
-                    } else {
-                        vscode.window.showWarningMessage('CE: Pick a component and an event.');
-                    }
-                    break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
+                case 'manageFilter':
+                    this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
+                    this._manageKind = ['method', 'field', 'property', 'constructor'].includes(msg.kind) ? msg.kind : '';
+                    break;
+                case 'manageGroup': if ((MANAGE_GROUPS as string[]).includes(msg.mode)) { this._manageGroup = msg.mode as ManageGroup; this.setTab('manage'); } break;
+                case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
+                case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
+                case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
                 case 'memberAction': await this.handleMemberAction(msg.act as string); break;
                 case 'deleteVariableByName': await this.handleDeleteVariableByName(msg.name as string); break;
@@ -246,11 +276,12 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             foundCls = parsed.classes.find(cls => cls.range.contains(position));
         }
 
-        const newKey = (foundMember ? foundMember.id : '') + ':' + (foundCls ? foundCls.id : '');
+        const newKey = (foundMember ? foundMember.id : '') + ':' + (foundCls ? foundCls.id : '') + (this._tab === 'memo' ? ':' + this.memoLang() : '');
         if (newKey === this._stateKey && this._view) {
             return;
         }
         this._stateKey = newKey;
+        if ((foundCls?.id ?? '') !== (this._state.classInfo?.id ?? '')) { this._manageClassId = ''; }
 
         this._state.member = foundMember;
         this._state.classInfo = foundCls;
@@ -400,12 +431,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         this.setTab('manage');
     }
 
-    private async sendClassInfo(className: string): Promise<void> {
-        if (!/^[A-Za-z_][\w.]*$/.test(className)) { return; }
-        const info = await describeClass(className);
-        await this._view?.webview.postMessage({ command: 'classInfo', info });
-    }
-
     private async handleSetSpacing(msg: Record<string, unknown>): Promise<void> {
         const dirs: Direction[] = ['right', 'below', 'left', 'above'];
         const direction = dirs.find(d => d === msg.direction);
@@ -452,55 +477,171 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         await this._view?.webview.postMessage({ command: 'formModel', model });
     }
 
-    private async sendSuggestedName(className: string): Promise<void> {
-        if (!/^[A-Za-z_][\w.]*$/.test(className)) { return; }
-        const name = await suggestComponentName(vscode.window.activeTextEditor?.document, className);
-        await this._view?.webview.postMessage({ command: 'suggestedName', name });
+    /* ───────── memo: Markdown notes per language ───────── */
+
+    /** Folder of the memos: the `mmx.memo.folder` setting (relative to the workspace), else the extension's own storage. */
+    private memoFolder(): string {
+        const configured = (typeof vscode.workspace.getConfiguration === 'function' ? vscode.workspace.getConfiguration('mmx').get<string>('memo.folder', '') : '').trim();
+        if (configured) {
+            if (path.isAbsolute(configured)) { return configured; }
+            const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (root) { return path.join(root, configured); }
+        }
+        return path.join(this._extensionContext.globalStorageUri?.fsPath ?? path.join(os.tmpdir(), 'mmx-code-explorer'), 'memos');
     }
 
-    /** Validates the untrusted webview payload, then drops the component on the form. */
-    private async handleAddComponent(raw: unknown): Promise<void> {
-        const r = (raw ?? {}) as Record<string, unknown>;
-        const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-        const sides: Side[] = ['auto', 'right', 'below', 'left', 'above'];
-        const side = sides.find(x => x === r.side) ?? 'auto';
-        const className = str(r.className);
-        const name = str(r.name);
-        if (!className || !name) {
-            vscode.window.showWarningMessage('CE: Enter a class and a name for the component.');
+    private memoStore(): MemoStore {
+        const folder = this.memoFolder();
+        if (folder !== this._memoFolder) { this._memoFolder = folder; this._memoCache.clear(); }
+        return new MemoStore(folder);
+    }
+
+    /** Language of the memo shown: the chosen one, else the language of the file being edited, else General. */
+    private memoLang(): string {
+        if (this._memoLang) { return this._memoLang; }
+        const doc = vscode.window.activeTextEditor?.document;
+        return sanitizeLang((doc && this._providerRegistry.getByDocument(doc)?.languageId) || GENERAL_MEMO);
+    }
+
+    private memoText(lang: string): string {
+        const store = this.memoStore();
+        let text = this._memoCache.get(lang);
+        if (text === undefined) { text = store.readSync(lang); this._memoCache.set(lang, text); }
+        return text;
+    }
+
+    private getMemoHtml(): string {
+        const store = this.memoStore();
+        const lang = this.memoLang();
+        const text = this.memoText(lang);
+        const existing = new Set(store.languagesSync());
+        const known = new Map<string, string>();
+        for (const p of this._providerRegistry.getAllProviders?.() ?? []) { known.set(p.languageId, p.displayName); }
+        known.set(GENERAL_MEMO, 'General');
+        for (const id of existing) { if (!known.has(id)) { known.set(id, id); } }
+        if (!known.has(lang)) { known.set(lang, lang); }
+        const langs = [...known].map(([id, label]) => ({ id, label: label + (existing.has(id) ? ' •' : '') }));
+        const mode: MemoMode = this._memoMode || (text.trim() ? 'preview' : 'edit');
+        return memoHtml({ langs, selected: lang, follow: !this._memoLang, mode, text, file: store.fileFor(lang) });
+    }
+
+    /** Reveals the sidebar on the Memo tab (command and keybinding entry point). */
+    public async showMemoTab(): Promise<void> {
+        this._tab = 'memo';
+        try { await vscode.commands.executeCommand(`${MemberViewerPanel.viewType}.focus`); } catch { /* view unavailable */ }
+        this.setTab('memo');
+    }
+
+    private handleMemoSave(lang: string, text: string): void {
+        const id = sanitizeLang(lang);
+        const store = this.memoStore(); // first: it drops the cache when the folder setting changed
+        const before = this._memoCache.get(id);
+        this._memoCache.set(id, text);
+        if (before === text) { return; }
+        this._memoWrites = this._memoWrites
+            .then(() => store.write(id, text))
+            .catch(e => { vscode.window.showErrorMessage('CE: The memo was not saved: ' + (e instanceof Error ? e.message : String(e))); });
+    }
+
+    /** Ticks / unticks a task box of the preview: the memo changes, the page keeps its scroll (the box already flipped). */
+    private handleMemoToggle(line: number): void {
+        const lang = this.memoLang();
+        const next = toggleTask(this.memoText(lang), line);
+        if (next !== undefined) { this.handleMemoSave(lang, next); }
+    }
+
+    /** Copy / Insert buttons of a code block of the preview. */
+    private async handleMemoBlock(index: number, how: 'copy' | 'insert'): Promise<void> {
+        const text = codeBlocks(this.memoText(this.memoLang()))[index];
+        if (text === undefined) { return; }
+        if (how === 'copy') {
+            await vscode.env.clipboard.writeText(text);
+            vscode.window.setStatusBarMessage('CE: block copied to the clipboard', 2500);
             return;
         }
-        const ok = await addComponentToForm(vscode.window.activeTextEditor?.document, {
-            className, name, side,
-            unit: str(r.unit) || undefined,
-            gap: Number.isFinite(Number(r.gap)) ? Math.max(-50, Math.min(500, Number(r.gap))) : undefined,
-            eventName: str(r.eventName) || undefined,
-            parentName: str(r.parentName) || undefined,
-            refName: str(r.refName) || undefined,
-        });
-        if (ok) { await this.sendFormModel(); }
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { vscode.window.showWarningMessage('CE: Open a file to insert the block into.'); return; }
+        await editor.edit(b => { for (const sel of editor.selections) { b.replace(sel, text); } });
     }
 
-    private setTab(tab: 'detail' | 'manage' | 'tools'): void {
+    /** The memo as a file, in the editor (created on the spot when it does not exist yet). */
+    private async handleMemoOpen(lang: string): Promise<void> {
+        const id = sanitizeLang(lang);
+        const store = this.memoStore();
+        const file = store.fileFor(id);
+        if (!fs.existsSync(file)) { await store.write(id, this.memoText(id) || '# Memo - ' + id + '\n\n'); }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+        await vscode.window.showTextDocument(doc, { preview: false });
+    }
+
+    /** A memo saved from the editor replaces what the sidebar holds for it. */
+    private onMemoFileSaved(doc: vscode.TextDocument): void {
+        if (!this._memoFolder || path.dirname(doc.uri.fsPath) !== this._memoFolder || !/[.]md$/i.test(doc.uri.fsPath)) { return; }
+        this._memoCache.delete(sanitizeLang(path.basename(doc.uri.fsPath, path.extname(doc.uri.fsPath))));
+        if (this._tab === 'memo' && this._mode === 'view') { this._stateKey = ''; this.updateView(); }
+    }
+
+    private setTab(tab: SidebarTab): void {
         this._tab = tab;
         this._stateKey = '';
         const editor = vscode.window.activeTextEditor;
         if (editor && this._mode === 'view') { this.onCursorChanged(editor); } else { this.updateView(); }
     }
 
-    /** Members listed by the Manage tab: the current type's members, or the file's standalone routines. */
-    private manageTargets(): ClassMember[] {
-        const { classInfo } = this._state;
-        if (classInfo) {
-            return [...classInfo.members].sort((a, b) => a.range.start.line - b.range.start.line);
-        }
+    /** What the Add / Delete tab manages: a type of the file (the chosen one, else the one under the cursor), or its standalone routines. */
+    private manageContext(): { classes: ClassInfo[]; standalone: ClassMember[]; current: ClassInfo | undefined; isFile: boolean } {
         const doc = vscode.window.activeTextEditor?.document;
-        const parsed = doc ? this._codeExplorer.getParsedDocument(doc) : undefined;
-        return parsed ? [...parsed.standaloneProcedures] : [];
+        const parsed = doc && typeof this._codeExplorer?.getParsedDocument === 'function' ? this._codeExplorer.getParsedDocument(doc) : undefined;
+        const classes = parsed ? parsed.classes : (this._state.classInfo ? [this._state.classInfo] : []);
+        const standalone = parsed ? parsed.standaloneProcedures : [];
+        const chosen = this._manageClassId;
+        const cursorCls = this._state.classInfo;
+        let current: ClassInfo | undefined;
+        let isFile = false;
+        if (chosen === FILE_LEVEL_ID) { isFile = true; }
+        else if (chosen && classes.some(c => c.id === chosen)) { current = classes.find(c => c.id === chosen); }
+        else if (cursorCls) { current = classes.find(c => c.id === cursorCls.id) ?? cursorCls; }
+        else if (this._state.member || classes.length === 0) { isFile = true; }
+        else { current = classes[0]; }
+        return { classes, standalone, current, isFile };
     }
 
-    /** Edit / rename / delete / go-to on ANY member listed in the Manage tab (not only the one under the cursor). */
+    /** Members listed by the Manage tab: the chosen type's members, or the file's standalone routines. */
+    private manageTargets(): ClassMember[] {
+        const ctx = this.manageContext();
+        return ctx.current ? [...ctx.current.members].sort((a, b) => a.range.start.line - b.range.start.line) : [...ctx.standalone];
+    }
+
+    /** Add button of the tab: the new member goes to the chosen type, whatever the cursor is on. */
+    private async handleManageAdd(kind: string): Promise<void> {
+        const command = ({ field: 'mmx.addField', method: 'mmx.addMethod', property: 'mmx.addProperty', constructor: 'mmx.addConstructor' } as Record<string, string>)[kind];
+        if (!command) { return; }
+        const { current } = this.manageContext();
+        await vscode.commands.executeCommand(command, current ? { itemData: current, parentClass: current } : undefined);
+    }
+
+    /** Filter box of the Add / Delete tab, from the "Filter Members" command or its shortcut. */
+    public async focusManageFilter(): Promise<void> {
+        this._focusFilter = true;
+        await this.showManageTab();
+    }
+
+    public clearManageFilter(): void {
+        this._manageFilter = '';
+        this._manageKind = '';
+        if (this._tab === 'manage') { this.setTab('manage'); }
+    }
+
+    /** Next grouping of the list (source order, visibility, kind, A → Z). */
+    public cycleManageGroup(): ManageGroup {
+        this._manageGroup = MANAGE_GROUPS[(MANAGE_GROUPS.indexOf(this._manageGroup) + 1) % MANAGE_GROUPS.length];
+        if (this._tab === 'manage') { this.setTab('manage'); }
+        return this._manageGroup;
+    }
+
+    /** Edit / rename / delete / go-to / accessors / move on ANY member listed in the Manage tab (not only the one under the cursor). */
     private async handleManageAction(act: string, id: string): Promise<void> {
+        const ctx = this.manageContext();
         const member = this.manageTargets().find(m => m.id === id);
         if (!member) {
             vscode.window.showWarningMessage('CE: This member changed in the meantime, the list was refreshed.');
@@ -512,12 +653,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             vscode.window.showWarningMessage('CE: Open this member\'s file first.');
             return;
         }
-        if (act === 'go') {
+        const reveal = async (): Promise<void> => {
             const pos = member.implementationRange?.start ?? member.range.start;
             await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
-            return;
-        }
-        await this.handleMemberAction(act, { member, classInfo: this._state.classInfo });
+        };
+        if (act === 'go') { await reveal(); return; }
+        // These two commands take the same argument as the former tree items: the member and its type.
+        if (act === 'getset' && ctx.current) { await vscode.commands.executeCommand('mmx.generateGettersSetters', { itemData: member, parentClass: ctx.current }); return; }
+        if (act === 'move' && ctx.current) { await vscode.commands.executeCommand('mmx.moveMember', { itemData: member, parentClass: ctx.current }); return; }
+        await this.handleMemberAction(act, { member, classInfo: ctx.current });
     }
 
     private async handleMemberAction(act: string, target?: { member: ClassMember; classInfo: ClassInfo | undefined }): Promise<void> {
@@ -999,6 +1143,8 @@ input:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); border-colo
 button { cursor: pointer; border: none; border-radius: 3px; font-family: inherit; }
 .btn-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); padding: 5px 14px; font-size: 12px; }
 .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); padding: 5px 12px; font-size: 12px; }
+.promote-row { display: flex; gap: 4px; align-items: center; }
+.promote-row > * { flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -1010,11 +1156,11 @@ ${datalistOpts}
 </datalist></div>
 ${canPromote ? `<div class="row">
 <label>Promote to class property</label>
-<div style="display:flex;gap:4px;align-items:center">
-<select id="promoteVis" style="flex:0 0 auto">
+<div class="promote-row">
+<select id="promoteVis">
 ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
 </select>
-<button class="btn-secondary" id="btnPromote" style="flex:0 0 auto">→ Promote</button>
+<button class="btn-secondary" id="btnPromote">→ Promote</button>
 </div>
 </div>` : ''}
 <div class="actions">
@@ -1070,6 +1216,8 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
             ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab)
             : this._tab === 'manage'
                 ? this.getManageHtml()
+                : this._tab === 'memo'
+                ? this.getMemoHtml()
                 : `<div class="empty">
 <div class="icon">🔍</div>
 <p>Place cursor on a class member to view &amp; edit it.</p>
@@ -1097,6 +1245,8 @@ body { font-family: var(--vscode-font-family, -apple-system, sans-serif); font-s
 .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vscode-descriptionForeground); margin-bottom: 6px; letter-spacing: 0.5px; }
 .hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--vscode-descriptionForeground); }
 ${toolsCss()}
+${manageCss()}
+${memoCss()}
 </style>
 </head>
 <body>
@@ -1104,9 +1254,13 @@ ${this.tabsHtml('Actions')}
 ${body}
 <script nonce="${nonce}">
 ${toolsScript()}
+${manageScript()}
+${memoScript()}
 (function() {
     var api = acquireVsCodeApi();
     initTools(api);
+    initManage(api);
+    initMemo(api);
     document.querySelectorAll('.qa').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-cmd') }); });
     });
@@ -1131,9 +1285,9 @@ ${toolsScript()}
     }
 
     private tabsHtml(firstLabel: string): string {
-        const tab = (id: 'detail' | 'manage' | 'tools', label: string) =>
-            `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}">${label}</button>`;
-        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Add / Delete')}\n${tab('tools', 'Tools')}\n</div>`;
+        const tab = (id: SidebarTab, label: string, title = '') =>
+            `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''}>${label}</button>`;
+        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Add / Delete', shortcutOf('global', 'mmx.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'mmx.memo.open'))}\n</div>`;
     }
 
     /** Local variables / parameters of the selected member + the inline "Add Variable" button. */
@@ -1162,51 +1316,32 @@ ${toolsScript()}
         return html;
     }
 
-    /** "Add / Delete" tab: add buttons plus every member of the current type with edit / rename / delete. */
+    /** "Add / Delete" tab: add to any type of the file, then filter / group / edit / rename / move / delete its members. */
     private getManageHtml(): string {
-        const { member, classInfo, provider } = this._state;
-        let html = '';
+        const { member, provider } = this._state;
+        const ctx = this.manageContext();
+        const { current, isFile } = ctx;
 
-        const isStruct = !!classInfo && (classInfo.isRecord || classInfo.classType === 'struct');
-        const isCppStruct = provider?.languageId === 'cpp' && classInfo?.classType === 'struct';
-        const canHaveMethods = !classInfo || !isStruct || isCppStruct;
-        const isInterface = !!classInfo?.isInterface;
-
-        html += `<div class="section"><div class="section-title">Add</div><div class="analyze-grid">`;
-        if (classInfo) { html += `<button class="ana" data-run="mmx.addField">📦 Field</button>`; }
-        if (canHaveMethods) { html += `<button class="ana" data-run="mmx.addMethod">🔧 Method</button>`; }
-        if (classInfo && canHaveMethods && !isInterface) {
-            html += `<button class="ana" data-run="mmx.addProperty">🔑 Property</button>`;
-            html += `<button class="ana" data-run="mmx.addConstructor">🏗️ Constructor</button>`;
-        }
-        html += `</div></div>`;
-
-        const targets = this.manageTargets();
-        const icon = (k: MemberKind) => k === MemberKind.Field ? '📦' : k === MemberKind.Property ? '🔑'
-            : k === MemberKind.Constructor ? '🏗️' : k === MemberKind.Destructor ? '🧹' : '🔧';
-        html += `<div class="section"><div class="section-title">${classInfo ? 'Members' : 'Routines'} (${targets.length})</div>`;
-        if (targets.length === 0) {
-            html += `<p class="empty-section">Nothing here yet, use the buttons above.</p>`;
-        } else {
-            html += `<ul class="mlist">`;
-            for (const m of targets) {
-                const id = escapeHtml(m.id);
-                const t = m.returnType || m.type;
-                const sig = m.kind === MemberKind.Method || m.kind === MemberKind.Constructor || m.kind === MemberKind.Destructor
-                    ? `(${m.parameters.length})` : '';
-                html += `<li class="mrow${member && member.id === m.id ? ' sel' : ''}">` +
-                    `<span>${icon(m.kind)}</span>` +
-                    `<span class="mname" data-m-act="go" data-id="${id}" title="Go to ${escapeHtml(m.name)}">${escapeHtml(m.name)}${sig}</span>` +
-                    (t ? `<span class="mtype">: ${escapeHtml(t)}</span>` : '') +
-                    `<span class="var-actions">` +
-                    `<button class="var-btn" data-m-act="edit" data-id="${id}" title="Edit">✏️</button>` +
-                    `<button class="var-btn" data-m-act="rename" data-id="${id}" title="Rename">🔤</button>` +
-                    `<button class="var-btn" data-m-act="delete" data-id="${id}" title="Delete">🗑️</button>` +
-                    `</span></li>`;
-            }
-            html += `</ul>`;
-        }
-        html += `</div>`;
+        const isStruct = !!current && (current.isRecord || current.classType === 'struct');
+        const isCppStruct = provider?.languageId === 'cpp' && current?.classType === 'struct';
+        const canHaveMethods = !current || !isStruct || isCppStruct;
+        const typeOptions = ctx.classes.map(c => ({
+            id: c.id,
+            label: c.name + ' (' + (c.isInterface ? 'interface' : c.isRecord ? 'record' : c.classType || 'class') + ')',
+        }));
+        if (ctx.standalone.length > 0 || typeOptions.length === 0) { typeOptions.push({ id: FILE_LEVEL_ID, label: 'File-level routines (' + ctx.standalone.length + ')' }); }
+        const rows: ManageRow[] = this.manageTargets().map(m => ({
+            id: m.id, name: m.name, kind: m.kind, visibility: m.visibility, type: m.returnType || m.type,
+            params: m.parameters.length, selected: !!member && member.id === m.id, line: m.range.start.line,
+        }));
+        const view: ManageView = {
+            typeOptions, selectedType: current ? current.id : FILE_LEVEL_ID, isFile: !current || isFile,
+            add: { field: !!current, method: canHaveMethods, property: !!current && canHaveMethods && !current.isInterface, constructor: !!current && canHaveMethods && !current.isInterface },
+            canMove: ctx.classes.length > 1, rows,
+            filter: this._manageFilter, kindFilter: this._manageKind, group: this._manageGroup, focusFilter: this._focusFilter,
+        };
+        this._focusFilter = false;
+        let html = manageListHtml(view);
 
         const hasBody = !!member && member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
         if (member && hasBody) {
@@ -1290,13 +1425,17 @@ ${toolsCss()}
 .mrow .mtype { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .mrow .var-actions { opacity: 0.5; }
 .mrow:hover .var-actions { opacity: 1; }
+${manageCss()}
+${memoCss()}
 </style>
 </head>
 <body>`;
 
         html += this.tabsHtml('Details');
 
-        if (classInfo) {
+        if (this._tab === 'memo' || this._tab === 'manage') {
+            // the memo is not about the member under the cursor, and the type selector of Add / Delete already names the type
+        } else if (classInfo) {
             html += `<div class="class-header">
 <div class="name">${escapeHtml(classInfo.name)}</div>
 <div class="type">${classInfo.isInterface ? 'interface' : classInfo.isRecord ? 'record' : classInfo.classType || 'class'}${classInfo.parentClass ? ' → ' + escapeHtml(classInfo.parentClass) : ''}</div>
@@ -1312,6 +1451,8 @@ ${toolsCss()}
             html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab);
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
+        } else if (this._tab === 'memo') {
+            html += this.getMemoHtml();
         } else if (member) {
             const kindLabel = member.kind === MemberKind.Constructor ? 'Constructor'
                 : member.kind === MemberKind.Destructor ? 'Destructor'
@@ -1409,9 +1550,13 @@ ${toolsCss()}
 
         html += `<script nonce="${nonce}">
 ${toolsScript()}
+${manageScript()}
+${memoScript()}
 (function() {
     var vscodeApi = acquireVsCodeApi();
     initTools(vscodeApi);
+    initManage(vscodeApi);
+    initMemo(vscodeApi);
     document.querySelectorAll('.ana').forEach(function(b) {
         b.addEventListener('click', function() {
             var ak = b.getAttribute('data-ak');
@@ -1670,6 +1815,7 @@ ${toolsScript()}
 
 interface ProviderRegistryLike {
     getByDocument(doc: vscode.TextDocument): ILanguageProvider | undefined;
+    getAllProviders?(): ILanguageProvider[];
 }
 
 function getNonce(): string {

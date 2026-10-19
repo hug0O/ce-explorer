@@ -7,7 +7,7 @@ import { loadComponentDef } from '../services/FormLibrary';
 import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
 import { planAddEvent } from '../services/DelphiEvents';
 import {
-    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingGridViews, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
+    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { applyTextEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
@@ -271,7 +271,7 @@ export class FormDesignerPanel {
             }
             case 'delete': {
                 const list = names(m.names);
-                await this.commit('Delete ' + list.join(', '), deleteEdits(pas, dfm, list, root.className), [], { removed: list.flatMap(n => namesWithin(dfm, n)), touched: danglingGridViews(root, list).map(l => l.name), props: ['GridView'] });
+                await this.commit('Delete ' + list.join(', '), deleteEdits(pas, dfm, list, root.className), [], { removed: list.flatMap(n => namesWithin(dfm, n)), touched: danglingRefs(root, list).map(d => d.node.name), props: [...new Set(danglingRefs(root, list).flatMap(d => d.props))] });
                 return;
             }
             case 'rename': {
@@ -284,6 +284,12 @@ export class FormDesignerPanel {
             case 'setProp': {
                 const name = str(m.name);
                 await this.commit(`${name}.${str(m.prop)}`, setPropertyEdits(dfm, name, str(m.prop), m.value), [name], { touched: [name], props: [str(m.prop)] });
+                return;
+            }
+            case 'setSql': {
+                const lines = Array.isArray(m.lines) ? m.lines.filter((l): l is string => typeof l === 'string') : [];
+                const name = str(m.name);
+                await this.commit(`${name}.SQL`, setSqlEdits(dfm, name, lines), [name], { touched: [name], props: ['SQL.Strings'] });
                 return;
             }
             case 'align': {

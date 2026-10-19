@@ -6,6 +6,7 @@
  * `mmx.delphi.customComponents` setting.
  */
 import type { ComponentDef, EventDef } from './DelphiForm';
+import { UNIDAC } from './DelphiUniDac';
 
 const SENDER = 'Sender: TObject';
 const ev = (name: string, params = SENDER): EventDef => ({ name, params });
@@ -138,10 +139,12 @@ export const TMS: ComponentDef[] = [
     def('TTMSFNCGrid', 'TMSFNCGrid', 'VCL.TMSFNCGrid', 320, 120, [], true, [ev('OnClick'), ev('OnDblClick')]),
 ];
 
-export const THIRD_PARTY: ComponentDef[] = [...DEVEXPRESS, ...TMS];
+export const THIRD_PARTY: ComponentDef[] = [...DEVEXPRESS, ...TMS, ...UNIDAC];
 
 /** Family of a class name (for icons, grouping and rendering hints). */
-export function familyOf(className: string): 'devexpress' | 'tms' | undefined {
+export type Family = 'devexpress' | 'tms' | 'unidac';
+export function familyOf(className: string): Family | undefined {
+    if (/^TUni[A-Z]|^T\w+UniProvider$/.test(className)) { return 'unidac'; }
     if (/^T(cx|dx)[A-Z]/.test(className)) { return 'devexpress'; }
     if (/^T(Adv|DBAdv|TMS)/.test(className)) { return 'tms'; }
     return undefined;

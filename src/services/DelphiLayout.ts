@@ -5,11 +5,12 @@
  * inside any container (form, panel, group box…).
  */
 import {
-    ComponentDef, TextEdit, buildUnitEdits, eventDefOf, existingNames, handlerName, isValidIdentifier, resolveComponentDef,
+    ComponentDef, EVENT_PROP_RE, TextEdit, buildUnitEdits, eventDefOf, existingNames, handlerName, isValidIdentifier, resolveComponentDef,
 } from './DelphiForm';
 import { isTileChild, isTileGroup, isTileHost } from './DelphiTiles';
 import { isGridChild, isGridHost, isGridView } from './DelphiGrid';
 import { nestedRuleOf, onlyHolds } from './DelphiNested';
+import { isDataset, isDatasetField } from './DelphiData';
 
 export interface DfmNode {
     name: string;
@@ -40,6 +41,8 @@ export function isContainer(node: DfmNode): boolean {
     if (node.depth === 0) { return true; }
     // A tile control or a grid holds parts that it places itself (tiles, levels, views, columns): no control can be dropped into it.
     if (isTileHost(node.className) || isTileChild(node.className) || isGridHost(node.className) || isGridChild(node.className)) { return false; }
+    // A dataset holds its persistent fields, which are not controls.
+    if (isDataset(node.className) || (isDatasetField(node.className) && !!node.parent && isDataset(node.parent.className))) { return false; }
     return node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));
 }
 
@@ -118,7 +121,7 @@ export function findNode(root: DfmNode, name: string): DfmNode | undefined {
 export function listContainers(root: DfmNode): { node: DfmNode; label: string }[] {
     const out: { node: DfmNode; label: string }[] = [];
     const walk = (n: DfmNode): void => {
-        if (isContainer(n) || isTileHost(n.className) || isGridHost(n.className) || isGridView(n.className)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
+        if (isContainer(n) || isTileHost(n.className) || isGridHost(n.className) || isGridView(n.className) || isDataset(n.className)) { out.push({ node: n, label: `${'  '.repeat(n.depth)}${n.name}: ${n.className}` }); }
         n.children.forEach(walk);
     };
     walk(root);
@@ -274,7 +277,7 @@ export function planAddComponent(pas: string, dfm: string, req: AddComponentRequ
 
     const def = req.def ?? resolveComponentDef(req.className, req.unit);
     const event = req.eventName && req.eventName.trim() ? eventDefOf(def, req.eventName.trim()) : undefined;
-    if (event && !/^On\w+$/.test(event.name)) { return { error: `"${event.name}" is not an event name (expected OnXxx).` }; }
+    if (event && !EVENT_PROP_RE.test(event.name)) { return { error: `"${event.name}" is not an event name (expected OnXxx, BeforeXxx or AfterXxx).` }; }
     const method = event ? handlerName(req.name, event.name) : undefined;
 
     // A reference in another container: position relative to it inside ITS container.

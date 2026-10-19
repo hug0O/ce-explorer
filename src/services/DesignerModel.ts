@@ -10,10 +10,11 @@ import { planDfmDelete, planDfmRename } from './DelphiSync';
 import { wiredEvents } from './DelphiEvents';
 import { nodeBlock, reindentBlock, renameIdentifiers, setProp, lineStartOffsets, deleteProp, parseAnchors } from '../utils/dfmEdit';
 import { applyTextEdits } from './DelphiForm';
-import { familyOf } from './DelphiThirdParty';
+import { Family, familyOf } from './DelphiThirdParty';
+import { hasSql, isConnection, isDataset, isDatasetField, isDataSource } from './DelphiData';
 import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
-import { findHost, isNestedChild, nestedRuleOf } from './DelphiNested';
+import { findHost, isNestedNode, nestedRuleOf } from './DelphiNested';
 
 /* ───────────────────────── value helpers ───────────────────────── */
 
@@ -111,7 +112,7 @@ export interface DNode {
     text?: string;
     lines: string[];
     /** Third-party family of the class (DevExpress / TMS), for rendering and the outline. */
-    family?: 'devexpress' | 'tms';
+    family?: Family;
     color?: string;
     fontColor?: string;
     bold: boolean;
@@ -135,6 +136,16 @@ export interface DNode {
     gridBand?: boolean;
     /** Grid column: the field it is bound to (`DataBinding.FieldName`). */
     gridField?: string;
+    /** A dataset (query, table, stored procedure…): it holds persistent fields and can receive new ones. */
+    dataset?: boolean;
+    /** Persistent field: the field it is bound to (`FieldName`). */
+    dataField?: string;
+    /** Decoded strings the inspector edits on a connection or a dataset (ProviderName, Server, Database, Username, TableName, Port). */
+    dataProps?: Record<string, string>;
+    /** Decoded lines of `SQL.Strings`. */
+    sql?: string[];
+    /** One line for the tooltip of a non-visual component: server of a connection, first lines of a query. */
+    summary?: string;
     activePage?: string;
     bevel: number;
     startLine: number;
@@ -155,7 +166,8 @@ const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TcxStyleRepository|TcxGri
 
 /** A component with no visual presence (timers, controllers, style repositories…): drawn as a small icon. */
 export function isNonVisual(n: DfmNode): boolean {
-    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className) || isGridChild(n.className)) { return false; }
+    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className) || isGridChild(n.className)
+        || (isDatasetField(n.className) && !!n.parent && isDataset(n.parent.className))) { return false; }
     if (FIXED_SIZE_CLASSES.test(n.className)) { return true; }
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     if (known) { return known.width === undefined && known.height === undefined; }
@@ -218,6 +230,10 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : isGridColumn(n.className) ? (n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : n.props['DataBinding.FieldName'] !== undefined ? fromDfmString(n.props['DataBinding.FieldName']) : '')
         : n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : undefined;
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
+    const dataClass = isConnection(n.className) || isDataset(n.className);
+    const wanted = dataClass ? DATA_PROPS : isDatasetField(n.className) ? FIELD_PROPS : undefined;
+    const dataProps = wanted ? Object.fromEntries(wanted.filter(p => n.props[p] !== undefined).map(p => [p, decodeValue(n.props[p])])) : undefined;
+    const sql = hasSql(n.className) && n.props['SQL.Strings'] !== undefined ? multilineStrings(dfm, n, 'SQL.Strings', 200) : undefined;
     const text = n.props['Text'] !== undefined ? fromDfmString(n.props['Text']) : undefined;
     const lines = n.props['Lines.Strings'] !== undefined ? multilineStrings(dfm, n, 'Lines.Strings')
         : n.props['Items.Strings'] !== undefined ? multilineStrings(dfm, n, 'Items.Strings')
@@ -243,6 +259,10 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         tileTexts,
         tileSize: tile ? tileSizeOf(n) : undefined,
         gridField: isGridColumn(n.className) && n.props['DataBinding.FieldName'] !== undefined ? fromDfmString(n.props['DataBinding.FieldName']) : undefined,
+        dataset: isDataset(n.className) || undefined,
+        dataField: isDatasetField(n.className) && n.props['FieldName'] !== undefined ? fromDfmString(n.props['FieldName']) : undefined,
+        dataProps, sql,
+        summary: dataClass ? dataSummary(n, sql, dataProps ?? {}) : undefined,
         activePage: n.props['ActivePage'] ?? n.props['Properties.ActivePage'],
         bevel: n.className.toLowerCase() === 'tpanel' ? ((n.props['BevelOuter'] ?? 'bvRaised') === 'bvNone' ? 0 : 1) : 0,
         startLine: n.startLine,
@@ -259,6 +279,25 @@ function fallbackNode(n: DfmNode, rect: { x: number; y: number; w: number; h: nu
 }
 
 const NO_RECT = { x: 0, y: 0, w: 0, h: 0 };
+
+const DATA_PROPS = ['ProviderName', 'Server', 'Database', 'Username', 'TableName', 'Port'];
+const FIELD_PROPS = ['DisplayLabel', 'Size', 'DisplayWidth'];
+/** A value as the inspector shows it: quoted strings decoded, numbers and identifiers as written. */
+const decodeValue = (raw: string): string => (/^['#]/.test(raw) ? fromDfmString(raw) : raw);
+
+function dataSummary(n: DfmNode, sql: string[] | undefined, p: Record<string, string>): string | undefined {
+    if (isConnection(n.className)) { return [p['ProviderName'], p['Server'], p['Database']].filter(Boolean).join(' · ') || undefined; }
+    if (sql && sql.length) { return sql.slice(0, 3).join(' ').replace(/\s+/g, ' ').slice(0, 160); }
+    return p['TableName'] ? 'table ' + p['TableName'] : undefined;
+}
+
+/** A persistent field of a dataset: listed and edited, never painted, placed by its dataset. */
+function dataFieldNode(dfm: string, k: DfmNode): DNode {
+    let d: DNode;
+    try { d = toDNode(dfm, k, NO_RECT, true, undefined); } catch { d = fallbackNode(k, NO_RECT); }
+    d.fixed = true; d.structural = true; d.container = false; d.nonVisual = false; d.docked = true; d.children = [];
+    return d;
+}
 
 /**
  * A level, view or column of a DevExpress grid. They are structure: listed and edited, never painted — except
@@ -288,7 +327,8 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     // Sub-objects with no geometry at all (grid views, levels, column collections) are not controls: not drawn.
     const tiles = isTileHost(n.className) ? tileLayout(n) : undefined;
     const gridHost = isGridHost(n.className);
-    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isGridChild(k.className) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
+    const dataHost = isDataset(n.className);
+    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isGridChild(k.className) || (dataHost && isDatasetField(k.className)) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
     const alignOf = (k: DfmNode): string | undefined => k.align ?? DEFAULT_ALIGN[k.className.toLowerCase()];
     const placed = new Map<DfmNode, { x: number; y: number; w: number; h: number; docked: boolean; align?: string }>();
 
@@ -323,6 +363,7 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     const isPages = isPagesClass(n.className);
     return kids.map(k => {
         if (isGridChild(k.className)) { return gridNode(dfm, k, gridHost ? { w, h, shown: shownView(n) } : undefined); }
+        if (dataHost && isDatasetField(k.className)) { return dataFieldNode(dfm, k); }
         let rect = placed.get(k);
         const tileRect = tiles?.items.get(k) ?? tiles?.groups.get(k);
         if (!rect && tileRect) { rect = { ...tileRect, docked: true }; }
@@ -396,11 +437,13 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
     if (!root) { return fail('The .dfm is not in text format.'); }
     const target = findNode(root, targetName);
     if (!target) { return fail(`Container "${targetName}" not found.`); }
-    const nested = names.map(n => findNode(root, n)).find(n => n && isNestedChild(n.className));
+    const nested = names.map(n => findNode(root, n)).find(n => n && isNestedNode(n));
     if (nested) {
         return fail(isTileChild(nested.className)
             ? `${nested.name} belongs to its tile control and cannot move to another container: change its group instead.`
-            : `${nested.name} is part of its grid and cannot move to another container.`);
+            : isDatasetField(nested.className)
+                ? `${nested.name} is a field of its dataset and cannot move to another container.`
+                : `${nested.name} is part of its grid and cannot move to another container.`);
     }
     if (!isContainer(target)) { return fail(`${target.name} cannot contain other components.`); }
     const edits: TextEdit[] = [];
@@ -455,19 +498,24 @@ export function deleteEdits(pas: string, dfm: string, names: string[], formClass
         if (own && !seen.has(own.offset + ':' + own.length)) { seen.add(own.offset + ':' + own.length); pasEdits.push(own); }
         handlers += plan.removedHandlers.length;
     }
-    // A grid level that pointed to a view going away is unlinked, as the IDE does (it would not load otherwise).
-    for (const level of danglingGridViews(root, names)) {
-        const e = deleteProp(dfm, level, 'GridView');
-        if (e) { dfmEdits.push(e); }
+    // What pointed to a component going away is unlinked, as the IDE does (a grid level to its view, a dataset to its connection, a data source to its dataset).
+    for (const { node, props } of danglingRefs(root, names)) {
+        for (const p of props) { const e = deleteProp(dfm, node, p); if (e) { dfmEdits.push(e); } }
     }
     return { dfmEdits, pasEdits, note: handlers ? `${handlers} empty handler(s) removed` : undefined };
 }
 
-/** Grid levels (outside the deletion) whose `GridView` points to a component that is being deleted. */
-export function danglingGridViews(root: DfmNode, names: string[]): DfmNode[] {
+/** Properties that point to another component of the form and that are unlinked when it is deleted. */
+const REF_PROPS = ['GridView', 'Connection', 'DataSet', 'DataSource', 'MasterSource', 'Transaction', 'UpdateObject'];
+
+/** Components outside the deletion that point to one that is being deleted, with the properties that do. */
+export function danglingRefs(root: DfmNode, names: string[]): { node: DfmNode; props: string[] }[] {
     const gone = new Set<string>();
     for (const n of names) { const node = findNode(root, n); if (node) { descendants(node).forEach(d => gone.add(d.name.toLowerCase())); } }
-    return descendants(root).filter(n => !gone.has(n.name.toLowerCase()) && n.props['GridView'] !== undefined && gone.has(n.props['GridView'].toLowerCase()));
+    return descendants(root)
+        .filter(n => !gone.has(n.name.toLowerCase()))
+        .map(n => ({ node: n, props: REF_PROPS.filter(p => n.props[p] !== undefined && gone.has(n.props[p].toLowerCase())) }))
+        .filter(x => x.props.length > 0);
 }
 
 /** Renames a component everywhere: .dfm object and references, the unit's field, and its `<Name><Event>` handlers. */
@@ -499,13 +547,25 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     Size: 'enum', GroupIndex: 'int', IndexInGroup: 'int', 'Text1.Value': 'string', 'Text2.Value': 'string', 'Caption.Text': 'string',
     // DevExpress grid: the field of a column, the view of a level.
     'DataBinding.FieldName': 'string', GridView: 'ref',
+    // Data access: persistent fields, connections, datasets, data sources.
+    FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
+    ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
+    TableName: 'string', Connection: 'ref', DataSet: 'ref',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
 const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
 /** Properties that exist only on some classes: refused on any other. */
 const PROP_CLASS: Record<string, (cls: string) => boolean> = {
-    Size: isTileItem, GroupIndex: isTileItem, IndexInGroup: isTileItem, 'Text1.Value': isTileItem, 'Text2.Value': isTileItem, 'Caption.Text': isTileGroup,
+    Size: c => isTileItem(c) || isDatasetField(c), GroupIndex: isTileItem, IndexInGroup: isTileItem, 'Text1.Value': isTileItem, 'Text2.Value': isTileItem, 'Caption.Text': isTileGroup,
     'DataBinding.FieldName': isGridColumn, GridView: isGridLevel,
+    FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
+    ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
+    TableName: isDataset, DataSet: isDataSource,
+    Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
+};
+/** What a link property may point to. */
+const REF_TARGET: Record<string, { ok: (cls: string) => boolean; what: string }> = {
+    GridView: { ok: isGridView, what: 'a grid view' }, Connection: { ok: isConnection, what: 'a connection' }, DataSet: { ok: isDataset, what: 'a dataset' },
 };
 
 /** One property edit from the inspector, validated and written the way Delphi would. */
@@ -514,7 +574,8 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
     if (!root) { return fail('The .dfm is not in text format.'); }
     const node = findNode(root, name);
     if (!node) { return fail(`Component "${name}" not found.`); }
-    const kind = EDITABLE_PROPS[prop];
+    // `Size` is a tile size (an enumeration) on a tile, a number of characters on a string field.
+    const kind = prop === 'Size' && isDatasetField(node.className) ? 'int' : EDITABLE_PROPS[prop];
     if (!kind) { return fail(`${prop} cannot be edited here.`); }
     if (PROP_CLASS[prop] && !PROP_CLASS[prop](node.className)) { return fail(`${node.className} has no ${prop} property.`); }
     let text: string;
@@ -530,9 +591,10 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         // A link to another component of the form: a grid level points to one of the views, empty unlinks it.
         const target = typeof value === 'string' ? value.trim() : '';
         if (!target) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
-        const view = findNode(root, target);
-        if (!view || !isGridView(view.className)) { return fail(`${target} is not a grid view of this form.`); }
-        text = view.name;
+        const wanted = REF_TARGET[prop];
+        const found = findNode(root, target);
+        if (!wanted || !found || !wanted.ok(found.className)) { return fail(`${target} is not ${wanted?.what ?? 'a valid target'} of this form.`); }
+        text = found.name;
     } else if (kind === 'enum') {
         if (typeof value !== 'string' || !(ENUM_VALUES[prop] ?? []).includes(value)) { return fail(`Unknown ${prop} value.`); }
         if (prop === 'Align' && value === 'alNone') {
@@ -550,6 +612,43 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         text = '[' + ['akLeft', 'akTop', 'akRight', 'akBottom'].filter(a => set.has(a)).join(', ') + ']';
     }
     return { dfmEdits: [setProp(dfm, node, prop, text)], pasEdits: [] };
+}
+
+/** A long string literal, split in pieces of 64 characters joined by `+`, as the IDE writes them. */
+function sqlItem(text: string, inner: string, eol: string): string {
+    if (text.length <= 64) { return toDfmString(text); }
+    const parts: string[] = [];
+    for (let i = 0; i < text.length; i += 64) { parts.push(toDfmString(text.slice(i, i + 64))); }
+    return parts.join(' +' + eol + inner);
+}
+
+/** Replaces `SQL.Strings` of a dataset, SQL or script component (an empty list removes the property). */
+export function setSqlEdits(dfm: string, name: string, lines: string[]): DesignResult {
+    const root = parseDfmTree(dfm);
+    if (!root) { return fail('The .dfm is not in text format.'); }
+    const node = findNode(root, name);
+    if (!node) { return fail(`Component "${name}" not found.`); }
+    if (!hasSql(node.className)) { return fail(`${node.className} has no SQL property.`); }
+    if (lines.length > 2000 || lines.some(l => typeof l !== 'string' || l.length > 4000)) { return fail('The SQL is too long.'); }
+    const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
+    const pad = '  '.repeat(node.depth + 1);
+    const inner = pad + '  ';
+    const text = lines.length === 0 ? '' : `${pad}SQL.Strings = (${eol}${lines.map(l => inner + sqlItem(l, inner, eol)).join(eol)})${eol}`;
+    const all = dfm.split('\n');
+    const starts = lineStartOffsets(dfm);
+    const first = node.propLines['SQL.Strings'];
+    if (first === undefined) {
+        if (!text) { return { dfmEdits: [], pasEdits: [] }; }
+        const at = node.children.length > 0 ? node.children[0].startLine : node.endLine;
+        return { dfmEdits: [{ offset: starts[at], length: 0, text }], pasEdits: [] };
+    }
+    // the value runs to the first line that ends with a closing parenthesis, as the DFM parser reads it
+    const value = all[first].slice(all[first].indexOf('=') + 1).trim();
+    let last = first;
+    if (!(value.startsWith('(') && value.endsWith(')') && value.length > 1)) { while (last + 1 < all.length && !/\)\s*$/.test(all[last])) { last++; } }
+    const from = starts[first];
+    const to = starts[last + 1] ?? dfm.length;
+    return { dfmEdits: [{ offset: from, length: to - from, text }], pasEdits: [] };
 }
 
 export interface AddRequest {

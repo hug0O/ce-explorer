@@ -8,7 +8,7 @@ import { planAddEvent } from '../services/DelphiEvents';
 import { checkForm } from '../services/DelphiCheck';
 import { isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from '../services/DelphiGrid';
 import {
-    DNode, addEdits, buildDesignModel, danglingGridViews, deleteEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
+    DNode, addEdits, buildDesignModel, danglingRefs, deleteEdits, renameEdits, reparentEdits, setPropertyEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { PALETTE } from '../webview/designerHtml';
 
@@ -143,8 +143,8 @@ test('parts of a grid never leave it, and nothing else enters it', () => {
 });
 
 test('deleting a view takes its columns, and the level that showed it is unlinked', () => {
-    assert.deepEqual(danglingGridViews(parseDfmTree(dfm)!, ['cxGrid1DBTableView1']).map(n => n.name), ['cxGrid1Level1']);
-    assert.deepEqual(danglingGridViews(parseDfmTree(dfm)!, ['cxGrid1DBTableView1', 'cxGrid1Level1']), [], 'a level deleted too is not touched');
+    assert.deepEqual(danglingRefs(parseDfmTree(dfm)!, ['cxGrid1DBTableView1']).map(d => [d.node.name, d.props]), [['cxGrid1Level1', ['GridView']]]);
+    assert.deepEqual(danglingRefs(parseDfmTree(dfm)!, ['cxGrid1DBTableView1', 'cxGrid1Level1']), [], 'a level deleted too is not touched');
     const out = withEdits(ok(deleteEdits(pas, dfm, ['cxGrid1DBTableView1'], 'TGridForm')) as never);
     assert.doesNotMatch(out.dfm, /DBTableView1ID|cxGrid1DBTableView1:/);
     assert.doesNotMatch(out.pas, /cxGrid1DBTableView1ID|cxGrid1DBTableView1: /);

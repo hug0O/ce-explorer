@@ -7,6 +7,7 @@
  * unit-testable without VS Code.
  */
 import { THIRD_PARTY } from './DelphiThirdParty';
+import { DATA_COMPONENTS } from './DelphiData';
 
 export interface TextEdit {
     /** Offset in the original text where `text` is inserted. */
@@ -97,7 +98,7 @@ const VCL_COMPONENTS: ComponentDef[] = [
 ];
 
 /** The built-in catalog: the VCL, then DevExpress and TMS. */
-export const COMPONENTS: ComponentDef[] = [...VCL_COMPONENTS, ...THIRD_PARTY];
+export const COMPONENTS: ComponentDef[] = [...VCL_COMPONENTS, ...DATA_COMPONENTS, ...THIRD_PARTY];
 
 /** Parameter lists of the usual VCL events; anything else defaults to `Sender: TObject`. */
 export const EVENT_PARAMS: Record<string, string> = {
@@ -162,8 +163,12 @@ export function isValidIdentifier(name: string): boolean {
     return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
-/** An event property: `OnClick`, or a nested one such as DevExpress `Properties.OnChange`. */
-export const EVENT_PROP_RE = /^(?:[A-Za-z]\w*\.)?On[A-Z]\w*$/;
+/**
+ * An event property: `OnClick`, a nested one such as DevExpress `Properties.OnChange`, or one of the
+ * `Before…` / `After…` events of datasets and connections (`AfterOpen`, `BeforePost`, `AfterConnect`).
+ * A few `Before…` / `After…` names are values, not events (`BeforeColor`…).
+ */
+export const EVENT_PROP_RE = /^(?:[A-Za-z]\w*\.)?(?:On[A-Z]\w*|(?:Before|After)(?!(?:Color|Style|Width|Height|Size|Count|Text|Caption|Font|Index|Kind|Mode|Type)\b)[A-Z]\w*)$/;
 
 /** `Button1` + `OnClick` → `Button1Click`; `cxTextEdit1` + `Properties.OnChange` → `cxTextEdit1PropertiesChange`. */
 export function handlerName(componentName: string, eventName: string): string {

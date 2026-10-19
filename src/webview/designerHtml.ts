@@ -5,13 +5,15 @@
 
 import type { ComponentDef } from '../services/DelphiForm';
 import { DEVEXPRESS, TMS } from '../services/DelphiThirdParty';
+import { UNIDAC } from '../services/DelphiUniDac';
+import { DATA_COMPONENTS, isDatasetField } from '../services/DelphiData';
 
 export interface PaletteEntry {
     cls: string;
     group: string;
     icon: string;
     /** Goes inside a component of this kind (tiles, groups and detail pages go inside a tile control). */
-    host?: 'tile' | 'grid' | 'view';
+    host?: 'tile' | 'grid' | 'view' | 'dataset';
 }
 
 export const PALETTE: PaletteEntry[] = [
@@ -27,6 +29,7 @@ export const PALETTE: PaletteEntry[] = [
 ];
 
 const ICONS: [RegExp, string][] = [
+    [/Field$/, '▫'],
     [/^TcxGrid(DB)?(Banded)?Column$/, '▮'], [/^TcxGrid\w*View$/, '▦'], [/^TcxGridLevel$/, '🗂'],
     [/TileControlItem$/, '◼'], [/TileControlGroup$/, '▤'], [/TileControl$/, '🟦'], [/DetailSite$/, '▢'],
     [/Button$|Btn$/, '🔘'], [/Label$/, '🅰'], [/(Memo|RichEdit)$/, '📝'], [/CheckBox$|CheckGroup$/, '☑'], [/Radio(Button|Group)$/, '◉'],
@@ -34,8 +37,13 @@ const ICONS: [RegExp, string][] = [
     [/Grid$/, '▦'], [/Image$/, '🏞'], [/Progress(Bar)?$/, '▰'], [/TrackBar$/, '⎯'], [/Tree(List|View)$/, '🌳'], [/(Date|Time)(Edit|Picker)$/, '📅'],
     [/Splitter$/, '┃'], [/StatusBar$/, '▁'], [/ToolBar$/, '▤'], [/Edit$|EditBtn$/, '▭'],
 ];
+/** Non-visual components: an icon that says what they are (they are drawn as small icons on the form). */
+const NV_ICONS: [RegExp, string][] = [
+    [/UniProvider$/, '🧩'], [/Connection$/, '🔌'], [/Transaction$/, '⇄'], [/DataSource$/, '🔗'], [/Script$/, '📜'], [/(Query|Table|StoredProc)$/, '🗃'],
+    [/SQL$/, '▤'], [/MetaData$/, 'ℹ'], [/(Loader|Dump)$/, '📦'], [/Alerter$/, '🔔'], [/Dialog$/, '🗔'], [/Encryptor$/, '🔐'],
+];
 function iconFor(def: ComponentDef): string {
-    if (def.width === undefined && def.height === undefined) { return '⚙'; }
+    if (def.width === undefined && def.height === undefined) { return (NV_ICONS.find(([re]) => re.test(def.className)) ?? [/./, '⚙'])[1]; }
     return (ICONS.find(([re]) => re.test(def.className)) ?? [/./, '◻'])[1];
 }
 /** Parts that go inside another component: tiles into a tile control, levels and views into a grid, columns into a view. */
@@ -43,9 +51,12 @@ function hostOf(cls: string): PaletteEntry['host'] {
     if (/TileControl(Item|Group)$|TileControlDetailSite$/.test(cls)) { return 'tile'; }
     if (/^TcxGrid(DB)?(Table)?View$|^TcxGridLevel$/.test(cls)) { return 'grid'; }
     if (/^TcxGrid(DB)?Column$/.test(cls)) { return 'view'; }
+    if (isDatasetField(cls)) { return 'dataset'; }
     return undefined;
 }
-for (const [group, defs] of [['DevExpress', DEVEXPRESS], ['TMS', TMS]] as [string, ComponentDef[]][]) {
+for (const [group, defs] of [
+    ['Data', DATA_COMPONENTS.filter(d => !d.nested)], ['Fields', DATA_COMPONENTS.filter(d => d.nested)], ['UniDAC', UNIDAC], ['DevExpress', DEVEXPRESS], ['TMS', TMS],
+] as [string, ComponentDef[]][]) {
     for (const d of defs) {
         if (/(TabSheet|OfficePage)$/.test(d.className) || /Banded/.test(d.className)) { continue; }
         PALETTE.push({ cls: d.className, group, icon: iconFor(d), host: hostOf(d.className) });
@@ -173,7 +184,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .unmgd-badge { position: absolute; left: -1px; top: -1px; font-size: 9px; background: #888; color: #fff; border-radius: 3px; padding: 0 3px; line-height: 11px; pointer-events: none; z-index: 5; }
 .ctl.broken > .chrome { color: #b00020; }
 .fam-tag { font-size: 9px; padding: 0 3px; border-radius: 3px; margin-left: 4px; color: #fff; }
-.fam-tag.dx { background: #1c6fc4; } .fam-tag.tms { background: #c4511c; }
+.fam-tag.dx { background: #1c6fc4; } .fam-tag.tms { background: #c4511c; } .fam-tag.uni { background: #2a8f5f; }
+.sqlbox { width: 100%; min-height: 90px; resize: vertical; padding: 4px 6px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; line-height: 1.4; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.4)); border-radius: 3px; }
 .k-tilecontrol { overflow: hidden; }
 .k-tilecontrol > .chrome { background: #2b2d33; border: 1px solid #1c1d21; }
 .tilettl { position: absolute; left: 24px; top: 12px; color: #fff; font: 300 24px/30px 'Segoe UI Light', 'Segoe UI', sans-serif; white-space: nowrap; }
@@ -295,6 +307,26 @@ body.full #toolbar { padding: 3px 8px; }
   function post(m) { vscode.postMessage(m); }
 
   /* ───────── classification ───────── */
+  var FAMILY = { devexpress: { cls: 'dx', label: 'DevExpress', short: 'DX' }, tms: { cls: 'tms', label: 'TMS', short: 'TMS' }, unidac: { cls: 'uni', label: 'UniDAC', short: 'UNI' } };
+  function famCls(f) { return FAMILY[f] ? FAMILY[f].cls : ''; }
+  /* Non-visual components are small icons: the glyph says what they are. */
+  function nvGlyph(cls) {
+    var l = cls.toLowerCase();
+    if (l === 'ttimer') { return '⏱'; }
+    if (l.indexOf('provider') >= 0) { return '🧩'; }
+    if (l.slice(-10) === 'connection') { return '🔌'; }
+    if (l.slice(-11) === 'transaction') { return '⇄'; }
+    if (l.slice(-10) === 'datasource') { return '🔗'; }
+    if (l.slice(-6) === 'script') { return '📜'; }
+    if (l.slice(-5) === 'query' || l.slice(-5) === 'table' || l.slice(-10) === 'storedproc' || l.slice(-7) === 'dataset' || l.slice(-8) === 'memtable') { return '🗃'; }
+    if (l.slice(-3) === 'sql') { return '▤'; }
+    if (l.slice(-6) === 'dialog') { return '🗔'; }
+    if (l.slice(-8) === 'metadata') { return 'ℹ'; }
+    if (l.slice(-6) === 'loader' || l.slice(-4) === 'dump') { return '📦'; }
+    if (l.slice(-7) === 'alerter') { return '🔔'; }
+    if (l.slice(-9) === 'encryptor') { return '🔐'; }
+    return '⚙';
+  }
   function kind(c) {
     var l = c.toLowerCase();
     if (l === 'tdxtilecontrol') { return 'tilecontrol'; }
@@ -306,6 +338,9 @@ body.full #toolbar { padding: 3px 8px; }
       if (l.slice(-6) === 'column') { return 'gridcolumn'; }
       return 'gridview';
     }
+    if (l.slice(-5) === 'field') { return 'datafield'; }
+    if (l.slice(-5) === 'query' || l.slice(-5) === 'table' || l.slice(-10) === 'storedproc' || l.slice(-7) === 'dataset' || l.slice(-8) === 'memtable') { return 'dataset'; }
+    if (l.slice(-10) === 'connection') { return 'connection'; }
     if (l.indexOf('officepager') >= 0 || l.indexOf('pagecontrol') >= 0 || l === 'tcxpc') { return 'pages'; }
     if (l.indexOf('officepage') >= 0 || l.indexOf('tabsheet') >= 0) { return 'sheet'; }
     if (l.indexOf('radiogroup') >= 0 || l.indexOf('checkgroup') >= 0) { return 'radiogroup'; }
@@ -395,12 +430,14 @@ body.full #toolbar { padding: 3px 8px; }
       if (tx[0]) { chrome.appendChild(el('div', 't1', tx[0])); } else if (!tx[1]) { chrome.appendChild(el('div', 't1 dim', n.name)); }
       if (tx[1]) { chrome.appendChild(el('div', 't2', tx[1])); }
     }
-    if (n.nonVisual) { chrome.textContent = n.cls === 'TTimer' ? '⏱' : '⚙'; e.appendChild(el('div', 'nvname', n.name)); }
+    if (n.nonVisual) { chrome.textContent = nvGlyph(n.cls); e.appendChild(el('div', 'nvname', n.name)); }
   }
   function mkInner(n, parent) {
     var k = kind(n.cls);
-    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + (n.family === 'devexpress' ? 'dx' : 'tms') : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : ''));
+    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : ''));
     e.setAttribute('data-name', n.name);
+    // name, class and, for a connection or a query, the server or the first lines of the SQL
+    e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     // A hidden detail page of a tile control would cover the tiles: it is drawn only while it (or something in it) is selected.
     if (isDetail(n) && !n.visible && !state.details[n.name]) { e.style.display = 'none'; }
@@ -533,8 +570,8 @@ body.full #toolbar { padding: 3px 8px; }
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
-  function iconOf(n) { return n.nonVisual ? '⚙' : (ICONS[kind(n.cls)] || '◻'); }
+  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  function iconOf(n) { return n.nonVisual ? nvGlyph(n.cls) : (ICONS[kind(n.cls)] || '◻'); }
   /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
     var p = $('palette'); while (p.firstChild) { p.removeChild(p.firstChild); }
@@ -574,12 +611,13 @@ body.full #toolbar { padding: 3px 8px; }
     order.forEach(function (g) { var o = el('option', '', g + ' (' + count[g] + ')'); o.value = g; sel.appendChild(o); });
   }
   /* Parts go inside a host: tiles into a tile control, levels and views into a grid, columns into a view. The selected one, or the one that is clicked. */
-  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view' };
+  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset' };
   function hostMatch(h, name) {
     var n = byName[name];
     if (!n) { return false; }
     if (h === 'tile') { return kind(n.cls) === 'tilecontrol'; }
     if (h === 'grid') { return n.cls === 'TcxGrid'; }
+    if (h === 'dataset') { return !!n.dataset; }
     if (h === 'view') { return kind(n.cls) === 'gridview' && n.cls.slice(-4) === 'View'; }
     return false;
   }
@@ -670,6 +708,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (t === '@unknown') { return kind(n.cls) === 'generic' && !n.nonVisual; }
     if (t === '@dx') { return n.family === 'devexpress'; }
     if (t === '@tms') { return n.family === 'tms'; }
+    if (t === '@uni') { return n.family === 'unidac'; }
     return typeKey(n) === t;
   }
   function matchesText(n, text) {
@@ -690,6 +729,8 @@ body.full #toolbar { padding: 3px 8px; }
     var dx = count(function (n) { return n.family === 'devexpress'; }), tms = count(function (n) { return n.family === 'tms'; });
     if (dx) { add('@dx', 'DevExpress (' + dx + ')'); }
     if (tms) { add('@tms', 'TMS (' + tms + ')'); }
+    var uni = count(function (n) { return n.family === 'unidac'; });
+    if (uni) { add('@uni', 'UniDAC (' + uni + ')'); }
     var classes = {};
     nodes.forEach(function (n) { classes[n.cls] = (classes[n.cls] || 0) + 1; });
     Object.keys(classes).sort().forEach(function (c) { add('c:' + c, c + ' (' + classes[c] + ')'); });
@@ -724,7 +765,7 @@ body.full #toolbar { padding: 3px 8px; }
       d.appendChild(el('span', 'ico', iconOf(n)));
       d.appendChild(document.createTextNode(n.name));
       d.appendChild(el('span', 'cls', n.cls));
-      if (n.family) { d.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DX' : 'TMS')); }
+      if (n.family && FAMILY[n.family]) { d.appendChild(el('span', 'fam-tag ' + FAMILY[n.family].cls, FAMILY[n.family].short)); }
       if (!tree && parentOf[n.name] && parentOf[n.name] !== state.model.root.name) { d.appendChild(el('span', 'par', '↳ ' + parentOf[n.name])); }
       o.appendChild(d);
     });
@@ -795,7 +836,8 @@ body.full #toolbar { padding: 3px 8px; }
   }
   /* ───────── inspector: identity, position, content, state, events — in collapsible sections ───────── */
   var TILE_SIZES = ['tcisSmall', 'tcisRegular', 'tcisLarge', 'tcisExtraLarge'];
-  var PART_TITLES = { tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level' };
+  var PART_TITLES = { tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level', datafield: 'Field' };
+  var DB_PROVIDERS = ['Oracle', 'SQL Server', 'MySQL', 'PostgreSQL', 'SQLite', 'InterBase', 'Access', 'ODBC', 'DB2', 'ASE', 'Advantage', 'NexusDB'];
   function section(box, title, key, build) {
     var d = el('details', 'insec');
     d.open = state.insOpen[key] !== false;
@@ -869,9 +911,84 @@ body.full #toolbar { padding: 3px 8px; }
       });
     }
   }
+  /* A persistent field of a dataset. */
+  function dataFieldFields(box, n) {
+    var dp = n.dataProps || {};
+    var l = n.cls.toLowerCase();
+    box.appendChild(labelled('Field', textInput(n.dataField || '', setter(n, 'FieldName'))));
+    box.appendChild(labelled('Label', textInput(dp.DisplayLabel || '', setter(n, 'DisplayLabel'))));
+    var g = el('div', 'g2');
+    if (dp.Size !== undefined || l.indexOf('string') >= 0) { g.appendChild(labelled('Size', textInput(dp.Size || '', function (v) { post({ type: 'setProp', name: n.name, prop: 'Size', value: Number(v) }); }, 'number'))); }
+    g.appendChild(labelled('Display width', textInput(dp.DisplayWidth || '', function (v) { post({ type: 'setProp', name: n.name, prop: 'DisplayWidth', value: Number(v) }); }, 'number')));
+    box.appendChild(g);
+    box.appendChild(checkbox('Required', n.props['Required'] === 'True', setter(n, 'Required')));
+    box.appendChild(checkbox('Read only', n.props['ReadOnly'] === 'True', setter(n, 'ReadOnly')));
+    box.appendChild(checkbox('Visible', n.visible, setter(n, 'Visible')));
+    box.appendChild(el('div', 'hint', 'A field of its dataset (listed under it): events OnGetText, OnSetText, OnChange, OnValidate.'));
+  }
   function partFields(box, n) {
     var k = kind(n.cls);
-    if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else { gridFields(box, n); }
+    if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else if (k === 'datafield') { dataFieldFields(box, n); } else { gridFields(box, n); }
+  }
+  /* Link to another component: a select of the components of a kind, the current one first. */
+  function linkSelect(n, prop, label, wanted) {
+    var sel = el('select');
+    var none = el('option', '', '(none)'); none.value = ''; sel.appendChild(none);
+    allNodes().forEach(function (c) { if (wanted(c)) { var o = el('option', '', c.name + ' : ' + c.cls); o.value = c.name; sel.appendChild(o); } });
+    var cur = n.props[prop] || '';
+    if (cur && !byName[cur]) { var o2 = el('option', '', cur + ' (not on this form)'); o2.value = cur; sel.appendChild(o2); }
+    sel.value = cur;
+    sel.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: prop, value: sel.value }); });
+    return labelled(label, sel);
+  }
+  function isConnectionNode(c) { return c.cls.toLowerCase().slice(-10) === 'connection'; }
+  /* Connections, datasets and data sources: provider and server, the connection, the table, the SQL. */
+  function dataFields(box, n) {
+    var l = n.cls.toLowerCase();
+    var isConn = isConnectionNode(n);
+    var usesConn = !!n.dataset || /^tuni(sql|script|transaction|metadata|dump|loader|alerter)$/.test(l);
+    var hasSqlBox = n.sql !== undefined || l.slice(-5) === 'query' || l === 'tunisql' || l === 'tuniscript';
+    var isSource = l.slice(-10) === 'datasource';
+    if (!isConn && !usesConn && !hasSqlBox && !isSource) { return; }
+    section(box, isConn ? 'Database' : (isSource ? 'Data source' : 'Data'), 'data', function (b) {
+      var dp = n.dataProps || {};
+      if (isConn) {
+        var ps = el('select');
+        var names = DB_PROVIDERS.slice();
+        if (dp.ProviderName && names.indexOf(dp.ProviderName) < 0) { names.unshift(dp.ProviderName); }
+        var blank = el('option', '', '(not set)'); blank.value = ''; ps.appendChild(blank);
+        names.forEach(function (p) { var o = el('option', '', p); o.value = p; ps.appendChild(o); });
+        ps.value = dp.ProviderName || '';
+        ps.addEventListener('change', function () { if (ps.value) { post({ type: 'setProp', name: n.name, prop: 'ProviderName', value: ps.value }); } });
+        b.appendChild(labelled('Provider', ps));
+        b.appendChild(labelled('Server', textInput(dp.Server || '', setter(n, 'Server'))));
+        b.appendChild(labelled('Database', textInput(dp.Database || '', setter(n, 'Database'))));
+        var g = el('div', 'g2');
+        g.appendChild(labelled('User', textInput(dp.Username || '', setter(n, 'Username'))));
+        g.appendChild(labelled('Port', textInput(dp.Port || '', function (v) { if (v !== '') { post({ type: 'setProp', name: n.name, prop: 'Port', value: Number(v) }); } }, 'number')));
+        b.appendChild(g);
+        b.appendChild(checkbox('Login prompt', n.props['LoginPrompt'] === 'True', setter(n, 'LoginPrompt')));
+        b.appendChild(el('div', 'hint', 'The password and Connected are not edited here: they stay as written in the .dfm.'));
+      }
+      if (usesConn) { b.appendChild(linkSelect(n, 'Connection', 'Connection', isConnectionNode)); }
+      if (isSource) { b.appendChild(linkSelect(n, 'DataSet', 'Dataset', function (c) { return !!c.dataset; })); }
+      if (n.dataset && l.slice(-5) === 'table') { b.appendChild(labelled('Table', textInput(dp.TableName || '', setter(n, 'TableName')))); }
+      if (hasSqlBox) {
+        var nl = String.fromCharCode(10);
+        var ta = el('textarea', 'sqlbox'); ta.spellcheck = false; ta.rows = 7;
+        ta.value = (n.sql || []).join(nl);
+        ta.placeholder = 'select ...';
+        b.appendChild(labelled('SQL', ta));
+        var apply = el('button', '', 'Apply SQL'); apply.title = 'Write these lines as SQL.Strings of the .dfm';
+        apply.addEventListener('click', function () {
+          var lines = ta.value.split(nl);
+          while (lines.length && lines[lines.length - 1].trim() === '') { lines.pop(); }
+          post({ type: 'setSql', name: n.name, lines: lines });
+        });
+        b.appendChild(apply);
+      }
+      if (n.dataset) { b.appendChild(el('div', 'hint', 'Its persistent fields are listed under it in the Components list; add more from the palette (type Fields) while it is selected.')); }
+    });
   }
   /* Name of the handler the IDE would create: Button1 + OnClick = Button1Click, cxEdit1 + Properties.OnChange = cxEdit1PropertiesChange. */
   function previewHandler(name, ev) {
@@ -969,7 +1086,7 @@ body.full #toolbar { padding: 3px 8px; }
     var meta = el('div', 'meta');
     meta.appendChild(el('div', 'iname', n.name));
     var sub = el('div', 'sub', n.cls);
-    if (n.family) { sub.appendChild(el('span', 'fam-tag ' + (n.family === 'devexpress' ? 'dx' : 'tms'), n.family === 'devexpress' ? 'DevExpress' : 'TMS')); }
+    if (n.family && FAMILY[n.family]) { sub.appendChild(el('span', 'fam-tag ' + FAMILY[n.family].cls, FAMILY[n.family].label)); }
     meta.appendChild(sub); card.appendChild(meta); box.appendChild(card);
     var crumbs = el('div', 'crumbs');
     pathOf(n.name).forEach(function (p, i, arr) {
@@ -996,11 +1113,13 @@ body.full #toolbar { padding: 3px 8px; }
     if (fixed) {
       section(box, PART_TITLES[k] || 'Part', 'part', function (b) { partFields(b, n); });
     } else {
-      section(box, 'Position & size', 'pos', function (b) {
+      section(box, n.nonVisual ? 'Position on the form' : 'Position & size', 'pos', function (b) {
         var g = el('div', 'g2');
         var num = function (prop, label, v) { g.appendChild(labelled(label, textInput(v, function (val) { post({ type: 'setProp', name: n.name, prop: prop, value: Number(val) }); }, 'number'))); };
         var rawNum = function (p) { return n.props[p] !== undefined ? Number(n.props[p]) : undefined; };
         if (!n.docked) { num('Left', 'Left', rawNum('Left') !== undefined ? rawNum('Left') : n.x); num('Top', 'Top', rawNum('Top') !== undefined ? rawNum('Top') : n.y); }
+        // a non-visual component (connection, query, timer…) has only the place where its icon sits at design time
+        if (n.nonVisual) { b.appendChild(g); b.appendChild(el('div', 'hint', 'Non-visual: it has no size, only a design-time position.')); return; }
         if (!n.docked || n.align === 'alLeft' || n.align === 'alRight') { num('Width', 'Width', rawNum('Width') !== undefined ? rawNum('Width') : n.w); }
         if (!n.docked || n.align === 'alTop' || n.align === 'alBottom') { num('Height', 'Height', rawNum('Height') !== undefined ? rawNum('Height') : n.h); }
         b.appendChild(g);
@@ -1019,6 +1138,7 @@ body.full #toolbar { padding: 3px 8px; }
         });
         b.appendChild(ar);
       });
+      dataFields(box, n);
       var hasCap = n.caption !== undefined || ['button', 'label', 'check', 'radio', 'panel', 'group', 'sheet', 'statusbar'].indexOf(k) >= 0;
       var hasText = n.text !== undefined || ['edit', 'combo'].indexOf(k) >= 0;
       if (hasCap || hasText) {
@@ -1027,7 +1147,7 @@ body.full #toolbar { padding: 3px 8px; }
           if (hasText) { b.appendChild(labelled('Text', textInput(n.text, setter(n, 'Text')))); }
         });
       }
-      section(box, 'State', 'state', function (b) {
+      if (!n.nonVisual) section(box, 'State', 'state', function (b) {
         b.appendChild(checkbox('Visible', n.visible, setter(n, 'Visible')));
         b.appendChild(checkbox('Enabled', n.enabled, setter(n, 'Enabled')));
         if (n.tab !== undefined) { b.appendChild(labelled('TabOrder', textInput(n.tab, function (v) { post({ type: 'setProp', name: n.name, prop: 'TabOrder', value: Number(v) }); }, 'number'))); }

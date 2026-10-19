@@ -2,7 +2,7 @@
  * Form generation from a list of fields (or a class), and "change the class
  * of a component" keeping the compatible properties and events.
  */
-import { COMPONENTS, ComponentDef, TextEdit, existingNames, resolveComponentDef, unitInsertionPoints, usesEdits } from './DelphiForm';
+import { COMPONENTS, ComponentDef, EVENT_PROP_RE, TextEdit, existingNames, resolveComponentDef, unitInsertionPoints, usesEdits } from './DelphiForm';
 import { findNode, insertIntoNode, parseDfmTree } from './DelphiLayout';
 import { lineStartOffsets, setProp } from '../utils/dfmEdit';
 import { clientSize } from './DelphiAlign';
@@ -239,7 +239,7 @@ export function planChangeClass(pas: string, dfm: string, name: string, newClass
     if (!unchecked) {
         const events = KNOWN_EVENTS.get(newClass.toLowerCase());
         for (const [prop, line] of Object.entries(node.propLines)) {
-            const isEvent = /^(?:[A-Za-z]\w*\.)?On[A-Z]/.test(prop);
+            const isEvent = EVENT_PROP_RE.test(prop);
             const keep = isEvent ? (events ? events.has(prop) : true) : propAllowed(prop, newClass);
             if (keep) { continue; }
             const end = propBlockEnd(lines, line);

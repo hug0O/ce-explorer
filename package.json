@@ -1,6 +1,7 @@
 {
   "name": "ce-code-explorer",
   "displayName": "Code Explorer",
+  "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
   "version": "0.1.5",
   "publisher": "ce",
@@ -264,8 +265,8 @@
         "title": "CE PL/SQL: New Package..."
       },
       {
-        "command": "ce.plsql.crudFromTable",
-        "title": "CE PL/SQL: CRUD Package from CREATE TABLE"
+        "command": "ce.plsql.sqlFromTable",
+        "title": "CE PL/SQL: SELECT / INSERT / UPDATE / DELETE / MERGE from CREATE TABLE"
       },
       {
         "command": "ce.plsql.utplsql",
@@ -341,7 +342,7 @@
       },
       {
         "command": "ce.delphi.project",
-        "title": "CE Delphi: Project - SQL, Unused Code, Form Checks"
+        "title": "CE: Project Insights (SQL, dead code, size, hotspots, Delphi forms)"
       },
       {
         "command": "ce.delphi.diffForm",
@@ -685,7 +686,7 @@
       {
         "command": "ce.delphi.project",
         "key": "ctrl+k i",
-        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+        "when": "editorTextFocus"
       },
       {
         "command": "ce.delphi.diffForm",
@@ -703,11 +704,6 @@
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {
-        "command": "ce.plsql.crudFromTable",
-        "key": "ctrl+k c",
-        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
-      },
-      {
         "command": "ce.plsql.extractProcedure",
         "key": "ctrl+k x",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
@@ -720,6 +716,11 @@
       {
         "command": "ce.plsql.docHeader",
         "key": "ctrl+k d",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
+      },
+      {
+        "command": "ce.plsql.sqlFromTable",
+        "key": "ctrl+k g",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb|txt)$/i"
       },
       {

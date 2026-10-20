@@ -67,8 +67,10 @@ export function kbdHtml(family: ShortcutFamily, command: string): string {
 
 export function toolsCss(): string {
     return `
-.tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
-.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.tabdes { margin-left: auto; align-self: center; padding: 2px 8px; font-size: 11px; font-family: inherit; border-radius: 10px; cursor: pointer; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.45)); background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.15)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.tabdes:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.25)); }
 .tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
 .tab:hover { color: var(--vscode-foreground); }
 .section { margin-bottom: 12px; }

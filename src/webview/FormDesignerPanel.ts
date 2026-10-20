@@ -87,7 +87,19 @@ export class FormDesignerPanel {
         );
     }
 
-    static async createOrShow(doc: vscode.TextDocument | undefined): Promise<void> {
+    /**
+     * Opens the designer of a unit (a document or just its file, as the explorer and the title bar hand it over), or brings it
+     * back. From the designer tab itself there is no text editor: the designer that is open is shown again.
+     */
+    static async createOrShow(target: vscode.TextDocument | vscode.Uri | undefined): Promise<void> {
+        let doc: vscode.TextDocument | undefined;
+        if (target && 'uri' in target) { doc = target; }
+        else if (target) { try { doc = await vscode.workspace.openTextDocument(target); } catch { doc = undefined; } }
+        if (!doc) {
+            const open = [...FormDesignerPanel.open.values()];
+            const shown = open.find(d => d.panel.active) ?? open[open.length - 1];
+            if (shown) { shown.panel.reveal(shown.panel.viewColumn ?? vscode.ViewColumn.Active); return; }
+        }
         const pair = await resolveFormPair(doc);
         if (!pair) {
             vscode.window.showWarningMessage('CE: Open a Delphi unit (.pas) that has a text .dfm of the same name next to it.');

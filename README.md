@@ -32,7 +32,7 @@ code --install-extension ce-code-explorer-0.1.0.vsix
 ## Features
 
 ### Sidebar: Structure, Tools, Memo
-The **Member** view of the Code Explorer sidebar has four tabs: *Details* (the member under the cursor), **Structure**, **Tools** and **Memo**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file.
+The **Member** view of the Code Explorer sidebar has five tabs: *Details* (the member under the cursor), **Structure**, **Tools**, **Memo** and **Shortcuts**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file.
 
 - **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
 - **Add** a field, method, property or constructor to the chosen type (compact buttons that wrap, close together); insert a template; synchronise declarations and implementations; open the templates manager; refresh.
@@ -161,7 +161,7 @@ MIT
 | `Ctrl+K Ctrl+B` | Toggle the Delphi form designer ⇄ code |
 | `Ctrl+K J` | Align the selection on a string (any language) |
 
-Inside the form designer (key presses in an inspector field are left to VS Code, so the shortcuts above also work there): `Ctrl+S` save the `.dfm` and the `.pas` · `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut, paste components · `Ctrl+Z` / `Ctrl+Y` undo, redo · `Ctrl+A` select all · `Delete` · arrows (`Shift` = grid step, `Ctrl` = resize) · `Esc` parent / cancel a tool or a cut · `P` / `I` / `F` palette, inspector, full screen.
+Inside the form designer (key presses in an inspector field are left to VS Code, so the shortcuts above also work there): `Ctrl+S` save the `.dfm` and the `.pas` · `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut, paste components · `Ctrl+Z` / `Ctrl+Y` undo, redo · `Ctrl+A` select every component of the selection's container (the form when nothing is selected) · `Delete` · arrows (`Shift` = grid step, `Ctrl` = resize) · `Esc` parent / cancel a tool or a cut · `P` / `I` / `F` palette, inspector, full screen.
 
 **Tools shortcuts: `Ctrl+K`, release, then a letter.** Each one works only in the files it is about, so the same letter serves both families. They are **shown on the buttons of the Tools tab**, next to the tool, so there is nothing to look up.
 
@@ -239,7 +239,7 @@ Setting `ce.plsql.author` is written in generated headers. Nothing connects to a
 | Check form | `.dfm` ⇄ `.pas`: event link to a missing method (the form would not load), field without component (nil at runtime), wrong field type, duplicate names / TabOrder, controls beyond their container, overlaps, empty or orphan handlers — with one-click fixes and an "apply the safe fixes" action |
 | Clean handlers | The "Handlers" findings of the check only |
 
-### Visual form designer (Delphi) — `CE Delphi: Open Form Designer`, the 🎨 button of Tools, or the icon in the title bar of a `.pas` / `.dfm`
+### Visual form designer (Delphi) — five ways in: the icon in the title bar of a `.pas` / `.dfm`, **Form Designer** in the status bar (always visible while a unit or a form is being edited), right-click a `.pas` / `.dfm` in the Explorer or in the editor, the **🎨 Designer** button at the right of the sidebar's tab bar (it stays while the designer tab is the active one), and `Ctrl+K D` (`CE Delphi: Open Form Designer`; from the designer tab itself it brings the open designer back)
 
 The text `.dfm` drawn as a form, next to the code. Where a change goes in the unit: a new component's **field is added right under the last component field** of the form class (before the first `private` / `public`), its handler declaration under the last method declaration, and the units it needs at the end of `uses` — a long list wraps onto the next lines instead of making one very long line. Fields declared on several lines, several names in one declaration (`A, B: TEdit;`) and comments among them are read correctly. Each change reaches VS Code as one tidy edit (overlapping removals merged, duplicates dropped); if the editor still refuses it, the message says why (read-only file, closed document…) and nothing is modified, and a document VS Code closed in the meantime is reopened before the next change. The VCL docking rules are applied (`alTop`, `alBottom`, `alLeft`, `alRight`, `alClient`, panels' bevels, page controls, splitters), so what you see is the layout Delphi would give.
 
@@ -310,6 +310,10 @@ The **Events** section of the inspector has **one drop-down listing every event 
 - **Containers** checkbox in the toolbar: every container is outlined and named, with a colour per nesting depth. Even with it off, the container under the pointer is outlined with its name and class.
 - **Move to another parent**, four ways: drag the component onto another container (the target turns green and a tag says `Drop into … : class`; dropping on the form itself takes it out of its container); pick one in the inspector's **Parent** list (the component stays where it is on screen when possible); drag a row of the Components list onto a container row, or onto the `⌂ form` row at its top; or drag a *docked* control (alTop, alClient…) — it keeps its `Align`. A component is always kept inside its new parent, and never goes into itself or its own children.
 - **Esc** selects the parent of the selection (the usual Delphi habit); it first cancels the palette tool if one is armed.
+
+#### Sidebar → Shortcuts: every keyboard shortcut, by mode
+
+The **Shortcuts** tab lists all the shortcuts of the extension, grouped by the mode they work in: *any code file* (Structure, actions menu, edit member), *any editor* (align on a string, memo), *Delphi units and forms*, *PL/SQL sources* (the same `Ctrl+K` letters mean other commands there), the **form designer** (save, copy / cut / paste, undo, select, move and resize with the arrows, panels, full screen, and the mouse gestures, drawn with dashed keys) and the *sidebar* itself. A filter narrows the list as you type (a key, a word of the command, a mode). The editor shortcuts are read from the keybindings of the extension, so the list is always what VS Code really binds; **⚙** opens VS Code's Keyboard Shortcuts editor on them to change one.
 
 #### Sidebar → Memo: Markdown notes per language
 

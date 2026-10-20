@@ -114,6 +114,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         vscode.commands.executeCommand('setContext', 'ce:isActive', true);
 
+        // A button that is always in sight while a Delphi unit or form is being edited: it opens the designer of that unit.
+        const designerStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
+        designerStatus.command = 'ce.delphi.designer';
+        designerStatus.text = '$(symbol-misc) Form Designer';
+        designerStatus.tooltip = 'Open the visual form designer of this unit (Ctrl+K D). Ctrl+K Ctrl+B switches between the designer and the code.';
+        const showDesignerStatus = (editor: vscode.TextEditor | undefined): void => {
+            if (editor && /.(pas|dfm)$/i.test(editor.document.uri.fsPath)) { designerStatus.show(); } else { designerStatus.hide(); }
+        };
+        context.subscriptions.push(designerStatus, vscode.window.onDidChangeActiveTextEditor(showDesignerStatus));
+        showDesignerStatus(vscode.window.activeTextEditor);
+
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];
         for (const ext of providerRegistry.getSupportedExtensions()) {
@@ -468,7 +479,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('ce.alignSelection', alignSelection),
-        vscode.commands.registerCommand('ce.delphi.designer', () => FormDesignerPanel.createOrShow(vscode.window.activeTextEditor?.document)),
+        vscode.commands.registerCommand('ce.delphi.designer', (uri?: vscode.Uri) => FormDesignerPanel.createOrShow(uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('ce.delphi.align', delphi.alignComponentsCommand),
         vscode.commands.registerCommand('ce.delphi.anchors', delphi.anchorsCommand),

@@ -19,6 +19,7 @@ import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
+import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
@@ -30,7 +31,7 @@ interface MemberViewerState {
 }
 
 /** Tabs of the Member view. */
-export type SidebarTab = 'detail' | 'manage' | 'tools' | 'memo';
+export type SidebarTab = 'detail' | 'manage' | 'tools' | 'memo' | 'shortcuts';
 
 export type ViewerMode = 'view' | 'edit' | 'add' | 'extract' | 'analytics' | 'variable';
 
@@ -94,6 +95,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     // Moment of the last jump made from this view: the cursor events it causes must not change the member being looked at.
     private _ownJumpAt = 0;
     private _memberSearch = '';
+    // Shortcuts tab: the filter text; and whether the last editor seen was a Delphi file (the designer tab has no text editor)
+    private _shortcutFilter = '';
+    private _delphiSeen = false;
     // Blocks under the selected member that are unfolded (kept between redraws).
     private _folds = { used: true, vars: true, find: true };
     private _hiLine?: vscode.TextEditorDecorationType;
@@ -185,7 +189,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : 'detail'); break;
+                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'detail'); break;
+                case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
+                case 'openKeybindings': await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', '@ext:' + this.extensionId()); break;
                 case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
                 case 'memoLang': this._memoLang = msg.id === FOLLOW_ID ? '' : sanitizeLang(String(msg.id)); this.setTab('memo'); break;
                 case 'memoMode': this._memoMode = msg.mode === 'preview' ? 'preview' : 'edit'; this.setTab('memo'); break;
@@ -521,7 +527,19 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** Whether the active editor is a Delphi unit or form file. */
     private isDelphi(): boolean {
-        return /\.(pas|dfm)$/i.test(vscode.window.activeTextEditor?.document.uri.fsPath ?? '');
+        const file = vscode.window.activeTextEditor?.document.uri.fsPath;
+        if (file !== undefined) { this._delphiSeen = /\.(pas|dfm)$/i.test(file); }
+        return this._delphiSeen;
+    }
+
+    private extensionId(): string {
+        return this._extensionContext.extension?.id ?? 'ce.ce-code-explorer';
+    }
+
+    /** Shortcuts tab: the keybindings of this extension, by the mode they work in. */
+    private getShortcutsHtml(): string {
+        const pkg = (this._extensionContext.extension?.packageJSON ?? {}) as PackageShortcuts;
+        return shortcutsHtml(buildShortcutGroups(pkg), this._shortcutFilter, this.extensionId());
     }
 
     /** Whether the active editor holds PL/SQL (real extension, or a .txt / .sql that contains it). */
@@ -1377,6 +1395,8 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
                 ? this.getManageHtml()
                 : this._tab === 'memo'
                 ? this.getMemoHtml()
+                : this._tab === 'shortcuts'
+                ? this.getShortcutsHtml()
                 : `<div class="empty">
 <div class="icon">🔍</div>
 <p>Place cursor on a class member to view &amp; edit it.</p>
@@ -1406,6 +1426,7 @@ body { font-family: var(--vscode-font-family, -apple-system, sans-serif); font-s
 ${toolsCss()}
 ${manageCss()}
 ${memoCss()}
+${shortcutsCss()}
 </style>
 </head>
 <body>
@@ -1415,11 +1436,13 @@ ${body}
 ${toolsScript()}
 ${manageScript()}
 ${memoScript()}
+${shortcutsScript()}
 (function() {
     var api = acquireVsCodeApi();
     initTools(api);
     initManage(api);
     initMemo(api);
+    initShortcuts(api);
     document.querySelectorAll('.qa').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-cmd') }); });
     });
@@ -1446,7 +1469,7 @@ ${memoScript()}
     private tabsHtml(firstLabel: string): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
             `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''}>${label}</button>`;
-        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n</div>`;
+        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
     }
 
     /** Rows of the local variables and parameters of a member; the buttons only where they can act on it. */
@@ -1582,8 +1605,8 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
 .var-btn:hover { filter: brightness(1.3); }
 ${toolsCss()}
-.tabs { display: flex; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
-.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: inherit; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
 .tab:hover { color: var(--vscode-foreground); }
 .mlist { list-style: none; padding: 0; }
@@ -1597,14 +1620,15 @@ ${toolsCss()}
 .mrow:hover .var-actions { opacity: 1; }
 ${manageCss()}
 ${memoCss()}
+${shortcutsCss()}
 </style>
 </head>
 <body>`;
 
         html += this.tabsHtml('Details');
 
-        if (this._tab === 'memo' || this._tab === 'manage') {
-            // the memo is not about the member under the cursor, and the type selector of Structure already names the type
+        if (this._tab === 'memo' || this._tab === 'manage' || this._tab === 'shortcuts') {
+            // the memo and the shortcuts are not about the member under the cursor, and the type selector of Structure already names the type
         } else if (classInfo) {
             html += `<div class="class-header">
 <div class="name">${escapeHtml(classInfo.name)}</div>
@@ -1623,6 +1647,8 @@ ${memoCss()}
             html += this.getManageHtml();
         } else if (this._tab === 'memo') {
             html += this.getMemoHtml();
+        } else if (this._tab === 'shortcuts') {
+            html += this.getShortcutsHtml();
         } else if (member) {
             const kindLabel = member.kind === MemberKind.Constructor ? 'Constructor'
                 : member.kind === MemberKind.Destructor ? 'Destructor'
@@ -1722,11 +1748,13 @@ ${memoCss()}
 ${toolsScript()}
 ${manageScript()}
 ${memoScript()}
+${shortcutsScript()}
 (function() {
     var vscodeApi = acquireVsCodeApi();
     initTools(vscodeApi);
     initManage(vscodeApi);
     initMemo(vscodeApi);
+    initShortcuts(vscodeApi);
     document.querySelectorAll('.ana').forEach(function(b) {
         b.addEventListener('click', function() {
             var ak = b.getAttribute('data-ak');

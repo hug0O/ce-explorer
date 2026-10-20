@@ -395,6 +395,11 @@
           "command": "ce.alignSelection",
           "when": "editorHasSelection",
           "group": "ce@7"
+        },
+        {
+          "command": "ce.delphi.designer",
+          "when": "resourceExtname =~ /^.(pas|dfm)$/i",
+          "group": "ce@8"
         }
       ],
       "commandPalette": [
@@ -416,6 +421,13 @@
           "command": "ce.delphi.designer",
           "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
           "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "ce.delphi.designer",
+          "when": "resourceExtname =~ /^.(pas|dfm)$/i",
+          "group": "navigation@10"
         }
       ]
     },

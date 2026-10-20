@@ -1316,6 +1316,12 @@ body.full #toolbar { padding: 3px 8px; }
     } catch (err) { pos = { left: 8, top: 8 }; }
     post({ type: 'reparent', names: [name], target: target, positions: [pos] });
   }
+  /* Ctrl+A: every component of the container the selection is in (the form when nothing is selected, or when the selection is in the form). */
+  function siblingsOfSelection() {
+    var prim = state.sel[state.sel.length - 1];
+    var holder = prim && parentOf[prim] && byName[parentOf[prim]] ? byName[parentOf[prim]] : state.model.root;
+    return holder.children.filter(function (c) { return !c.fixed && !c.structural; }).map(function (c) { return c.name; });
+  }
   function selectParent() {
     var prim = state.sel[state.sel.length - 1];
     var pn = prim ? parentOf[prim] : '';
@@ -1556,7 +1562,7 @@ body.full #toolbar { padding: 3px 8px; }
     }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { post({ type: ev.shiftKey ? 'redo' : 'undo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
-    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A') && state.model) { select(state.model.root.children.map(function (c) { return c.name; })); ev.preventDefault(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A') && state.model) { select(siblingsOfSelection()); ev.preventDefault(); return; }
     if (!state.sel.length) { return; }
     if (ev.key === 'Delete' || ev.key === 'Backspace') { post({ type: 'delete', names: state.sel.slice() }); ev.preventDefault(); return; }
     var step = ev.shiftKey ? (state.grid || 8) : 1, mx = 0, my = 0;

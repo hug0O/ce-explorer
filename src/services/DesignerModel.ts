@@ -598,7 +598,7 @@ export function pasteEdits(pas: string, dfm: string, payload: ClipPayload, targe
     return {
         dfmEdits: [r.dfmEdit], pasEdits: r.pasEdits,
         note: [r.renamed.length ? `renamed: ${r.renamed.map(x => `${x.from}→${x.to}`).join(', ')}` : '', r.createdHandlers.length ? `${r.createdHandlers.length} handler(s) created` : ''].filter(Boolean).join(' · ') || undefined,
-        roots: roots.map(p => final(p.name)), added: payload.components.map(c => final(c.name)),
+        roots: roots.filter(p => !p.anonymous).map(p => final(p.name)), added: payload.components.map(c => final(c.name)),
     };
 }
 

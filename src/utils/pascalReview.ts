@@ -290,7 +290,9 @@ export function reviewPascal(lines: string[], routines: PascalRoutine[], fileNam
             last = k;
             if (code[k].includes(';')) { break; }
         }
-        const literalsOut = stmt.replace(/'(?:[^']|'')*'/g, '\'\'');
+        // line breaks and tabs added to a literal (`'--Filter' + CRLF`, `#13#10`, `Chr(10)`) carry no user input
+        const literalsOut = stmt.replace(/'(?:[^']|'')*'/g, '\'\'')
+            .replace(/\b(?:CRLF|sLineBreak|LineBreak|CR|LF|TAB|NL)\b|(?:#\d+|#\$[0-9a-f]+)+|\bChr\s*\(\s*\d+\s*\)/gi, '\'\'');
         const concatenates = /\+\s*(?!'')[A-Za-z_@(]|[A-Za-z_)\]]\s*\+/.test(literalsOut);
         const formats = /\bFormat\s*\(/i.test(literalsOut) && /%[-\d.]*[sdfxu]/i.test(stmt);
         if (concatenates || formats) {

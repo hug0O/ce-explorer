@@ -145,6 +145,7 @@ export function reviewPascalCompiler(lines: string[], routines: PascalRoutine[],
             const n = escapeRe(l.name);
             const any = new RegExp('(?<![\\w.])' + n + '(?!\\w)', 'gi');
             const target = new RegExp('^' + n + '\\s*:=', 'i');
+            const assignment = new RegExp('(?<![\\w.])' + n + '\\s*:=', 'gi');
             const asLoop = new RegExp('\\bfor\\s+' + n + '\\s*:=', 'i');
             const asArg = new RegExp('[(,]\\s*' + n + '\\s*[,)]', 'i');
             let writes = 0;
@@ -156,9 +157,10 @@ export function reviewPascalCompiler(lines: string[], routines: PascalRoutine[],
                 const count = (s.text.match(any) ?? []).length;
                 if (!count) { continue; }
                 if (asLoop.test(s.text) || asArg.test(s.text)) { ambiguous = true; break; }
-                const isWrite = target.test(s.text.replace(OPENERS, ''));
-                if (isWrite) { writes++; if (firstWrite < 0) { firstWrite = s.line; } }
-                if (count - (isWrite ? 1 : 0) > 0) { reads += count - (isWrite ? 1 : 0); if (firstRead < 0) { firstRead = s.line; } }
+                // an assignment can sit inside the statement: in the body of an anonymous method passed to a call
+                const assigned = (s.text.match(assignment) ?? []).length;
+                if (assigned > 0 || target.test(s.text.replace(OPENERS, ''))) { writes++; if (firstWrite < 0) { firstWrite = s.line; } }
+                if (count - assigned > 0) { reads += count - assigned; if (firstRead < 0) { firstRead = s.line; } }
             }
             if (ambiguous) { continue; }
             const col = (line: number): number => Math.max(0, lines[line].search(word(l.name)));

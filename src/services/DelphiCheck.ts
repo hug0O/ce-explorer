@@ -5,10 +5,10 @@
  */
 import { TextEdit, eventDefFor, eventDefOf, findFormClass, resolveComponentDef, unitInsertionPoints } from './DelphiForm';
 import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
-import { handlerImplementation } from './DelphiSync';
+import { handlerDeclaration, handlerImplementation } from './DelphiSync';
 import { wiredEvents } from './DelphiEvents';
 import { planTabOrder } from './DelphiAlign';
-import { deleteProp, lineStartOffsets } from '../utils/dfmEdit';
+import { deleteProp } from '../utils/dfmEdit';
 
 export type IssueFix = 'tabOrder' | 'createHandler' | 'removeLink' | 'removeOrphan' | 'removeEmptyHandler';
 
@@ -30,6 +30,10 @@ interface UnitInfo {
     methods: { name: string; params: string; line: number; ideManaged: boolean }[];
 }
 
+/** A line of Pascal without its comments (a `//` or a `{ … }` on the line), for counting parentheses. */
+const code = (l: string): string => l.replace(/\{[^}]*\}/g, '').replace(/\(\*.*?\*\)/g, '').replace(/\/\/.*$/, '');
+const depth = (t: string): number => t.split('(').length - t.split(')').length;
+
 /** Fields and procedures declared in the form class of the unit. */
 export function readUnit(pas: string, formClass: string): UnitInfo | undefined {
     const form = findFormClass(pas, formClass);
@@ -41,13 +45,14 @@ export function readUnit(pas: string, formClass: string): UnitInfo | undefined {
         const l = lines[i];
         if (/^\s*end\s*;/i.test(l)) { break; }
         if (/^\s*(strict\s+)?(private|protected|public|published)\b/i.test(l)) { managed = false; continue; }
-        // A declaration whose parameters wrap onto the next lines (`AShift: TShiftState; var AHandled: Boolean);` must not read as a field).
-        const m = l.match(/^\s*(?:procedure|function)\s+(\w+)/i);
+        // A declaration whose parameters wrap onto the next lines (`AShift: TShiftState; var AHandled: Boolean);` must not read as a field),
+        // even when the name is alone on its line and the parenthesis opens on the next one.
+        const m = l.match(/^\s*(?:class\s+)?(procedure|function|constructor|destructor)\s+(\w+)/i);
         if (m) {
-            let text = l;
+            let text = code(l);
             let j = i;
-            while (text.split('(').length > text.split(')').length && j + 1 < lines.length) { j++; text += ' ' + lines[j].trim(); }
-            info.methods.push({ name: m[1], params: text.match(/\(([^)]*)\)/)?.[1] ?? '', line: i, ideManaged: managed });
+            while (j + 1 < lines.length && (depth(text) > 0 || !/;/.test(text))) { j++; text += ' ' + code(lines[j]).trim(); }
+            if (/^(procedure|function)$/i.test(m[1])) { info.methods.push({ name: m[2], params: text.match(/\(([^)]*)\)/)?.[1] ?? '', line: i, ideManaged: managed }); }
             i = j;
             continue;
         }
@@ -91,7 +96,9 @@ export function checkForm(pas: string, dfm: string): FormIssue[] {
         const fieldByName = new Map(unit.fields.map(f => [f.name.toLowerCase(), f]));
         for (const n of nodes.slice(1)) {
             const f = fieldByName.get(n.name.toLowerCase());
-            if (!f) {
+            if (n.anonymous) {
+                issues.push({ severity: 'info', category: 'Fields', message: `A ${n.className} has no name in the .dfm (shown as ${n.name}): it cannot be used from code`, file: 'dfm', line: n.startLine, component: n.name, fixes: [] });
+            } else if (!f) {
                 issues.push({ severity: 'info', category: 'Fields', message: `${n.name}: ${n.className} has no field in ${unit.formName}: it cannot be used from code`, file: 'dfm', line: n.startLine, component: n.name, fixes: [] });
             } else if (f.type.toLowerCase() !== n.className.toLowerCase()) {
                 issues.push({ severity: 'error', category: 'Fields', message: `${n.name} is a ${n.className} in the .dfm but declared as ${f.type} in the unit`, file: 'pas', line: f.line, component: n.name, fixes: [] });
@@ -208,11 +215,9 @@ export function fixIssue(pas: string, dfm: string, issue: FormIssue, fix: IssueF
         if (!handler) { return { error: 'Handler not found.' }; }
         const impl = handlerImplementation(pas, unit.formName, handler);
         if (!impl || !impl.empty) { return { error: `${handler} contains code: not removed.` }; }
-        const starts = lineOffsets(pas);
-        const lines = pas.split('\n');
-        const di = lines.findIndex(l => new RegExp('^[ \\t]*procedure\\s+' + handler + '\\s*\\(', 'i').test(l));
+        const decl = handlerDeclaration(pas, handler);
         const pasEdits: TextEdit[] = [{ offset: impl.start, length: impl.end - impl.start, text: '' }];
-        if (di >= 0) { pasEdits.push({ offset: starts[di], length: (starts[di + 1] ?? pas.length) - starts[di], text: '' }); }
+        if (decl) { pasEdits.push({ offset: decl.start, length: decl.end - decl.start, text: '' }); }
         const dfmEdits: TextEdit[] = [];
         if (fix === 'removeEmptyHandler') {
             for (const n of allNodes(root)) {
@@ -226,4 +231,3 @@ export function fixIssue(pas: string, dfm: string, issue: FormIssue, fix: IssueF
     return { error: 'Unknown fix.' };
 }
 
-const lineOffsets = lineStartOffsets;

@@ -64,7 +64,8 @@ export function copyComponents(pas: string, dfm: string, names: string[], unitOf
     const units = new Set<string>();
     for (const r of roots) {
         for (const n of allNodes(r)) {
-            components.push({ name: n.name, className: n.className });
+            // a component with no name in the .dfm has no field either: it travels with its parent and is not renamed
+            if (!n.anonymous) { components.push({ name: n.name, className: n.className }); }
             const u = unitOf(n.className);
             if (u) { units.add(u); }
             for (const handler of Object.values(wiredEvents(n))) {
@@ -178,7 +179,7 @@ export function pasteComponents(pas: string, dfm: string, payload: ClipPayload, 
         const to = handlerMap.get(h.name.toLowerCase())!;
         if (h.implementation) {
             const code = renameIdentifiers(h.implementation, fullMap).replace(new RegExp('\\b' + payload.sourceClass + '\\.', 'g'), unit.formName + '.')
-                .replace(new RegExp('(procedure\\s+' + unit.formName + '\\.)' + h.name + '\\b', 'i'), '$1' + to);
+                .replace(new RegExp('(procedure\\s+' + unit.formName + '\\s*\\.\\s*)' + h.name + '\\b', 'i'), '$1' + to);
             return code.replace(/\r?\n/g, points.eol) + points.eol + points.eol;
         }
         return `procedure ${unit.formName}.${to}(${h.params});${points.eol}begin${points.eol}  ${points.eol}end;${points.eol}${points.eol}`;

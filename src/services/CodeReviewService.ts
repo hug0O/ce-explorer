@@ -60,7 +60,9 @@ export function reviewDocument(document: vscode.TextDocument, provider: import('
     const fieldEncapsulationApplies = !['go', 'rust', 'python', 'javascript', 'plsql'].includes(lang);
 
     for (const cls of parsed.classes) {
-        const formClass = FORM_PARENT.test(cls.parentClass ?? '');
+        // a form often descends from a base form of the project (THadHocFormListe): the section the IDE manages tells it, a dozen published fields
+        const formClass = FORM_PARENT.test(cls.parentClass ?? '')
+            || cls.members.filter(m => m.kind === MemberKind.Field && m.visibility === 'published').length >= 12;
         const counted = formClass ? cls.members.filter(m => m.kind !== MemberKind.Field).length : cls.members.length;
         if (counted > 15) {
             findings.push({

@@ -851,15 +851,41 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
                 continue;
             }
 
+            // a declaration can wrap over several lines (`procedure Foo` / `(Sender: TObject);`): it is read as one
+            const last = this.declarationEnd(bodyLines, i);
+            const text = last > i ? bodyLines.slice(i, last + 1).map(l => this.withoutComments(l).trim()).join(' ') : line;
             const member = this.parseMemberLine(
-                line, currentVisibility, raw.bodyStartLine + i, allLines, raw.name, implementations
+                text, currentVisibility, raw.bodyStartLine + i, allLines, raw.name, implementations
             );
             if (member) {
+                if (last > i) {
+                    member.range = new vscode.Range(
+                        new vscode.Position(raw.bodyStartLine + i, 0),
+                        new vscode.Position(raw.bodyStartLine + last, allLines[raw.bodyStartLine + last]?.length ?? 0),
+                    );
+                }
                 members.push(member);
             }
+            i = last;
         }
 
         return members;
+    }
+
+    private withoutComments(line: string): string {
+        return line.replace(/\{[^}]*\}/g, '').replace(/\(\*.*?\*\)/g, '').replace(/\/\/.*$/, '');
+    }
+
+    /** Last line of the declaration that starts on line `start`: the one with the ; outside the parentheses (the line itself when it is on one line). */
+    private declarationEnd(lines: string[], start: number): number {
+        if (!/^\s*(?:class\s+)?(?:procedure|function|constructor|destructor|property)\b/i.test(lines[start])) { return start; }
+        let depth = 0;
+        for (let j = start; j < lines.length && j < start + 30; j++) {
+            for (const ch of this.withoutComments(lines[j])) {
+                if (ch === '(' || ch === '[') { depth++; } else if (ch === ')' || ch === ']') { depth--; } else if (ch === ';' && depth <= 0) { return j; }
+            }
+        }
+        return start;
     }
 
     private matchVisibility(line: string): Visibility | undefined {
@@ -1054,80 +1080,46 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             if (/^end\.\s*$/i.test(trimmed)) break;
             if (!inImplementation) continue;
 
-            const constructorImpl = trimmed.match(
-                /^constructor\s+(T\w+)\.(Create)\s*(?:\(([^)]*)\))?\s*;/i
-            );
-            if (constructorImpl) {
-                const end = this.findImplementationEnd(lines, i);
-                results.push({
-                    className: constructorImpl[1],
-                    methodName: constructorImpl[2],
-                    fullSignature: trimmed,
-                    startLine: i,
-                    endLine: end,
-                    params: constructorImpl[3] || '',
-                    returnType: undefined,
-                    kind: MemberKind.Constructor,
-                });
-                continue;
-            }
-
-            const destructorImpl = trimmed.match(
-                /^destructor\s+(T\w+)\.(Destroy)\s*(?:\(([^)]*)\))?\s*;/i
-            );
-            if (destructorImpl) {
-                const end = this.findImplementationEnd(lines, i);
-                results.push({
-                    className: destructorImpl[1],
-                    methodName: destructorImpl[2],
-                    fullSignature: trimmed,
-                    startLine: i,
-                    endLine: end,
-                    params: destructorImpl[3] || '',
-                    returnType: undefined,
-                    kind: MemberKind.Destructor,
-                });
-                continue;
-            }
-
-            const funcImpl = trimmed.match(
-                /^function\s+(T\w+)\.(\w+)\s*(?:\(([^)]*)\))?\s*:\s*([^;]+)\s*;/i
-            );
-            if (funcImpl) {
-                const end = this.findImplementationEnd(lines, i);
-                results.push({
-                    className: funcImpl[1],
-                    methodName: funcImpl[2],
-                    fullSignature: trimmed,
-                    startLine: i,
-                    endLine: end,
-                    params: funcImpl[3] || '',
-                    returnType: funcImpl[4].trim(),
-                    kind: MemberKind.Method,
-                });
-                continue;
-            }
-
-            const procImpl = trimmed.match(
-                /^procedure\s+(T\w+)\.(\w+)\s*(?:\(([^)]*)\))?\s*;/i
-            );
-            if (procImpl) {
-                const end = this.findImplementationEnd(lines, i);
-                results.push({
-                    className: procImpl[1],
-                    methodName: procImpl[2],
-                    fullSignature: trimmed,
-                    startLine: i,
-                    endLine: end,
-                    params: procImpl[3] || '',
-                    returnType: undefined,
-                    kind: MemberKind.Method,
-                });
-                continue;
-            }
+            // `procedure TFoo.Bar(...)`: the header may wrap onto several lines (the name alone on a line,
+            // the parameters on the next ones), so it is read up to the ; that ends it.
+            if (!/^(?:class\s+)?(?:constructor|destructor|function|procedure)\b/i.test(trimmed)) { continue; }
+            const header = this.routineHeader(lines, i);
+            // even the dot can end a line: `procedure TFoo.` / `Bar(...)`
+            const start = header.match(/^(?:class\s+)?(constructor|destructor|function|procedure)\s+(T\w+)\s*\.\s*(\w+)\b/i);
+            if (!start) { continue; }
+            const rest = header.slice(start[0].length);
+            const kind = start[1].toLowerCase();
+            const sig = kind === 'function'
+                ? rest.match(/^\s*(?:\(((?:[^()]|\([^()]*\))*)\))?\s*:\s*([^;]+);/)
+                : rest.match(/^\s*(?:\(((?:[^()]|\([^()]*\))*)\))?\s*;/);
+            if (!sig) { continue; }
+            results.push({
+                className: start[2],
+                methodName: start[3],
+                fullSignature: header,
+                startLine: i,
+                endLine: this.findImplementationEnd(lines, i),
+                params: sig[1] || '',
+                returnType: kind === 'function' ? sig[2].trim() : undefined,
+                kind: kind === 'constructor' ? MemberKind.Constructor : kind === 'destructor' ? MemberKind.Destructor : MemberKind.Method,
+            });
         }
 
         return results;
+    }
+
+    /** The header of a routine joined on one line: from its first line to the ; outside the parentheses (comments removed). */
+    private routineHeader(lines: string[], start: number): string {
+        let text = '';
+        let depth = 0;
+        for (let j = start; j < lines.length && j < start + 24; j++) {
+            const part = lines[j].replace(/\{[^}]*\}/g, '').replace(/\(\*.*?\*\)/g, '').replace(/\/\/.*$/, '').trim();
+            text += (text ? ' ' : '') + part;
+            for (const ch of part) {
+                if (ch === '(') { depth++; } else if (ch === ')') { depth--; } else if (ch === ';' && depth <= 0) { return text; }
+            }
+        }
+        return text;
     }
 
     private findImplementationEnd(lines: string[], startLine: number): number {

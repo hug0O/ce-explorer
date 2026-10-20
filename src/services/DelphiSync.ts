@@ -58,6 +58,7 @@ export function planDfmRename(pas: string, dfm: string, oldName: string, newName
     if (!root) { return undefined; }
     const node = findNode(root, oldName);
     if (!node || node.depth === 0) { return undefined; }
+    if (node.anonymous) { return { error: `A ${node.className} with no name in the .dfm cannot be renamed here: it has no field in the unit.` }; }
     if (!/^[A-Za-z_]\w*$/.test(newName)) { return { error: `"${newName}" is not a valid component name.` }; }
     if (findNode(root, newName)) { return { error: `"${newName}" is already the name of a component in the .dfm.` }; }
 
@@ -108,8 +109,15 @@ export interface DeletePlan {
 
 /** Range [start, end) of the handler implementation `procedure TForm.Name(...); ... end;` incl. a trailing blank line. */
 export function handlerImplementation(pas: string, formClass: string, handler: string): { start: number; end: number; empty: boolean } | undefined {
-    const head = new RegExp('^[ \\t]*procedure\\s+' + escapeRe(formClass) + '\\.' + escapeRe(handler) + '\\b[^\\n]*\\n', 'im').exec(pas);
-    if (!head) { return undefined; }
+    const found = new RegExp('^[ \\t]*procedure\\s+' + escapeRe(formClass) + '\\s*\\.\\s*' + escapeRe(handler) + '\\b[^\\n]*\\n', 'im').exec(pas);
+    if (!found) { return undefined; }
+    // the header may wrap onto the next lines: it ends at the first ; outside the parentheses
+    let headEnd = found.index + found[0].length;
+    for (let open = 0, at = found.index; at < pas.length; at++) {
+        const c = pas[at];
+        if (c === '(') { open++; } else if (c === ')') { open--; } else if (c === ';' && open <= 0) { headEnd = pas.indexOf('\n', at) + 1 || pas.length; break; }
+    }
+    const head = { index: found.index, 0: pas.slice(found.index, headEnd) };
     const bodyStart = head.index + head[0].length;
     const endRe = /^[ \t]*end;[ \t]*\r?\n?/im;
     const rest = pas.slice(bodyStart);
@@ -121,6 +129,25 @@ export function handlerImplementation(pas: string, formClass: string, handler: s
     const blank = /^[ \t]*\r?\n/.exec(pas.slice(stop));
     if (blank) { stop += blank[0].length; }
     return { start: head.index, end: stop, empty: code.length === 0 };
+}
+
+/**
+ * Range [start, end) of the lines that declare `procedure Handler(...)` in the class: one line, or several when the declaration wraps
+ * (the name alone on a line, the parameters on the next ones).
+ */
+export function handlerDeclaration(pas: string, handler: string): { start: number; end: number } | undefined {
+    const starts = lineStarts(pas);
+    const lines = pas.split('\n');
+    const declRe = new RegExp('^[ \\t]*procedure\\s+' + escapeRe(handler) + '\\b', 'i');
+    const first = lines.findIndex(l => declRe.test(l));
+    if (first < 0) { return undefined; }
+    let last = first;
+    for (let open = 0, k = first; k < lines.length; k++) {
+        open += lines[k].split('(').length - lines[k].split(')').length;
+        last = k;
+        if (open <= 0 && /;/.test(lines[k])) { break; }
+    }
+    return { start: starts[first], end: starts[last + 1] ?? pas.length };
 }
 
 export function planDfmDelete(pas: string, dfm: string, name: string, formClass: string): DeletePlan | undefined {
@@ -163,9 +190,8 @@ export function planDfmDelete(pas: string, dfm: string, name: string, formClass:
             const impl = handlerImplementation(pas, formClass, link.handler);
             if (!impl || !impl.empty) { keptHandlers.push(link.handler); continue; }
             pasEdits.push({ offset: impl.start, length: impl.end - impl.start, text: '' });
-            const declRe = new RegExp('^[ \\t]*procedure\\s+' + escapeRe(link.handler) + '\\s*\\(.*\\)\\s*;', 'i');
-            const di = pasLines.findIndex(l => declRe.test(l));
-            if (di >= 0) { pasEdits.push({ offset: pasStarts[di], length: (pasStarts[di + 1] ?? pas.length) - pasStarts[di], text: '' }); }
+            const decl = handlerDeclaration(pas, link.handler);
+            if (decl) { pasEdits.push({ offset: decl.start, length: decl.end - decl.start, text: '' }); }
             removedHandlers.push(link.handler);
         }
     }

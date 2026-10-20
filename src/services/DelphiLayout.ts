@@ -30,6 +30,8 @@ export interface DfmNode {
     height?: number;
     /** Align property (alTop, alClient…); undefined or alNone when positioned by Left/Top. */
     align?: string;
+    /** `object TcxGridDBColumn` with no `Name:`: the IDE writes a component that has no name like that. The name above is made up. */
+    anonymous?: boolean;
 }
 
 // Standard and third-party containers (TcxGroupBox, TAdvPanel, TRzPanel, TJvPageControl, TsPanel…).
@@ -55,6 +57,7 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
     // `end`, `item` and `object`-looking lines that must not alter the hierarchy.
     let skipUntil: RegExp | undefined;
     let collectionDepth = 0;
+    const unnamed: DfmNode[] = [];
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -68,12 +71,14 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
             continue;
         }
 
-        const obj = line.match(/^(\s*)(?:object|inherited|inline)\s+(\w+)\s*:\s*(\w+)/i);
+        // `object Name: TClass`, or `object TClass` for a component that has no name
+        const obj = line.match(/^(\s*)(?:object|inherited|inline)\s+(?:(\w+)\s*:\s*)?(\w+)/i);
         if (obj) {
             const node: DfmNode = {
-                name: obj[2], className: obj[3], depth: stack.length, startLine: i, endLine: i,
+                name: obj[2] ?? '', className: obj[3], depth: stack.length, startLine: i, endLine: i,
                 props: {}, propLines: {}, children: [], parent: stack[stack.length - 1],
             };
+            if (obj[2] === undefined) { node.anonymous = true; unnamed.push(node); }
             if (node.parent) { node.parent.children.push(node); } else if (!root) { root = node; }
             stack.push(node);
             continue;
@@ -105,6 +110,21 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
         n.children.forEach(fill);
     };
     if (root) { fill(root); }
+    // A component with no name still has to be told apart, selected and listed: it gets a name of its own, which is never written back.
+    if (root && unnamed.length) {
+        const used = new Set<string>();
+        const collect = (n: DfmNode): void => { if (!n.anonymous) { used.add(n.name.toLowerCase()); } n.children.forEach(collect); };
+        collect(root);
+        const counter = new Map<string, number>();
+        for (const n of unnamed) {
+            let k = counter.get(n.className) ?? 0;
+            let name: string;
+            do { k++; name = `${n.className}_${k}`; } while (used.has(name.toLowerCase()));
+            counter.set(n.className, k);
+            used.add(name.toLowerCase());
+            n.name = name;
+        }
+    }
     return root;
 }
 

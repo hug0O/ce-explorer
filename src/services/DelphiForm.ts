@@ -404,7 +404,7 @@ export function buildUnitEdits(pas: string, opt: UnitEditOptions): { edits: Text
     // Wiring an event on an EXISTING component: the field is already there, and the
     // handler may already be declared / implemented (then only the .dfm needs the link).
     const handlerDeclared = !!method && new RegExp('\\bprocedure\\s+' + method + '\\s*\\(', 'i').test(pas);
-    const handlerImplemented = !!method && new RegExp('\\bprocedure\\s+' + form.name + '\\.' + method + '\\b', 'i').test(pas);
+    const handlerImplemented = !!method && new RegExp('\\bprocedure\\s+' + form.name + '\\s*\\.\\s*' + method + '\\b', 'i').test(pas);
     const fieldText = opt.skipField ? '' : `    ${opt.componentName}: ${opt.def.className};${eol}`;
     const declText = method && opt.event && !handlerDeclared ? `    procedure ${method}(${opt.event.params});${eol}` : '';
     if (fieldText && declText && fieldAt === procAt) {

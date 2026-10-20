@@ -28,6 +28,11 @@ import { setFormStorage } from './services/FormLibrary';
 import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
+import { ProjectPanel } from './webview/ProjectPanel';
+import { ProjectScanner } from './services/ProjectScanner';
+
+/** Reads the Delphi files of the workspace for the project panel: only when it is asked to. */
+const projectScanner = new ProjectScanner();
 import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
@@ -492,6 +497,9 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.delphi.formFromFields', delphi.formFromFieldsCommand),
         vscode.commands.registerCommand('ce.delphi.formFromClass', delphi.formFromClassCommand),
         vscode.commands.registerCommand('ce.delphi.changeClass', delphi.changeClassCommand),
+        // read on demand only: nothing of the project is scanned until the panel is asked to
+        vscode.commands.registerCommand('ce.delphi.project', () => ProjectPanel.show(projectScanner)),
+        vscode.commands.registerCommand('ce.delphi.diffForm', () => ProjectPanel.show(projectScanner, 'changes', p => void p.compare('HEAD'))),
         vscode.commands.registerCommand('ce.plsql.syncPackage', plsql.syncPackage),
         vscode.commands.registerCommand('ce.plsql.newPackage', plsql.newPackage),
         vscode.commands.registerCommand('ce.plsql.crudFromTable', plsql.crudFromTable),
@@ -569,6 +577,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
                     { label: '$(symbol-field) Delphi: Form from Fields…', description: '', cmd: 'ce.delphi.formFromFields' },
                     { label: '$(symbol-class) Delphi: Form from a Class…', description: '', cmd: 'ce.delphi.formFromClass' },
                     { label: '$(replace) Delphi: Change Component Class…', description: '', cmd: 'ce.delphi.changeClass' },
+                    { label: '$(diff) Delphi: Compare the Form with Git…', description: '', cmd: 'ce.delphi.diffForm' },
+                    { label: '$(database) Delphi: Project - SQL, Unused Code, Form Checks', description: 'read on demand', cmd: 'ce.delphi.project' },
                 ] : []),
                 ...(activeProv?.languageId === 'plsql' ? [
                     { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'ce.plsql.syncPackage' },

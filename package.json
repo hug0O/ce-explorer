@@ -336,6 +336,14 @@
         "title": "CE Delphi: Change Component Class..."
       },
       {
+        "command": "ce.delphi.project",
+        "title": "CE Delphi: Project - SQL, Unused Code, Form Checks"
+      },
+      {
+        "command": "ce.delphi.diffForm",
+        "title": "CE Delphi: Compare the Form with a Git Version"
+      },
+      {
         "command": "ce.delphi.designer",
         "title": "CE Delphi: Open Form Designer / Back to the Designer",
         "icon": "$(symbol-misc)"
@@ -662,6 +670,16 @@
       {
         "command": "ce.delphi.changeClass",
         "key": "ctrl+k e",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "ce.delphi.project",
+        "key": "ctrl+k i",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
+      },
+      {
+        "command": "ce.delphi.diffForm",
+        "key": "ctrl+k b",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr)$/i"
       },
       {

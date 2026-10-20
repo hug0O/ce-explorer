@@ -314,7 +314,7 @@ test('tools show their keyboard shortcut next to the button', () => {
     assert.match(html, /data-dl="ce.delphi.designer"[^>]*>🎨 Open the visual form designer<span class="kbd"[^>]*>Ctrl\+K D<\/span>/);
     assert.match(html, /data-dl="ce.delphi.check"[^>]*>✅ Check form<span class="kbd"[^>]*>Ctrl\+K C<\/span>/);
     assert.match(html, /id="alignGo"[^>]*>Align<span class="kbd"[^>]*>Ctrl\+K J<\/span>/);
-    assert.equal((html.match(/class="kbd"/g) ?? []).length, 12 + 1, 'the 12 Delphi tools and the align button');
+    assert.equal((html.match(/class="kbd"/g) ?? []).length, 14 + 1, 'the 14 Delphi tools and the align button');
 
     panel.isDelphi = () => false;
     panel.isPlSql = () => true;

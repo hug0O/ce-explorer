@@ -37,6 +37,7 @@ export const TOOL_SHORTCUTS: Record<ShortcutFamily, Record<string, string>> = {
         'ce.delphi.designer': 'd', 'ce.delphi.align': 'l', 'ce.delphi.anchors': 'n', 'ce.delphi.tabOrder': 't',
         'ce.delphi.check': 'c', 'ce.delphi.cleanHandlers': 'h', 'ce.delphi.copy': 'y', 'ce.delphi.paste': 'a',
         'ce.delphi.duplicate': 'k', 'ce.delphi.formFromFields': 'g', 'ce.delphi.formFromClass': 'q', 'ce.delphi.changeClass': 'e',
+        'ce.delphi.project': 'i', 'ce.delphi.diffForm': 'b',
     },
     plsql: {
         'ce.plsql.syncPackage': 'y', 'ce.plsql.newPackage': 'n', 'ce.plsql.crudFromTable': 'c', 'ce.plsql.extractProcedure': 'x',
@@ -137,6 +138,8 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.formFromFields',
     'ce.delphi.formFromClass',
     'ce.delphi.changeClass',
+    'ce.delphi.project',
+    'ce.delphi.diffForm',
 ];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
@@ -183,6 +186,8 @@ ${btn('ce.delphi.formFromClass', '🏷️ Form from a class', 'Fields of a class
 ${btn('ce.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit… keeping compatible properties')}
 ${btn('ce.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
 ${btn('ce.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
+${btn('ce.delphi.diffForm', '🔀 Compare with git', 'What changed in this form since a commit, component by component')}
+${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, units and components nothing uses, the checks of every form (read on demand)')}
 </div>
 <div class="tool-note">Adding components and their events is done in the visual designer.</div>
 </div>

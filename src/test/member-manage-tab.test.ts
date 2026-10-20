@@ -489,3 +489,31 @@ test('no page of the sidebar uses an inline style attribute: the nonce in its CS
     assert.match(html, /data-sub="plsql" hidden/, 'the other sub-pages are hidden through the hidden attribute');
     assert.match(html, /p\.hidden = p\.getAttribute\('data-sub'\) !== id/, 'and shown again the same way');
 });
+
+test('Tools: the language drop-down is there on a file CE does not know, with or without a member', () => {
+    const registry = {
+        getByDocument: () => undefined,
+        getAllProviders: () => [{ languageId: 'pascal', displayName: 'Pascal / Delphi' }, { languageId: 'plsql', displayName: 'PL/SQL (Oracle)' }],
+    };
+    vscodeMock.window.activeTextEditor = { document: { uri: { fsPath: 'C:\src\Defs.inc', scheme: 'file' }, languageId: 'plaintext' } };
+    try {
+        const panel = makePanel({ subscriptions: [] }, registry);
+        panel._tab = 'tools';
+        assert.match(panel.getHtml(), /<select id="langSel"/, 'with a member selected');
+        panel._state = { member: undefined, classInfo: undefined, provider: undefined };
+        panel._tab = 'tools';
+        assert.match(panel.getHtml(), /<select id="langSel"/, 'on the empty page');
+    } finally { vscodeMock.window.activeTextEditor = undefined; }
+});
+
+test('Tools: the drop-down is still there while a sidebar page has the focus (no active text editor)', () => {
+    const registry = { getByDocument: () => undefined, getAllProviders: () => [{ languageId: 'pascal', displayName: 'Pascal / Delphi' }] };
+    const w = vscodeMock.window as any;
+    w.activeTextEditor = undefined;
+    w.visibleTextEditors = [{ document: { uri: { fsPath: 'C:\src\Defs.inc', scheme: 'file' }, languageId: 'plaintext', isClosed: false } }];
+    try {
+        const panel = makePanel({ subscriptions: [] }, registry);
+        panel._tab = 'tools';
+        assert.match(panel.getHtml(), /<select id="langSel"[\s\S]*every \.inc file/);
+    } finally { w.visibleTextEditors = undefined; }
+});

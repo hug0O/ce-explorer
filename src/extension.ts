@@ -31,6 +31,7 @@ import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
 import { ProjectScanner } from './services/ProjectScanner';
 import { registerLanguageCommands } from './services/LanguageCommands';
+import { trackLastEditor } from './services/LastEditor';
 
 /** Reads the Delphi files of the workspace for the project panel: only when it is asked to. */
 const projectScanner = new ProjectScanner();
@@ -131,6 +132,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         context.subscriptions.push(designerStatus, vscode.window.onDidChangeActiveTextEditor(showDesignerStatus));
         showDesignerStatus(vscode.window.activeTextEditor);
         // a file that is not recognised can be given a language by hand
+        trackLastEditor(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);

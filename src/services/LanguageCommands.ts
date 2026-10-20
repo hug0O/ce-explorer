@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { extensionOf, languageOverrides } from './LanguageOverrides';
+import { currentDocument } from './LastEditor';
 
 const STORAGE_KEY = 'ce.languageOverrides';
 
@@ -43,8 +44,8 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
         item,
         // from the Tools tab: '' goes back to what the extension detects
         vscode.commands.registerCommand('ce.setLanguageTo', async (id: unknown, scope: unknown) => {
-            const doc = vscode.window.activeTextEditor?.document;
-            if (!doc || doc.uri.scheme !== 'file') { return; }
+            const doc = currentDocument();
+            if (!doc || !doc.uri.fsPath) { return; }
             const file = doc.uri.fsPath;
             if (id === '' || id === undefined) { languageOverrides.clear(file); await save(); return; }
             if (typeof id !== 'string' || !registry.getByLanguageId(id)) { return; }
@@ -54,8 +55,8 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
         }),
         vscode.window.onDidChangeActiveTextEditor(update),
         vscode.commands.registerCommand('ce.setLanguage', async () => {
-            const doc = vscode.window.activeTextEditor?.document;
-            if (!doc || doc.uri.scheme !== 'file') { void vscode.window.showWarningMessage('CE: open a file first.'); return; }
+            const doc = currentDocument();
+            if (!doc || !doc.uri.fsPath) { void vscode.window.showWarningMessage('CE: open a file first.'); return; }
             const file = doc.uri.fsPath;
             const ext = extensionOf(file);
             const current = languageOverrides.resolve(file);

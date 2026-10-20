@@ -22,6 +22,7 @@ import { ReviewSeverity } from '../utils/reviewTypes';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
+import { currentDocument } from '../services/LastEditor';
 import { DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 
@@ -214,6 +215,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 case 'setLanguage':
                     await vscode.commands.executeCommand('ce.setLanguageTo', typeof msg.id === 'string' ? msg.id : '', msg.scope === 'extension' ? 'extension' : 'file');
+                    // the file is read again with the language that was chosen
+                    { const ed = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors?.find(e => e.document === currentDocument()); if (ed) { this.onCursorChanged(ed); } }
                     this.setTab('tools');
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
@@ -533,8 +536,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     /** Whether the active editor is a Delphi unit or form file. */
     /** The language drop-down of the Tools tab: what the extension detects, and what was chosen by hand. */
     private languageInfo(): LanguageInfo | undefined {
-        const doc = vscode.window.activeTextEditor?.document;
-        if (!doc || doc.uri.scheme !== 'file') { return undefined; }
+        const doc = currentDocument();
+        if (!doc || !doc.uri.fsPath) { return undefined; }
         const file = doc.uri.fsPath;
         return {
             options: (this._providerRegistry.getAllProviders?.() ?? []).map(p => ({ id: p.languageId, label: p.displayName })),

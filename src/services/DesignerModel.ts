@@ -15,6 +15,7 @@ import { hasSql, isConnection, isDataset, isDatasetField, isDataSource } from '.
 import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
+import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
 import { ClipPayload, pasteComponents } from './DelphiClip';
 
 /* ───────────────────────── value helpers ───────────────────────── */
@@ -167,7 +168,7 @@ export interface DesignModel {
 }
 
 const DEFAULT_ALIGN: Record<string, string> = { tsplitter: 'alLeft', tcxsplitter: 'alLeft', tstatusbar: 'alBottom', tdxstatusbar: 'alBottom', ttoolbar: 'alTop', tadvtoolbar: 'alTop', tcoolbar: 'alTop', tcontrolbar: 'alTop' };
-const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TcxStyleRepository|TcxGridPopupMenu|TdxSkinController|TdxBarManager|TcxEditRepository|TcxPropertiesStore|TdxBarPopupMenu|TAdvFormStyler|TAdvToolBarOfficeStyler|TAdvAppStyler|TTimer|TOpenDialog|TSaveDialog|TMainMenu|TPopupMenu|TImageList|TActionList|TDataSource|TClientDataSet|TFDQuery|TFDConnection|TADOConnection|TADOQuery|TTable|TQuery|TFontDialog|TColorDialog|TPrintDialog)$/i;
+const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TdxBarPopupMenu|TcxStyleRepository|TcxGridPopupMenu|TdxSkinController|TdxBarManager|TcxEditRepository|TcxPropertiesStore|TdxBarPopupMenu|TAdvFormStyler|TAdvToolBarOfficeStyler|TAdvAppStyler|TTimer|TOpenDialog|TSaveDialog|TMainMenu|TPopupMenu|TImageList|TActionList|TDataSource|TClientDataSet|TFDQuery|TFDConnection|TADOConnection|TADOQuery|TTable|TQuery|TFontDialog|TColorDialog|TPrintDialog)$/i;
 
 /** Image lists and collections have a Width and a Height (the size of an image) and are still components with no visual presence. */
 const IMAGE_LISTS = /^T[A-Za-z0-9]*(?:ImageList|ImageCollection|ImageCollectionEx)$/i;
@@ -535,7 +536,9 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
             ? `${nested.name} belongs to its tile control and cannot move to another container: change its group instead.`
             : isDatasetField(nested.className)
                 ? `${nested.name} is a field of its dataset and cannot move to another container.`
-                : `${nested.name} is part of its grid and cannot move to another container.`);
+                : isBarChild(nested.className)
+                    ? `${nested.name} is a part of ${nested.parent?.name ?? 'its parent'}: it has no place of its own and cannot move to another container.`
+                    : `${nested.name} is part of its grid and cannot move to another container.`);
     }
     if (!isContainer(target) || isNonVisual(target) || isPart(target)) { return fail(`${target.name} cannot contain other components.`); }
     const part = names.map(n => findNode(root, n)).find(n => n && isPart(n));
@@ -643,7 +646,7 @@ export function deleteEdits(pas: string, dfm: string, names: string[], formClass
 }
 
 /** Properties that point to another component of the form and that are unlinked when it is deleted. */
-const REF_PROPS = ['GridView', 'Connection', 'DataSet', 'DataSource', 'MasterSource', 'Transaction', 'UpdateObject'];
+const REF_PROPS = ['GridView', 'BarManager', 'Connection', 'DataSet', 'DataSource', 'MasterSource', 'Transaction', 'UpdateObject'];
 
 /** Components outside the deletion that point to one that is being deleted, with the properties that do. */
 export function danglingRefs(root: DfmNode, names: string[]): { node: DfmNode; props: string[] }[] {
@@ -687,7 +690,7 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     // Data access: persistent fields, connections, datasets, data sources.
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
-    TableName: 'string', Connection: 'ref', DataSet: 'ref',
+    TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
 const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
@@ -697,12 +700,13 @@ const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     'DataBinding.FieldName': isGridColumn, GridView: isGridLevel,
     FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
     ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
-    TableName: isDataset, DataSet: isDataSource,
+    TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl,
     Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
 };
 /** What a link property may point to. */
 const REF_TARGET: Record<string, { ok: (cls: string) => boolean; what: string }> = {
     GridView: { ok: isGridView, what: 'a grid view' }, Connection: { ok: isConnection, what: 'a connection' }, DataSet: { ok: isDataset, what: 'a dataset' },
+    BarManager: { ok: isBarManager, what: 'a bar manager' },
 };
 
 /** One property edit from the inspector, validated and written the way Delphi would. */

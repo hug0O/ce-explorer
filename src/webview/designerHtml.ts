@@ -373,7 +373,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (l.indexOf('listview') >= 0) { return 'listview'; }
     if (l.indexOf('treeview') >= 0 || l.indexOf('treelist') >= 0) { return 'treeview'; }
     if (l.indexOf('statusbar') >= 0) { return 'statusbar'; }
-    if (l.indexOf('toolbar') >= 0) { return 'toolbar'; }
+    if (l.indexOf('toolbar') >= 0 || l === 'tdxbardockcontrol') { return 'toolbar'; }
     if (l.indexOf('progressbar') >= 0) { return 'progress'; }
     if (l.indexOf('trackbar') >= 0) { return 'track'; }
     if (l.indexOf('splitter') >= 0) { return 'splitter'; }
@@ -1190,6 +1190,12 @@ body.full #toolbar { padding: 3px 8px; }
         section(box, 'Content', 'content', function (b) {
           if (hasCap) { b.appendChild(labelled('Caption', textInput(n.caption, setter(n, 'Caption')))); }
           if (hasText) { b.appendChild(labelled('Text', textInput(n.text, setter(n, 'Text')))); }
+        });
+      }
+      if (n.cls.toLowerCase() === 'tdxbardockcontrol') {
+        section(box, 'Bars', 'bars', function (b) {
+          b.appendChild(linkSelect(n, 'BarManager', 'Bar manager', function (c) { return c.cls.toLowerCase() === 'tdxbarmanager'; }));
+          b.appendChild(el('div', 'hint', 'The bars docked here are the ones of the bar manager (its Bars, DockControl of each bar).'));
         });
       }
       if (!n.nonVisual) section(box, 'State', 'state', function (b) {

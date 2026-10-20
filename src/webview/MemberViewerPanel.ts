@@ -23,7 +23,7 @@ import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, sho
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
 import { currentDocument } from '../services/LastEditor';
-import { DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { COMMON_COMMANDS, DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 
 interface MemberViewerState {
@@ -138,8 +138,12 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 this.scheduleCursorUpdate(e.textEditor);
             }),
             vscode.window.onDidChangeActiveTextEditor(editor => {
+                // Another file: the tabs must be drawn again even when the new file has the same member id.
+                this._stateKey = '';
                 if (editor) {
                     this.scheduleCursorUpdate(editor);
+                } else if (this._mode === 'view') {
+                    this.clearView();
                 }
             }),
             vscode.workspace.onDidSaveTextDocument?.(doc => this.onMemoFileSaved(doc)),
@@ -209,6 +213,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 case 'delphiCmd':
                     if (typeof msg.cmd === 'string' && DELPHI_COMMANDS.includes(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); }
+                    break;
+                case 'commonCmd':
+                    if (typeof msg.cmd === 'string' && COMMON_COMMANDS.includes(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); }
                     break;
                 case 'plsqlAlign':
                     if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('ce.plsql.alignPreset', msg.id); }
@@ -312,7 +319,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             foundCls = parsed.classes.find(cls => cls.range.contains(position));
         }
 
-        const newKey = (foundMember ? foundMember.id : '') + ':' + (foundCls ? foundCls.id : '') + (this._tab === 'memo' ? ':' + this.memoLang() : '');
+        // The key names the file too, and what the tabs depend on (language, Delphi / PL/SQL), so that
+        // switching to another file with the same member or no member still redraws the tabs.
+        const newKey = doc.uri.toString() + '|' + provider.languageId + '|' + (foundMember ? foundMember.id : '') + ':' + (foundCls ? foundCls.id : '') + (this._tab === 'memo' ? ':' + this.memoLang() : '');
         // A jump made from the Structure tab (to a usage line, a search hit) lands in other members: the tab keeps
         // looking at the member it was about. A cursor moved by the user anywhere else takes the focus back.
         const ownJump = Date.now() - this._ownJumpAt < 700;
@@ -825,6 +834,18 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** Edit / rename / delete / go-to / accessors / move on ANY member listed in the Manage tab (not only the one under the cursor). */
     private async handleManageAction(act: string, id: string): Promise<void> {
+        // a routine declared inside another one: no member of its own, only a place to go to
+        if (act === 'goline') {
+            const ed = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors?.find(e => e.document === currentDocument());
+            const line = Number(id);
+            if (ed && Number.isInteger(line) && line >= 0 && line < ed.document.lineCount) {
+                const at = new vscode.Position(line, 0);
+                ed.selection = new vscode.Selection(at, at);
+                ed.revealRange(new vscode.Range(at, at), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+                await vscode.window.showTextDocument(ed.document, { viewColumn: ed.viewColumn, selection: new vscode.Range(at, at) });
+            }
+            return;
+        }
         const ctx = this.manageContext();
         const member = this.manageTargets().find(m => m.id === id);
         if (!member) {
@@ -1555,6 +1576,7 @@ ${shortcutsScript()}
         const rows: ManageRow[] = this.manageTargets().map(m => ({
             id: m.id, name: m.name, kind: m.kind, visibility: m.visibility, type: m.returnType || m.type,
             params: m.parameters.length, selected: !!member && member.id === m.id, line: m.range.start.line,
+            nested: m.nested?.map(n => ({ name: n.name, kind: n.kind, line: n.line, depth: n.depth })),
         }));
         const view: ManageView = {
             typeOptions, selectedType: current ? current.id : FILE_LEVEL_ID, isFile: !current || isFile,
@@ -1732,14 +1754,6 @@ ${shortcutsCss()}
             html += `<button class="ana" data-act="rename">🔤 Rename</button>`;
             html += `<button class="ana" data-act="docHeader">📄 Doc header</button>`;
             html += `<button class="ana" data-act="delete">🗑️ Delete</button>`;
-            html += `</div></div>`;
-
-            html += `<div class="divider"></div>`;
-            html += `<div class="section"><div class="section-title">Analyze</div><div class="analyze-grid">`;
-            html += `<button class="ana" data-ak="review">✅ Review</button>`;
-            html += `<button class="ana" data-ak="documentation">📖 Doc</button>`;
-            html += `<button class="ana" data-ak="export">📋 Export</button>`;
-            html += `<button class="ana" data-ak="deadcode">💀 Dead Code</button>`;
             html += `</div></div>`;
         } else if (classInfo) {
             // Cursor is on a class/struct declaration (no member selected).

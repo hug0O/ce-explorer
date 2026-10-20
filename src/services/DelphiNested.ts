@@ -8,9 +8,10 @@ import type { DfmNode } from './DelphiLayout';
 import { isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { isTileChild, isTileHost } from './DelphiTiles';
 import { isDataset, isDatasetField, isKnownField } from './DelphiData';
+import { isBarChild, isBarManager, isBarPart, isStyle, isStyleRepository } from './DelphiBars';
 
 export interface NestedRule {
-    id: 'tile' | 'grid' | 'view' | 'dataset';
+    id: 'tile' | 'grid' | 'view' | 'dataset' | 'bars' | 'styles';
     applies: (cls: string) => boolean;
     host: (n: DfmNode) => boolean;
     /** "goes inside …", for messages. */
@@ -24,12 +25,14 @@ export const NESTED_RULES: NestedRule[] = [
     { id: 'grid', applies: c => isGridLevel(c) || isGridView(c), host: n => isGridHost(n.className), what: 'a TcxGrid' },
     { id: 'view', applies: c => isGridColumn(c), host: n => isGridView(n.className), what: 'a grid view' },
     { id: 'dataset', applies: c => isKnownField(c), host: n => isDataset(n.className), what: 'a dataset' },
+    { id: 'bars', applies: c => isBarPart(c), host: n => isBarManager(n.className), what: 'a TdxBarManager' },
+    { id: 'styles', applies: c => isStyle(c), host: n => isStyleRepository(n.className), what: 'a TcxStyleRepository' },
 ];
 
 export const nestedRuleOf = (cls: string): NestedRule | undefined => NESTED_RULES.find(r => r.applies(cls));
 
 /** Parts the form never moves out of their parent (a detail site is an ordinary container, so it is not one). */
-export const isNestedChild = (cls: string): boolean => isTileChild(cls) || isGridChild(cls);
+export const isNestedChild = (cls: string): boolean => isTileChild(cls) || isGridChild(cls) || isBarChild(cls);
 
 /** Same, for a node of the .dfm: a persistent field is a part only inside a dataset (a custom control named …Field is not). */
 export const isNestedNode = (n: DfmNode): boolean => isNestedChild(n.className) || (isDatasetField(n.className) && !!n.parent && isDataset(n.parent.className));
@@ -40,6 +43,8 @@ export function onlyHolds(host: DfmNode): string | undefined {
     if (isGridHost(host.className)) { return 'A TcxGrid only holds levels, views and columns'; }
     if (isGridView(host.className)) { return 'A grid view only holds its columns'; }
     if (isDataset(host.className)) { return 'A dataset only holds its fields'; }
+    if (isBarManager(host.className)) { return 'A TdxBarManager only holds bars and their items'; }
+    if (isStyleRepository(host.className)) { return 'A TcxStyleRepository only holds styles'; }
     return undefined;
 }
 

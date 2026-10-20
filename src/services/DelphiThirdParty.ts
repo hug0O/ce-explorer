@@ -32,6 +32,8 @@ const GRID_COLUMN_EVENTS = [
 ];
 const DX_GRID_VIEW = [...DX_BASE, 'cxStyles', 'cxCustomData', 'cxFilter', 'cxData', 'cxDataStorage', 'cxEdit', 'cxNavigator', 'cxGridCustomTableView', 'cxGridTableView', 'cxGridCustomView', 'cxClasses', 'cxGridLevel', 'cxGrid'];
 const DX_GRID_DB_VIEW = [...DX_GRID_VIEW, 'Data.DB', 'cxDBData'];
+/** A bar or an item of a bar manager: named component nested in it, with no Left / Top. */
+const barPart = (cls: string, prefix: string, props: string[], events: EventDef[]): ComponentDef => ({ ...def(cls, prefix, 'dxBar', 64, 22, props, false, events, ['dxCore', 'cxClasses']), nested: true });
 /** A part of a grid: named component nested in it, with no Left / Top. `%PARENT%` in the prefix is the name of the grid / view it goes into. */
 const gridPart = (cls: string, prefix: string, unit: string, events: EventDef[], units: string[]): ComponentDef => ({ ...def(cls, prefix, unit, 64, 22, [], false, events, units), nested: true });
 
@@ -99,7 +101,19 @@ export const DEVEXPRESS: ComponentDef[] = [
         [ev('OnClick', TILE_ITEM), ev('OnActivateDetail', TILE_ITEM), ev('OnDeactivateDetail', TILE_ITEM)], []), nested: true },
     { ...def('TdxTileControlGroup', 'dxTileControlGroup', 'dxCustomTileControl', 200, 22, ["Caption.Text = '%NAME%'", 'Index = %INDEX%'], false, [], []), nested: true },
     def('TdxTileControlDetailSite', 'dxTileControlDetailSite', 'dxCustomTileControl', 200, 200, [], false, [ev('OnClick'), ev('OnResize'), ev('OnEnter'), ev('OnExit')], DX_BASE),
-    def('TdxBarManager', 'dxBarManager', 'dxBar', undefined, undefined, [], false, [], ['cxClasses', 'dxCore']),
+    def('TdxBarManager', 'dxBarManager', 'dxBar', undefined, undefined, [], false, [ev('OnBarVisibleChange', `${SENDER}; ABar: TdxBar`), ev('OnShowToolbarsPopup', `${SENDER}; AList: TList`)], ['cxClasses', 'dxCore']),
+    // The place where a bar is docked: a visible control that points to its manager (BarManager).
+    def('TdxBarDockControl', 'dxBarDockControl', 'dxBar', 200, 22, ['Align = dalTop'], false, [ev('OnClick'), ev('OnResize')], ['dxCore', 'cxClasses']),
+    // Bars and their items live in the manager, styles in the style repository: no Left / Top, they are parts.
+    barPart('TdxBar', 'dxBar', ["Caption = '%NAME%'"], []),
+    barPart('TdxBarButton', 'dxBarButton', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], [ev('OnClick')]),
+    barPart('TdxBarLargeButton', 'dxBarLargeButton', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], [ev('OnClick')]),
+    barPart('TdxBarStatic', 'dxBarStatic', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], []),
+    barPart('TdxBarSubItem', 'dxBarSubItem', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], [ev('OnPopup')]),
+    barPart('TdxBarCombo', 'dxBarCombo', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], [ev('OnChange'), ev('OnClick')]),
+    barPart('TdxBarEdit', 'dxBarEdit', ["Caption = '%NAME%'", 'Category = 0', 'Visible = ivAlways'], [ev('OnChange'), ev('OnEnter'), ev('OnExit')]),
+    barPart('TdxBarSeparator', 'dxBarSeparator', ['Category = 0', 'Visible = ivAlways'], []),
+    { ...def('TcxStyle', 'cxStyle', 'cxStyles', 64, 22, [], false, [], ['cxClasses', 'cxGraphics']), nested: true },
     def('TcxLookAndFeelController', 'cxLookAndFeelController', 'cxLookAndFeels', undefined, undefined, [], false, [], ['cxGraphics', 'cxControls', 'cxLookAndFeelPainters']),
     def('TcxStyleRepository', 'cxStyleRepository', 'cxStyles', undefined, undefined, [], false, [], ['cxClasses', 'cxGraphics']),
     def('TcxGridPopupMenu', 'cxGridPopupMenu', 'cxGridPopupMenu', undefined, undefined, [], false, [], ['cxGrid', 'cxClasses']),

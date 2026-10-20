@@ -18,6 +18,19 @@ import {
     MethodScope,
 } from '../models/types';
 import { BaseLanguageProvider } from './ILanguageProvider';
+import { blankPascal } from '../utils/pascalReview';
+import { NestedRoutine, nestedRoutinesOf, routineEnd } from '../utils/pascalNested';
+
+/** The unit with its comments and strings blanked, once per parse (the lines array is the key). */
+const blankedLines = new WeakMap<string[], string[]>();
+
+/** Routines declared inside the routine that runs from line `start` to line `end`. */
+function nestedOf(lines: string[], start: number, end: number, name: string): { nested: NestedRoutine[] } | undefined {
+    let code = blankedLines.get(lines);
+    if (!code) { code = blankPascal(lines); blankedLines.set(lines, code); }
+    const nested = nestedRoutinesOf(code, start, end, name);
+    return nested.length ? { nested } : undefined;
+}
 
 let _idCounter = 0;
 function nextId(prefix: string): string {
@@ -1063,6 +1076,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
                     new vscode.Position(impl.endLine, allLines[impl.endLine]?.length ?? 0),
                 )
                 : undefined,
+            ...(impl ? nestedOf(allLines, impl.startLine, impl.endLine, name) : undefined),
         };
     }
 
@@ -1123,57 +1137,12 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
     }
 
     private findImplementationEnd(lines: string[], startLine: number): number {
-        // Locate the end of a Pascal routine body by tracking block depth.
-        // `begin`, `try`, `case`, `asm` and `record` each open a block that is
-        // closed by `end`; `repeat..until` is self-balanced (no `end`) and so is
-        // ignored. Previously only `begin`/`end` were counted, which dropped the
-        // closing `end` of every try/except and try/finally block and made the
-        // routine end resolve too early (e.g. on the except's `end` instead of
-        // the routine's own `end`).
-        //
-        // Comments ({..}, (*..*), //) and string literals are stripped first,
-        // carrying multi-line comment state across lines, so keywords embedded
-        // in them cannot unbalance the count.
-        let depth = 0;
-        let inCurly = false;
-        let inParenStar = false;
-        for (let i = startLine; i < lines.length; i++) {
-            const raw = lines[i];
-            let code = '';
-            let inStr = false;
-            for (let p = 0; p < raw.length; p++) {
-                const ch = raw[p];
-                const next = raw[p + 1] ?? '';
-                if (inCurly) {
-                    if (ch === '}') inCurly = false;
-                    continue;
-                }
-                if (inParenStar) {
-                    if (ch === '*' && next === ')') { inParenStar = false; p++; }
-                    continue;
-                }
-                if (inStr) {
-                    if (ch === '\'') {
-                        if (next === '\'') { p++; }
-                        else { inStr = false; }
-                    }
-                    continue;
-                }
-                if (ch === '{') { inCurly = true; continue; }
-                if (ch === '(' && next === '*') { inParenStar = true; p++; continue; }
-                if (ch === '/' && next === '/') { break; }
-                if (ch === '\'') { inStr = true; continue; }
-                code += ch;
-            }
-            const lower = code.toLowerCase();
-            const openCount = (lower.match(/\b(begin|try|case|asm|record)\b/g) || []).length;
-            const endCount = (lower.match(/\bend\b/g) || []).length;
-            depth += openCount - endCount;
-            if (depth <= 0 && endCount > 0 && i > startLine) {
-                return i;
-            }
-        }
-        return lines.length - 1;
+        // The routine ends at the `end;` that closes its own body: the routines declared inside it come first
+        // (each with its own begin / end), so the first `end` met is not the one. Comments and strings are blanked,
+        // and `begin`, `try`, `case`, `asm` and `record` each open a block that an `end` closes.
+        let code = blankedLines.get(lines);
+        if (!code) { code = blankPascal(lines); blankedLines.set(lines, code); }
+        return routineEnd(code, startLine, lines.length - 1);
     }
 
     private extractStandaloneProcedures(
@@ -1341,6 +1310,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
                     new vscode.Position(decl.endLine, lines[decl.endLine]?.length ?? 0),
                 ),
                 implementationRange: implRange,
+                ...(implRange ? nestedOf(lines, implRange.start.line, implRange.end.line, decl.name) : undefined),
             });
         }
 

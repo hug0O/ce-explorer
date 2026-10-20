@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { NestedRoutine } from '../utils/pascalNested';
 
 export enum MemberKind {
     Method = 'method',
@@ -162,6 +163,8 @@ export interface ClassMember {
     isOverride: boolean;
     range: vscode.Range;
     implementationRange?: vscode.Range;
+    /** Routines declared inside this one (Pascal): between its header and its own `begin`. */
+    nested?: NestedRoutine[];
     documentation?: string;
 }
 

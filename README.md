@@ -171,7 +171,7 @@ Inside the form designer (key presses in an inspector field are left to VS Code,
 | `Ctrl+K D` | Open the form designer | `Ctrl+K D` | PLDoc header |
 | `Ctrl+K L` | Align components | `Ctrl+K Y` | Sync spec ⇄ body |
 | `Ctrl+K N` | Anchors / docking | `Ctrl+K N` | New package |
-| `Ctrl+K T` | TabOrder by position | `Ctrl+K C` | CRUD from table |
+| `Ctrl+K T` | TabOrder by position | `Ctrl+K G` | SQL from table |
 | `Ctrl+K C` | Check form | `Ctrl+K X` | Extract procedure |
 | `Ctrl+K H` | Clean handlers | `Ctrl+K E` | Exception block |
 | `Ctrl+K Y` | Copy components | `Ctrl+K T` | utPLSQL tests |
@@ -203,6 +203,7 @@ The letters avoid the ones VS Code already uses after `Ctrl+K` (`M F P R O U W Z
 - **Align shortcuts** are yours: type any string, click `+` to keep it, `×` to remove one. They are saved between sessions.
 - **The .dfm follows the unit**: renaming a component field (explorer, Member panel…) renames the `object` in the `.dfm`, its references and its `<Component><Event>` handlers; deleting it removes the object, its children and the empty handlers; adding a field of a known component class offers to create the object. Handlers that contain code, or are shared, are never touched.
 - **Third-party components** (DevExpress, TMS, JVCL…): any class name works. The tool learns size, caption, tab stop and events from the `.dfm` files already in your workspace, remembers the unit you typed for a class, and you can describe a class once in the `ce.delphi.customComponents` setting (`className`, `unit`, `width`, `height`, `namePrefix`, `events`, `props`, `tabOrder`). Third-party units are added to `uses` as written, never with the `Vcl.` scope.
+- **DevExpress bars and styles**: `TdxBarDockControl` is drawn as the bar it docks (and linked to its manager from the inspector: *Bars → Bar manager*), `TdxBarManager` is a component of the form, and its bars and items (`TdxBar`, `TdxBarButton`, `TdxBarLargeButton`, `TdxBarStatic`, `TdxBarSubItem`, `TdxBarCombo`, `TdxBarEdit`, `TdxBarSeparator`…) and the `TcxStyle` of a `TcxStyleRepository` are parts of their holder: listed under it, added only inside it, never moved elsewhere; deleting a manager unlinks the dock controls that pointed to it.
 - Examples: `test-fixtures/delphi/ComplexForm.*` (docked panels, page control, group boxes, DevExpress controls, a list view collection) and `LayoutForm.*`.
 
 ## PL/SQL (Oracle)
@@ -215,7 +216,7 @@ Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the c
 |---------|--------------|
 | Synchronize spec ⇄ body | Finds subprograms declared on one side only and signature mismatches (Oracle needs them identical); declare in the spec, create an empty body (before the initialization section), or copy the signature either way. Works across `.pks` / `.pkb` or in one file. |
 | New package | Spec + body skeleton from `name(params):Return; …`, with PLDoc headers |
-| CRUD package from table | From a `CREATE TABLE` (selection, cursor or clipboard): insert / update / delete / get (`%ROWTYPE`) / exists, typed with `table.col%TYPE` |
+| SQL from table | From a `CREATE TABLE` (selection, cursor or clipboard): SELECT / INSERT / UPDATE / DELETE / MERGE, with `:column` binds by default and optional `column=value` substitutions (`updated_at=SYSDATE`) |
 | Extract procedure | Selection → new procedure with detected `IN` / `OUT` / `IN OUT` parameters (sizes stripped); locals used only there move inside |
 | Declare variable | Type inferred from the body: `SELECT col INTO v FROM t` → `t.col%TYPE`, `FETCH c INTO r` → `c%ROWTYPE`, literals, `SYSDATE`, other variables |
 | Exception block | `NO_DATA_FOUND`, `TOO_MANY_ROWS`, `OTHERS` with re-raise |
@@ -336,6 +337,10 @@ Things that neither OmniPascal nor VS Code do, because they need the `.dfm` and 
 - **Forms** — the forms by the class they descend from (`THadHocFormListe` and its unit), with how much of a visual descendant is inherited and how much is its own. In the designer, a component written `inherited` in the `.dfm` has a dashed outline and cannot be deleted or renamed there, as in the IDE.
 - **Hotspots** — the units that are often changed and hard to change: commits of the last year (one `git log` for the whole project, asked only when the tab is opened) weighted by size and long routines.
 - **Changes** (`Ctrl+K B`, `CE Delphi: Compare the Form with a Git Version`) — the open form against a commit, a branch or `HEAD`, **component by component**: added, removed, moved to another parent, other class, properties and event links that changed (the text of `SQL.Strings` included). A component is found by its name wherever it went, so reordering, reindenting and the IDE rewriting positions are not changes; positions and sizes are hidden unless asked for.
+
+#### Structure: routines declared inside a routine
+
+A Pascal routine can declare routines of its own between its header and its `begin` (`procedure Calc; … begin … end;` after the `var` section, to any depth). **Structure** lists them under the routine that holds them (`↳ Calc  procedure`), a click goes to their line, and the filter finds the routine by the name of what it holds. They are not members: no edit, rename or delete. The end of a routine that holds others is now its own `end;`, not the first one met, which also fixes the range of such a method (its body, the review, *Go to implementation*).
 
 #### Sidebar → Shortcuts: every keyboard shortcut, by mode
 

@@ -28,6 +28,8 @@ export interface ManageRow {
     params?: number;
     selected: boolean;
     line: number;
+    /** Routines declared inside this one (Pascal), in source order: shown under it, a click goes to their line. */
+    nested?: { name: string; kind: string; line: number; depth: number }[];
 }
 
 /** The member the tab is about (the one under the cursor, or the one last clicked): where it is used, and a search in its code. */
@@ -98,6 +100,11 @@ export function manageCss(): string {
 .mfilter .mclear.on { display: block; }
 .mgroup { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 8px 0 2px 2px; list-style: none; }
 .mrow .vis { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); width: 10px; flex: none; text-align: center; }
+.mnested { list-style: none; display: flex; gap: 4px; align-items: center; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-size: 12px; color: var(--vscode-descriptionForeground); }
+.mnested:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
+.mnested .mnname { font-family: var(--vscode-editor-font-family, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mnested .mnkind { font-size: 10px; opacity: 0.8; }
+.mnested.d0 { margin-left: 22px; } .mnested.d1 { margin-left: 36px; } .mnested.d2 { margin-left: 50px; } .mnested.d3 { margin-left: 64px; }
 .madd-box { margin-bottom: 6px; }
 .madd-box .section-title { margin-bottom: 3px; }
 .mbtns { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
@@ -195,7 +202,7 @@ export function manageListHtml(v: ManageView): string {
             lastHeading = heading;
             const id = esc(m.id);
             const sig = m.kind === MemberKind.Method || m.kind === MemberKind.Constructor || m.kind === MemberKind.Destructor ? `(${m.params ?? 0})` : '';
-            const text = (m.name + ' ' + (m.type ?? '') + ' ' + m.kind + ' ' + m.visibility).toLowerCase();
+            const text = (m.name + ' ' + (m.type ?? '') + ' ' + m.kind + ' ' + m.visibility + (m.nested?.length ? ' ' + m.nested.map(n => n.name).join(' ') : '')).toLowerCase();
             html += `<li class="mrow${m.selected ? ' sel' : ''}" data-kind="${esc(m.kind)}" data-text="${esc(text)}">`
                 + `<span class="vis" title="${esc(m.visibility)}">${VIS_LETTER[m.visibility] ?? ''}</span>`
                 + `<span>${ICONS[m.kind] ?? '🔧'}</span>`
@@ -209,6 +216,10 @@ export function manageListHtml(v: ManageView): string {
                 + `<button class="var-btn" data-m-act="delete" data-id="${id}" title="Delete">🗑️</button>`
                 + `</span></li>`;
             if (v.focus && v.focus.id === m.id) { html += `<li class="mdetail">${focusHtml(v.focus)}</li>`; }
+            for (const n of m.nested ?? []) {
+                html += `<li class="mnested d${Math.min(3, n.depth)}" data-m-act="goline" data-id="${n.line}" title="${esc(n.name)} is declared inside ${esc(m.name)}: go to line ${n.line + 1}">`
+                    + `<span>↳</span><span class="mnname">${esc(n.name)}</span><span class="mnkind">${esc(n.kind)}</span></li>`;
+            }
         }
         html += `</ul><p class="empty-section" id="mNone" hidden>No member matches the filter.</p>`;
     }
@@ -281,8 +292,9 @@ function initManage(api) {
             var text = r.getAttribute('data-text') || '';
             var ok = (!kind || r.getAttribute('data-kind') === kind) && (!v || (rx ? rx.test(text) : text.indexOf(lit) >= 0));
             r.style.display = ok ? '' : 'none';
+            // what follows the row (its details, the routines declared in it) is shown with it
             var detail = r.nextElementSibling;
-            if (detail && detail.classList.contains('mdetail')) { detail.style.display = ok ? '' : 'none'; }
+            while (detail && (detail.classList.contains('mdetail') || detail.classList.contains('mnested'))) { detail.style.display = ok ? '' : 'none'; detail = detail.nextElementSibling; }
             if (ok) { shown++; }
         });
         // a group heading stays only while one of its rows is shown

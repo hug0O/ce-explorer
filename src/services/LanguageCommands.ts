@@ -41,6 +41,17 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
 
     context.subscriptions.push(
         item,
+        // from the Tools tab: '' goes back to what the extension detects
+        vscode.commands.registerCommand('ce.setLanguageTo', async (id: unknown, scope: unknown) => {
+            const doc = vscode.window.activeTextEditor?.document;
+            if (!doc || doc.uri.scheme !== 'file') { return; }
+            const file = doc.uri.fsPath;
+            if (id === '' || id === undefined) { languageOverrides.clear(file); await save(); return; }
+            if (typeof id !== 'string' || !registry.getByLanguageId(id)) { return; }
+            const ext = extensionOf(file);
+            if (scope === 'extension' && ext) { languageOverrides.setExtension(ext, id); } else { languageOverrides.setFile(file, id); }
+            await save();
+        }),
         vscode.window.onDidChangeActiveTextEditor(update),
         vscode.commands.registerCommand('ce.setLanguage', async () => {
             const doc = vscode.window.activeTextEditor?.document;

@@ -48,9 +48,10 @@ export class ProviderRegistry {
         return this.extensionToProvider.get(ext);
     }
 
-    getByDocument(document: vscode.TextDocument): ILanguageProvider | undefined {
+    /** `ignoreOverride`: what the extension would pick on its own, whatever was chosen by hand (to show it as "Auto"). */
+    getByDocument(document: vscode.TextDocument, ignoreOverride = false): ILanguageProvider | undefined {
         // a language chosen by hand wins: it is how a file that is not recognised gets the features
-        const chosen = languageOverrides.resolve(document.uri.fsPath);
+        const chosen = ignoreOverride ? undefined : languageOverrides.resolve(document.uri.fsPath);
         const forced = chosen ? this.providers.get(chosen) : undefined;
         if (forced) { return forced; }
         const provider = this.providers.get(document.languageId);

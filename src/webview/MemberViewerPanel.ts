@@ -21,7 +21,8 @@ import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/mem
 import { ReviewSeverity } from '../utils/reviewTypes';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
-import { DELPHI_COMMANDS, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
+import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
+import { DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 
 interface MemberViewerState {
@@ -210,6 +211,10 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 case 'plsqlAlign':
                     if (typeof msg.id === 'string' && PLSQL_ALIGN_IDS.includes(msg.id)) { await vscode.commands.executeCommand('ce.plsql.alignPreset', msg.id); }
+                    break;
+                case 'setLanguage':
+                    await vscode.commands.executeCommand('ce.setLanguageTo', typeof msg.id === 'string' ? msg.id : '', msg.scope === 'extension' ? 'extension' : 'file');
+                    this.setTab('tools');
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
@@ -526,9 +531,24 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     }
 
     /** Whether the active editor is a Delphi unit or form file. */
+    /** The language drop-down of the Tools tab: what the extension detects, and what was chosen by hand. */
+    private languageInfo(): LanguageInfo | undefined {
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!doc || doc.uri.scheme !== 'file') { return undefined; }
+        const file = doc.uri.fsPath;
+        return {
+            options: (this._providerRegistry.getAllProviders?.() ?? []).map(p => ({ id: p.languageId, label: p.displayName })),
+            current: languageOverrides.resolve(file) ?? '',
+            detected: this._providerRegistry.getByDocument(doc, true)?.displayName ?? '',
+            ext: extensionOf(file),
+            byExtension: languageOverrides.source(file) === 'extension',
+        };
+    }
+
     private isDelphi(): boolean {
         const file = vscode.window.activeTextEditor?.document.uri.fsPath;
-        if (file !== undefined) { this._delphiSeen = /\.(pas|dfm)$/i.test(file); }
+        // a file that was given Pascal by hand gets the Delphi tools too
+        if (file !== undefined) { this._delphiSeen = /\.(pas|dfm)$/i.test(file) || languageOverrides.resolve(file) === 'pascal'; }
         return this._delphiSeen;
     }
 
@@ -1390,7 +1410,7 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
 
         // Same three tabs as the member view, so the tools are never stacked under the quick actions.
         const body = this._tab === 'tools'
-            ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab)
+            ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab, this.languageInfo())
             : this._tab === 'manage'
                 ? this.getManageHtml()
                 : this._tab === 'memo'
@@ -1642,7 +1662,7 @@ ${shortcutsCss()}
         }
 
         if (this._tab === 'tools') {
-            html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab);
+            html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab, this.languageInfo());
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
         } else if (this._tab === 'memo') {
@@ -2012,7 +2032,7 @@ ${shortcutsScript()}
 }
 
 interface ProviderRegistryLike {
-    getByDocument(doc: vscode.TextDocument): ILanguageProvider | undefined;
+    getByDocument(doc: vscode.TextDocument, ignoreOverride?: boolean): ILanguageProvider | undefined;
     getAllProviders?(): ILanguageProvider[];
 }
 

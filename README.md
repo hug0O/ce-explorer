@@ -122,7 +122,7 @@ All commands are prefixed with `CE:`:
 | `CE: Detect Dead Code` | Find unused code |
 | `CE: Generate Documentation` | Generate Markdown API docs |
 | `CE: Export Structure` | Export structure as JSON |
-| `CE: Use a Language for this File...` | Tell CE which language a file it does not recognise is written in (this file, or every file with its extension): the members, tools and review then work on it. A status bar item offers it on a file VS Code leaves as plain text. It does not change the language VS Code gives the file, so OmniPascal and the others are not affected |
+| `CE: Use a Language for this File...` | Tell CE which language a file it does not recognise is written in (this file, or every file with its extension): the members, tools and review then work on it. A status bar item offers it on a file VS Code leaves as plain text. The same choice is a **Language of this file** drop-down at the top of the Tools tab (Auto, or one language, for this file or every file with its extension): the tools of the language, such as the Delphi or PL/SQL ones, appear once it is chosen. It does not change the language VS Code gives the file, so OmniPascal and the others are not affected |
 
 ## Configuration
 

@@ -99,6 +99,10 @@ export function toolsCss(): string {
 .chip .x { margin-left: 4px; opacity: 0.5; }
 .chip .x:hover { opacity: 1; color: var(--vscode-errorForeground, #f48771); }
 .chip:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
+.lang-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.lang-row .tool-label { margin: 0; }
+.lang-row select { flex: 1; min-width: 120px; }
+.lang-every { font-size: 11px; display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); }
 .tool-label { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 6px 0 2px; }
 .tool-select { width: 100%; padding: 3px 4px; font-size: 12px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, rgba(128,128,128,0.4)); border-radius: 3px; }
 .tool-note { font-size: 11px; color: var(--vscode-descriptionForeground); font-style: italic; margin: 4px 0; }
@@ -227,7 +231,29 @@ function alignBlock(alignToken: string, chipsJson: string): string {
  * Form (Delphi), PL/SQL, Align. Only the pages that make sense for the
  * active file are offered; `activeSub` is the one shown.
  */
-export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false, activeSub = ''): string {
+/** What the language drop-down of the Tools tab shows. */
+export interface LanguageInfo {
+    options: { id: string; label: string }[];
+    /** Chosen by hand, or '' for what the extension detects. */
+    current: string;
+    /** The label of what the extension detects on its own, or '' when it does not know the file. */
+    detected: string;
+    /** The extension of the file (`.inc`), '' when it has none. */
+    ext: string;
+    /** Whether the choice holds for every file with the extension. */
+    byExtension: boolean;
+}
+
+function languageBlock(info: LanguageInfo): string {
+    const auto = info.detected ? `Auto: ${info.detected}` : 'Auto: not recognised';
+    const opts = [`<option value=""${info.current === '' ? ' selected' : ''}>${escapeAttr(auto)}</option>`,
+        ...info.options.map(o => `<option value="${escapeAttr(o.id)}"${info.current === o.id ? ' selected' : ''}>${escapeAttr(o.label)}</option>`)].join('');
+    const every = info.ext ? `<label class="lang-every" title="Apply the choice to every ${escapeAttr(info.ext)} file of this workspace"><input type="checkbox" id="langEvery"${info.byExtension ? ' checked' : ''}> every ${escapeAttr(info.ext)} file</label>` : '';
+    return `<div class="lang-row"><label class="tool-label" for="langSel">Language of this file</label>
+<select id="langSel" class="inp" title="Which language CE reads this file as: the tools of that language appear below">${opts}</select>${every}</div>`;
+}
+
+export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN_CHIPS, plsql = false, delphi = false, activeSub = '', language?: LanguageInfo): string {
     const chipsJson = escapeAttr(JSON.stringify(chipList));
     const subs = availableSubs(plsql, delphi);
     const active = subs.some(s => s.id === activeSub) ? activeSub : subs[0].id;
@@ -240,7 +266,7 @@ export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN
         ? `<div class="subtabs">${subs.map(s => `<button class="subtab${s.id === active ? ' active' : ''}" data-sub-tab="${s.id}">${s.label}</button>`).join('')}</div>`
         : '';
     const body = subs.map(s => `<div data-sub="${s.id}"${s.id === active ? '' : ' hidden'}>${pages[s.id]}</div>`).join('\n');
-    return `\n${bar}\n${body}\n`;
+    return `\n${language ? languageBlock(language) : ''}\n${bar}\n${body}\n`;
 }
 
 /**
@@ -271,6 +297,13 @@ function initTools(api) {
     document.querySelectorAll('[data-review]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'runAnalytics', kind: 'review' }); });
     });
+    var langSel = $('langSel');
+    if (langSel) {
+        var every = $('langEvery');
+        function sendLang() { api.postMessage({ command: 'setLanguage', id: langSel.value, scope: every && every.checked ? 'extension' : 'file' }); }
+        langSel.addEventListener('change', sendLang);
+        if (every) { every.addEventListener('change', function () { if (langSel.value) { sendLang(); } }); }
+    }
     var tok = $('alignToken');
     if (tok) {
         var chipBox = $('chips');

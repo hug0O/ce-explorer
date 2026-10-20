@@ -23,6 +23,8 @@ export interface UnitFacts {
     /** Words of the code of the unit (comments and strings left out), in lower case. */
     words: Set<string>;
     initialization: boolean;
+    /** The classes the unit declares, with the class they descend from (empty for a class with no ancestor written). */
+    classes: { name: string; parent: string }[];
 }
 
 export interface UnusedUnit {
@@ -56,6 +58,7 @@ export function unitFacts(pas: string): UnitFacts | undefined {
     const ifaceAt = lines.findIndex(l => /^\s*interface\b/i.test(l));
     const initAt = lines.findIndex((l, i) => i > implAt && /^\s*initialization\b/i.test(l));
     const exported = new Set<string>([name.toLowerCase()]);
+    const classes: UnitFacts['classes'] = [];
     const last = implAt < 0 ? lines.length : implAt;
     let section = '';
     for (let i = Math.max(0, ifaceAt); i < last; i++) {
@@ -72,6 +75,8 @@ export function unitFacts(pas: string): UnitFacts | undefined {
                 for (const part of body.split(')')[0].split(',')) { const e = /^\s*([A-Za-z_]\w*)/.exec(part); if (e) { exported.add(e[1].toLowerCase()); } }
             }
         }
+        const cls = /^ {0,2}([A-Za-z_]\w*)(?:<[^>]*>)?\s*=\s*(?:packed\s+)?class\b\s*(?:\(\s*([\w.]+))?/i.exec(l);
+        if (cls && section === 'type') { classes.push({ name: cls[1], parent: cls[2] ?? '' }); }
         const routine = /^(?:class\s+)?(?:procedure|function)\s+([A-Za-z_]\w*)/i.exec(l);
         if (routine) { exported.add(routine[1].toLowerCase()); }
         const variable = /^ {0,2}([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*:/.exec(l);
@@ -96,7 +101,7 @@ export function unitFacts(pas: string): UnitFacts | undefined {
     const code = text.replace(/\buses\b[^;]*;/gi, m => m.replace(/[^\n]/g, ' '));
     const words = new Set<string>();
     for (const w of code.matchAll(WORD)) { words.add(w[0].toLowerCase()); }
-    return { name, exported, uses, words, initialization: initAt >= 0 };
+    return { name, exported, uses, words, initialization: initAt >= 0, classes };
 }
 
 /** The units of the project listed in a `uses` clause of which nothing is used. `files` is the whole project. */

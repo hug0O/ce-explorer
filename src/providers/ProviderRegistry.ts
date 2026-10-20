@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ParsedDocument } from '../models/types';
 import { acceptsContent } from '../utils/plsqlSniff';
+import { languageOverrides } from '../services/LanguageOverrides';
 import { PascalLanguageProvider } from '../providers/PascalLanguageProvider';
 import { CppLanguageProvider } from '../providers/CppLanguageProvider';
 import { RustLanguageProvider } from '../providers/RustLanguageProvider';
@@ -48,6 +49,10 @@ export class ProviderRegistry {
     }
 
     getByDocument(document: vscode.TextDocument): ILanguageProvider | undefined {
+        // a language chosen by hand wins: it is how a file that is not recognised gets the features
+        const chosen = languageOverrides.resolve(document.uri.fsPath);
+        const forced = chosen ? this.providers.get(chosen) : undefined;
+        if (forced) { return forced; }
         const provider = this.providers.get(document.languageId);
         if (provider) {
             return provider;
@@ -103,6 +108,12 @@ export class ProviderRegistry {
         return parsed;
     }
 
+    /** Forgets every parse and every content check: the language of a file may have changed. */
+    clearCaches(): void {
+        this.parseCache.clear();
+        this.sniffCache.clear();
+    }
+
     getAllProviders(): ILanguageProvider[] {
         return Array.from(this.providers.values());
     }
@@ -112,6 +123,6 @@ export class ProviderRegistry {
     }
 
     getSupportedExtensions(): string[] {
-        return Array.from(this.extensionToProvider.keys());
+        return [...new Set([...this.extensionToProvider.keys(), ...languageOverrides.chosenExtensions])];
     }
 }

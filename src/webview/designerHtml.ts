@@ -211,6 +211,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .tabs > .tab.on { background: #fff; height: 24px; margin-top: 0; }
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
+.ctl.inherited { outline: 1px dashed #7a6ff0; outline-offset: 1px; }
 .nonvisual > .chrome { border: 1px solid #888; background: #fff3c4; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
 .nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev-badge { position: absolute; right: -1px; top: -1px; font-size: 9px; background: #ffd24a; color: #000; border-radius: 3px; padding: 0 2px; line-height: 11px; pointer-events: none; z-index: 5; }
@@ -452,10 +453,10 @@ body.full #toolbar { padding: 3px 8px; }
   }
   function mkInner(n, parent) {
     var k = kind(n.cls);
-    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : ''));
+    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : '') + (n.inherited ? ' inherited' : ''));
     e.setAttribute('data-name', n.name);
     // name, class and, for a connection or a query, the server or the first lines of the SQL
-    e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '') + (n.note ? String.fromCharCode(10) + n.note : '');
+    e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '') + (n.note ? String.fromCharCode(10) + n.note : '') + (n.inherited ? String.fromCharCode(10) + 'Inherited from the ancestor form: it cannot be deleted or renamed here' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     // A hidden detail page of a tile control would cover the tiles: it is drawn only while it (or something in it) is selected.
     if (isDetail(n) && !n.visible && !state.details[n.name]) { e.style.display = 'none'; }

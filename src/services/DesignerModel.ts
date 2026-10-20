@@ -149,6 +149,8 @@ export interface DNode {
     summary?: string;
     /** Why the designer drew it where it is, when that is not where the .dfm says (no position written, or one outside the form). */
     note?: string;
+    /** Comes from the ancestor form (`inherited` in the .dfm): it can be moved and its properties changed, not deleted or renamed. */
+    inherited?: boolean;
     activePage?: string;
     bevel: number;
     startLine: number;
@@ -284,6 +286,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         nonVisual: isNonVisual(n),
+        inherited: n.inherited || undefined,
         container: isContainer(n) && !isNonVisual(n),
         caption, text: text ?? editValueText(n.props['EditValue']), lines,
         family: familyOf(n.className),
@@ -617,6 +620,8 @@ export function deleteEdits(pas: string, dfm: string, names: string[], formClass
     const nodes = names.map(n => findNode(root, n)).filter((n): n is DfmNode => !!n && n.depth > 0);
     const roots = nodes.filter(n => !nodes.some(o => o !== n && descendants(o).includes(n)));
     if (roots.length === 0) { return fail('Select components to delete.'); }
+    const inherited = roots.filter(r => r.inherited);
+    if (inherited.length) { return fail(`${inherited.map(r => r.name).join(', ')} ${inherited.length === 1 ? 'is' : 'are'} inherited from the ancestor form: delete ${inherited.length === 1 ? 'it' : 'them'} there, or hide ${inherited.length === 1 ? 'it' : 'them'} (Visible = False).`); }
     const dfmEdits: TextEdit[] = [];
     const pasEdits: TextEdit[] = [];
     const seen = new Set<string>();

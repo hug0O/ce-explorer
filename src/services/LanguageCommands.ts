@@ -1,0 +1,78 @@
+/**
+ * `CE: Use a Language for this File…`: tells the extension which of its parsers to use for a file it does not
+ * recognise (one file, or every file with the same extension), and a status bar item that offers it exactly
+ * there: on a file VS Code left as plain text, or on one that was given a language by hand.
+ */
+import * as vscode from 'vscode';
+import { ProviderRegistry } from '../providers/ProviderRegistry';
+import { extensionOf, languageOverrides } from './LanguageOverrides';
+
+const STORAGE_KEY = 'ce.languageOverrides';
+
+export function registerLanguageCommands(context: vscode.ExtensionContext, registry: ProviderRegistry, onChanged: () => void): void {
+    languageOverrides.load(context.workspaceState.get(STORAGE_KEY));
+
+    const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 80);
+    item.command = 'ce.setLanguage';
+    const nameOf = (id: string): string => registry.getByLanguageId(id)?.displayName ?? id;
+
+    const update = (editor: vscode.TextEditor | undefined): void => {
+        const doc = editor?.document;
+        if (!doc || doc.uri.scheme !== 'file') { item.hide(); return; }
+        const chosen = languageOverrides.resolve(doc.uri.fsPath);
+        if (chosen) {
+            const via = languageOverrides.source(doc.uri.fsPath) === 'extension' ? 'every ' + extensionOf(doc.uri.fsPath) + ' file' : 'this file';
+            item.text = `$(symbol-class) CE: ${nameOf(chosen)}`;
+            item.tooltip = `CE reads ${via} as ${nameOf(chosen)}. Click to change it or to remove it.`;
+            item.show();
+        } else if (!registry.getByDocument(doc) && doc.languageId === 'plaintext') {
+            item.text = '$(question) CE: language';
+            item.tooltip = 'CE does not know this file. Click to tell it which language it is written in: the members, the tools and the review then work on it.';
+            item.show();
+        } else { item.hide(); }
+    };
+
+    const save = async (): Promise<void> => {
+        await context.workspaceState.update(STORAGE_KEY, languageOverrides.toJSON());
+        registry.clearCaches();
+        onChanged();
+        update(vscode.window.activeTextEditor);
+    };
+
+    context.subscriptions.push(
+        item,
+        vscode.window.onDidChangeActiveTextEditor(update),
+        vscode.commands.registerCommand('ce.setLanguage', async () => {
+            const doc = vscode.window.activeTextEditor?.document;
+            if (!doc || doc.uri.scheme !== 'file') { void vscode.window.showWarningMessage('CE: open a file first.'); return; }
+            const file = doc.uri.fsPath;
+            const ext = extensionOf(file);
+            const current = languageOverrides.resolve(file);
+            const providers = registry.getAllProviders().map(p => ({ label: p.displayName, description: p.fileExtensions.join(' '), id: p.languageId, picked: p.languageId === current }));
+            const choices: (vscode.QuickPickItem & { id?: string; remove?: boolean })[] = [
+                ...(current ? [{ label: '$(close) Stop reading this file as ' + nameOf(current), description: languageOverrides.source(file) === 'extension' ? `every ${ext} file` : 'this file', id: undefined, remove: true }] : []),
+                ...providers,
+            ];
+            const picked = await vscode.window.showQuickPick(choices, { title: 'CE: which language is this file written in?', placeHolder: `${vscode.workspace.asRelativePath(doc.uri)}${doc.languageId ? ' (VS Code: ' + doc.languageId + ')' : ''}` });
+            if (!picked) { return; }
+            if (picked.remove) {
+                languageOverrides.clear(file);
+                await save();
+                void vscode.window.showInformationMessage('CE: this file is read by its extension again.');
+                return;
+            }
+            let scope: 'file' | 'extension' = 'file';
+            if (ext) {
+                const where = await vscode.window.showQuickPick(
+                    [{ label: 'This file only', id: 'file' }, { label: `Every ${ext} file`, description: 'of this workspace', id: 'extension' }],
+                    { title: `CE: read as ${picked.label}` });
+                if (!where) { return; }
+                scope = where.id as 'file' | 'extension';
+            }
+            if (scope === 'extension') { languageOverrides.setExtension(ext, picked.id!); } else { languageOverrides.setFile(file, picked.id!); }
+            await save();
+            void vscode.window.showInformationMessage(`CE: ${scope === 'extension' ? 'every ' + ext + ' file' : 'this file'} is read as ${picked.label}.`);
+        }),
+    );
+    update(vscode.window.activeTextEditor);
+}

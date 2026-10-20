@@ -9,6 +9,8 @@ import * as vscode from 'vscode';
 import { FormIssue, checkForm } from './DelphiCheck';
 import { SqlEntry, SqlIssue, sqlParamIssues, unitSql } from './ProjectSql';
 import { UnitFacts, UnusedComponent, UnusedUnit, unitFacts, unusedComponents, unusedUnits } from './ProjectUnused';
+import { GridIssue, NameRow, NamingIssue, TextGroup, TextRow, componentNames, formTexts, gridFieldIssues, groupTexts, namingIssuesOf } from './ProjectChecks';
+import { Family, FormInfo, UnitMetrics, families, formInfo, unitMetrics } from './ProjectForms';
 
 const EXCLUDE = '**/{node_modules,.git,dist,out,build,bin,obj,target,Win32,Win64,__history,__recovery,.vscode-test}/**';
 const MAX_FILES = 6000;
@@ -28,6 +30,13 @@ export interface ProjectData {
     unusedUnits: (UnusedUnit & { path: string })[];
     unusedComponents: (UnusedComponent & { path: string })[];
     formChecks: FormRow[];
+    gridIssues: (GridIssue & { path: string })[];
+    /** Texts of the forms, grouped by meaning (the first ones, with a few uses each). */
+    texts: TextGroup[];
+    textCount: number;
+    naming: (NamingIssue & { path: string })[];
+    families: Family[];
+    metrics: { unit: string; path: string; metrics: UnitMetrics }[];
     ms: number;
     /** Files read this time / found in the cache. */
     read: number;
@@ -42,6 +51,25 @@ interface UnitResult {
     sqlIssues: SqlIssue[];
     components: UnusedComponent[];
     checks: FormRow['issues'];
+    grid: GridIssue[];
+    texts: TextRow[];
+    names: NameRow[];
+    form?: FormInfo;
+    metrics: UnitMetrics;
+}
+
+/** Most groups of texts and uses of a text that are sent to the page: the rest is counted, not listed. */
+const MAX_TEXT_GROUPS = 1500;
+const MAX_TEXT_USES = 12;
+
+/** The convention of names asked for in the settings (`ce.delphi.namingPrefixes`: class → prefix). */
+function explicitPrefixes(): Record<string, string> {
+    try {
+        const v = vscode.workspace.getConfiguration?.('ce.delphi')?.get<Record<string, unknown>>('namingPrefixes');
+        const out: Record<string, string> = {};
+        for (const [k, p] of Object.entries(v ?? {})) { if (typeof p === 'string' && /^[a-z]+$/i.test(p)) { out[k] = p; } }
+        return out;
+    } catch { return {}; }
 }
 
 interface Cached { signature: string; result: UnitResult }
@@ -107,6 +135,9 @@ export class ProjectScanner {
         const withFacts = results.filter(r => r.result.facts).map(r => ({ facts: r.result.facts!, path: r.path }));
         const pathOf = new Map(withFacts.map(r => [r.facts.name, r.path]));
         const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+        const allTexts = results.flatMap(r => r.result.texts);
+        const groups = groupTexts(allTexts);
+        const dfmOf = new Map(results.filter(r => r.dfmPath).map(r => [r.result.name, r.dfmPath!]));
         return {
             root,
             units: results.length,
@@ -116,6 +147,13 @@ export class ProjectScanner {
             unusedUnits: unusedUnits(withFacts).map(u => ({ ...u, path: pathOf.get(u.unit) ?? '' })),
             unusedComponents: results.flatMap(r => r.result.components.map(c => ({ ...c, path: r.dfmPath ?? r.path }))),
             formChecks: results.filter(r => r.result.checks.length).map(r => ({ unit: r.result.name, file: r.path, issues: r.result.checks })),
+            gridIssues: results.flatMap(r => r.result.grid.map(g => ({ ...g, path: r.dfmPath ?? r.path }))),
+            texts: groups.slice(0, MAX_TEXT_GROUPS).map(g => ({ ...g, rows: g.rows.slice(0, MAX_TEXT_USES) })),
+            textCount: allTexts.length,
+            naming: namingIssuesOf(results.filter(r => r.dfmPath).map(r => ({ unit: r.result.name, names: r.result.names })), explicitPrefixes())
+                .map(n => ({ ...n, path: dfmOf.get(n.unit) ?? '' })),
+            families: families(results.flatMap(r => (r.result.form ? [r.result.form] : [])), withFacts.map(r => r.facts)),
+            metrics: results.map(r => ({ unit: r.result.name, path: r.path, metrics: r.result.metrics })),
             ms: Date.now() - started,
             read, cached, truncated,
         };
@@ -126,9 +164,13 @@ export class ProjectScanner {
 function analyse(file: string, pas: string, dfm: string | undefined): UnitResult {
     const name = file.split(/[\\/]/).pop()!.replace(/\.pas$/i, '');
     const facts = unitFacts(pas);
-    const result: UnitResult = { name: facts?.name ?? name, facts, sql: [], sqlIssues: [], components: [], checks: [] };
+    const result: UnitResult = { name: facts?.name ?? name, facts, sql: [], sqlIssues: [], components: [], checks: [], grid: [], texts: [], names: [], metrics: unitMetrics(pas) };
     result.sql = unitSql(result.name, pas, dfm);
     if (dfm) {
+        result.grid = gridFieldIssues(result.name, dfm);
+        result.texts = formTexts(result.name, dfm);
+        result.names = componentNames(dfm);
+        result.form = formInfo(result.name, facts, dfm);
         result.sqlIssues = sqlParamIssues(result.name, pas, dfm);
         result.components = unusedComponents(result.name, pas, dfm);
         try {

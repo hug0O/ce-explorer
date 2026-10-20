@@ -32,6 +32,8 @@ export interface DfmNode {
     align?: string;
     /** `object TcxGridDBColumn` with no `Name:`: the IDE writes a component that has no name like that. The name above is made up. */
     anonymous?: boolean;
+    /** Written `inherited Name: TClass`: the component comes from the ancestor form (visual inheritance). */
+    inherited?: boolean;
 }
 
 // Standard and third-party containers (TcxGroupBox, TAdvPanel, TRzPanel, TJvPageControl, TsPanel…).
@@ -79,6 +81,7 @@ export function parseDfmTree(dfm: string): DfmNode | undefined {
                 props: {}, propLines: {}, children: [], parent: stack[stack.length - 1],
             };
             if (obj[2] === undefined) { node.anonymous = true; unnamed.push(node); }
+            if (/^\s*inherited\b/i.test(line)) { node.inherited = true; }
             if (node.parent) { node.parent.children.push(node); } else if (!root) { root = node; }
             stack.push(node);
             continue;

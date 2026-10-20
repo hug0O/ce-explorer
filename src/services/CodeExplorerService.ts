@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassInfo, ClassMember, MemberKind, Visibility, ParsedDocument } from '../models/types';
+import { languageOverrides } from './LanguageOverrides';
 
 export class CodeExplorerTreeItem extends vscode.TreeItem {
     constructor(
@@ -196,6 +197,9 @@ export class CodeExplorerService {
     }
 
     private providerForDocument(doc: vscode.TextDocument): ILanguageProvider | undefined {
+        const chosen = languageOverrides.resolve(doc.uri.fsPath);
+        const forced = chosen ? this.providers.get(chosen) : undefined;
+        if (forced) { return forced; }
         const byLang = this.providers.get(doc.languageId);
         if (byLang) {
             return byLang;
@@ -221,7 +225,8 @@ export class CodeExplorerService {
     }
 
     private isSupportedDocument(doc: vscode.TextDocument): boolean {
-        if (this.providers.has(doc.languageId)) {
+        const chosen = languageOverrides.resolve(doc.uri.fsPath);
+        if ((chosen && this.providers.has(chosen)) || this.providers.has(doc.languageId)) {
             return true;
         }
         const ext = doc.uri.fsPath.substring(doc.uri.fsPath.lastIndexOf('.'));

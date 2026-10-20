@@ -30,6 +30,7 @@ import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
 import { ProjectScanner } from './services/ProjectScanner';
+import { registerLanguageCommands } from './services/LanguageCommands';
 
 /** Reads the Delphi files of the workspace for the project panel: only when it is asked to. */
 const projectScanner = new ProjectScanner();
@@ -129,6 +130,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         };
         context.subscriptions.push(designerStatus, vscode.window.onDidChangeActiveTextEditor(showDesignerStatus));
         showDesignerStatus(vscode.window.activeTextEditor);
+        // a file that is not recognised can be given a language by hand
+        registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];
@@ -596,6 +599,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(list-tree) Structure (members of the file)', description: 'Ctrl+K Ctrl+M', cmd: 'ce.manageMembers' },
                 { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'ce.memo.open' },
                 { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'ce.toggleGroupBy' },
+                { label: '$(symbol-class) Use a Language for this File…', description: 'a file CE does not recognise', cmd: 'ce.setLanguage' },
                 { label: '$(refresh) Refresh Explorer', description: '', cmd: 'ce.refreshExplorer' },
             ];
             const picked = await vscode.window.showQuickPick(actions, {

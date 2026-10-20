@@ -4,7 +4,7 @@
  * with the DOM (text only, never markup built from the data).
  */
 
-export const PROJECT_TABS = ['sql', 'unused', 'checks', 'changes'] as const;
+export const PROJECT_TABS = ['sql', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'] as const;
 export type ProjectTab = typeof PROJECT_TABS[number];
 
 const CSS = `
@@ -58,11 +58,11 @@ code { font-family: var(--vscode-editor-font-family); font-size: 12px; }
 const SCRIPT = `
 (function () {
   var vscode = acquireVsCodeApi();
-  var TABS = ['sql', 'unused', 'checks', 'changes'];
-  var LABEL = { sql: 'SQL', unused: 'Unused', checks: 'Form checks', changes: 'Changes' };
+  var TABS = ['sql', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'];
+  var LABEL = { sql: 'SQL', unused: 'Unused', checks: 'Form checks', texts: 'Texts', names: 'Names', forms: 'Forms', hotspots: 'Hotspots', changes: 'Changes' };
   var NL = String.fromCharCode(10);
   var saved = vscode.getState() || {};
-  var state = { tab: saved.tab || 'sql', data: null, scanning: false, progress: null, filter: saved.filter || '', src: saved.src || { dfm: true, code: true, rq: true }, diff: null, ref: saved.ref || 'HEAD', layout: false, nested: false, limit: 200 };
+  var state = { tab: saved.tab || 'sql', data: null, scanning: false, progress: null, filter: saved.filter || '', src: saved.src || { dfm: true, code: true, rq: true }, diff: null, hot: null, hotAsked: false, textFilter: '', ref: saved.ref || 'HEAD', layout: false, nested: false, limit: 200 };
   function save() { vscode.setState({ tab: state.tab, filter: state.filter, src: state.src, ref: state.ref }); }
   function $(id) { return document.getElementById(id); }
   function h(tag, cls, text) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (text !== undefined) { e.textContent = text; } return e; }
@@ -73,7 +73,7 @@ const SCRIPT = `
     var bar = $('tabs');
     bar.textContent = '';
     var d = state.data;
-    var counts = d ? { sql: d.sql.length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
+    var counts = d ? { sql: d.sql.length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length + d.gridIssues.length, texts: d.texts.length, names: d.naming.length, forms: d.families.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
     TABS.forEach(function (t) {
       var b = h('button', 'tab' + (t === state.tab ? ' on' : ''), LABEL[t]);
       if (counts[t]) { b.appendChild(h('span', 'n', String(counts[t]))); }
@@ -191,8 +191,16 @@ const SCRIPT = `
     root.appendChild(h('div', 'note', 'These are hints: a unit can do its work by being linked, a component can be reached by name at run time. Check before removing.'));
   }
 
+  function renderGrid(root) {
+    var d = state.data;
+    if (!d.gridIssues.length) { return; }
+    root.appendChild(h('h2', '', 'Grid columns that show a field their query does not return (' + d.gridIssues.length + ')'));
+    d.gridIssues.forEach(function (g) { lineItem(root, 'check', 'badge warn', g.unit + ': ' + g.message, base(g.path) + ':' + (g.line + 1), g.path, g.line); });
+  }
+
   function renderChecks(root) {
     var d = state.data;
+    renderGrid(root);
     if (!d.formChecks.length) { root.appendChild(h('div', 'empty', d.forms ? 'All ' + d.forms + ' forms agree with their units.' : 'No form (.dfm next to a .pas) in the project.')); return; }
     d.formChecks.forEach(function (f) {
       root.appendChild(h('h2', '', f.unit + ' (' + f.issues.length + ')'));
@@ -200,6 +208,119 @@ const SCRIPT = `
         var file = i.file === 'dfm' ? f.file.slice(0, -4) + '.dfm' : f.file;
         lineItem(root, i.severity, i.severity === 'error' ? 'badge err' : 'badge warn', i.message, base(file) + ':' + (i.line + 1), file, i.line);
       });
+    });
+  }
+
+  function renderTexts(root) {
+    var d = state.data;
+    var bar = h('div', 'bar');
+    var inp = h('input'); inp.type = 'text'; inp.placeholder = 'filter the texts...'; inp.value = state.textFilter;
+    inp.addEventListener('input', function () { state.textFilter = inp.value; renderTextList(); });
+    var ex = h('button', 'b sec', 'Export to CSV');
+    ex.addEventListener('click', function () { vscode.postMessage({ type: 'exportTexts' }); });
+    bar.appendChild(inp); bar.appendChild(ex);
+    root.appendChild(bar);
+    root.appendChild(h('div', 'note', d.textCount + ' texts in the forms (captions, hints, titles), ' + d.texts.length + ' different. The ones written in several ways come first: case, accent, & or a colon change nothing to the meaning.'));
+    var box = h('div', ''); box.id = 'textList'; root.appendChild(box);
+    renderTextList();
+  }
+
+  function renderTextList() {
+    var box = $('textList');
+    if (!box) { return; }
+    box.textContent = '';
+    var f = state.textFilter.toLowerCase();
+    var rows = state.data.texts.filter(function (g) { return !f || g.variants.some(function (v) { return v.text.toLowerCase().indexOf(f) >= 0; }); });
+    rows.slice(0, 200).forEach(function (g) {
+      var row = h('div', 'row');
+      var head = h('div', 'head');
+      head.appendChild(h('span', g.variants.length > 1 ? 'badge warn' : 'badge', g.variants.length > 1 ? g.variants.length + ' ways' : 'one way'));
+      g.variants.forEach(function (v) { head.appendChild(h('span', 'where', v.text + (v.count > 1 ? ' x' + v.count : ''))); });
+      head.addEventListener('click', function () { var r = g.rows[0]; open(pathOfUnit(r.unit, true), r.line); });
+      row.appendChild(head);
+      g.rows.slice(0, 6).forEach(function (r) {
+        var l = h('div', 'line');
+        l.appendChild(h('span', 'tag', r.unit + ' / ' + r.component + ' (' + r.prop + ')'));
+        l.appendChild(h('span', 'loc', r.text));
+        l.addEventListener('click', function () { open(pathOfUnit(r.unit, true), r.line); });
+        row.appendChild(l);
+      });
+      box.appendChild(row);
+    });
+    if (rows.length > 200) { box.appendChild(h('div', 'note', 'The first 200 of ' + rows.length + ' are shown: filter to narrow them down.')); }
+    if (!rows.length) { box.appendChild(h('div', 'empty', 'No text matches.')); }
+  }
+
+  function pathOfUnit(unit, dfm) {
+    var m = state.data.metrics.filter(function (u) { return u.unit === unit; })[0];
+    if (!m) { return ''; }
+    return dfm ? m.path.slice(0, -4) + '.dfm' : m.path;
+  }
+
+  function renderNames(root) {
+    var d = state.data;
+    if (!d.naming.length) { root.appendChild(h('div', 'empty', 'Every component is named the way the project names that kind of component.')); return; }
+    root.appendChild(h('div', 'note', 'The convention is what most components of each class already do (at least 60 percent of three or more): it is not imposed. A rename changes the .dfm and the unit together and leaves them modified: undo is there.'));
+    var byUnit = {}; var order = [];
+    d.naming.forEach(function (n) { if (!byUnit[n.unit]) { byUnit[n.unit] = []; order.push(n.unit); } byUnit[n.unit].push(n); });
+    order.forEach(function (unit) {
+      var items = byUnit[unit];
+      var head = h('h2', '', unit + ' (' + items.length + ')');
+      var all = h('button', 'b sec', 'Rename all');
+      all.addEventListener('click', function () { vscode.postMessage({ type: 'renameAll', file: items[0].path, items: items.map(function (n) { return { from: n.component, to: n.suggestion }; }) }); });
+      head.appendChild(document.createTextNode(' ')); head.appendChild(all);
+      root.appendChild(head);
+      items.forEach(function (n) {
+        var l = h('div', 'line');
+        l.appendChild(h('span', n.isDefault ? 'badge' : 'badge warn', n.isDefault ? 'IDE name' : 'prefix'));
+        l.appendChild(h('span', '', n.component + ' : ' + n.className));
+        l.appendChild(h('span', 'arrow', '->'));
+        l.appendChild(h('span', 'where', n.suggestion));
+        var b = h('button', 'b sec', 'Rename');
+        b.addEventListener('click', function (ev) { ev.stopPropagation(); vscode.postMessage({ type: 'rename', file: n.path, from: n.component, to: n.suggestion }); });
+        l.appendChild(b);
+        l.appendChild(h('span', 'loc', base(n.path) + ':' + (n.line + 1)));
+        l.title = n.message;
+        l.addEventListener('click', function () { open(n.path, n.line); });
+        root.appendChild(l);
+      });
+    });
+  }
+
+  function renderForms(root) {
+    var d = state.data;
+    if (!d.families.length) { root.appendChild(h('div', 'empty', 'No form (.dfm next to a .pas) in the project.')); return; }
+    root.appendChild(h('div', 'note', 'Forms by the class they descend from. A form that is a visual descendant (its .dfm writes inherited) shows how many components it takes from the ancestor and how many are its own.'));
+    d.families.forEach(function (f) {
+      root.appendChild(h('h2', '', f.ancestor + (f.ancestorUnit ? ' (' + f.ancestorUnit + ')' : '') + ' - ' + f.forms.length + ' form' + (f.forms.length === 1 ? '' : 's')));
+      f.forms.forEach(function (x) {
+        var l = h('div', 'line');
+        l.appendChild(h('span', x.visual ? 'badge' : 'tag', x.visual ? 'inherited' : 'own'));
+        l.appendChild(h('span', 'where', x.unit));
+        l.appendChild(h('span', 'tag', x.className));
+        l.appendChild(h('span', 'tag', x.visual ? x.inherited + ' from the ancestor, ' + x.own + ' its own' : x.own + ' components'));
+        var path = pathOfUnit(x.unit, false);
+        l.addEventListener('click', function () { open(path, 0); });
+        root.appendChild(l);
+      });
+    });
+  }
+
+  function renderHotspots(root) {
+    root.appendChild(h('div', 'note', 'Units that are often changed and hard to change: commits over the last year, weighted by size and by long routines. The first places to tidy.'));
+    var s = state.hot;
+    if (!s) { root.appendChild(h('div', 'empty', 'Asking git...')); return; }
+    if (s.error) { root.appendChild(h('div', 'empty', s.error)); return; }
+    if (!s.rows.length) { root.appendChild(h('div', 'empty', 'No unit of the project was changed in the last year.')); return; }
+    s.rows.forEach(function (r) {
+      var l = h('div', 'line');
+      l.appendChild(h('span', 'badge warn', String(r.score)));
+      l.appendChild(h('span', 'where', r.unit));
+      l.appendChild(h('span', 'tag', r.commits + ' commits'));
+      l.appendChild(h('span', 'tag', r.metrics.lines + ' lines'));
+      l.appendChild(h('span', 'tag', r.metrics.long + ' long routines, the longest ' + r.metrics.longest + ' lines'));
+      l.addEventListener('click', function () { open(r.path, 0); });
+      root.appendChild(l);
     });
   }
 
@@ -268,8 +389,13 @@ const SCRIPT = `
     $('scan').textContent = state.data ? 'Scan again' : 'Scan the project';
     if (state.tab === 'changes') { renderChanges(root); return; }
     if (!state.data) { root.appendChild(h('div', 'empty', state.scanning ? 'Reading the units...' : 'Press "Scan the project" to read the .pas and .dfm files. It is done in small steps, can be cancelled, and the next scan only reads what changed.')); return; }
+    if (state.tab === 'hotspots' && !state.hotAsked) { state.hotAsked = true; vscode.postMessage({ type: 'churn' }); }
     if (state.tab === 'sql') { renderSql(root); }
     else if (state.tab === 'unused') { renderUnused(root); }
+    else if (state.tab === 'texts') { renderTexts(root); }
+    else if (state.tab === 'names') { renderNames(root); }
+    else if (state.tab === 'forms') { renderForms(root); }
+    else if (state.tab === 'hotspots') { renderHotspots(root); }
     else { renderChecks(root); }
   }
 
@@ -279,6 +405,12 @@ const SCRIPT = `
     if (m.type === 'data') { state.data = m.data; state.scanning = false; state.progress = null; render(); }
     else if (m.type === 'scanning') { state.scanning = m.on; state.progress = m.progress || null; if (m.on && !m.progress) { render(); } else { status(); } }
     else if (m.type === 'diff') { state.diff = m; state.layout = false; state.nested = false; state.tab = 'changes'; render(); }
+    else if (m.type === 'hotspots') { state.hot = m; render(); }
+    else if (m.type === 'renamed') {
+      var gone = {}; m.done.forEach(function (x) { gone[x.from] = true; });
+      state.data.naming = state.data.naming.filter(function (n) { return !(n.path === m.file && gone[n.component]); });
+      if (m.error) { $('sub').textContent = 'Rename stopped: ' + m.error; } render();
+    }
     else if (m.type === 'tab') { state.tab = m.tab; save(); render(); }
   });
   render();

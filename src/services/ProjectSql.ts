@@ -100,7 +100,7 @@ export function stripPascalComments(src: string): string {
 /* ───────── what a statement is about ───────── */
 
 /** The SQL without its comments and the inside of its literals. */
-function bare(sql: string): string {
+export function bare(sql: string): string {
     return sql.replace(/'(?:[^']|'')*'/g, '\'\'').replace(/--[^\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
 }
 

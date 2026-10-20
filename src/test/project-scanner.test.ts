@@ -59,6 +59,18 @@ test('a scan reads each unit once, gives the SQL, the unused code and the form c
     assert.equal(data.formChecks.length, 0, 'the two forms agree with their units');
 });
 
+test('a scan also gives the texts, the names, the families of forms and the size of every unit', async () => {
+    folder = project();
+    const data = await new ProjectScanner().scan();
+    assert.ok(data.texts.some(g => g.variants[0].text === 'Save'), 'the caption of a button');
+    assert.ok(data.textCount >= data.texts.length);
+    assert.deepEqual(data.families.map(f => [f.ancestor, f.forms.map(x => x.unit).sort()]), [['TForm', ['NonVisualForm', 'WrappedForm']]]);
+    assert.deepEqual(data.metrics.map(m => m.unit).sort(), ['NonVisualForm', 'UMain', 'UTools', 'WrappedForm']);
+    assert.ok(data.metrics.every(m => m.metrics.lines > 0));
+    assert.deepEqual(data.naming, [], 'two forms are not enough to make a convention');
+    assert.deepEqual(data.gridIssues, []);
+});
+
 test('the next scan only reads what changed', async () => {
     folder = project();
     const scanner = new ProjectScanner();

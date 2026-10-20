@@ -160,10 +160,13 @@ test('delete removes exactly the component block, hex data and nested strings in
 });
 
 test('rename and inspector edits leave strings that merely look like names alone', () => {
-    const r = renameEdits('unit U;\nend.\n', EXOTIC, 'Edit1', 'edtMain');
+    const refused = renameEdits('unit U;\nend.\n', EXOTIC, 'Edit1', 'edtMain');
+    assert.ok('error' in refused && /inherited from the ancestor/.test(refused.error), 'an inherited component is renamed in the ancestor');
+    const own = EXOTIC.replace('inherited Edit1: TEdit', 'object Edit1: TEdit');
+    const r = renameEdits('unit U;\nend.\n', own, 'Edit1', 'edtMain');
     assert.ok(!('error' in r));
-    const out = applyTextEdits(EXOTIC, (r as { dfmEdits: never[] }).dfmEdits);
-    assert.match(out, /inherited edtMain: TEdit/);
+    const out = applyTextEdits(own, (r as { dfmEdits: never[] }).dfmEdits);
+    assert.match(out, /object edtMain: TEdit/);
     assert.ok(out.includes('Caption = \'object fake: TFoo\''));
     const cap = setPropertyEdits(EXOTIC, 'lblWeird', 'Caption', 'Été');
     assert.deepEqual(changedLines(EXOTIC, applyTextEdits(EXOTIC, (cap as { dfmEdits: never[] }).dfmEdits)).length, 1);

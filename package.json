@@ -336,6 +336,10 @@
         "title": "CE Delphi: Change Component Class..."
       },
       {
+        "command": "ce.setLanguage",
+        "title": "CE: Use a Language for this File..."
+      },
+      {
         "command": "ce.delphi.project",
         "title": "CE Delphi: Project - SQL, Unused Code, Form Checks"
       },
@@ -583,6 +587,12 @@
           "type": "boolean",
           "default": false,
           "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together."
+        },
+        "ce.delphi.namingPrefixes": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": { "type": "string" },
+          "markdownDescription": "Prefix of the components of a class, for the *Names* tab of the project panel: `{ \"TButton\": \"btn\", \"TcxGridDBTableView\": \"cxgtv\" }`. A class that is not listed follows what the project already does (the prefix most of its components carry)."
         },
         "ce.memo.folder": {
           "type": "string",

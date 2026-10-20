@@ -58,6 +58,7 @@ export function planDfmRename(pas: string, dfm: string, oldName: string, newName
     if (!root) { return undefined; }
     const node = findNode(root, oldName);
     if (!node || node.depth === 0) { return undefined; }
+    if (node.inherited) { return { error: `${oldName} is inherited from the ancestor form: it is renamed there.` }; }
     if (node.anonymous) { return { error: `A ${node.className} with no name in the .dfm cannot be renamed here: it has no field in the unit.` }; }
     if (!/^[A-Za-z_]\w*$/.test(newName)) { return { error: `"${newName}" is not a valid component name.` }; }
     if (findNode(root, newName)) { return { error: `"${newName}" is already the name of a component in the .dfm.` }; }

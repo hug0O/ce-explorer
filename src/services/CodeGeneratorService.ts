@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassInfo, ClassMember } from '../models/types';
 import { EditPipeline } from './EditPipeline';
+import { languageOverrides } from './LanguageOverrides';
 
 export class CodeGeneratorService {
     private providers: Map<string, ILanguageProvider> = new Map();
@@ -11,7 +12,8 @@ export class CodeGeneratorService {
     }
 
     private getProvider(document: vscode.TextDocument): ILanguageProvider | undefined {
-        const provider = this.providers.get(document.languageId);
+        const chosen = languageOverrides.resolve(document.uri.fsPath);
+        const provider = (chosen ? this.providers.get(chosen) : undefined) ?? this.providers.get(document.languageId);
         if (provider) {
             return provider;
         }

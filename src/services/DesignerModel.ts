@@ -147,6 +147,8 @@ export interface DNode {
     sql?: string[];
     /** One line for the tooltip of a non-visual component: server of a connection, first lines of a query. */
     summary?: string;
+    /** Why the designer drew it where it is, when that is not where the .dfm says (no position written, or one outside the form). */
+    note?: string;
     activePage?: string;
     bevel: number;
     startLine: number;
@@ -165,16 +167,54 @@ export interface DesignModel {
 const DEFAULT_ALIGN: Record<string, string> = { tsplitter: 'alLeft', tcxsplitter: 'alLeft', tstatusbar: 'alBottom', tdxstatusbar: 'alBottom', ttoolbar: 'alTop', tadvtoolbar: 'alTop', tcoolbar: 'alTop', tcontrolbar: 'alTop' };
 const FIXED_SIZE_CLASSES = /^(TcxLookAndFeelController|TcxStyleRepository|TcxGridPopupMenu|TdxSkinController|TdxBarManager|TcxEditRepository|TcxPropertiesStore|TdxBarPopupMenu|TAdvFormStyler|TAdvToolBarOfficeStyler|TAdvAppStyler|TTimer|TOpenDialog|TSaveDialog|TMainMenu|TPopupMenu|TImageList|TActionList|TDataSource|TClientDataSet|TFDQuery|TFDConnection|TADOConnection|TADOQuery|TTable|TQuery|TFontDialog|TColorDialog|TPrintDialog)$/i;
 
-/** A component with no visual presence (timers, controllers, style repositories…): drawn as a small icon. */
+/** Image lists and collections have a Width and a Height (the size of an image) and are still components with no visual presence. */
+const IMAGE_LISTS = /^T[A-Za-z0-9]*(?:ImageList|ImageCollection|ImageCollectionEx)$/i;
+/** Components that are never visual, by the endings of the class names of the libraries the extension knows. */
+const NON_VISUAL_NAME = /^T[A-Za-z0-9]*(?:Controller|Manager|Repository|Provider|Connection|Query|Table|StoredProc|DataSource|DataSet|Dialog|Timer|ActionList|PopupMenu|MainMenu|Transaction|Script|UpdateSQL|LookAndFeel|PropertiesStore|Localizer|Exporter|Printer|Link|Monitor|Alerter|Encryptor|Dump|Loader|MetaData|Adapter|Command|Events|Styler)$/i;
+
+/**
+ * Where the IDE keeps the place of a non-visual component when the .dfm has no Left / Top for it: `DesignInfo`,
+ * the Left in its low word and the Top in its high one (each a signed 16-bit number).
+ */
+export function designPos(n: DfmNode): { left?: number; top?: number } {
+    const di = num(n.props['DesignInfo']);
+    const word = (w: number): number => (w > 32767 ? w - 65536 : w);
+    const u = di === undefined ? undefined : di >>> 0;
+    return { left: n.left ?? (u === undefined ? undefined : word(u & 0xffff)), top: n.top ?? (u === undefined ? undefined : word(u >>> 16)) };
+}
+
+/** Whether the .dfm writes anything about where the component is, or how big. */
+export function hasGeometry(n: DfmNode): boolean {
+    return n.left !== undefined || n.top !== undefined || n.width !== undefined || n.height !== undefined || n.align !== undefined
+        || n.props['DesignInfo'] !== undefined || DEFAULT_ALIGN[n.className.toLowerCase()] !== undefined;
+}
+
+/** A sub-object that belongs to its parent and has no place of its own (a style of a repository, a layout item, a menu item…). */
+export function isPart(n: DfmNode): boolean {
+    return n.depth >= 2 && !hasGeometry(n) && !isSheetClass(n.className);
+}
+
+/** Whether a class is a component with no visual presence, from its name and the catalog alone (what the palette needs before anything is on the form). */
+export function isNonVisualClass(className: string): boolean {
+    if (IMAGE_LISTS.test(className) || FIXED_SIZE_CLASSES.test(className) || NON_VISUAL_NAME.test(className)) { return true; }
+    const known = COMPONENTS.find(c => c.className.toLowerCase() === className.toLowerCase());
+    return !!known && known.width === undefined && known.height === undefined;
+}
+
+/** A component with no visual presence (timers, queries, controllers, style repositories…): drawn as a small icon. */
 export function isNonVisual(n: DfmNode): boolean {
-    if (n.depth === 0 || n.props['Width'] !== undefined || n.props['Height'] !== undefined || isSheetClass(n.className) || isTileChild(n.className) || isGridChild(n.className)
+    if (n.depth === 0 || isSheetClass(n.className) || isTileChild(n.className) || isGridChild(n.className)
         || (isDatasetField(n.className) && !!n.parent && isDataset(n.parent.className))) { return false; }
-    if (FIXED_SIZE_CLASSES.test(n.className)) { return true; }
+    if (IMAGE_LISTS.test(n.className)) { return true; }
+    if (n.props['Width'] !== undefined || n.props['Height'] !== undefined) { return false; }
+    if (FIXED_SIZE_CLASSES.test(n.className) || NON_VISUAL_NAME.test(n.className)) { return true; }
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     if (known) { return known.width === undefined && known.height === undefined; }
     // Unknown (third-party) class without a size: visual controls usually carry a caption, a tab order or an alignment.
-    return n.left !== undefined && n.top !== undefined && n.props['Caption'] === undefined && n.props['TabOrder'] === undefined
-        && n.props['Align'] === undefined && n.props['Text'] === undefined;
+    if (n.props['Caption'] !== undefined || n.props['TabOrder'] !== undefined || n.props['Align'] !== undefined || n.props['Text'] !== undefined) { return false; }
+    const placed = (n.left !== undefined && n.top !== undefined) || n.props['DesignInfo'] !== undefined;
+    // straight on the form with no place written at all: every control has one, so it is a component
+    return placed || (n.depth === 1 && !hasGeometry(n));
 }
 
 /** Size of a control whose Width / Height are not in the .dfm (the IDE default, or an auto-sized label). */
@@ -244,7 +284,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         nonVisual: isNonVisual(n),
-        container: isContainer(n),
+        container: isContainer(n) && !isNonVisual(n),
         caption, text: text ?? editValueText(n.props['EditValue']), lines,
         family: familyOf(n.className),
         color: cssColor(tile ? n.props['Style.GradientBeginColor'] : n.props['Color']),
@@ -300,6 +340,15 @@ function dataFieldNode(dfm: string, k: DfmNode): DNode {
     return d;
 }
 
+/** A sub-object with no place of its own (a style of a repository, a layout group or item, a menu item…): listed and edited, never painted. */
+function partNode(dfm: string, k: DfmNode, w: number, h: number): DNode {
+    let d: DNode;
+    try { d = toDNode(dfm, k, NO_RECT, true, undefined); } catch { d = fallbackNode(k, NO_RECT); }
+    d.fixed = true; d.structural = true; d.container = false; d.nonVisual = false; d.docked = true;
+    d.children = layoutChildren(dfm, k, w, h);
+    return d;
+}
+
 /**
  * A level, view or column of a DevExpress grid. They are structure: listed and edited, never painted — except
  * the visible columns of the view the grid shows, which get the header strip they occupy in the grid.
@@ -329,7 +378,7 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     const tiles = isTileHost(n.className) ? tileLayout(n) : undefined;
     const gridHost = isGridHost(n.className);
     const dataHost = isDataset(n.className);
-    const kids = n.children.filter(k => (tiles && isTileChild(k.className)) || isGridChild(k.className) || (dataHost && isDatasetField(k.className)) || isSheetClass(k.className) || !(k.left === undefined && k.top === undefined && k.width === undefined && k.height === undefined && k.align === undefined && DEFAULT_ALIGN[k.className.toLowerCase()] === undefined));
+    const kids = n.children;
     const alignOf = (k: DfmNode): string | undefined => k.align ?? DEFAULT_ALIGN[k.className.toLowerCase()];
     const placed = new Map<DfmNode, { x: number; y: number; w: number; h: number; docked: boolean; align?: string }>();
 
@@ -361,16 +410,43 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
         placed.set(k, { x: area.l, y: area.t, w: Math.max(0, area.r - area.l), h: Math.max(0, area.b - area.t), docked: true, align: 'alClient' });
     }
 
+    // Non-visual components of the form with no usable position (none written, or one outside the form) are drawn in a tray along the
+    // bottom edge, so that they are never lost: the .dfm is not touched until one of them is moved.
+    const tray = new Map<DfmNode, { x: number; y: number; note: string }>();
+    if (n.depth === 0) {
+        const lost: { k: DfmNode; note: string }[] = [];
+        for (const k of kids) {
+            if (placed.has(k) || !isNonVisual(k)) { continue; }
+            const pos = designPos(k);
+            if (pos.left === undefined && pos.top === undefined) {
+                lost.push({ k, note: 'The .dfm gives it no position: drawn in the tray at the bottom of the form. Moving it writes one.' });
+            } else {
+                const x = pos.left ?? 0;
+                const y = pos.top ?? 0;
+                if (x < 0 || y < 0 || x + 28 > w || y + 28 > h) {
+                    lost.push({ k, note: `Left = ${x}, Top = ${y}: outside the form, so it is drawn in the tray at the bottom. Moving it writes a new position.` });
+                }
+            }
+        }
+        const cols = Math.max(1, Math.floor((w - 8) / 52));
+        lost.forEach(({ k, note }, i) => tray.set(k, { x: 8 + (i % cols) * 52, y: Math.max(0, h - 44 - Math.floor(i / cols) * 46), note }));
+    }
+
     const isPages = isPagesClass(n.className);
     return kids.map(k => {
         if (isGridChild(k.className)) { return gridNode(dfm, k, gridHost ? { w, h, shown: shownView(n) } : undefined); }
         if (dataHost && isDatasetField(k.className)) { return dataFieldNode(dfm, k); }
+        // No place of its own below the form: a part of its parent (a style, a layout group or item, a menu item…), listed and edited, never painted.
+        if (n.depth > 0 && !hasGeometry(k) && !isSheetClass(k.className) && !(tiles && isTileChild(k.className))) { return partNode(dfm, k, w, h); }
         let rect = placed.get(k);
         const tileRect = tiles?.items.get(k) ?? tiles?.groups.get(k);
         if (!rect && tileRect) { rect = { ...tileRect, docked: true }; }
+        const spot = tray.get(k);
+        if (!rect && spot) { rect = { x: spot.x, y: spot.y, w: 28, h: 28, docked: false }; }
         if (!rect) {
             const size = isNonVisual(k) ? { w: 28, h: 28 } : defaultSize(k);
-            rect = { x: k.left ?? 0, y: k.top ?? 0, w: size.w, h: size.h, docked: false };
+            const pos = designPos(k);
+            rect = { x: pos.left ?? 0, y: pos.top ?? 0, w: size.w, h: size.h, docked: false };
         }
         if (isPages && isSheetClass(k.className)) {
             rect = { x: area.l, y: area.t, w: Math.max(0, area.r - area.l), h: Math.max(0, area.b - area.t), docked: true, align: 'alClient' };
@@ -380,6 +456,7 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
         let d: DNode;
         try {
             d = toDNode(dfm, k, rect, rect.docked, rect.align);
+            if (spot) { d.note = spot.note; }
             const client = clientSizeOf(k, rect.w, rect.h);
             d.children = layoutChildren(dfm, k, client.w, client.h);
             if (isGridHost(k.className)) { const sv = shownView(k); d.shownView = sv?.name; d.gridBand = hasGroupBand(sv); }
@@ -394,8 +471,10 @@ export function buildDesignModel(dfm: string): DesignModel | undefined {
     let root: DfmNode | undefined;
     try { root = parseDfmTree(dfm); } catch { return undefined; }
     if (!root) { return undefined; }
-    const cw = num(root.props['ClientWidth']) ?? Math.max(60, (root.width ?? 320) - 16);
-    const ch = num(root.props['ClientHeight']) ?? Math.max(40, (root.height ?? 240) - 39);
+    // a data module has no frame: its Width and Height are the whole surface the components sit on
+    const dataModule = root.props['ClientWidth'] === undefined && root.props['ClientHeight'] === undefined && root.props['Caption'] === undefined;
+    const cw = num(root.props['ClientWidth']) ?? Math.max(60, (root.width ?? 320) - (dataModule ? 0 : 16));
+    const ch = num(root.props['ClientHeight']) ?? Math.max(40, (root.height ?? 240) - (dataModule ? 0 : 39));
     const rootNode = toDNode(dfm, root, { x: 0, y: 0, w: cw, h: ch }, false, undefined);
     rootNode.children = layoutChildren(dfm, root, cw, ch);
     return { root: rootNode, formCaption: root.props['Caption'] !== undefined ? fromDfmString(root.props['Caption']) : root.name, width: cw, height: ch };
@@ -408,6 +487,10 @@ export type DesignResult = { error: string } | { dfmEdits: TextEdit[]; pasEdits:
 
 const fail = (error: string): { error: string } => ({ error });
 const clampInt = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, Math.round(v))) : undefined);
+
+/** The IDE keeps the place of some components in `DesignInfo` (Left in the low word, Top in the high one) rather than in Left / Top. */
+const usesDesignInfo = (n: DfmNode): boolean => n.props['DesignInfo'] !== undefined && n.props['Left'] === undefined && n.props['Top'] === undefined;
+const designInfoOf = (left: number, top: number): string => String(((top & 0xffff) << 16) | (left & 0xffff));
 
 /** Left / Top / Width / Height of several components in one go (move and resize share this path). */
 export function rectEdits(dfm: string, changes: { name: string; rect: Rect }[]): DesignResult {
@@ -423,7 +506,12 @@ export function rectEdits(dfm: string, changes: { name: string; rect: Rect }[]):
             edits.push(setProp(dfm, node, prop, String(v)));
         };
         const docked = node.align !== undefined;
-        if (!docked) { set('Left', c.rect.left, -2000, node.left); set('Top', c.rect.top, -2000, node.top); }
+        if (!docked && usesDesignInfo(node)) {
+            const at = designPos(node);
+            const left = clampInt(c.rect.left, -2000, 5000) ?? at.left ?? 0;
+            const top = clampInt(c.rect.top, -2000, 5000) ?? at.top ?? 0;
+            if (left !== at.left || top !== at.top) { edits.push(setProp(dfm, node, 'DesignInfo', designInfoOf(left, top))); }
+        } else if (!docked) { set('Left', c.rect.left, -2000, node.left); set('Top', c.rect.top, -2000, node.top); }
         set('Width', c.rect.width, 1, node.width);
         set('Height', c.rect.height, 1, node.height);
     }
@@ -446,7 +534,11 @@ export function reparentEdits(dfm: string, names: string[], targetName: string, 
                 ? `${nested.name} is a field of its dataset and cannot move to another container.`
                 : `${nested.name} is part of its grid and cannot move to another container.`);
     }
-    if (!isContainer(target)) { return fail(`${target.name} cannot contain other components.`); }
+    if (!isContainer(target) || isNonVisual(target) || isPart(target)) { return fail(`${target.name} cannot contain other components.`); }
+    const part = names.map(n => findNode(root, n)).find(n => n && isPart(n));
+    if (part) { return fail(`${part.name} is a part of ${part.parent?.name ?? 'its parent'}: it has no place of its own and cannot move to another container.`); }
+    const lives = names.map(n => findNode(root, n)).find(n => n && isNonVisual(n));
+    if (lives && target.depth > 0) { return fail(`${lives.name} is not a control: a non-visual component lives on the form itself.`); }
     const edits: TextEdit[] = [];
     const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
     const texts: string[] = [];
@@ -487,7 +579,10 @@ export function pasteEdits(pas: string, dfm: string, payload: ClipPayload, targe
     if (parts.length === 0 || parts.some(p => !p)) { return fail('The copied components are not readable.'); }
     const roots = parts as DfmNode[];
     if (new Set(roots.map(p => nestedRuleOf(p.className)?.id ?? '')).size > 1) { return fail('Tiles, grid parts and fields cannot be pasted together with ordinary controls.'); }
-    let target = isContainer(picked) ? picked : (picked.parent ?? root);
+    // the container that receives them: the selected one, else the first one around it (not a non-visual component, not a part)
+    let target = picked;
+    while (target.depth > 0 && (!isContainer(target) || isNonVisual(target) || isPart(target))) { target = target.parent ?? root; }
+    if (roots.every(p => isNonVisual({ ...p, depth: 1 } as DfmNode))) { target = root; }
     const rule = nestedRuleOf(roots[0].className);
     if (rule) {
         const host = findHost(rule, picked);
@@ -648,6 +743,11 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         }
         text = '[' + ['akLeft', 'akTop', 'akRight', 'akBottom'].filter(a => set.has(a)).join(', ') + ']';
     }
+    if ((prop === 'Left' || prop === 'Top') && usesDesignInfo(node)) {
+        const at = designPos(node);
+        const v = Number(text);
+        return { dfmEdits: [setProp(dfm, node, 'DesignInfo', designInfoOf(prop === 'Left' ? v : at.left ?? 0, prop === 'Top' ? v : at.top ?? 0))], pasEdits: [] };
+    }
     return { dfmEdits: [setProp(dfm, node, prop, text)], pasEdits: [] };
 }
 
@@ -706,6 +806,8 @@ export function addEdits(pas: string, dfm: string, req: AddRequest): DesignResul
     const sized = { ...def, width: req.width ?? def.width, height: req.height ?? def.height };
     const parent = req.parentName ? findNode(root, req.parentName) : root;
     let container = parent && isContainer(parent) ? parent : (parent?.parent ?? root);
+    // a component that is not a control (query, timer, controller…) is placed on the form itself, whatever the container it was dropped on
+    if (isNonVisualClass(req.className)) { container = root; }
     const rule = nestedRuleOf(req.className);
     if (rule) {
         // Tiles, groups, detail pages, grid levels, views and columns live inside their own host: the one under the drop point,

@@ -212,7 +212,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
 .nonvisual > .chrome { border: 1px solid #888; background: #fff3c4; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
-.nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; }
+.nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev-badge { position: absolute; right: -1px; top: -1px; font-size: 9px; background: #ffd24a; color: #000; border-radius: 3px; padding: 0 2px; line-height: 11px; pointer-events: none; z-index: 5; }
 .nm { position: absolute; left: 0; top: -12px; font-size: 9px; background: rgba(0,0,0,0.65); color: #fff; padding: 0 3px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 6; }
 #overlay { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 1000; }
@@ -455,7 +455,7 @@ body.full #toolbar { padding: 3px 8px; }
     var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : ''));
     e.setAttribute('data-name', n.name);
     // name, class and, for a connection or a query, the server or the first lines of the SQL
-    e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '');
+    e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '') + (n.note ? String.fromCharCode(10) + n.note : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     // A hidden detail page of a tile control would cover the tiles: it is drawn only while it (or something in it) is selected.
     if (isDetail(n) && !n.visible && !state.details[n.name]) { e.style.display = 'none'; }
@@ -1291,7 +1291,8 @@ body.full #toolbar { padding: 3px 8px; }
     if (!state.model || !byName[target]) { return false; }
     if (target !== rootName() && !byName[target].container) { return false; }
     var chain = pathOf(target);
-    return names.every(function (n) { return chain.indexOf(n) < 0 && !isFixed(n); });
+    // a non-visual component (query, timer, controller…) lives on the form itself, never inside a panel
+    return names.every(function (n) { return chain.indexOf(n) < 0 && !isFixed(n) && (!byName[n].nonVisual || target === rootName()); });
   }
   function dropTargetName(name) {
     var n = byName[name];

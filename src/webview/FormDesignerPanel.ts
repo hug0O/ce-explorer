@@ -354,7 +354,7 @@ export class FormDesignerPanel {
                 const changes = list.filter(c => typeof c.name === 'string' && NAME_RE.test(c.name as string)).map(c => ({
                     name: c.name as string, rect: { left: num(c.left), top: num(c.top), width: num(c.width), height: num(c.height) },
                 }));
-                await this.commit(m.type === 'move' ? 'Move' : 'Resize', rectEdits(dfm, changes), changes.map(c => c.name), { touched: changes.map(c => c.name), props: ['Left', 'Top', 'Width', 'Height'] });
+                await this.commit(m.type === 'move' ? 'Move' : 'Resize', rectEdits(dfm, changes), changes.map(c => c.name), { touched: changes.map(c => c.name), props: ['Left', 'Top', 'Width', 'Height', 'DesignInfo'] });
                 return;
             }
             case 'reparent': {
@@ -362,7 +362,7 @@ export class FormDesignerPanel {
                 const list = names(m.names);
                 const positions = (Array.isArray(m.positions) ? m.positions : []).slice(0, MAX_ITEMS).map((p: Record<string, unknown>) => ({ left: num(p?.left) ?? 0, top: num(p?.top) ?? 0 }));
                 if (!NAME_RE.test(target)) { return; }
-                await this.commit('Move into ' + target, reparentEdits(dfm, list, target, positions), list, { touched: list, props: ['Left', 'Top'], reparented: list });
+                await this.commit('Move into ' + target, reparentEdits(dfm, list, target, positions), list, { touched: list, props: ['Left', 'Top', 'DesignInfo'], reparented: list });
                 return;
             }
             case 'add': {
@@ -427,7 +427,7 @@ export class FormDesignerPanel {
             }
             case 'setProp': {
                 const name = str(m.name);
-                await this.commit(`${name}.${str(m.prop)}`, setPropertyEdits(dfm, name, str(m.prop), m.value), [name], { touched: [name], props: [str(m.prop)] });
+                await this.commit(`${name}.${str(m.prop)}`, setPropertyEdits(dfm, name, str(m.prop), m.value), [name], { touched: [name], props: [str(m.prop), 'DesignInfo'] });
                 return;
             }
             case 'setSql': {

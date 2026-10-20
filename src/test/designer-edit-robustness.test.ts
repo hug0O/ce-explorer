@@ -43,7 +43,7 @@ test('normalizeEdits keeps insertions at the same place in the order given, and 
 
 const FORMS: [string, string][] = [
     ['MainForm', 'MainForm'], ['LayoutForm', 'LayoutForm'], ['golden/ComplexForm', 'ComplexForm'], ['ThirdPartyForm', 'ThirdPartyForm'],
-    ['TileForm', 'TileForm'], ['GridForm', 'GridForm'], ['UniForm', 'UniForm'],
+    ['TileForm', 'TileForm'], ['GridForm', 'GridForm'], ['UniForm', 'UniForm'], ['NonVisualForm', 'NonVisualForm'],
 ];
 
 function allNodes(n: DfmNode): DfmNode[] { return [n, ...n.children.flatMap(allNodes)]; }

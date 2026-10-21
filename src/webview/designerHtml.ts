@@ -3,6 +3,7 @@
  * template literals or backslashes, so it can live in this template string.
  */
 
+import { snapScript } from './designerSnap';
 import type { ComponentDef } from '../services/DelphiForm';
 import { DEVEXPRESS, TMS } from '../services/DelphiThirdParty';
 import { UNIDAC } from '../services/DelphiUniDac';
@@ -219,6 +220,12 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .tabs > .tab.on { background: #fff; height: 24px; margin-top: 0; }
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
+.snapgrp { position: relative; display: inline-flex; align-items: center; gap: 0; }
+#snapmenu { position: absolute; top: 100%; left: 0; z-index: 60; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #555)); border-radius: 4px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+#snapmenu[hidden] { display: none; }
+.guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; opacity: 0.9; }
+.guide.v { top: 0; bottom: 0; width: 1px; }
+.guide.h { left: 0; right: 0; height: 1px; }
 .colorrow { display: flex; align-items: center; gap: 6px; }
 .colorrow input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid var(--vscode-input-border, #888); background: none; cursor: pointer; }
 .colorrow input.auto { opacity: 0.45; }
@@ -299,6 +306,7 @@ body.full #toolbar { padding: 3px 8px; }
   <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
   <div class="tg">
     <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+    <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
     <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
     <label title="Show the name of every component"><input type="checkbox" id="names"> names</label>
     <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
@@ -338,7 +346,7 @@ body.full #toolbar { padding: 3px 8px; }
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, snap: { on: true, edges: true, centers: true, container: true, guides: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -1419,6 +1427,27 @@ body.full #toolbar { padding: 3px 8px; }
     var c = $('client').getBoundingClientRect();
     return { x: (ev.clientX - c.left) / state.zoom, y: (ev.clientY - c.top) / state.zoom };
   }
+${snapScript()}
+  /* The rectangles of the other components of the container the dragged ones are in, and its size, in the container's own coordinates. */
+  function magnetContext(names) {
+    var pn = parentOf[names[0]];
+    var parentNode = pn === rootName() ? state.model.root : byName[pn];
+    if (!parentNode) { return null; }
+    var rects = parentNode.children.filter(function (c) { return names.indexOf(c.name) < 0 && c.visible && !c.nonVisual && !c.structural && !c.fixed && c.w > 0 && c.h > 0; })
+      .map(function (c) { return { x: c.x, y: c.y, w: c.w, h: c.h }; });
+    var off = pn === rootName() ? { x: 0, y: 0 } : relRect(els[pn]);
+    var size = pn === rootName() ? { w: state.model.width, h: state.model.height } : { w: parentNode.w, h: parentNode.h };
+    return { lines: magnetLines(rects, size, state.snap), off: off, parent: pn };
+  }
+  function magnetOn(ev) { return state.snap.on && !ev.altKey && (state.snap.edges || state.snap.centers); }
+  function clearGuides() { document.querySelectorAll('#overlay .guide').forEach(function (g) { g.parentNode.removeChild(g); }); }
+  function showGuides(ctx, gx, gy) {
+    clearGuides();
+    if (!state.snap.guides || !ctx) { return; }
+    var ov = $('overlay');
+    gx.forEach(function (v) { var g = el('div', 'guide v'); g.style.left = (ctx.off.x + v) + 'px'; ov.appendChild(g); });
+    gy.forEach(function (v) { var g = el('div', 'guide h'); g.style.top = (ctx.off.y + v) + 'px'; ov.appendChild(g); });
+  }
   function snap(v, ev) { return state.grid && !ev.altKey ? Math.round(v / state.grid) * state.grid : Math.round(v); }
   function dropContainerAt(ev, ignore) {
     ignore.forEach(function (e) { e.style.pointerEvents = 'none'; });
@@ -1527,6 +1556,19 @@ body.full #toolbar { padding: 3px 8px; }
       drag.moved = true;
       var first = drag.orig[drag.names[0]];
       drag.ddx = snap(first.x + dx, ev) - first.x; drag.ddy = snap(first.y + dy, ev) - first.y;
+      if (magnetOn(ev)) {
+        // the group moves as one box: its edges and centre are what is caught
+        var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        drag.names.forEach(function (n) { var o = drag.orig[n], b = byName[n]; bx0 = Math.min(bx0, o.x); by0 = Math.min(by0, o.y); bx1 = Math.max(bx1, o.x + b.w); by1 = Math.max(by1, o.y + b.h); });
+        if (!drag.magnet) { drag.magnet = magnetContext(drag.names); }
+        var mg = drag.magnet;
+        if (mg) {
+          var m = magnetBox({ x: bx0 + dx, y: by0 + dy, w: bx1 - bx0, h: by1 - by0 }, mg.lines, 6 / z, state.snap);
+          if (m.gx.length) { drag.ddx = Math.round(dx + m.dx); }
+          if (m.gy.length) { drag.ddy = Math.round(dy + m.dy); }
+          drag.guides = [mg, m.gx, m.gy];
+        }
+      } else { drag.guides = null; }
       var dragged = drag.names.map(function (n) { return els[n]; });
       dragged.forEach(function (e) { e.style.transform = 'translate(' + drag.ddx + 'px,' + drag.ddy + 'px)'; e.style.zIndex = 20; });
       var tgt = dropContainerAt(ev, dragged);
@@ -1538,21 +1580,28 @@ body.full #toolbar { padding: 3px 8px; }
       var pname = parentOf[drag.names[0]];
       dropLabel(ev, drag.target ? '↳ Drop into ' + tn + (tn === rootName() ? ' (form)' : ' : ' + byName[tn].cls) : (drag.dockedOnly ? 'Docked: drop it on another container to move it' : 'Stays in ' + pname), !!drag.target);
       drawSel();
+      if (drag.guides) { showGuides(drag.guides[0], drag.guides[1], drag.guides[2]); } else { clearGuides(); }
     } else if (drag.kind === 'resize') {
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 2) { return; }
       drag.moved = true;
+      var rctx = null, rgx = [], rgy = [];
+      if (magnetOn(ev)) { if (!drag.magnet) { drag.magnet = magnetContext(drag.names); } rctx = drag.magnet; }
+      /* an edge that moves: the grid first, then the magnet when it catches something */
+      function edgeX(v) { var g = snap(v, ev); if (rctx) { var d = magnetValue(v, rctx.lines.xs, 6 / z); if (d !== null) { rgx.push(v + d); return Math.round(v + d); } } return g; }
+      function edgeY(v) { var g = snap(v, ev); if (rctx) { var d = magnetValue(v, rctx.lines.ys, 6 / z); if (d !== null) { rgy.push(v + d); return Math.round(v + d); } } return g; }
       drag.names.forEach(function (n) {
         var o = drag.orig[n], r = { x: o.x, y: o.y, w: o.w, h: o.h }, h = drag.h;
-        if (h.indexOf('e') >= 0) { r.w = Math.max(4, snap(o.x + o.w + dx, ev) - o.x); }
-        if (h.indexOf('s') >= 0) { r.h = Math.max(4, snap(o.y + o.h + dy, ev) - o.y); }
-        if (h.indexOf('w') >= 0) { var nx = Math.min(snap(o.x + dx, ev), o.x + o.w - 4); r.w = o.x + o.w - nx; r.x = nx; }
-        if (h.indexOf('n') >= 0) { var ny = Math.min(snap(o.y + dy, ev), o.y + o.h - 4); r.h = o.y + o.h - ny; r.y = ny; }
+        if (h.indexOf('e') >= 0) { r.w = Math.max(4, edgeX(o.x + o.w + dx) - o.x); }
+        if (h.indexOf('s') >= 0) { r.h = Math.max(4, edgeY(o.y + o.h + dy) - o.y); }
+        if (h.indexOf('w') >= 0) { var nx = Math.min(edgeX(o.x + dx), o.x + o.w - 4); r.w = o.x + o.w - nx; r.x = nx; }
+        if (h.indexOf('n') >= 0) { var ny = Math.min(edgeY(o.y + dy), o.y + o.h - 4); r.h = o.y + o.h - ny; r.y = ny; }
         drag.rects[n] = r;
         var e = els[n];
         if (!byName[n].docked) { e.style.left = r.x + 'px'; e.style.top = r.y + 'px'; }
         e.style.width = r.w + 'px'; e.style.height = r.h + 'px';
       });
       drawSel();
+      if (rctx) { showGuides(rctx, rgx, rgy); } else { clearGuides(); }
     } else if (drag.kind === 'place' || drag.kind === 'marquee') {
       var p = clientPoint(ev), p0 = drag.p0;
       var b = drag.band;
@@ -1564,6 +1613,7 @@ body.full #toolbar { padding: 3px 8px; }
   document.addEventListener('mouseup', function (ev) {
     if (!drag) { return; }
     var d = drag; drag = null;
+    clearGuides();
     var z = state.zoom;
     if (d.kind === 'move') {
       d.names.forEach(function (n) { els[n].style.transform = ''; els[n].style.zIndex = ''; });
@@ -1683,7 +1733,7 @@ body.full #toolbar { padding: 3px 8px; }
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -1756,6 +1806,7 @@ body.full #toolbar { padding: 3px 8px; }
       if (st.collapsed && typeof st.collapsed === 'object') { state.collapsed = st.collapsed; }
       if (st.wl >= 120) { setPanelWidth('wl', st.wl, true); }
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
+      if (st.snap && typeof st.snap === 'object') { ['on', 'edges', 'centers', 'container', 'guides'].forEach(function (k) { if (typeof st.snap[k] === 'boolean') { state.snap[k] = st.snap[k]; } }); }
       state.fit = !!st.fit;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.25 && st.zoom <= 3) { state.zoom = st.zoom; applyZoom(); showZoom(); }
@@ -1792,6 +1843,16 @@ body.full #toolbar { padding: 3px 8px; }
     saveUi();
   });
   $('grid').addEventListener('change', function () { state.grid = Number($('grid').value); });
+  function showSnap() {
+    $('snap').classList.toggle('active', state.snap.on);
+    $('snapedges').checked = state.snap.edges; $('snapcenters').checked = state.snap.centers; $('snapcont').checked = state.snap.container; $('snapguides').checked = state.snap.guides;
+  }
+  $('snap').addEventListener('click', function () { state.snap.on = !state.snap.on; showSnap(); saveUi(); });
+  $('snapopt').addEventListener('click', function (ev) { ev.stopPropagation(); $('snapmenu').hidden = !$('snapmenu').hidden; });
+  [['snapedges', 'edges'], ['snapcenters', 'centers'], ['snapcont', 'container'], ['snapguides', 'guides']].forEach(function (p) {
+    $(p[0]).addEventListener('change', function () { state.snap[p[1]] = $(p[0]).checked; saveUi(); });
+  });
+  document.addEventListener('mousedown', function (ev) { if (!$('snapmenu').hidden && !$('snapmenu').contains(ev.target) && ev.target !== $('snapopt')) { $('snapmenu').hidden = true; } });
   $('names').addEventListener('change', function () { state.names = $('names').checked; render(); });
   $('showparents').addEventListener('change', function () { state.showParents = $('showparents').checked; drawSel(); });
   $('client').addEventListener('mouseleave', function () { state.hover = null; drawHover(); });

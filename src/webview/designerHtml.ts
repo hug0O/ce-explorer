@@ -226,9 +226,9 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .snapgrp { position: relative; display: inline-flex; align-items: center; gap: 0; }
 #snapmenu { position: absolute; top: 100%; left: 0; z-index: 60; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #555)); border-radius: 4px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 #snapmenu[hidden] { display: none; }
-.guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55), 0 0 6px rgba(255, 45, 149, 0.8); }
-.guide.v { top: -2000px; bottom: -2000px; width: 2px; margin-left: -1px; }
-.guide.h { left: -2000px; right: -2000px; height: 2px; margin-top: -1px; }
+.guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; opacity: 0.8; }
+.guide.v { width: 1px; }
+.guide.h { height: 1px; }
 .fehead { font-weight: 600; margin: 6px 0 3px; }
 .febar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .febar button { font-size: 11px; padding: 2px 8px; }
@@ -1492,16 +1492,17 @@ ${snapScript()}
       .map(function (c) { return { x: c.x, y: c.y, w: c.w, h: c.h }; });
     var off = pn === rootName() ? { x: 0, y: 0 } : relRect(els[pn]);
     var size = pn === rootName() ? { w: state.model.width, h: state.model.height } : { w: parentNode.w, h: parentNode.h };
-    return { lines: magnetLines(rects, size, state.snap), off: off, parent: pn };
+    return { lines: magnetLines(rects, size, state.snap), off: off, parent: pn, rects: rects };
   }
   function magnetOn(ev) { return state.snap.on && !ev.altKey && (state.snap.edges || state.snap.centers); }
   function clearGuides() { document.querySelectorAll('#overlay .guide').forEach(function (g) { g.parentNode.removeChild(g); }); }
-  function showGuides(ctx, gx, gy) {
+  /* The lines run from the component to the ones it lines up with, a little beyond: no more. */
+  function showGuides(ctx, gx, gy, box) {
     clearGuides();
-    if (!state.snap.guides || !ctx) { return; }
+    if (!state.snap.guides || !ctx || !box) { return; }
     var ov = $('overlay');
-    gx.forEach(function (v) { var g = el('div', 'guide v'); g.style.left = (ctx.off.x + v) + 'px'; ov.appendChild(g); });
-    gy.forEach(function (v) { var g = el('div', 'guide h'); g.style.top = (ctx.off.y + v) + 'px'; ov.appendChild(g); });
+    gx.forEach(function (v) { var sp = magnetSpan(box, ctx.rects, v, 'x', 8); var g = el('div', 'guide v'); g.style.left = (ctx.off.x + v) + 'px'; g.style.top = (ctx.off.y + sp.from) + 'px'; g.style.height = (sp.to - sp.from) + 'px'; ov.appendChild(g); });
+    gy.forEach(function (v) { var sp = magnetSpan(box, ctx.rects, v, 'y', 8); var g = el('div', 'guide h'); g.style.top = (ctx.off.y + v) + 'px'; g.style.left = (ctx.off.x + sp.from) + 'px'; g.style.width = (sp.to - sp.from) + 'px'; ov.appendChild(g); });
   }
   function snap(v, ev) { return state.grid && !ev.altKey ? Math.round(v / state.grid) * state.grid : Math.round(v); }
   function dropContainerAt(ev, ignore) {
@@ -1621,7 +1622,7 @@ ${snapScript()}
           var m = magnetBox({ x: bx0 + dx, y: by0 + dy, w: bx1 - bx0, h: by1 - by0 }, mg.lines, 6 / z, state.snap);
           if (m.gx.length) { drag.ddx = Math.round(dx + m.dx); }
           if (m.gy.length) { drag.ddy = Math.round(dy + m.dy); }
-          drag.guides = [mg, m.gx, m.gy];
+          drag.guides = [mg, m.gx, m.gy, { x: bx0 + drag.ddx, y: by0 + drag.ddy, w: bx1 - bx0, h: by1 - by0 }];
         }
       } else { drag.guides = null; }
       var dragged = drag.names.map(function (n) { return els[n]; });
@@ -1635,7 +1636,7 @@ ${snapScript()}
       var pname = parentOf[drag.names[0]];
       dropLabel(ev, drag.target ? '↳ Drop into ' + tn + (tn === rootName() ? ' (form)' : ' : ' + byName[tn].cls) : (drag.dockedOnly ? 'Docked: drop it on another container to move it' : 'Stays in ' + pname), !!drag.target);
       drawSel();
-      if (drag.guides) { showGuides(drag.guides[0], drag.guides[1], drag.guides[2]); } else { clearGuides(); }
+      if (drag.guides) { showGuides(drag.guides[0], drag.guides[1], drag.guides[2], drag.guides[3]); } else { clearGuides(); }
     } else if (drag.kind === 'resize') {
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 2) { return; }
       drag.moved = true;
@@ -1656,7 +1657,8 @@ ${snapScript()}
         e.style.width = r.w + 'px'; e.style.height = r.h + 'px';
       });
       drawSel();
-      if (rctx) { showGuides(rctx, rgx, rgy); } else { clearGuides(); }
+      var rb = drag.rects[drag.names[0]];
+      if (rctx && rb) { showGuides(rctx, rgx, rgy, rb); } else { clearGuides(); }
     } else if (drag.kind === 'place' || drag.kind === 'marquee') {
       var p = clientPoint(ev), p0 = drag.p0;
       var b = drag.band;

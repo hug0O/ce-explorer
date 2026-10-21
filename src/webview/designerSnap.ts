@@ -31,6 +31,17 @@ function magnetLines(rects, size, opts) {
   }
   return { xs: xs, ys: ys };
 }
+/* How far a guide line runs: from the box to the components it lines up with, a little beyond. axis 'x' is a vertical line at v. */
+function magnetSpan(box, rects, v, axis, margin) {
+  var lo = axis === 'x' ? box.y : box.x, hi = axis === 'x' ? box.y + box.h : box.x + box.w;
+  rects.forEach(function (r) {
+    var a = axis === 'x' ? r.x : r.y, len = axis === 'x' ? r.w : r.h;
+    if (Math.abs(a - v) < 0.5 || Math.abs(a + len - v) < 0.5 || Math.abs(a + len / 2 - v) < 0.5) {
+      lo = Math.min(lo, axis === 'x' ? r.y : r.x); hi = Math.max(hi, axis === 'x' ? r.y + r.h : r.x + r.w);
+    }
+  });
+  return { from: lo - margin, to: hi + margin };
+}
 /* A box (x, y, w, h) being moved: how far to shift it on each axis (0 when nothing is close) and the lines it then sits on. */
 function magnetBox(box, lines, threshold, opts) {
   var px = [], py = [];

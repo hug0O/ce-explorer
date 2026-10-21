@@ -72,3 +72,12 @@ test('the toolbar has the magnet, its options, the guide lines and Alt to turn i
     assert.match(html, /magnetValue\(v, rctx\.lines\.xs/, 'a resize catches the edge that moves');
     assert.match(html, /snap: state\.snap \}/, 'the choice is kept');
 });
+
+test('a guide line runs from the component to the ones it lines up with, a little beyond', () => {
+    const { magnetSpan } = sandbox as { magnetSpan: any };
+    const rects = [{ x: 100, y: 200, w: 80, h: 30 }, { x: 300, y: 10, w: 50, h: 20 }];
+    const box = { x: 100, y: 50, w: 60, h: 20 };
+    assert.deepEqual(plain(magnetSpan(box, rects, 100, 'x', 8)), { from: 42, to: 238 }, 'the box above and the first one share the left edge at 100');
+    assert.deepEqual(plain(magnetSpan(box, rects, 160, 'x', 8)), { from: 42, to: 78 }, 'only the box is on 160: a short line');
+    assert.deepEqual(plain(magnetSpan({ x: 20, y: 205, w: 30, h: 20 }, rects, 215, 'y', 4)), { from: 16, to: 184 }, 'a horizontal line: x extent');
+});

@@ -12,9 +12,10 @@ import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
-import { loadMarks, saveMarks } from '../services/DesignerStore';
+import { layouts, loadMarks, saveLayouts, saveMarks } from '../services/DesignerStore';
 import { handlerPreviews } from '../services/DesignerPreview';
 import { compareItems, ghostsOf } from '../services/DesignerCompare';
+import { resizeForm } from '../services/DesignerResponsive';
 import { diffDfm } from '../services/DfmDiff';
 import { gitShow } from './ProjectPanel';
 import { SheetColors, sameSheets, sheetReferences } from '../services/DelphiColors';
@@ -218,6 +219,11 @@ export class FormDesignerPanel {
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
         this.sendCompare();
+        this.sendLayouts();
+    }
+
+    private sendLayouts(): void {
+        void this.panel.webview.postMessage({ type: 'layouts', list: layouts().map(l => ({ id: l.id, name: l.name, count: l.count })) });
     }
 
     /** Saves the .dfm and the .pas together, the way the designer's Save button and Ctrl+S ask. */
@@ -462,6 +468,40 @@ export class FormDesignerPanel {
                     this.compareWith = { ref: ref.trim(), before: await gitShow(this.dfmDoc.uri.fsPath, ref.trim()) };
                     this.sendCompare();
                 } catch (e) { this.sendModel(undefined, 'Compare: ' + (e instanceof Error ? e.message : String(e))); }
+                return;
+            }
+            case 'testSize': {
+                const dm = buildDesignModel(dfm, this.sheets);
+                const w = num(m.w), h = num(m.h);
+                if (dm && w && h && w >= 100 && h >= 100 && w <= 4000 && h <= 4000) { void this.panel.webview.postMessage({ type: 'testSizeResult', ...resizeForm(dm, w, h) }); }
+                return;
+            }
+            case 'layoutSave': {
+                const list = names(m.names);
+                const r = copyComponents(pas, dfm, list, await this.unitsOf(root, list));
+                if ('error' in r) { this.sendModel(undefined, r.error); return; }
+                const name = str(m.name).trim().slice(0, 60);
+                if (!name) { return; }
+                const saved = layouts().filter(l => l.name !== name);
+                saved.unshift({ id: String(Date.now()), name, payload: serializeClip(r.payload), count: r.payload.components.length, savedAt: Date.now() });
+                await saveLayouts(saved);
+                this.sendModel(list, `Layout "${name}" kept (${r.payload.components.length} components): View > Layouts inserts it in any form.`);
+                return;
+            }
+            case 'layoutDelete': {
+                await saveLayouts(layouts().filter(l => l.id !== str(m.id)));
+                this.sendLayouts();
+                return;
+            }
+            case 'layoutInsert': {
+                const l = layouts().find(x => x.id === str(m.id));
+                const clip = l ? parseClip(l.payload) : undefined;
+                if (!l || !clip) { this.sendModel(undefined, 'That layout is not readable any more.'); return; }
+                const target = NAME_RE.test(str(m.target)) ? findNode(root, str(m.target)) : root;
+                if (!target) { this.sendModel(undefined, 'Container not found.'); return; }
+                const into = isContainer(target) ? target : (target.parent ?? root);
+                const r = pasteEdits(pas, dfm, clip, into.name);
+                await this.commit(`Insert layout ${l.name}`, r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
                 return;
             }
             case 'compareClose': { this.compareWith = undefined; return; }

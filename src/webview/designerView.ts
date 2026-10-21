@@ -163,7 +163,7 @@ function drawRulers() {
   }
   axis(rx, true); axis(ry, false);
 }
-function viewRedraw() { applyTheme(); markTabOrder(); drawRulers(); applyMarks(); paintCompare(); }
+function viewRedraw() { applyTheme(); markTabOrder(); drawRulers(); applyMarks(); paintCompare(); layoutsRedraw(); }
 
 /* The find bar. */
 var find = { hits: [], at: -1 };

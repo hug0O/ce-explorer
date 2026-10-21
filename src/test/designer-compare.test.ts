@@ -42,9 +42,7 @@ const before = [
 
 const after = before
     .replace("Caption = 'Old'", "Caption = 'New'")
-    .replace('Left = 100', 'Left = 120')
-    .replace(/  object Button2: TButton[\s\S]*?\n  end\n/, m => m)
-    .replace('end\n', 'end\n');
+    .replace('Left = 100', 'Left = 120');
 
 test('compare lists what changed, and whether it was only a move', () => {
     const items = compareItems(diffDfm(before, after));
@@ -56,7 +54,7 @@ test('compare lists what changed, and whether it was only a move', () => {
 });
 
 test('a removed component is drawn where it was, in form coordinates', () => {
-    const gone = before.replace(/  object Button2: TButton[\s\S]*?\n  end\n/, '');
+    const gone = before.replace(/ {2}object Button2: TButton[\s\S]*?\n {2}end\n/, '');
     const diff = diffDfm(before, gone);
     const items = compareItems(diff);
     assert.ok(items.some(i => i.name === 'Button2' && i.kinds.includes('removed')));

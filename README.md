@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.11.vsix
+code --install-extension ce-code-explorer-0.1.12.vsix
 ```
 
 ## Supported Languages
@@ -326,6 +326,20 @@ The **Events** section of the inspector has **one drop-down listing every event 
 - **A component with no name** (`object TcxGridDBColumn` with no `Name: `, which the IDE accepts) no longer cuts the form short: its `end` closed the parent, and everything after it was lost. It is loaded under a name of its own (`TcxGridDBColumn_1`), shown as a part, and never renamed or given a field in the unit. *Check form* says that it has no name.
 - **Declarations that wrap** (`procedure Name` on one line and `(Sender: …);` on the next, or `procedure TForm.` followed by the name) are read as one: the class members, the empty handlers removed with a component or by *Check form*, and the code review (a method is no longer "declared but has no implementation" because its header is on several lines; a continuation line is no longer a field).
 - **Code review**: a form that descends from a base form of the project (`THadHocFormListe`) is recognised by its published fields, so its components are not counted as members; a variable assigned inside an anonymous method is not "uninitialized"; adding a line break to a SQL literal (`'…' + CRLF`, `#13#10`) is not reported as SQL built from pieces.
+
+#### Designer: the View menu, find, marks, compare, sizes and layouts
+
+Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu (and a few shortcuts).
+
+- **View menu**: names of the components, containers, **TabOrder numbers** (duplicates in red), rulers, and a **theme preview** (light, dark, blue, high contrast) for DevExpress forms. *Renumber TabOrder by position* sets the order to the top-left to bottom-right reading order.
+- **Find in the form** (`Ctrl+F`): a small bar that matches name, class, caption and event handlers; `Enter` goes to the next match.
+- **Handler preview**: hover the ⚡ badge of a component to see the first lines of its event handlers, without leaving the designer.
+- **Groups of components**: save the selection under a name (kept per form), select it again with one click.
+- **Lock and hide** (`Ctrl+L` / `Ctrl+H`): a locked component cannot be moved, resized or deleted; a hidden one is only hidden in the designer (never in the `.dfm`). *Show hidden and unlock all* undoes both.
+- **Equal spacing**: when you move a component, it is pulled to the gap that its neighbours have (or the middle between two), the gaps drawn with their size. It is one of the choices of the 🧲 Snap menu.
+- **Compare with a git version**: asks for `HEAD`, a branch, a tag or a commit, then marks on the form what was **added** (green), **changed** (blue), **moved or resized** (orange) and draws the **removed** ones as dashed red ghosts where they used to be; a thin bar counts them and closes the comparison.
+- **Test other form sizes**: shows the form at 640×480 … 1920×1080 (or any size) as `Align` and `Anchors` would lay it out, and marks in red what a new size breaks: a component pushed out of its container, or two that now overlap. The `.dfm` is never touched.
+- **Layouts**: save the selected panel (with its content, fields and handlers) under a name, then insert it from the View menu in any form.
 
 #### Designer: zoom, scroll, colours, magnetism, fields
 

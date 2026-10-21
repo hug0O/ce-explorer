@@ -13,6 +13,7 @@ import {
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
 import { SheetColors, sameSheets, sheetReferences } from '../services/DelphiColors';
 import { ExternalSheets } from '../services/ExternalSheets';
+import { unitFacts } from '../services/ProjectUnused';
 import { applyTextEdits, normalizeEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
 
@@ -179,9 +180,11 @@ export class FormDesignerPanel {
     private async refreshSheets(): Promise<void> {
         const text = this.dfmDoc.getText();
         const refs = sheetReferences(text).map(r => (r.module + '.' + r.sheet).toLowerCase()).sort().join(',');
-        if (refs === this.sheetsFor) { return; }
-        this.sheetsFor = refs;
-        const loaded = refs ? await this.externalSheets.load(text, this.dfmDoc.uri.fsPath) : new Map<string, SheetColors>();
+        const uses = unitFacts(this.pasDoc.getText())?.uses.map(u => u.name) ?? [];
+        const key = refs + '|' + uses.join(',');
+        if (key === this.sheetsFor) { return; }
+        this.sheetsFor = key;
+        const loaded = refs ? await this.externalSheets.load(text, this.dfmDoc.uri.fsPath, uses) : new Map<string, SheetColors>();
         if (!sameSheets(loaded, this.sheets)) { this.sheets = loaded; this.sendModel(); }
     }
 

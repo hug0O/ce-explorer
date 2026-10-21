@@ -76,9 +76,9 @@ export interface Resolved {
 }
 
 /** The colours a style sheet gives to the parts of a grid: the cells (Content, ContentEven, ContentOdd), the header, the background. */
-export type SheetColors = Partial<Record<'content' | 'contentEven' | 'contentOdd' | 'header' | 'background', { color?: string; text?: string }>>;
+export type SheetColors = Partial<Record<'content' | 'contentEven' | 'contentOdd' | 'header' | 'background' | 'bandHeader', { color?: string; text?: string }>>;
 
-const SHEET_PARTS: [keyof SheetColors, string][] = [['content', 'Styles.Content'], ['contentEven', 'Styles.ContentEven'], ['contentOdd', 'Styles.ContentOdd'], ['header', 'Styles.Header'], ['background', 'Styles.Background']];
+const SHEET_PARTS: [keyof SheetColors, string][] = [['content', 'Styles.Content'], ['contentEven', 'Styles.ContentEven'], ['contentOdd', 'Styles.ContentOdd'], ['header', 'Styles.Header'], ['background', 'Styles.Background'], ['bandHeader', 'Styles.BandHeader']];
 
 /** What a style sheet (`TcxGridTableViewStyleSheet`) gives, read in the .dfm that holds it together with its styles. */
 export function sheetColorsOf(sheet: DfmNode, root: DfmNode): SheetColors {
@@ -222,4 +222,20 @@ export function sheetReferences(dfm: string): { module: string; sheet: string }[
 /** Whether two maps hold the same sheets (to avoid drawing the form again for nothing). */
 export function sameSheets(a: Map<string, SheetColors>, b: Map<string, SheetColors>): boolean {
     return a.size === b.size && JSON.stringify([...a.entries()].sort()) === JSON.stringify([...b.entries()].sort());
+}
+
+/**
+ * The .dfm files that may hold the data module `module` a form points to, best first. The module is a form with its own
+ * unit, and the file is named after the unit (`dmdSGL_DevExpress` lives in `dmdSGL_DEVExpress_unit.dfm`), so the units the
+ * form uses come first, then the files named like the module, then any file whose name contains it.
+ * `files`: every .dfm known, by its name without extension in lower case.
+ */
+export function moduleCandidates(module: string, uses: string[], files: Map<string, string>): string[] {
+    const out: string[] = [];
+    const add = (p: string | undefined): void => { if (p && !out.includes(p)) { out.push(p); } };
+    const m = module.toLowerCase();
+    for (const u of uses) { add(files.get(u.toLowerCase())); }
+    for (const name of [m, m + '_unit', m + 'unit', 'u' + m, m + '_u']) { add(files.get(name)); }
+    for (const [base, p] of files) { if (base.includes(m) || (base.length > 6 && m.includes(base))) { add(p); } }
+    return out;
 }

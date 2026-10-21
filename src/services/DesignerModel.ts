@@ -168,6 +168,8 @@ export interface DesignModel {
     formCaption: string;
     width: number;
     height: number;
+    /** The skin the form asks for (`SkinName` of a skin controller or of a look-and-feel), to preview its colours. */
+    skinName?: string;
 }
 
 const DEFAULT_ALIGN: Record<string, string> = { tsplitter: 'alLeft', tcxsplitter: 'alLeft', tstatusbar: 'alBottom', tdxstatusbar: 'alBottom', ttoolbar: 'alTop', tadvtoolbar: 'alTop', tcoolbar: 'alTop', tcontrolbar: 'alTop' };
@@ -505,7 +507,13 @@ function buildModel(dfm: string): DesignModel | undefined {
     const ch = num(root.props['ClientHeight']) ?? Math.max(40, (root.height ?? 240) - (dataModule ? 0 : 39));
     const rootNode = toDNode(dfm, root, { x: 0, y: 0, w: cw, h: ch }, false, undefined);
     rootNode.children = layoutChildren(dfm, root, cw, ch);
-    return { root: rootNode, formCaption: root.props['Caption'] !== undefined ? fromDfmString(root.props['Caption']) : root.name, width: cw, height: ch };
+    let skinName: string | undefined;
+    (function scan(n: DfmNode): void {
+        const v = n.props['SkinName'] ?? n.props['LookAndFeel.SkinName'];
+        if (!skinName && v) { skinName = fromDfmString(v); }
+        n.children.forEach(scan);
+    })(root);
+    return { skinName, root: rootNode, formCaption: root.props['Caption'] !== undefined ? fromDfmString(root.props['Caption']) : root.name, width: cw, height: ch };
 }
 
 /* ───────────────────────── edits ───────────────────────── */

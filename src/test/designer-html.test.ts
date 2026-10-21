@@ -107,7 +107,8 @@ test('parents are easy to spot and components easy to move between them', () => 
     // where does it live: parent outlined and named, breadcrumb, containers toggle, hover tag
     assert.match(html, /\.pbox \{[^}]*dashed/, 'the parent of the selection is outlined');
     assert.match(html, /'⬑ parent: '/, 'and named');
-    for (const id of ['showparents', 'hov', 'droplabel']) { assert.ok(html.includes(`id="${id}"`), id); }
+    assert.match(html, /Outline of the containers/, 'the containers toggle is in the View menu');
+    for (const id of ['viewbtn', 'hov', 'droplabel']) { assert.ok(html.includes(`id="${id}"`), id); }
     assert.match(html, /data-crumb/, 'the breadcrumb is clickable');
     assert.match(html, /DEPTH_COLORS/, 'containers are coloured by depth');
     // how to move it: drop highlight + label, inspector select, list drag & drop, docked controls too, Esc = parent

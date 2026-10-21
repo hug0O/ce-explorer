@@ -4,6 +4,7 @@
  */
 
 import { snapScript } from './designerSnap';
+import { viewButton, viewCss, viewHtml, viewScript } from './designerView';
 import type { ComponentDef } from '../services/DelphiForm';
 import { DEVEXPRESS, TMS } from '../services/DelphiThirdParty';
 import { UNIDAC } from '../services/DelphiUniDac';
@@ -225,6 +226,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .tabs > .tab.on { background: #fff; height: 24px; margin-top: 0; }
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
+${viewCss()}
 .snapgrp { position: relative; display: inline-flex; align-items: center; gap: 0; }
 #snapmenu { position: absolute; top: 100%; left: 0; z-index: 60; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #555)); border-radius: 4px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 #snapmenu[hidden] { display: none; }
@@ -316,6 +318,7 @@ body.full #toolbar { padding: 3px 8px; }
 .k-gridcolumn .gh { height: 22px; background: linear-gradient(#fafafa, #e9e9e9); border-bottom: 1px solid #b4b4b4; padding: 3px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style></head>
 <body>
+${viewHtml()}
 <div id="toolbar">
   <div class="tg">
     <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button>
@@ -331,8 +334,7 @@ body.full #toolbar { padding: 3px 8px; }
     <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
     <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
     <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
-    <label title="Show the name of every component"><input type="checkbox" id="names"> names</label>
-    <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
+    ${viewButton()}
   </div>
   <div class="tg">
     <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
@@ -369,7 +371,7 @@ body.full #toolbar { padding: 3px 8px; }
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, snap: { on: true, edges: true, centers: true, container: true, guides: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -660,7 +662,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (state.fit) { fitZoom(true); } else { applyZoom(); }
     drawSel(); renderOutline(); renderInspector(); renderStatus();
     $('undo').disabled = !state.canUndo; $('redo').disabled = !state.canRedo;
-    markCut(); showDirty(); markScrollbar();
+    markCut(); showDirty(); markScrollbar(); viewRedraw();
   }
   var ZOOM_PRESETS = ['0.5', '0.75', '1', '1.25', '1.5', '2'];
   /* The zoom select shows a value that is not one of its presets (a Ctrl + wheel zoom) in a line of its own. */
@@ -693,6 +695,7 @@ body.full #toolbar { padding: 3px 8px; }
     $('center').style.setProperty('--w', '1');
     $('zoomwrap').style.marginRight = (f.offsetWidth * (z - 1)) + 'px';
     $('zoomwrap').style.marginBottom = (f.offsetHeight * (z - 1)) + 'px';
+    drawRulers();
   }
   function relRect(e) {
     var c = $('client').getBoundingClientRect(), r = e.getBoundingClientRect(), z = state.zoom;
@@ -1565,6 +1568,7 @@ body.full #toolbar { padding: 3px 8px; }
     return { x: (ev.clientX - c.left) / state.zoom, y: (ev.clientY - c.top) / state.zoom };
   }
 ${snapScript()}
+${viewScript()}
   /* The rectangles of the other components of the container the dragged ones are in, and its size, in the container's own coordinates. */
   function magnetContext(names) {
     var pn = parentOf[names[0]];
@@ -1824,6 +1828,8 @@ ${snapScript()}
 
   document.addEventListener('keydown', function (ev) {
     var tag = ev.target && ev.target.tagName;
+    // Ctrl+F: find a component of the form
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key && ev.key.toLowerCase() === 'f') { openFind(); ev.preventDefault(); return; }
     // Ctrl+S saves both files, also from a field of the inspector (leaving the field first commits what was typed)
     if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key && ev.key.toLowerCase() === 's') {
       if (ev.target && ev.target.blur && (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA')) { ev.target.blur(); }
@@ -1892,7 +1898,7 @@ ${snapScript()}
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap, view: { names: state.view.names, containers: state.view.containers, tab: state.view.tab, rulers: state.view.rulers, theme: state.view.theme } }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -1966,6 +1972,7 @@ ${snapScript()}
       if (st.wl >= 120) { setPanelWidth('wl', st.wl, true); }
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       if (st.snap && typeof st.snap === 'object') { ['on', 'edges', 'centers', 'container', 'guides'].forEach(function (k) { if (typeof st.snap[k] === 'boolean') { state.snap[k] = st.snap[k]; } }); }
+      if (st.view && typeof st.view === 'object') { ['names', 'containers', 'tab', 'rulers'].forEach(function (k) { if (typeof st.view[k] === 'boolean') { state.view[k] = st.view[k]; } }); if (typeof st.view.theme === 'string') { state.view.theme = st.view.theme; } }
       state.fit = !!st.fit;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.25 && st.zoom <= 3) { state.zoom = st.zoom; applyZoom(); showZoom(); }
@@ -2012,8 +2019,7 @@ ${snapScript()}
     $(p[0]).addEventListener('change', function () { state.snap[p[1]] = $(p[0]).checked; saveUi(); });
   });
   document.addEventListener('mousedown', function (ev) { if (!$('snapmenu').hidden && !$('snapmenu').contains(ev.target) && ev.target !== $('snapopt')) { $('snapmenu').hidden = true; } });
-  $('names').addEventListener('change', function () { state.names = $('names').checked; render(); });
-  $('showparents').addEventListener('change', function () { state.showParents = $('showparents').checked; drawSel(); });
+  viewInit();
   $('client').addEventListener('mouseleave', function () { state.hover = null; drawHover(); });
   $('undo').addEventListener('click', function () { post({ type: 'undo' }); });
   $('redo').addEventListener('click', function () { post({ type: 'redo' }); });

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { TextEdit } from '../services/DelphiForm';
-import { DfmNode, parseDfmTree, findNode, isContainer } from '../services/DelphiLayout';
+import { DfmNode, parseDfmTree, findNode, isContainer, listContainers } from '../services/DelphiLayout';
+import { planTabOrder } from '../services/DelphiAlign';
 import { copyComponents, parseClip, serializeClip } from '../services/DelphiClip';
 import { ALIGN_OPS, AlignOp, alignComponents } from '../services/DelphiAlign';
 import { addEventToComponent, resolveFormPair } from '../services/FormCommands';
@@ -432,6 +433,15 @@ export class FormDesignerPanel {
                 }
                 const r = pasteEdits(pas, dfm, clip, target.name);
                 await this.commit(`Paste ${clip.components.length} component(s)`, r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
+                return;
+            }
+            case 'tabOrder': {
+                // the selected containers, else every container of the form
+                const picked = names(m.names).map(n => findNode(root, n)).filter((n): n is DfmNode => !!n && isContainer(n));
+                const r = planTabOrder(dfm, picked.length ? picked : listContainers(root).map(c => c.node));
+                if ('error' in r) { this.sendModel(undefined, r.error); return; }
+                if (r.edits.length === 0) { this.sendModel(undefined, 'TabOrder already follows the screen.'); return; }
+                await this.commit('TabOrder by position', { dfmEdits: r.edits, pasEdits: [] }, undefined, { touched: r.changed, props: ['TabOrder'] });
                 return;
             }
             case 'delete': {

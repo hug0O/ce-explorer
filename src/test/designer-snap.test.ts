@@ -70,7 +70,7 @@ test('the toolbar has the magnet, its options, the guide lines and Alt to turn i
     assert.match(html, /\.guide\.v \{/);
     assert.match(html, /magnetBox\(\{ x: bx0 \+ dx/, 'a move catches the box of the selection');
     assert.match(html, /magnetValue\(v, rctx\.lines\.xs/, 'a resize catches the edge that moves');
-    assert.match(html, /snap: state\.snap \}/, 'the choice is kept');
+    assert.match(html, /snap: state\.snap, view:/, 'the choice is kept');
 });
 
 test('a guide line runs from the component to the ones it lines up with, a little beyond', () => {

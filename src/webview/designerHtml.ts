@@ -360,18 +360,18 @@ ${viewHtml()}
 <div id="main">
   <button id="edgeL" class="edge" title="Show the palette and the component list (P)">▸ Palette</button>
   <div id="left">
-    <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
-      <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
-      <div class="row"><select id="palgroup" title="Component type: only the components of this type are listed"></select></div>
-      <div id="palette"></div>
-      <div class="row"><input type="text" id="otherclass" placeholder="Other class, e.g. TcxButton"><button id="otherbtn" title="Use this class as the tool">＋</button></div>
-    </details>
     <details open class="sec" id="compsec"><summary>Components <span class="hint" id="compcount"></span></summary>
       <div class="row"><input type="text" id="cfname" placeholder="Filter by name or class…"></div>
       <div class="row"><select id="cftype" title="Filter by type"></select></div>
       <div class="row"><button id="cexp" title="Expand every container of the list">▾ Expand all</button><button id="ccol" title="Collapse every container of the list">▸ Collapse all</button></div>
       <div class="row"><select id="cfsort" title="Sort"><option value="form">Form order</option><option value="name">By name</option><option value="type">By type</option><option value="pos">By position</option></select><label title="One flat list instead of the tree"><input type="checkbox" id="cfflat"> flat</label></div>
       <div id="outline" class="outline"></div>
+    </details>
+    <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
+      <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
+      <div class="row"><select id="palgroup" title="Component type: only the components of this type are listed"></select></div>
+      <div id="palette"></div>
+      <div class="row"><input type="text" id="otherclass" placeholder="Other class, e.g. TcxButton"><button id="otherbtn" title="Use this class as the tool">＋</button></div>
     </details>
   </div>
   <div id="splitL" class="split" title="Drag to resize the palette (double-click: default width)"></div>
@@ -1331,13 +1331,100 @@ ${viewHtml()}
       'Esc selects the parent · Delete removes · Ctrl+K Ctrl+B switches to the code.'].forEach(function (t) { ul.appendChild(el('li', '', t)); });
     box.appendChild(ul);
   }
+  /* The properties the selected components have in common: a value shown when they all agree, blank when they differ; a change goes to every one of them. */
+  function msend(items) { if (items.length) { post({ type: 'setProps', items: items }); } }
+  function mput(list, prop, value) { msend(list.map(function (n) { return { name: n.name, prop: prop, value: value }; })); }
+  function same(list, get) {
+    var first = get(list[0]);
+    for (var i = 1; i < list.length; i++) { if (get(list[i]) !== first) { return { mixed: true }; } }
+    return { mixed: false, value: first };
+  }
+  function mnum(list, prop, get) {
+    var s = same(list, get);
+    var i = el('input'); i.type = 'number'; i.value = s.mixed || s.value === undefined ? '' : s.value;
+    if (s.mixed) { i.placeholder = 'mixed'; }
+    i.addEventListener('change', function () { if (i.value !== '') { mput(list, prop, Number(i.value)); } });
+    return i;
+  }
+  function mcheck(label, list, get, prop) {
+    var s = same(list, get);
+    var l = el('label', 'chk'); var c = el('input'); c.type = 'checkbox'; c.checked = !s.mixed && !!s.value; c.indeterminate = s.mixed;
+    c.addEventListener('change', function () { mput(list, prop, c.checked); });
+    l.appendChild(c); l.appendChild(document.createTextNode(' ' + label + (s.mixed ? ' (mixed)' : '')));
+    return l;
+  }
+  function mcolor(label, list, prop, get) {
+    var s = same(list, get);
+    var row = el('div', 'colorrow');
+    var pick = el('input'); pick.type = 'color'; pick.value = !s.mixed && s.value ? s.value : '#ffffff'; pick.title = label;
+    if (s.mixed || !s.value) { pick.classList.add('auto'); }
+    pick.addEventListener('change', function () { mput(list, prop, pick.value); });
+    row.appendChild(pick); row.appendChild(el('span', 'colortxt', s.mixed ? 'mixed' : (s.value || 'automatic')));
+    var clr = el('button', 'colorclr', 'Clear'); clr.title = 'Remove ' + prop + ' from each of them';
+    clr.addEventListener('click', function () { mput(list, prop, ''); });
+    row.appendChild(clr);
+    return labelled(label, row);
+  }
+  function commonProps(box) {
+    var all = state.sel.map(function (n) { return byName[n]; }).filter(function (n) { return n && !n.fixed; });
+    if (all.length < 2) { return; }
+    var shown = all.filter(function (n) { return !n.nonVisual; });
+    var rawNum = function (p) { return function (n) { return n.props[p] !== undefined ? Number(n.props[p]) : (p === 'Left' ? n.x : p === 'Top' ? n.y : p === 'Width' ? n.w : n.h); }; };
+    section(box, 'Common properties', 'multi', function (b) {
+      var free = all.filter(function (n) { return !n.docked; });
+      var g = el('div', 'g2');
+      if (free.length) { g.appendChild(labelled('Left', mnum(free, 'Left', rawNum('Left')))); g.appendChild(labelled('Top', mnum(free, 'Top', rawNum('Top')))); }
+      var wide = shown.filter(function (n) { return !n.docked || n.align === 'alLeft' || n.align === 'alRight'; });
+      var high = shown.filter(function (n) { return !n.docked || n.align === 'alTop' || n.align === 'alBottom'; });
+      if (wide.length) { g.appendChild(labelled('Width', mnum(wide, 'Width', rawNum('Width')))); }
+      if (high.length) { g.appendChild(labelled('Height', mnum(high, 'Height', rawNum('Height')))); }
+      b.appendChild(g);
+      if (!shown.length) { return; }
+      var al = el('select'); var s = same(shown, function (n) { return n.props['Align'] || 'alNone'; });
+      if (s.mixed) { var mo = el('option', '', '(mixed)'); mo.value = ''; al.appendChild(mo); }
+      ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'].forEach(function (a) { var o = el('option', '', a); o.value = a; al.appendChild(o); });
+      al.value = s.mixed ? '' : s.value;
+      al.addEventListener('change', function () { if (al.value) { mput(shown, 'Align', al.value); } });
+      b.appendChild(labelled('Align', al));
+      var ar = el('div', 'anch'); ar.appendChild(el('span', '', 'Anchors'));
+      ['Left', 'Top', 'Right', 'Bottom'].forEach(function (a) {
+        var st = same(shown, function (n) { return n.anchors.indexOf('ak' + a) >= 0; });
+        var l = el('label'); var c = el('input'); c.type = 'checkbox'; c.checked = !st.mixed && !!st.value; c.indeterminate = st.mixed;
+        c.addEventListener('change', function () {
+          msend(shown.map(function (n) {
+            var set = ['Left', 'Top', 'Right', 'Bottom'].filter(function (x) { return x === a ? c.checked : n.anchors.indexOf('ak' + x) >= 0; }).map(function (x) { return 'ak' + x; });
+            return { name: n.name, prop: 'Anchors', value: '[' + set.join(', ') + ']' };
+          }));
+        });
+        l.appendChild(c); l.appendChild(document.createTextNode(a.charAt(0))); l.title = 'ak' + a + (st.mixed ? ' (mixed)' : ''); ar.appendChild(l);
+      });
+      b.appendChild(ar);
+      b.appendChild(mcheck('Visible', shown, function (n) { return n.visible; }, 'Visible'));
+      b.appendChild(mcheck('Enabled', shown, function (n) { return n.enabled; }, 'Enabled'));
+      var colored = shown.filter(function (n) { var k2 = kind(n.cls); return k2 !== 'tile' && k2 !== 'tilecontrol'; });
+      if (colored.length) {
+        b.appendChild(mcolor('Color', colored, 'Color', function (n) { return n.color; }));
+        b.appendChild(mcolor('Font color', colored, 'Font.Color', function (n) { return n.fontColor; }));
+      }
+      var hinted = shown.filter(function (n) { return n.props['Hint'] !== undefined || kind(n.cls) !== 'generic'; });
+      if (hinted.length) {
+        var hs = same(hinted, function (n) { return n.props['Hint'] === undefined ? '' : n.props['Hint']; });
+        var hi = el('input'); hi.type = 'text'; hi.value = hs.mixed ? '' : hs.value; if (hs.mixed) { hi.placeholder = 'mixed'; }
+        hi.addEventListener('change', function () { mput(hinted, 'Hint', hi.value); });
+        b.appendChild(labelled('Hint', hi));
+      }
+      b.appendChild(el('div', 'hint', 'A change goes to the ' + all.length + ' selected components; a blank or mixed field is left alone until you change it.'));
+    });
+  }
   function multiInfo(box) {
     var card = el('div', 'icard');
     card.appendChild(el('span', 'ico big', '⧉'));
     var meta = el('div', 'meta');
     meta.appendChild(el('div', 'iname', state.sel.length + ' components'));
-    meta.appendChild(el('div', 'sub', 'Use the align icons of the toolbar'));
+    meta.appendChild(el('div', 'sub', 'Edit what they share below, or use the align icons of the toolbar'));
     card.appendChild(meta); box.appendChild(card);
+    commonProps(box);
+    box.appendChild(el('h4', '', 'Selected'));
     state.sel.forEach(function (name) {
       var r = el('div', 'colrow', (byName[name] ? iconOf(byName[name]) + ' ' : '') + name);
       r.setAttribute('data-pick', name);

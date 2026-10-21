@@ -548,6 +548,24 @@ export class FormDesignerPanel {
                 await this.commit(`${name}.${str(m.prop)}`, setPropertyEdits(dfm, name, str(m.prop), m.value), [name], { touched: [name], props: [str(m.prop), 'DesignInfo'] });
                 return;
             }
+            case 'setProps': {
+                // The same property of several components, each with its own value (a multi-selection edited in the inspector).
+                const items = Array.isArray(m.items) ? m.items.slice(0, 500) : [];
+                const dfmEdits: TextEdit[] = [], pasEdits: TextEdit[] = [];
+                const touched: string[] = [], props = new Set<string>(['DesignInfo']);
+                let firstError: string | undefined;
+                for (const raw of items) {
+                    const it = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+                    const name = str(it.name), prop = str(it.prop);
+                    if (!NAME_RE.test(name)) { continue; }
+                    const r = setPropertyEdits(dfm, name, prop, it.value);
+                    if ('error' in r) { firstError ??= r.error; continue; }
+                    dfmEdits.push(...r.dfmEdits); pasEdits.push(...r.pasEdits); touched.push(name); props.add(prop);
+                }
+                if (!touched.length) { this.sendModel(undefined, firstError ?? 'Nothing to change.'); return; }
+                await this.commit(`${[...props].filter(p => p !== 'DesignInfo').join(', ')} of ${touched.length} components`, { dfmEdits, pasEdits }, touched, { touched, props: [...props] });
+                return;
+            }
             case 'setSql': {
                 const lines = Array.isArray(m.lines) ? m.lines.filter((l): l is string => typeof l === 'string') : [];
                 const name = str(m.name);

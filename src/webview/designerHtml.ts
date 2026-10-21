@@ -302,13 +302,14 @@ body.full #toolbar { padding: 3px 8px; }
 .colrow:hover { background: var(--vscode-list-hoverBackground); }
 .tips { margin: 4px 0 0 16px; padding: 0; font-size: 11px; line-height: 1.6; color: var(--vscode-descriptionForeground); }
 .k-grid { overflow: hidden; }
-.dxvs, .dxhs { position: absolute; background: #f0f0f0; pointer-events: auto; cursor: default; }
+.dxvs, .dxhs { position: absolute; background: #f0f0f0; pointer-events: auto; cursor: default; z-index: 7; }
 .dxvs.sbsel, .dxhs.sbsel { background: #dbeaff; outline: 2px solid #0a84ff; outline-offset: -2px; }
 .dxvs.sbsel .th, .dxhs.sbsel .th { background: #6b9fe0; }
 .dxvs { top: 22px; right: 0; bottom: 0; width: 17px; border-left: 1px solid #d6d6d6; }
 .dxhs { left: 0; bottom: 0; height: 17px; border-top: 1px solid #d6d6d6; }
-.dxvs .th { position: absolute; left: 3px; right: 3px; top: 20px; height: 34%; background: #c1c1c1; border-radius: 2px; }
-.dxhs .th { position: absolute; top: 3px; bottom: 3px; left: 20px; width: 46%; background: #c1c1c1; border-radius: 2px; }
+.dxvs .th { position: absolute; left: 3px; right: 3px; top: 20px; height: 34%; background: #c1c1c1; border-radius: 2px; cursor: pointer; }
+.dxhs .th { position: absolute; top: 3px; bottom: 3px; left: 20px; width: 46%; background: #c1c1c1; border-radius: 2px; cursor: pointer; }
+.dxvs .th:hover, .dxhs .th:hover { background: #a8a8a8; }
 .dxvs .ar, .dxhs .ar { position: absolute; font-size: 7px; color: #606060; line-height: 17px; text-align: center; width: 17px; }
 .dxvs .ar.a { top: 0; } .dxvs .ar.b { bottom: 0; } .dxhs .ar.a { left: 0; } .dxhs .ar.b { right: 0; }
 .k-gridcolumn > .chrome { border-right: 1px solid #d4d4d4; background: transparent; }
@@ -368,7 +369,7 @@ body.full #toolbar { padding: 3px 8px; }
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, snap: { on: true, edges: true, centers: true, container: true, guides: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, snap: { on: true, edges: true, centers: true, container: true, guides: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -494,15 +495,6 @@ body.full #toolbar { padding: 3px 8px; }
         // rows only: the columns draw their own vertical lines
         chrome.style.backgroundImage = 'linear-gradient(#ececec 1px, transparent 1px)'; chrome.style.backgroundSize = '100% 21px';
         if (n.gridBand !== false) { chrome.appendChild(el('div', 'dxband', 'Drag a column header here to group by that column')); }
-        // the scroll bars of the grid: vertical always, horizontal when the columns are wider than the grid
-        var sbs = n.scrollBars || 'ssBoth';
-        var vs = el('div', 'dxvs'); vs.title = 'Scroll bar of the grid: click to select it (OptionsView.ScrollBars of ' + (n.scrollView || 'the view') + ')'; vs.appendChild(el('span', 'ar a', '▲')); vs.appendChild(el('div', 'th')); vs.appendChild(el('span', 'ar b', '▼'));
-        if (sbs === 'ssBoth' || sbs === 'ssVertical') { chrome.appendChild(vs); }
-        var colsW = 0;
-        (function sum(x) { x.children.forEach(function (c) { if (kind(c.cls) === 'gridcolumn' && c.props['Visible'] !== 'False') { colsW += Number(c.props['Width'] || 64); } else { sum(c); } }); })(n);
-        if (colsW > n.w - 17 && (sbs === 'ssBoth' || sbs === 'ssHorizontal')) {
-          var hs = el('div', 'dxhs'); hs.title = 'Scroll bar of the grid: click to select it (OptionsView.ScrollBars of ' + (n.scrollView || 'the view') + ')'; hs.appendChild(el('span', 'ar a', '◀')); var th = el('div', 'th'); th.style.width = Math.max(10, Math.min(90, Math.round(((n.w - 40) / colsW) * 100))) + '%'; hs.appendChild(th); hs.appendChild(el('span', 'ar b', '▶')); hs.style.right = '17px'; chrome.appendChild(hs);
-        }
       }
       else { var hd = el('div', 'gridhead'); hd.style.height = (Number(n.props['FixedRows'] || 1) * rh) + 'px'; chrome.appendChild(hd); var fx = el('div', 'gridfix'); fx.style.width = (Number(n.props['FixedCols'] || 1) * cw) + 'px'; chrome.appendChild(fx); }
     }
@@ -561,7 +553,70 @@ body.full #toolbar { padding: 3px 8px; }
       n.children.forEach(function (c) { mk(c, e); if (kind(c.cls) === 'sheet' && c.name !== active) { els[c.name].style.display = 'none'; } });
     } else {
       n.children.forEach(function (c) { mk(c, e); });
+      if (k === 'grid' && n.family === 'devexpress' && n.scrollView !== undefined) { gridBars(e, n); }
     }
+  }
+  /* ───────── the scroll bars of a DevExpress grid ───────── */
+  function colsWidth(n) {
+    var w = 0;
+    (function sum(x) { x.children.forEach(function (c) { if (kind(c.cls) === 'gridcolumn' && c.props['Visible'] !== 'False') { w += Number(c.props['Width'] || 64); } else { sum(c); } }); })(n);
+    return w;
+  }
+  function clamp01(v) { return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0; }
+  /* The columns are moved by what the horizontal bar says: the ones beyond the right edge are reached by scrolling, as in the real grid. */
+  function applyGridScroll(e, n) {
+    var gs = state.gscroll[n.name] || { x: 0, y: 0 };
+    var off = gs.x * Math.max(0, colsWidth(n) - (n.w - 17));
+    e.querySelectorAll(':scope > .k-gridcolumn').forEach(function (c) { c.style.transform = off ? 'translateX(' + (-off) + 'px)' : ''; });
+  }
+  function gridBars(e, n) {
+    var sbs = n.scrollBars || 'ssBoth';
+    var gs = state.gscroll[n.name] || (state.gscroll[n.name] = { x: 0, y: 0 });
+    var colsW = colsWidth(n);
+    var tip = 'Scroll bar of the grid: click to select it, drag to scroll (OptionsView.ScrollBars of ' + (n.scrollView || 'the view') + ')';
+    if (sbs === 'ssBoth' || sbs === 'ssVertical') {
+      var vs = el('div', 'dxvs'); vs.title = tip;
+      var vt = el('div', 'th'); var vtrack = Math.max(10, n.h - 22 - 34); var vthumb = Math.max(20, Math.round(vtrack * 0.34));
+      vt.style.height = vthumb + 'px'; vt.style.top = Math.round(17 + gs.y * (vtrack - vthumb)) + 'px';
+      vs.appendChild(el('span', 'ar a', '▲')); vs.appendChild(vt); vs.appendChild(el('span', 'ar b', '▼'));
+      e.appendChild(vs);
+    }
+    if (colsW > n.w - 17 && (sbs === 'ssBoth' || sbs === 'ssHorizontal')) {
+      var hs = el('div', 'dxhs'); hs.title = tip;
+      var ht = el('div', 'th'); var htrack = Math.max(10, n.w - 17 - 34); var hthumb = Math.max(24, Math.min(Math.round(htrack * 0.9), Math.round(htrack * (n.w - 17) / colsW)));
+      ht.style.width = hthumb + 'px'; ht.style.left = Math.round(17 + gs.x * (htrack - hthumb)) + 'px';
+      hs.appendChild(el('span', 'ar a', '◀')); hs.appendChild(ht); hs.appendChild(el('span', 'ar b', '▶'));
+      hs.style.right = '17px';
+      e.appendChild(hs);
+    }
+    applyGridScroll(e, n);
+  }
+  /* Dragging the thumb (or clicking the track) of a grid's scroll bar. */
+  function startBarDrag(ev, gname, axis) {
+    var n = byName[gname], e = els[gname], gs = state.gscroll[gname] || (state.gscroll[gname] = { x: 0, y: 0 });
+    var bar = e && e.querySelector(axis === 'v' ? '.dxvs' : '.dxhs');
+    var th = bar && bar.querySelector('.th');
+    if (!th) { return; }
+    var rect = bar.getBoundingClientRect(), tr = th.getBoundingClientRect(), z = state.zoom;
+    // grabbing the thumb keeps it where it is; the track moves it to the pointer
+    var grab = ev.target === th ? (axis === 'h' ? ev.clientX - (tr.left + tr.width / 2) : ev.clientY - (tr.top + tr.height / 2)) : 0;
+    function setFrom(ev2) {
+      if (axis === 'h') {
+        var thumb = parseFloat(th.style.width), track = n.w - 17 - 34;
+        gs.x = clamp01(((ev2.clientX - grab - rect.left) / z - 17 - thumb / 2) / Math.max(1, track - thumb));
+        th.style.left = Math.round(17 + gs.x * (track - thumb)) + 'px';
+        applyGridScroll(e, n);
+      } else {
+        var thumbV = parseFloat(th.style.height), trackV = n.h - 22 - 34;
+        gs.y = clamp01(((ev2.clientY - grab - rect.top) / z - 17 - thumbV / 2) / Math.max(1, trackV - thumbV));
+        th.style.top = Math.round(17 + gs.y * (trackV - thumbV)) + 'px';
+      }
+      drawSel(); markScrollbar();
+    }
+    function up() { document.removeEventListener('mousemove', setFrom); document.removeEventListener('mouseup', up); }
+    setFrom(ev);
+    document.addEventListener('mousemove', setFrom);
+    document.addEventListener('mouseup', up);
   }
   /* One component the designer cannot draw must never break the others: it becomes a placeholder box. */
   function mk(n, parent) {
@@ -1610,6 +1665,8 @@ ${snapScript()}
       select([byName[name].scrollView]);
       state.sbSel = { grid: name, axis: bar.classList.contains('dxvs') ? 'v' : 'h' };
       markScrollbar();
+      startBarDrag(ev, name, state.sbSel.axis);
+      ev.preventDefault();
       return;
     }
     if (ev.shiftKey || ev.ctrlKey) {

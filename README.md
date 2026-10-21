@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.10.vsix
+code --install-extension ce-code-explorer-0.1.11.vsix
 ```
 
 ## Supported Languages
@@ -329,7 +329,7 @@ The **Events** section of the inspector has **one drop-down listing every event 
 
 #### Designer: zoom, scroll, colours, magnetism, fields
 
-- **Zoom** with `Ctrl` + wheel (25 % to 300 %), around the pointer; the zoom list shows the value in between the presets. The **middle button** pans the form. The scroll bars are wide enough to grab, in the colours of the theme; a **DevExpress grid** draws its own scroll bars (vertical, and horizontal when its columns are wider than it).
+- **Zoom** with `Ctrl` + wheel (25 % to 300 %), around the pointer; the zoom list shows the value in between the presets. The **middle button** pans the form. The scroll bars are wide enough to grab, in the colours of the theme; a **DevExpress grid** draws its own scroll bars (vertical, and horizontal when its columns are wider than it): click one to select it, drag it to scroll the columns, and pick which bars the view has in the inspector (*Scroll bars*).
 - **Colours**: the designer draws what the `.dfm` says, system colours (`clWindow`, `-2147483643`) and `TcxStyle` of a style repository included (`Style = stRed`, `Styles.Content`, `Style.Color`, `AssignedValues`), and what comes through `ParentColor` / `ParentFont`. The **Colors** section of the inspector has a colour picker for Color and Font color (written as `clRed` or the number, as the IDE does), says where the colour comes from (*Style = stRed*, *ParentColor of pnlTop*), and **Clear** removes it.
 - **Magnetism** (toolbar, 🧲 *Snap*, as in Affinity Designer): a component being moved or resized catches the **edges and centres** of the other components of its container and the edges and centre of the container itself, with pink **guide lines**; the arrow beside the button chooses what is caught (edges, centres, container, guide lines). It is on top of the grid; hold `Alt` while dragging to turn it off for a moment. The choice is kept.
 - **Fields**: a query (`TUniQuery`…) has a **Fields** block in the inspector, as the IDE's field editor: the persistent fields, **＋ Add field**, **⟳ From the SELECT** (one field per column of the SELECT that has none, named `qryTARIFListeTARIF_ID`, with a type guessed from the name — `_ID`, `_NUM`, `QTE`… float, `DATE`/`DT_` date and time, else string of 50 — to correct afterwards), select one to edit its name, type properties, label and size, or 🗑 delete it. A **grid view** has the same for its **Columns**: **＋ Add column** and **⟳ From the fields** (the persistent fields of the dataset its `DataController.DataSource` leads to, else the columns of its SELECT), one column per field, named after the view, with its `DataBinding.FieldName`.

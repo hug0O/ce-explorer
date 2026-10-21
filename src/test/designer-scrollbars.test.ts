@@ -45,3 +45,14 @@ test('the page: the scroll bar is a thing to click, shown or not as the view say
     assert.match(html, /sbs === 'ssBoth' \|\| sbs === 'ssHorizontal'/);
     assert.match(html, /labelled\('Scroll bars', sbSel\)/);
 });
+
+test('the scroll bar of a grid is above its columns, and dragging it moves the columns', () => {
+    const html = designerHtml('N');
+    assert.match(html, /\.dxvs, \.dxhs \{[^}]*z-index: 7;/, 'above the columns, so that a click lands on the bar and not on a column');
+    assert.match(html, /function gridBars\(e, n\)/);
+    assert.match(html, /gridBars\(e, n\); \}\n/, 'built after the columns');
+    assert.match(html, /function applyGridScroll\(e, n\)[\s\S]*?translateX\(/, 'the columns are shifted by what the bar says');
+    assert.match(html, /function startBarDrag\(ev, gname, axis\)/);
+    assert.match(html, /startBarDrag\(ev, name, state\.sbSel\.axis\)/, 'a click on the bar selects it and starts the drag');
+    assert.match(html, /gscroll: \{\}/, 'the position of each grid is kept when the form is drawn again');
+});

@@ -226,6 +226,15 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; opacity: 0.9; }
 .guide.v { top: 0; bottom: 0; width: 1px; }
 .guide.h { left: 0; right: 0; height: 1px; }
+.fehead { font-weight: 600; margin: 6px 0 3px; }
+.febar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.febar button { font-size: 11px; padding: 2px 8px; }
+.febar button:disabled { opacity: 0.45; cursor: default; }
+.ferow { display: flex; align-items: center; gap: 6px; }
+.ferow .fename { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ferow .fetype { font-size: 10px; color: var(--vscode-descriptionForeground); }
+.ferow .fedel { background: none; border: none; cursor: pointer; opacity: 0.6; padding: 0 2px; }
+.ferow .fedel:hover { opacity: 1; }
 .colorrow { display: flex; align-items: center; gap: 6px; }
 .colorrow input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid var(--vscode-input-border, #888); background: none; cursor: pointer; }
 .colorrow input.auto { opacity: 0.45; }
@@ -1020,13 +1029,50 @@ body.full #toolbar { padding: 3px 8px; }
       box.appendChild(el('div', 'hint', 'The view this level shows. The first level of a grid decides which view is drawn.'));
     } else {
       var cols = n.children.filter(function (c) { return kind(c.cls) === 'gridcolumn'; });
-      box.appendChild(el('div', 'hint', cols.length + ' column(s). Add some with the palette (type DevExpress) while this view or its grid is selected.'));
-      cols.forEach(function (c) {
-        var r = el('div', 'colrow', '▮ ' + (c.caption || columnTitle(c)) + (c.structural ? ' (not shown)' : ''));
-        r.setAttribute('data-pick', c.name); r.title = c.name;
-        box.appendChild(r);
-      });
+      box.appendChild(el('div', 'fehead', 'Columns (' + cols.length + ')'));
+      var cbar = el('div', 'febar');
+      var addc = el('button', '', '＋ Add column'); addc.title = 'A new column: set its field in the inspector afterwards';
+      var colCls = n.cls.indexOf('Banded') >= 0 ? (n.cls.indexOf('DB') >= 0 ? 'TcxGridDBBandedColumn' : 'TcxGridBandedColumn') : (n.cls.indexOf('DB') >= 0 ? 'TcxGridDBColumn' : 'TcxGridColumn');
+      addc.addEventListener('click', function () { post({ type: 'add', className: colCls, parent: n.name, left: 0, top: 0 }); });
+      cbar.appendChild(addc);
+      var allc = el('button', '', '⟳ From the fields' + (n.newFields ? ' (' + n.newFields + ')' : ''));
+      allc.title = 'One column per field of the dataset this view shows (its persistent fields, else the columns of its SELECT) that has none yet';
+      allc.disabled = !n.newFields;
+      allc.addEventListener('click', function () { post({ type: 'createColumns', name: n.name }); });
+      cbar.appendChild(allc);
+      box.appendChild(cbar);
+      cols.forEach(function (c) { box.appendChild(fieldRow(c, (c.caption || columnTitle(c)) + (c.structural ? ' (not shown)' : ''), c.cls)); });
+      if (!cols.length) { box.appendChild(el('div', 'hint', 'No column yet. The view needs DataController.DataSource set to create them from the fields.')); }
     }
+  }
+  /* The persistent fields of a dataset, as the IDE's field editor: add one, add all the columns of the SELECT, edit one (it is selected), delete one. */
+  function fieldsEditor(b, n) {
+    var fields = n.children.filter(function (c) { return kind(c.cls) === 'datafield'; });
+    var head = el('div', 'fehead', 'Fields (' + fields.length + ')');
+    b.appendChild(head);
+    var bar = el('div', 'febar');
+    var add = el('button', '', '＋ Add field'); add.title = 'A new persistent field (a string): choose its type and name it in the inspector afterwards';
+    add.addEventListener('click', function () { post({ type: 'add', className: 'TStringField', parent: n.name, left: 0, top: 0 }); });
+    bar.appendChild(add);
+    var all = el('button', '', '⟳ From the SELECT' + (n.newFields ? ' (' + n.newFields + ')' : ''));
+    all.title = n.sql === undefined ? 'This query has no SQL in the form' : 'One field per column of the SELECT that has none yet; the types are guessed from the names, correct them after';
+    all.disabled = !n.newFields;
+    all.addEventListener('click', function () { post({ type: 'createFields', name: n.name }); });
+    bar.appendChild(all);
+    b.appendChild(bar);
+    fields.forEach(function (f) { b.appendChild(fieldRow(f, f.dataField || '', f.cls)); });
+    if (!fields.length) { b.appendChild(el('div', 'hint', 'No persistent field: the dataset builds them from the SQL at run time. Add them to give them a type, a label or events.')); }
+  }
+  /* A row of the field editor: the name (a click selects it, to edit it) and a delete button. */
+  function fieldRow(c, label, cls) {
+    var r = el('div', 'colrow ferow');
+    r.setAttribute('data-pick', c.name); r.title = c.name + ' : ' + cls;
+    r.appendChild(el('span', 'fename', label || c.name));
+    r.appendChild(el('span', 'fetype', cls.replace(/^T/, '').replace(/Field$/, '')));
+    var del = el('button', 'fedel', '🗑'); del.title = 'Delete ' + c.name;
+    del.addEventListener('click', function (ev) { ev.preventDefault(); post({ type: 'delete', names: [c.name] }); });
+    r.appendChild(del);
+    return r;
   }
   /* A persistent field of a dataset. */
   function dataFieldFields(box, n) {
@@ -1104,7 +1150,7 @@ body.full #toolbar { padding: 3px 8px; }
         });
         b.appendChild(apply);
       }
-      if (n.dataset) { b.appendChild(el('div', 'hint', 'Its persistent fields are listed under it in the Components list; add more from the palette (type Fields) while it is selected.')); }
+      if (n.dataset) { fieldsEditor(b, n); }
     });
   }
   /* Name of the handler the IDE would create: Button1 + OnClick = Button1Click, cxEdit1 + Properties.OnChange = cxEdit1PropertiesChange. */

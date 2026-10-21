@@ -10,6 +10,7 @@ import { planAddEvent } from '../services/DelphiEvents';
 import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
+import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
 import { applyTextEdits, normalizeEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
 
@@ -416,6 +417,13 @@ export class FormDesignerPanel {
             case 'delete': {
                 const list = names(m.names);
                 await this.commit('Delete ' + list.join(', '), deleteEdits(pas, dfm, list, root.className), [], { removed: list.flatMap(n => namesWithin(dfm, n)), touched: danglingRefs(root, list).map(d => d.node.name), props: [...new Set(danglingRefs(root, list).flatMap(d => d.props))] });
+                return;
+            }
+            case 'createFields':
+            case 'createColumns': {
+                const holder = str(m.name);
+                const r = m.type === 'createFields' ? createFieldsEdits(pas, dfm, holder) : createColumnsEdits(pas, dfm, holder);
+                await this.commit((m.type === 'createFields' ? 'Add all fields of ' : 'Create the columns of ') + holder, r, 'added' in r ? r.added : undefined, { added: 'added' in r ? r.added ?? [] : [] });
                 return;
             }
             case 'rename': {

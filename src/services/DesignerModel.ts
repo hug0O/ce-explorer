@@ -16,6 +16,7 @@ import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayou
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
 import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
+import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
 import { cssToDelphi, delphiToCss, resolveColors } from './DelphiColors';
 import { ClipPayload, pasteComponents } from './DelphiClip';
 
@@ -137,6 +138,8 @@ export interface DNode {
     summary?: string;
     /** Why the designer drew it where it is, when that is not where the .dfm says (no position written, or one outside the form). */
     note?: string;
+    /** A dataset: columns of its SELECT with no persistent field. A grid view: fields of its dataset with no column. What "create all" would add. */
+    newFields?: number;
     /** Comes from the ancestor form (`inherited` in the .dfm): it can be moved and its properties changed, not deleted or renamed. */
     inherited?: boolean;
     activePage?: string;
@@ -272,8 +275,10 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : n.props['Properties.Items'] !== undefined ? collectionCaptions(dfm, n, 'Properties.Items')
         : n.props['Items'] !== undefined && /group$/i.test(n.className) ? collectionCaptions(dfm, n, 'Items') : [];
     const colors = resolveColors(n);
+    const newFields = isDataset(n.className) ? fieldsToCreate(dfm, n).length : isGridView(n.className) ? columnsToCreate(dfm, n).length : undefined;
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
+        newFields,
         nonVisual: isNonVisual(n),
         inherited: n.inherited || undefined,
         container: isContainer(n) && !isNonVisual(n),

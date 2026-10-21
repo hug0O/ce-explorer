@@ -12,6 +12,8 @@ import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
+import { loadMarks, saveMarks } from '../services/DesignerStore';
+import { handlerPreviews } from '../services/DesignerPreview';
 import { SheetColors, sameSheets, sheetReferences } from '../services/DelphiColors';
 import { ExternalSheets } from '../services/ExternalSheets';
 import { unitFacts } from '../services/ProjectUnused';
@@ -197,7 +199,7 @@ export class FormDesignerPanel {
             return;
         }
         void this.panel.webview.postMessage({
-            type: 'model', model, palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })),
+            type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })),
             canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
@@ -433,6 +435,16 @@ export class FormDesignerPanel {
                 }
                 const r = pasteEdits(pas, dfm, clip, target.name);
                 await this.commit(`Paste ${clip.components.length} component(s)`, r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
+                return;
+            }
+            case 'designerState': {
+                await saveMarks(this.dfmDoc.uri.fsPath, { groups: m.groups, locks: m.locks, hidden: m.hidden });
+                return;
+            }
+            case 'handlerPreview': {
+                const node = NAME_RE.test(str(m.name)) ? findNode(root, str(m.name)) : undefined;
+                if (!node) { return; }
+                void this.panel.webview.postMessage({ type: 'handlerPreview', name: node.name, x: num(m.x) ?? 0, y: num(m.y) ?? 0, items: handlerPreviews(pas, node, root.className) });
                 return;
             }
             case 'tabOrder': {

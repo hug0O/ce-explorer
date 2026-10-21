@@ -79,6 +79,9 @@ function viewMatches(nodes, q) {
 
 var VIEW_THEMES = [['auto', 'Automatic (the skin of the form)'], ['light', 'Light'], ['dark', 'Dark'], ['blue', 'Blue'], ['contrast', 'High contrast']];
 var viewActions = [];
+var viewExtras = [];
+/* A block of the View menu made by another part of the page (it is given the menu to fill). */
+function addViewExtra(fn) { viewExtras.push(fn); }
 /* A tool of the View menu: other parts of the page add theirs here before the menu is first opened. */
 function addViewAction(label, title, run, key) { viewActions.push({ label: label, title: title, run: run, key: key || '' }); }
 
@@ -160,7 +163,7 @@ function drawRulers() {
   }
   axis(rx, true); axis(ry, false);
 }
-function viewRedraw() { applyTheme(); markTabOrder(); drawRulers(); }
+function viewRedraw() { applyTheme(); markTabOrder(); drawRulers(); applyMarks(); }
 
 /* The find bar. */
 var find = { hits: [], at: -1 };
@@ -225,6 +228,7 @@ function buildViewMenu() {
     r.addEventListener('click', function () { m.hidden = true; a.run(); });
     m.appendChild(r);
   });
+  viewExtras.forEach(function (fn) { fn(m); });
 }
 
 function viewInit() {

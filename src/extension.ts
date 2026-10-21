@@ -32,6 +32,7 @@ import { ProjectPanel } from './webview/ProjectPanel';
 import { ProjectScanner } from './services/ProjectScanner';
 import { registerLanguageCommands } from './services/LanguageCommands';
 import { trackLastEditor } from './services/LastEditor';
+import { setDesignerStores } from './services/DesignerStore';
 import { registerEncodingCommands } from './services/EncodingCommands';
 
 /** Reads the Delphi files of the workspace for the project panel: only when it is asked to. */
@@ -134,6 +135,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         showDesignerStatus(vscode.window.activeTextEditor);
         // a file that is not recognised can be given a language by hand
         trackLastEditor(context);
+        setDesignerStores(context.workspaceState, context.globalState);
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
 

@@ -5,6 +5,7 @@
 
 import { snapScript } from './designerSnap';
 import { viewButton, viewCss, viewHtml, viewScript } from './designerView';
+import { marksCss, marksScript } from './designerMarks';
 import type { ComponentDef } from '../services/DelphiForm';
 import { DEVEXPRESS, TMS } from '../services/DelphiThirdParty';
 import { UNIDAC } from '../services/DelphiUniDac';
@@ -227,6 +228,7 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
 ${viewCss()}
+${marksCss()}
 .snapgrp { position: relative; display: inline-flex; align-items: center; gap: 0; }
 #snapmenu { position: absolute; top: 100%; left: 0; z-index: 60; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #555)); border-radius: 4px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 #snapmenu[hidden] { display: none; }
@@ -1569,6 +1571,7 @@ ${viewHtml()}
   }
 ${snapScript()}
 ${viewScript()}
+${marksScript()}
   /* The rectangles of the other components of the container the dragged ones are in, and its size, in the container's own coordinates. */
   function magnetContext(names) {
     var pn = parentOf[names[0]];
@@ -1627,7 +1630,7 @@ ${viewScript()}
     state.sel = names;
     state.sbSel = null;
     if (Object.keys(wantedDetails()).sort().join() !== Object.keys(state.details).sort().join()) { render(); return; }
-    drawSel(); renderOutline(); renderInspector(); renderStatus(); markScrollbar();
+    drawSel(); renderOutline(); renderInspector(); renderStatus(); markScrollbar(); applyMarks();
   }
 
   document.addEventListener('mousedown', function (ev) {
@@ -1685,13 +1688,14 @@ ${viewScript()}
   function startMove(ev) {
     var names = state.sel.slice();
     // Parts placed by their parent (tiles, grid columns…) are selected, never dragged.
-    if (names.some(isFixed)) { return; }
+    if (names.some(isFixed) || names.some(isLockedName)) { return; }
     var orig = {}; names.forEach(function (n) { orig[n] = { x: byName[n].x, y: byName[n].y }; });
     // Docked components cannot be placed by hand, but they can still be dragged into another container.
     drag = { kind: 'move', sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, ddx: 0, ddy: 0, target: null, dockedOnly: !names.every(isFree) };
   }
   function startResize(ev, h) {
     var names = state.sel.slice(); var orig = {};
+    if (names.some(isLockedName)) { ev.preventDefault(); return; }
     names.forEach(function (n) { var b = byName[n]; orig[n] = { x: b.x, y: b.y, w: b.w, h: b.h }; });
     drag = { kind: 'resize', h: h, sx: ev.clientX, sy: ev.clientY, names: names, orig: orig, moved: false, rects: {} };
     ev.preventDefault();
@@ -1858,11 +1862,11 @@ ${viewScript()}
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { post({ type: 'redo' }); ev.preventDefault(); return; }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'a' || ev.key === 'A') && state.model) { select(siblingsOfSelection()); ev.preventDefault(); return; }
     if (!state.sel.length) { return; }
-    if (ev.key === 'Delete' || ev.key === 'Backspace') { post({ type: 'delete', names: state.sel.slice() }); ev.preventDefault(); return; }
+    if (ev.key === 'Delete' || ev.key === 'Backspace') { var del = state.sel.filter(function (n) { return !isLockedName(n); }); if (del.length) { post({ type: 'delete', names: del }); } ev.preventDefault(); return; }
     var step = ev.shiftKey ? (state.grid || 8) : 1, mx = 0, my = 0;
     if (ev.key === 'ArrowLeft') { mx = -step; } else if (ev.key === 'ArrowRight') { mx = step; } else if (ev.key === 'ArrowUp') { my = -step; } else if (ev.key === 'ArrowDown') { my = step; } else { return; }
     ev.preventDefault();
-    if (!state.sel.every(isFree)) { return; }
+    if (!state.sel.every(isFree) || state.sel.some(isLockedName)) { return; }
     if (ev.ctrlKey) {
       post({ type: 'resize', changes: state.sel.map(function (n) { var b = byName[n]; return { name: n, left: b.x, top: b.y, width: Math.max(4, b.w + mx), height: Math.max(4, b.h + my) }; }) });
     } else {
@@ -2020,6 +2024,7 @@ ${viewScript()}
   });
   document.addEventListener('mousedown', function (ev) { if (!$('snapmenu').hidden && !$('snapmenu').contains(ev.target) && ev.target !== $('snapopt')) { $('snapmenu').hidden = true; } });
   viewInit();
+  marksInit();
   $('client').addEventListener('mouseleave', function () { state.hover = null; drawHover(); });
   $('undo').addEventListener('click', function () { post({ type: 'undo' }); });
   $('redo').addEventListener('click', function () { post({ type: 'redo' }); });
@@ -2050,6 +2055,7 @@ ${viewScript()}
         state.ops = m.ops;
         buildAlignBar(m.ops);
       }
+      takeMarks(m.designer);
       state.canUndo = !!m.canUndo; state.canRedo = !!m.canRedo; state.notice = m.notice || '';
       state.cut = Array.isArray(m.cut) ? m.cut : []; state.dirty = !!m.dirty;
       if (m.selection) { state.sel = m.selection; }

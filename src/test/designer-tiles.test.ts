@@ -187,7 +187,7 @@ test('webview: tiles are drawn, edited and placed through the palette; events ar
     assert.match(html, /\.k-tile > \.chrome/);
     assert.match(html, /function tileFields/);
     for (const p of ["'Text1.Value'", "'Size'", "'GroupIndex'", "'Caption.Text'"]) { assert.ok(html.includes(p), p); }
-    assert.match(html, /if \(names\.some\(isFixed\)\) \{ return; \}/, 'tiles are never dragged');
+    assert.match(html, /if \(names\.some\(isFixed\) \|\| names\.some\(isLockedName\)\) \{ return; \}/, 'tiles are never dragged (nor what is locked)');
     // events
     assert.match(html, /function eventsList/);
     assert.match(html, /type: 'addEvent', name: n\.name, event: v\.slice\(4\), open: state\.openAfter/, 'picking a free event in the drop-down creates its handler');

@@ -16,6 +16,7 @@ import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayou
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
 import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
+import { cssToDelphi, delphiToCss, resolveColors } from './DelphiColors';
 import { ClipPayload, pasteComponents } from './DelphiClip';
 
 /* ───────────────────────── value helpers ───────────────────────── */
@@ -47,25 +48,8 @@ export function toDfmString(text: string): string {
     return out;
 }
 
-const NAMED_COLORS: Record<string, string> = {
-    clBtnFace: '#f0f0f0', clWindow: '#ffffff', clWhite: '#ffffff', clBlack: '#000000', clRed: '#ff0000', clGreen: '#008000', clBlue: '#0000ff',
-    clYellow: '#ffff00', clGray: '#808080', clSilver: '#c0c0c0', clMaroon: '#800000', clNavy: '#000080', clTeal: '#008080', clOlive: '#808000',
-    clPurple: '#800080', clAqua: '#00ffff', clLime: '#00ff00', clFuchsia: '#ff00ff', clWindowText: '#000000', clBtnText: '#000000',
-    clHighlight: '#0078d7', clHighlightText: '#ffffff', clInfoBk: '#ffffe1', clMoneyGreen: '#c0dcc0', clSkyBlue: '#a6caf0', clCream: '#fffbf0',
-    clMedGray: '#a0a0a4', clBtnShadow: '#a0a0a0', clBtnHighlight: '#ffffff', clGrayText: '#6d6d6d', clMenu: '#f0f0f0', clInactiveCaption: '#bfcddb',
-};
 
-export function cssColor(value: string | undefined): string | undefined {
-    if (!value) { return undefined; }
-    if (NAMED_COLORS[value]) { return NAMED_COLORS[value]; }
-    const m = value.match(/^\$([0-9A-Fa-f]{6,8})$/);
-    // Delphi writes colours that have no name as plain integers (Color = 16770764). System colours are negative: left alone.
-    const dec = /^\d{1,8}$/.test(value) ? Number(value) : undefined;
-    if (!m && (dec === undefined || dec > 0xFFFFFF)) { return undefined; }
-    const v = m ? parseInt(m[1], 16) : dec!;
-    const hex = (n: number) => n.toString(16).padStart(2, '0');
-    return '#' + hex(v & 255) + hex((v >> 8) & 255) + hex((v >> 16) & 255);
-}
+export const cssColor = (value: string | undefined): string | undefined => delphiToCss(value);
 
 /** Lines of a multi-line string property (`Lines.Strings = (` … `)`), decoded. */
 export function multilineStrings(dfm: string, node: DfmNode, prop: string, max = 12): string[] {
@@ -117,6 +101,9 @@ export interface DNode {
     family?: Family;
     color?: string;
     fontColor?: string;
+    /** Where the colour and the text colour come from when it is not the component's own `Color` (a style, its parent): for the inspector. */
+    colorFrom?: string;
+    fontFrom?: string;
     bold: boolean;
     fontSize: number;
     visible: boolean;
@@ -284,6 +271,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : n.props['Properties.Items.Strings'] !== undefined ? multilineStrings(dfm, n, 'Properties.Items.Strings')
         : n.props['Properties.Items'] !== undefined ? collectionCaptions(dfm, n, 'Properties.Items')
         : n.props['Items'] !== undefined && /group$/i.test(n.className) ? collectionCaptions(dfm, n, 'Items') : [];
+    const colors = resolveColors(n);
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         nonVisual: isNonVisual(n),
@@ -291,8 +279,10 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         container: isContainer(n) && !isNonVisual(n),
         caption, text: text ?? editValueText(n.props['EditValue']), lines,
         family: familyOf(n.className),
-        color: cssColor(tile ? n.props['Style.GradientBeginColor'] : n.props['Color']),
-        fontColor: cssColor(n.props['Font.Color']),
+        color: tile ? cssColor(n.props['Style.GradientBeginColor']) ?? colors.color : colors.color,
+        fontColor: colors.fontColor,
+        colorFrom: colors.colorFrom,
+        fontFrom: colors.fontFrom,
         bold: /fsBold/.test(style),
         fontSize: fontHeight !== undefined ? Math.max(8, Math.round(Math.abs(fontHeight) * 0.75 + 0.4)) : 9,
         visible: (n.props['Visible'] ?? 'True') !== 'False',
@@ -680,7 +670,7 @@ export function renameEdits(pas: string, dfm: string, from: string, to: string):
     return { dfmEdits: plan.dfmEdits, pasEdits, note: plan.handlers.length ? `handlers renamed: ${plan.handlers.map(h => h.from + '→' + h.to).join(', ')}` : undefined };
 }
 
-export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref'> = {
+export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref' | 'color'> = {
     Left: 'int', Top: 'int', Width: 'int', Height: 'int', TabOrder: 'int', Caption: 'string', Text: 'string', Hint: 'string',
     Visible: 'bool', Enabled: 'bool', ShowHint: 'bool', ReadOnly: 'bool', Checked: 'bool', TabStop: 'bool', Align: 'enum', Anchors: 'anchors',
     // DevExpress tile control: tiles and groups.
@@ -691,6 +681,7 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
     TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
+    Color: 'color', 'Font.Color': 'color',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
 const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
@@ -736,6 +727,13 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         const found = findNode(root, target);
         if (!wanted || !found || !wanted.ok(found.className)) { return fail(`${target} is not ${wanted?.what ?? 'a valid target'} of this form.`); }
         text = found.name;
+    } else if (kind === 'color') {
+        // `#rrggbb` from the colour picker, or empty to give the colour back to the parent / the style
+        const css = typeof value === 'string' ? value.trim() : '';
+        if (!css) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
+        const written = cssToDelphi(css);
+        if (!written) { return fail(`"${css}" is not a colour (#rrggbb).`); }
+        text = written;
     } else if (kind === 'enum') {
         if (typeof value !== 'string' || !(ENUM_VALUES[prop] ?? []).includes(value)) { return fail(`Unknown ${prop} value.`); }
         if (prop === 'Align' && value === 'alNone') {

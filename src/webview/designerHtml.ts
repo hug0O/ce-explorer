@@ -219,6 +219,11 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-pages > .tabs > .tab.on { background: #fff; height: 24px; margin-top: 0; }
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
+.colorrow { display: flex; align-items: center; gap: 6px; }
+.colorrow input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid var(--vscode-input-border, #888); background: none; cursor: pointer; }
+.colorrow input.auto { opacity: 0.45; }
+.colorrow .colortxt { flex: 1; font-size: 11px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colorrow .colorclr { font-size: 11px; padding: 1px 6px; }
 .ctl.inherited { outline: 1px dashed #7a6ff0; outline-offset: 1px; }
 .nonvisual > .chrome { border: 1px solid #888; background: #fff3c4; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
 .nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -421,7 +426,7 @@ body.full #toolbar { padding: 3px 8px; }
     var k = kind(n.cls);
     var cap = n.caption !== undefined ? n.caption : (n.text !== undefined ? n.text : '');
     setFont(e, n);
-    if (n.color && (k === 'panel' || k === 'edit' || k === 'memo' || k === 'scroll' || k === 'group' || k === 'sheet' || k === 'generic')) { chrome.style.background = n.color; }
+    if (n.color && (k === 'panel' || k === 'edit' || k === 'memo' || k === 'scroll' || k === 'group' || k === 'sheet' || k === 'generic' || k === 'combo' || k === 'datepick' || k === 'list' || k === 'listview' || k === 'treeview' || k === 'gridcolumn' || k === 'toolbar' || k === 'statusbar')) { chrome.style.background = n.color; }
     if (k === 'button' || k === 'label') { chrome.textContent = cap; }
     else if (k === 'edit' || k === 'combo' || k === 'datepick') {
       var lc = n.cls.toLowerCase();
@@ -937,6 +942,19 @@ body.full #toolbar { padding: 3px 8px; }
     build(d);
     box.appendChild(d);
   }
+  /* A colour of the component: the picker writes the colour as Delphi does, Clear gives it back to the parent or the style. */
+  function colorRow(n, label, prop, shown, from) {
+    var row = el('div', 'colorrow');
+    var pick = el('input'); pick.type = 'color'; pick.value = shown || '#ffffff'; pick.title = label;
+    if (!shown) { pick.classList.add('auto'); }
+    pick.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: prop, value: pick.value }); });
+    var txt = el('span', 'colortxt', shown ? shown + (from && from !== prop ? ' - ' + from : '') : 'automatic');
+    var clr = el('button', 'colorclr', 'Clear'); clr.title = 'Remove ' + prop + ' from the .dfm';
+    clr.disabled = n.props[prop] === undefined;
+    clr.addEventListener('click', function () { post({ type: 'setProp', name: n.name, prop: prop, value: '' }); });
+    row.appendChild(pick); row.appendChild(txt); row.appendChild(clr);
+    return labelled(label, row);
+  }
   function labelled(label, node) { var l = el('label', 'f'); l.appendChild(el('span', '', label)); l.appendChild(node); return l; }
   function checkbox(label, checked, onChange) {
     var l = el('label', 'chk'); var c = el('input'); c.type = 'checkbox'; c.checked = checked;
@@ -1242,6 +1260,13 @@ body.full #toolbar { padding: 3px 8px; }
         section(box, 'Bars', 'bars', function (b) {
           b.appendChild(linkSelect(n, 'BarManager', 'Bar manager', function (c) { return c.cls.toLowerCase() === 'tdxbarmanager'; }));
           b.appendChild(el('div', 'hint', 'The bars docked here are the ones of the bar manager (its Bars, DockControl of each bar).'));
+        });
+      }
+      if (!n.nonVisual && k !== 'tile' && k !== 'tilecontrol') {
+        section(box, 'Colors', 'colors', function (b) {
+          b.appendChild(colorRow(n, 'Color', 'Color', n.color, n.colorFrom));
+          b.appendChild(colorRow(n, 'Font color', 'Font.Color', n.fontColor, n.fontFrom));
+          if (n.colorFrom && n.colorFrom.indexOf('Style') === 0 && n.colorFrom !== 'Style.Color') { b.appendChild(el('div', 'hint', 'The style wins over Color: change the colour in the style (' + n.colorFrom.slice(8) + '), or unlink the style.')); }
         });
       }
       if (!n.nonVisual) section(box, 'State', 'state', function (b) {

@@ -11,6 +11,8 @@ import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
+import { SheetColors, sameSheets, sheetReferences } from '../services/DelphiColors';
+import { ExternalSheets } from '../services/ExternalSheets';
 import { applyTextEdits, normalizeEdits } from '../services/DelphiForm';
 import { PALETTE, designerHtml } from './designerHtml';
 
@@ -169,8 +171,23 @@ export class FormDesignerPanel {
         this.refreshTimer = setTimeout(() => this.sendModel(), 120);
     }
 
+    /** Style sheets of other forms the grids point to: read apart, and the form is drawn again when they came. */
+    private readonly externalSheets = new ExternalSheets();
+    private sheets = new Map<string, SheetColors>();
+    private sheetsFor = '';
+
+    private async refreshSheets(): Promise<void> {
+        const text = this.dfmDoc.getText();
+        const refs = sheetReferences(text).map(r => (r.module + '.' + r.sheet).toLowerCase()).sort().join(',');
+        if (refs === this.sheetsFor) { return; }
+        this.sheetsFor = refs;
+        const loaded = refs ? await this.externalSheets.load(text, this.dfmDoc.uri.fsPath) : new Map<string, SheetColors>();
+        if (!sameSheets(loaded, this.sheets)) { this.sheets = loaded; this.sendModel(); }
+    }
+
     private sendModel(selection?: string[], notice?: string): void {
-        const model = buildDesignModel(this.dfmDoc.getText());
+        void this.refreshSheets();
+        const model = buildDesignModel(this.dfmDoc.getText(), this.sheets);
         if (!model) {
             void this.panel.webview.postMessage({ type: 'notice', text: 'The .dfm is not valid text DFM right now (being edited?).' });
             return;

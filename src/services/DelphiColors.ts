@@ -68,6 +68,68 @@ export interface Resolved {
     colorFrom?: string;
     fontColor?: string;
     fontFrom?: string;
+    /** TMS smooth controls (`Fill.Color`, `Fill.ColorTo`, `Fill.GradientType`, `Fill.BorderColor`, `Fill.Rounding`): the end of the gradient and how it runs. */
+    colorTo?: string;
+    gradient?: 'vertical' | 'horizontal' | 'radial';
+    borderColor?: string;
+    rounding?: number;
+}
+
+/** The colours a style sheet gives to the parts of a grid: the cells (Content, ContentEven, ContentOdd), the header, the background. */
+export type SheetColors = Partial<Record<'content' | 'contentEven' | 'contentOdd' | 'header' | 'background', { color?: string; text?: string }>>;
+
+const SHEET_PARTS: [keyof SheetColors, string][] = [['content', 'Styles.Content'], ['contentEven', 'Styles.ContentEven'], ['contentOdd', 'Styles.ContentOdd'], ['header', 'Styles.Header'], ['background', 'Styles.Background']];
+
+/** What a style sheet (`TcxGridTableViewStyleSheet`) gives, read in the .dfm that holds it together with its styles. */
+export function sheetColorsOf(sheet: DfmNode, root: DfmNode): SheetColors {
+    const out: SheetColors = {};
+    for (const [part, prop] of SHEET_PARTS) {
+        const ref = sheet.props[prop];
+        const style = ref && /^[A-Za-z_]\w*$/.test(ref) ? find(root, ref) : undefined;
+        if (style) { const c = styleColors(style); if (c.color || c.text) { out[part] = c; } }
+    }
+    return out;
+}
+
+/** The sheet named `Module.Sheet` in the .dfm of another module (a data module of styles), as the colours it gives. */
+export function externalSheet(moduleDfm: DfmNode, sheetName: string): SheetColors | undefined {
+    const sheet = find(moduleDfm, sheetName);
+    return sheet ? sheetColorsOf(sheet, moduleDfm) : undefined;
+}
+
+/** Style sheets that live in other forms, by `module.sheet` in lower case: set around the building of a model. */
+let EXTERNAL = new Map<string, SheetColors>();
+export function withExternalSheets<T>(sheets: Map<string, SheetColors> | undefined, run: () => T): T {
+    const before = EXTERNAL;
+    EXTERNAL = sheets ?? new Map();
+    try { return run(); } finally { EXTERNAL = before; }
+}
+
+/** The sheet a grid view or a column points to (`Styles.StyleSheet`): in this form, or in the module it names. */
+function sheetOf(view: DfmNode): SheetColors | undefined {
+    const ref = view.props['Styles.StyleSheet'];
+    if (!ref) { return undefined; }
+    const ext = EXTERNAL.get(ref.toLowerCase());
+    if (ext) { return ext; }
+    const local = find(rootOf(view), ref.split('.').pop()!);
+    return local ? sheetColorsOf(local, rootOf(view)) : undefined;
+}
+
+/** The view a column belongs to, or the node itself when it is the view. */
+const viewOf = (n: DfmNode): DfmNode | undefined => (/Column$/.test(n.className) ? n.parent : /TableView$|View$/.test(n.className) ? n : undefined);
+
+/** The colour and the text colour a grid cell or header gets: the component's own style, the view's, then the style sheet's. */
+export function gridPartColors(n: DfmNode, part: 'content' | 'header'): { color?: string; text?: string; from?: string } {
+    const view = viewOf(n);
+    if (!view) { return {}; }
+    const prop = part === 'header' ? 'Styles.Header' : 'Styles.Content';
+    for (const holder of [n, view]) {
+        const ref = holder.props[prop];
+        const style = ref && /^[A-Za-z_]\w*$/.test(ref) ? find(rootOf(n), ref) : undefined;
+        if (style) { const c = styleColors(style); if (c.color || c.text) { return { ...c, from: `${prop} = ${style.name}` }; } }
+    }
+    const sheet = sheetOf(view)?.[part];
+    return sheet ? { ...sheet, from: 'Styles.StyleSheet = ' + view.props['Styles.StyleSheet'] } : {};
 }
 
 const rootOf = (n: DfmNode): DfmNode => { let r = n; while (r.parent) { r = r.parent; } return r; };
@@ -96,33 +158,68 @@ export function resolveColors(n: DfmNode, depth = 0): Resolved {
     const out: Resolved = {};
     if (depth > 12) { return out; }
     const root = rootOf(n);
+    let styleProp = 'Style';
     const refStyle = (): DfmNode | undefined => {
         for (const p of STYLE_REFS) {
             const v = n.props[p];
-            if (v && /^[A-Za-z_]\w*$/.test(v)) { const s = find(root, v); if (s) { return s; } }
+            if (v && /^[A-Za-z_]\w*$/.test(v)) { const s = find(root, v); if (s) { styleProp = p; return s; } }
         }
         return undefined;
     };
     const style = refStyle();
     const sc = style ? styleColors(style) : {};
 
+    // a grid column draws its cells with the style of its view or of the style sheet of the view
+    const cell = /Column$/.test(n.className) ? gridPartColors(n, 'content') : undefined;
     // the colour: the control's own style, a style it points to, its Color, its parent's
     const own = delphiToCss(n.props['Style.Color']) ?? delphiToCss(n.props['Color']);
     if (n.props['Style.Color'] !== undefined && own) { out.color = own; out.colorFrom = 'Style.Color'; }
-    else if (sc.color && style) { out.color = sc.color; out.colorFrom = `Style = ${style.name}`; }
+    else if (sc.color && style) { out.color = sc.color; out.colorFrom = `${styleProp} = ${style.name}`; }
+    else if (cell?.color) { out.color = cell.color; out.colorFrom = cell.from; }
     else if (own) { out.color = own; out.colorFrom = 'Color'; }
+    else if (n.props['Fill.Color'] !== undefined && delphiToCss(n.props['Fill.Color'])) {
+        out.color = delphiToCss(n.props['Fill.Color']); out.colorFrom = 'Fill.Color';
+        const to = delphiToCss(n.props['Fill.ColorTo']);
+        const type = n.props['Fill.GradientType'] ?? '';
+        if (to && /^gt(Vertical|Horizontal|Radial|Path|Diagonal\w*)$/.test(type)) {
+            out.colorTo = to;
+            out.gradient = type === 'gtHorizontal' ? 'horizontal' : /Radial|Path/.test(type) ? 'radial' : 'vertical';
+        }
+        out.borderColor = delphiToCss(n.props['Fill.BorderColor']);
+        const rounding = Number(n.props['Fill.Rounding']);
+        if (rounding > 0) { out.rounding = rounding; }
+    }
     else if (n.props['ParentColor'] === 'True' && n.parent) {
         const up = resolveColors(n.parent, depth + 1);
         if (up.color) { out.color = up.color; out.colorFrom = `ParentColor of ${n.parent.name}`; }
     }
 
     // the text colour
-    const ownText = delphiToCss(n.props['Font.Color']) ?? delphiToCss(n.props['Style.Font.Color']);
-    if (ownText) { out.fontColor = ownText; out.fontFrom = n.props['Font.Color'] ? 'Font.Color' : 'Style.Font.Color'; }
-    else if (sc.text && style) { out.fontColor = sc.text; out.fontFrom = `Style = ${style.name}`; }
+    const ownText = delphiToCss(n.props['Font.Color']) ?? delphiToCss(n.props['Style.Font.Color']) ?? delphiToCss(n.props['Caption.Font.Color']);
+    if (ownText) { out.fontColor = ownText; out.fontFrom = n.props['Font.Color'] ? 'Font.Color' : n.props['Style.Font.Color'] ? 'Style.Font.Color' : 'Caption.Font.Color'; }
+    else if (sc.text && style) { out.fontColor = sc.text; out.fontFrom = `${styleProp} = ${style.name}`; }
+    else if (cell?.text) { out.fontColor = cell.text; out.fontFrom = cell.from; }
     else if (n.props['ParentFont'] !== 'False' && n.parent && n.parent.depth > 0) {
         const up = resolveColors(n.parent, depth + 1);
         if (up.fontColor) { out.fontColor = up.fontColor; out.fontFrom = `ParentFont of ${n.parent.name}`; }
     }
     return out;
+}
+
+const REF = /Styles\.StyleSheet\s*=\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)/g;
+
+/** The `module.sheet` names a form's grids point to. */
+export function sheetReferences(dfm: string): { module: string; sheet: string }[] {
+    const seen = new Set<string>();
+    const out: { module: string; sheet: string }[] = [];
+    for (const m of dfm.matchAll(REF)) {
+        const key = (m[1] + '.' + m[2]).toLowerCase();
+        if (!seen.has(key)) { seen.add(key); out.push({ module: m[1], sheet: m[2] }); }
+    }
+    return out;
+}
+
+/** Whether two maps hold the same sheets (to avoid drawing the form again for nothing). */
+export function sameSheets(a: Map<string, SheetColors>, b: Map<string, SheetColors>): boolean {
+    return a.size === b.size && JSON.stringify([...a.entries()].sort()) === JSON.stringify([...b.entries()].sort());
 }

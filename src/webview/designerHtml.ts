@@ -115,6 +115,8 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 #outline { max-height: 42vh; min-height: 120px; overflow: auto; resize: vertical; }
 .outline .tw { display: inline-block; width: 12px; text-align: center; cursor: pointer; opacity: 0.8; font-size: 10px; }
 .outline .tw:hover { opacity: 1; }
+.outline div.hiddenrow { opacity: 0.45; }
+.outline div.hiddenrow.sel { opacity: 0.8; }
 .outline div.cutrow { opacity: 0.5; font-style: italic; }
 .ctl.cutmark { opacity: 0.4; outline: 1px dashed #888; }
 #dirty { color: #e8a800; margin-left: 3px; }
@@ -437,6 +439,17 @@ body.full #toolbar { padding: 3px 8px; }
 
   /* ───────── rendering ───────── */
   function index(n, parent) { byName[n.name] = n; parentOf[n.name] = parent; n.children.forEach(function (c) { index(c, n.name); }); }
+  /* The colour of a component: plain, or the gradient of a smooth control (Fill.Color to Fill.ColorTo), with its border and rounded corners. */
+  function paintFill(chrome, n) {
+    var bg = n.color;
+    if (n.colorTo) {
+      bg = n.gradient === 'radial' ? 'radial-gradient(circle at center, ' + n.color + ', ' + n.colorTo + ')'
+        : 'linear-gradient(' + (n.gradient === 'horizontal' ? 'to right' : 'to bottom') + ', ' + n.color + ', ' + n.colorTo + ')';
+    }
+    chrome.style.background = bg;
+    if (n.borderColor) { chrome.style.border = '1px solid ' + n.borderColor; }
+    if (n.rounding) { chrome.style.borderRadius = Math.min(n.rounding, 24) + 'px'; }
+  }
   function setFont(e, n) {
     e.style.fontSize = Math.round(n.fontSize * 4 / 3) + 'px';
     if (n.bold) { e.style.fontWeight = '700'; }
@@ -452,7 +465,7 @@ body.full #toolbar { padding: 3px 8px; }
     var k = kind(n.cls);
     var cap = n.caption !== undefined ? n.caption : (n.text !== undefined ? n.text : '');
     setFont(e, n);
-    if (n.color && (k === 'panel' || k === 'edit' || k === 'memo' || k === 'scroll' || k === 'group' || k === 'sheet' || k === 'generic' || k === 'combo' || k === 'datepick' || k === 'list' || k === 'listview' || k === 'treeview' || k === 'gridcolumn' || k === 'toolbar' || k === 'statusbar')) { chrome.style.background = n.color; }
+    if (n.color && (k === 'panel' || k === 'edit' || k === 'memo' || k === 'scroll' || k === 'group' || k === 'sheet' || k === 'generic' || (k === 'label' && n.props['Transparent'] === 'False') || k === 'combo' || k === 'datepick' || k === 'list' || k === 'listview' || k === 'treeview' || k === 'gridcolumn' || k === 'toolbar' || k === 'statusbar')) { paintFill(chrome, n); }
     if (k === 'button' || k === 'label') { chrome.textContent = cap; }
     else if (k === 'edit' || k === 'combo' || k === 'datepick') {
       var lc = n.cls.toLowerCase();
@@ -492,7 +505,12 @@ body.full #toolbar { padding: 3px 8px; }
     else if (k === 'statusbar' || k === 'toolbar') { chrome.textContent = k === 'statusbar' ? cap : ''; }
     else if (k === 'generic') { chrome.textContent = n.cls + (cap ? ' – ' + cap : ''); }
     else if (k === 'sheet') { chrome.style.background = n.color || '#fff'; }
-    else if (k === 'gridcolumn') { chrome.appendChild(el('div', 'gh', n.caption || columnTitle(n))); }
+    else if (k === 'gridcolumn') {
+      var gh = el('div', 'gh', n.caption || columnTitle(n));
+      if (n.headerColor) { gh.style.background = n.headerColor; }
+      if (n.headerText) { gh.style.color = n.headerText; }
+      chrome.appendChild(gh);
+    }
     else if (k === 'tilecontrol') { if (n.tileTexts && n.tileTexts[0]) { e.appendChild(el('div', 'tilettl', n.tileTexts[0])); } }
     else if (k === 'tilegroup') { chrome.textContent = n.caption || n.name; }
     else if (k === 'tile') {
@@ -867,7 +885,7 @@ body.full #toolbar { padding: 3px 8px; }
       o.appendChild(rr);
     }
     rows.forEach(function (n) {
-      var d = el('div', (state.sel.indexOf(n.name) >= 0 ? 'sel' : '') + (state.cut.indexOf(n.name) >= 0 ? ' cutrow' : ''));
+      var d = el('div', (state.sel.indexOf(n.name) >= 0 ? 'sel' : '') + (state.cut.indexOf(n.name) >= 0 ? ' cutrow' : '') + (n.props['Visible'] === 'False' ? ' hiddenrow' : ''));
       d.setAttribute('data-pick', n.name);
       d.draggable = true;
       d.title = n.name + ' : ' + n.cls + (n.caption ? ' — ' + n.caption : '');

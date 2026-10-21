@@ -17,7 +17,7 @@ import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGri
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
 import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
 import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
-import { cssToDelphi, delphiToCss, resolveColors } from './DelphiColors';
+import { SheetColors, cssToDelphi, delphiToCss, gridPartColors, resolveColors, withExternalSheets } from './DelphiColors';
 import { ClipPayload, pasteComponents } from './DelphiClip';
 
 /* ───────────────────────── value helpers ───────────────────────── */
@@ -138,6 +138,14 @@ export interface DNode {
     summary?: string;
     /** Why the designer drew it where it is, when that is not where the .dfm says (no position written, or one outside the form). */
     note?: string;
+    /** The end of a gradient fill, how it runs, the border and the rounding of a smooth control. */
+    colorTo?: string;
+    gradient?: 'vertical' | 'horizontal' | 'radial';
+    borderColor?: string;
+    rounding?: number;
+    /** A grid column: the colours of its header (its style, its view's, the style sheet's). */
+    headerColor?: string;
+    headerText?: string;
     /** The text wraps inside the width (WordWrap = True; a memo wraps unless WordWrap = False). */
     wrap?: boolean;
     /** A dataset: columns of its SELECT with no persistent field. A grid view: fields of its dataset with no column. What "create all" would add. */
@@ -256,15 +264,17 @@ function editValueText(v: string | undefined): string | undefined {
 }
 
 function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: number; h: number }, docked: boolean, align: string | undefined): DNode {
-    const fontHeight = num(n.props['Font.Height']);
-    const style = n.props['Font.Style'] ?? '';
+    // a TMS smooth label keeps its font under Caption
+    const fontHeight = num(n.props['Font.Height'] ?? n.props['Caption.Font.Height']);
+    const style = n.props['Font.Style'] ?? n.props['Caption.Font.Style'] ?? '';
     const tile = isTileItem(n.className);
     const tileTexts = tile ? [1, 2, 3, 4].map(i => (n.props[`Text${i}.Value`] !== undefined ? fromDfmString(n.props[`Text${i}.Value`]) : ''))
         : isTileHost(n.className) ? [n.props['Title.Text'] !== undefined ? fromDfmString(n.props['Title.Text']) : ''] : undefined;
     const caption = tile ? tileTexts![0]
         : isTileGroup(n.className) ? (n.props['Caption.Text'] !== undefined ? fromDfmString(n.props['Caption.Text']) : '')
         : isGridColumn(n.className) ? (n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : n.props['DataBinding.FieldName'] !== undefined ? fromDfmString(n.props['DataBinding.FieldName']) : '')
-        : n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption']) : undefined;
+        : n.props['Caption'] !== undefined ? fromDfmString(n.props['Caption'])
+        : n.props['Caption.Text'] !== undefined ? fromDfmString(n.props['Caption.Text']) : undefined;
     const known = COMPONENTS.find(c => c.className.toLowerCase() === n.className.toLowerCase());
     const dataClass = isConnection(n.className) || isDataset(n.className);
     const wanted = dataClass ? DATA_PROPS : isDatasetField(n.className) ? FIELD_PROPS : undefined;
@@ -277,12 +287,16 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : n.props['Properties.Items'] !== undefined ? collectionCaptions(dfm, n, 'Properties.Items')
         : n.props['Items'] !== undefined && /group$/i.test(n.className) ? collectionCaptions(dfm, n, 'Items') : [];
     const colors = resolveColors(n);
+    const header = isGridColumn(n.className) ? gridPartColors(n, 'header') : undefined;
     const wrapProp = n.props['WordWrap'] ?? n.props['Properties.WordWrap'];
     const wrap = /(memo|richedit)$/i.test(n.className) ? wrapProp !== 'False' : wrapProp === 'True';
     const newFields = isDataset(n.className) ? fieldsToCreate(dfm, n).length : isGridView(n.className) ? columnsToCreate(dfm, n).length : undefined;
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         newFields,
+        colorTo: colors.colorTo, gradient: colors.gradient, borderColor: colors.borderColor, rounding: colors.rounding,
+        headerColor: header?.color,
+        headerText: header?.text,
         wrap: wrap || undefined,
         nonVisual: isNonVisual(n),
         inherited: n.inherited || undefined,
@@ -471,7 +485,12 @@ function layoutChildren(dfm: string, n: DfmNode, w: number, h: number): DNode[] 
     });
 }
 
-export function buildDesignModel(dfm: string): DesignModel | undefined {
+/** `sheets`: the style sheets of other forms (a data module of styles) that the grids of this one point to, by `module.sheet` in lower case. */
+export function buildDesignModel(dfm: string, sheets?: Map<string, SheetColors>): DesignModel | undefined {
+    return withExternalSheets(sheets, () => buildModel(dfm));
+}
+
+function buildModel(dfm: string): DesignModel | undefined {
     let root: DfmNode | undefined;
     try { root = parseDfmTree(dfm); } catch { return undefined; }
     if (!root) { return undefined; }

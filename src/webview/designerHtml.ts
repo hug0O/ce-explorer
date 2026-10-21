@@ -165,6 +165,9 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-combo > .chrome::after, .k-datepick > .chrome::after { content: '▾'; margin-left: auto; padding-left: 4px; font-size: 10px; }
 .k-memo > .chrome, .k-list > .chrome, .k-listview > .chrome, .k-treeview > .chrome { background: #fff; border: 1px solid #7a7a7a; padding: 2px 3px; white-space: pre; }
 .k-label > .chrome { overflow: visible; white-space: nowrap; }
+.ctl.wrap > .chrome { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; overflow: hidden; }
+.k-check.wrap > .chrome, .k-radio.wrap > .chrome { align-items: flex-start; }
+.k-check.wrap .box, .k-radio.wrap .box { margin-top: 1px; }
 .k-check > .chrome, .k-radio > .chrome { display: flex; align-items: center; gap: 4px; overflow: visible; white-space: nowrap; }
 .k-check .box, .k-radio .box { width: 13px; height: 13px; border: 1px solid #333; background: #fff; flex: none; }
 .k-radio .box { border-radius: 50%; }
@@ -242,6 +245,12 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .colorrow .colorclr { font-size: 11px; padding: 1px 6px; }
 .ctl.inherited { outline: 1px dashed #7a6ff0; outline-offset: 1px; }
 .nonvisual > .chrome { border: 1px solid #888; background: #fff3c4; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+/* Components with no visual presence sit over the controls they were dropped on: small and faint until the pointer is on them, so they hide nothing. */
+.ctl.nonvisual { opacity: 0.4; transition: opacity 0.12s; }
+.ctl.nonvisual:hover { opacity: 1; z-index: 30; }
+.ctl.nonvisual > .chrome { font-size: 12px; }
+.nonvisual > .nvname { opacity: 0; transition: opacity 0.12s; }
+.ctl.nonvisual:hover > .nvname { opacity: 1; }
 .nonvisual > .nvname { position: absolute; top: 30px; left: -10px; right: -10px; text-align: center; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev-badge { position: absolute; right: -1px; top: -1px; font-size: 9px; background: #ffd24a; color: #000; border-radius: 3px; padding: 0 2px; line-height: 11px; pointer-events: none; z-index: 5; }
 .nm { position: absolute; left: 0; top: -12px; font-size: 9px; background: rgba(0,0,0,0.65); color: #fff; padding: 0 3px; border-radius: 2px; white-space: nowrap; pointer-events: none; z-index: 6; }
@@ -497,14 +506,14 @@ body.full #toolbar { padding: 3px 8px; }
   }
   function mkInner(n, parent) {
     var k = kind(n.cls);
-    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : '') + (n.inherited ? ' inherited' : ''));
+    var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : '') + (n.inherited ? ' inherited' : '') + (n.wrap ? ' wrap' : ''));
     e.setAttribute('data-name', n.name);
     // name, class and, for a connection or a query, the server or the first lines of the SQL
     e.title = n.name + ' : ' + n.cls + (n.summary ? String.fromCharCode(10) + n.summary : '') + (n.note ? String.fromCharCode(10) + n.note : '') + (n.inherited ? String.fromCharCode(10) + 'Inherited from the ancestor form: it cannot be deleted or renamed here' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     // A hidden detail page of a tile control would cover the tiles: it is drawn only while it (or something in it) is selected.
     if (isDetail(n) && !n.visible && !state.details[n.name]) { e.style.display = 'none'; }
-    e.style.width = (n.nonVisual ? 28 : n.w) + 'px'; e.style.height = (n.nonVisual ? 28 : n.h) + 'px';
+    e.style.width = (n.nonVisual ? 22 : n.w) + 'px'; e.style.height = (n.nonVisual ? 22 : n.h) + 'px';
     var chrome = el('div', 'chrome');
     e.appendChild(chrome);
     try { content(n, e, chrome); } catch (err) { chrome.textContent = n.cls; }

@@ -341,6 +341,11 @@
         "title": "CE: Use a Language for this File..."
       },
       {
+        "command": "ce.fixEncoding",
+        "title": "CE: Fix Encoding (accents)...",
+        "icon": "$(warning)"
+      },
+      {
         "command": "ce.delphi.project",
         "title": "CE: Project Insights (SQL, dead code, size, hotspots, Delphi forms)"
       },
@@ -430,6 +435,11 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "ce.fixEncoding",
+          "when": "ce:encodingSuspect",
+          "group": "navigation@5"
+        },
         {
           "command": "ce.delphi.designer",
           "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",

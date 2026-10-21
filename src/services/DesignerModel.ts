@@ -138,6 +138,8 @@ export interface DNode {
     summary?: string;
     /** Why the designer drew it where it is, when that is not where the .dfm says (no position written, or one outside the form). */
     note?: string;
+    /** The text wraps inside the width (WordWrap = True; a memo wraps unless WordWrap = False). */
+    wrap?: boolean;
     /** A dataset: columns of its SELECT with no persistent field. A grid view: fields of its dataset with no column. What "create all" would add. */
     newFields?: number;
     /** Comes from the ancestor form (`inherited` in the .dfm): it can be moved and its properties changed, not deleted or renamed. */
@@ -275,10 +277,13 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : n.props['Properties.Items'] !== undefined ? collectionCaptions(dfm, n, 'Properties.Items')
         : n.props['Items'] !== undefined && /group$/i.test(n.className) ? collectionCaptions(dfm, n, 'Items') : [];
     const colors = resolveColors(n);
+    const wrapProp = n.props['WordWrap'] ?? n.props['Properties.WordWrap'];
+    const wrap = /(memo|richedit)$/i.test(n.className) ? wrapProp !== 'False' : wrapProp === 'True';
     const newFields = isDataset(n.className) ? fieldsToCreate(dfm, n).length : isGridView(n.className) ? columnsToCreate(dfm, n).length : undefined;
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         newFields,
+        wrap: wrap || undefined,
         nonVisual: isNonVisual(n),
         inherited: n.inherited || undefined,
         container: isContainer(n) && !isNonVisual(n),

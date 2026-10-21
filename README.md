@@ -6,14 +6,16 @@ Browse, create, edit, and refactor classes and members across **9 languages** wi
 
 ## Install
 
-# 1. Compil bundle — dist/extension.js
+```bash
+# 1. bundle -> dist/extension.js
 npm run build
 
-# 2. Generate .vsix 
-npx @vscode/vsce package
+# 2. package the extension
+npx @vscode/vsce package --no-dependencies
 
-# install .vsix
-code --install-extension ce-code-explorer-0.1.0.vsix
+# 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
+code --install-extension ce-code-explorer-0.1.5.vsix
+```
 
 ## Supported Languages
 
@@ -29,6 +31,30 @@ code --install-extension ce-code-explorer-0.1.0.vsix
 | TypeScript / JavaScript | `.ts` `.tsx` `.js` `.jsx` |
 | PL/SQL | `.pks` `.pkb` `.sql` `.txt` |
 
+
+## What it is for
+
+Code Explorer adds to VS Code what a Delphi developer misses in it (a structure of the unit, the form designer, the checks between `.pas` and `.dfm`) and what any language gains from it (safe refactoring, review, project-wide views). It works next to OmniPascal and the other extensions: it never changes the language VS Code gives a file.
+
+| You want to… | Use | Where |
+|---|---|---|
+| See what a file holds, and where a member is used | **Structure** tab: members by order / visibility / kind, where the selected one is used, a search inside its code, its variables, the routines declared inside it | Sidebar → Code Explorer → Structure |
+| Add, change, rename, move or delete a member without breaking the rest | Member forms, rename that keeps declaration and implementation together, extract method, getters / setters, implement an interface, synchronise declaration and implementation | Sidebar, lightbulb, `CE:` commands |
+| Rename a variable | **Rename Variable**: stays in the file (other units of the same language on request, never forms or other languages) | Lightbulb |
+| Draw a Delphi form | **Visual form designer**: select, drag, resize, align, add components and events, copy / paste, undo; DevExpress, TMS and UniDAC are drawn; zoom with `Ctrl` + wheel, magnetism with guide lines, colours from styles, fields and columns of queries and grids | `Ctrl+K D`, the title bar of a `.pas` / `.dfm`, the status bar |
+| Keep `.pas` and `.dfm` in step | **Check form**, clean handlers, handlers renamed and removed with their component | Tools → Form, `Ctrl+K C` |
+| Know where the SQL of the project is | **Project panel → SQL**: every statement of the forms and the code, its tables and parameters, search by table or query number | `Ctrl+K I` |
+| Find what nobody uses | **Project panel → Unused**: units of a `uses` clause, components, SQL parameters | `Ctrl+K I` |
+| Review a code base | **Code review** with compiler-style rules and codes in every language, dead code, metrics, documentation | `CE: Code Review`, the Tools tab |
+| Prepare a translation, tidy the names | **Project panel → Texts, Names**: the texts of the forms grouped by meaning with a CSV export; component names against the convention of the project, with rename | `Ctrl+K I` |
+| See what changed in a form | **Compare the form with a git version**: component by component, whatever the order and the indentation | `Ctrl+K B` |
+| Find the places to tidy first | **Project panel → Hotspots**: units often changed and hard to change | `Ctrl+K I` |
+| Work on Oracle | PL/SQL tools: package skeletons, CRUD from a table, spec ⇄ body sync, utPLSQL tests, callers | Tools → PL/SQL |
+| Use the features on a file CE does not know | **Language of this file** (Tools tab drop-down, or `CE: Use a Language for this File…`), per file or per extension | Tools tab, status bar |
+| Fix letters shown as `�` or `Ã©` | **Fix Encoding (accents)**: repairs UTF-8 read as Windows-1252 in place; reads a Windows-1252 file (what Delphi writes) as such and keeps it for the language | Title-bar button / status bar when something looks wrong, `CE: Fix Encoding (accents)…` |
+| Keep notes, find a shortcut | **Memo** (Markdown per language) and **Shortcuts** (every key, by mode) tabs | Sidebar |
+
+Nothing is read in the background: the project panel scans only when asked, in small steps, and remembers what it read.
 ## Features
 
 ### Sidebar: Structure, Tools, Memo

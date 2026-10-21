@@ -81,3 +81,27 @@ test('a guide line runs from the component to the ones it lines up with, a littl
     assert.deepEqual(plain(magnetSpan(box, rects, 160, 'x', 8)), { from: 42, to: 78 }, 'only the box is on 160: a short line');
     assert.deepEqual(plain(magnetSpan({ x: 20, y: 205, w: 30, h: 20 }, rects, 215, 'y', 4)), { from: 16, to: 184 }, 'a horizontal line: x extent');
 });
+
+test('equal spacing: the box is pulled to the gap the others have, or to the middle between two', () => {
+    const { magnetGaps } = sandbox as { magnetGaps: any };
+    // three buttons in a row: 0-50 and 70-120 (gap 20) and the box, 40 high, in line with them
+    const row = [{ x: 0, y: 0, w: 50, h: 40 }, { x: 70, y: 0, w: 50, h: 40 }];
+    const after = plain(magnetGaps({ x: 138, y: 5, w: 50, h: 30 }, row, 6, 'x')) as { d: number; gaps: { from: number; to: number; at: number }[] };
+    assert.equal(after.d, 2, 'a gap of 20 after the second one: 120 + 20 = 140');
+    assert.deepEqual(after.gaps.map(g => [g.from, g.to]), [[50, 70], [120, 140]], 'the two equal gaps, to be drawn');
+    const before = plain(magnetGaps({ x: -72, y: 5, w: 50, h: 30 }, row, 6, 'x')) as { d: number };
+    assert.equal(before.d, 2, 'and before the first one: 0 - 20 - 50 = -70');
+    // the middle of the space between two components 100 apart, for a box of 40
+    const apart = [{ x: 0, y: 0, w: 50, h: 40 }, { x: 150, y: 0, w: 50, h: 40 }];
+    const mid = plain(magnetGaps({ x: 78, y: 0, w: 40, h: 40 }, apart, 6, 'x')) as { d: number; gaps: { from: number; to: number }[] };
+    assert.equal(mid.d, 2, 'between 50 and 150 a box of 40 sits at 80');
+    assert.deepEqual(mid.gaps.map(g => [g.from, g.to]), [[50, 80], [120, 150]]);
+    // nothing in line, too far, or too few neighbours
+    assert.equal(magnetGaps({ x: 138, y: 100, w: 50, h: 30 }, row, 6, 'x'), null, 'not in the same row');
+    assert.equal(magnetGaps({ x: 300, y: 5, w: 50, h: 30 }, row, 6, 'x'), null, 'too far from any equal gap');
+    assert.equal(magnetGaps({ x: 138, y: 5, w: 50, h: 30 }, [row[0]], 6, 'x'), null, 'one neighbour is no rhythm');
+    // a column: the same on the other axis
+    const col = [{ x: 0, y: 0, w: 60, h: 20 }, { x: 0, y: 30, w: 60, h: 20 }];
+    const down = plain(magnetGaps({ x: 5, y: 62, w: 50, h: 20 }, col, 6, 'y')) as { d: number };
+    assert.equal(down.d, -2, 'a gap of 10 under the second: 50 + 10 = 60');
+});

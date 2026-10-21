@@ -42,6 +42,49 @@ function magnetSpan(box, rects, v, axis, margin) {
   });
   return { from: lo - margin, to: hi + margin };
 }
+/*
+ * Equal spacing: the box is pulled to where its gap to a neighbour is the gap two other components already have, or to the
+ * middle of the space between two of them, and the equal gaps are returned to be drawn. axis 'x' looks at components that
+ * overlap the box vertically (a row), axis 'y' at the ones that overlap it horizontally (a column).
+ * Returns { d, gaps: [{ from, to, at }] } or null: d is how far to shift the box on that axis.
+ */
+function magnetGaps(box, rects, threshold, axis) {
+  var h = axis === 'x';
+  function lo(r) { return h ? r.x : r.y; }
+  function hi(r) { return h ? r.x + r.w : r.y + r.h; }
+  function cross0(r) { return h ? r.y : r.x; }
+  function cross1(r) { return h ? r.y + r.h : r.x + r.w; }
+  var row = rects.filter(function (r) { return cross0(r) < cross1(box) && cross1(r) > cross0(box); }).sort(function (a, b) { return lo(a) - lo(b); });
+  if (row.length < 2) { return null; }
+  var size = hi(box) - lo(box), pos = lo(box);
+  var best = null;
+  function consider(target, gaps) {
+    var d = target - pos;
+    if (Math.abs(d) <= threshold && (best === null || Math.abs(d) < Math.abs(best.d))) { best = { d: d, gaps: gaps }; }
+  }
+  var mid = (cross0(box) + cross1(box)) / 2;
+  var known = [];
+  for (var i = 0; i + 1 < row.length; i++) {
+    var g = lo(row[i + 1]) - hi(row[i]);
+    if (g > 0) { known.push({ g: g, a: row[i], b: row[i + 1] }); }
+  }
+  // the middle of the space between two neighbours: both gaps equal
+  for (var j = 0; j + 1 < row.length; j++) {
+    var space = lo(row[j + 1]) - hi(row[j]) - size;
+    if (space >= 0) {
+      var t = hi(row[j]) + space / 2;
+      consider(t, [{ from: hi(row[j]), to: t, at: mid }, { from: t + size, to: lo(row[j + 1]), at: mid }]);
+    }
+  }
+  // the gap the others already have, after the last one, before the first one, or after / before any of them
+  known.forEach(function (k) {
+    row.forEach(function (r) {
+      consider(hi(r) + k.g, [{ from: hi(k.a), to: lo(k.b), at: mid }, { from: hi(r), to: hi(r) + k.g, at: mid }]);
+      consider(lo(r) - k.g - size, [{ from: hi(k.a), to: lo(k.b), at: mid }, { from: lo(r) - k.g, to: lo(r), at: mid }]);
+    });
+  });
+  return best;
+}
 /* A box (x, y, w, h) being moved: how far to shift it on each axis (0 when nothing is close) and the lines it then sits on. */
 function magnetBox(box, lines, threshold, opts) {
   var px = [], py = [];

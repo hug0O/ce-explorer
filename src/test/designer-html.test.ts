@@ -240,3 +240,15 @@ test('save: a button and Ctrl+S save the .dfm and the .pas together, the button 
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
     assert.equal(pkg.contributes.configuration.properties['ce.delphi.designerAutoSave'].default, false);
 });
+
+test('the form scrolls and zooms: visible scroll bars, Ctrl + wheel between 25% and 300%, middle-button pan, grid scroll bars', () => {
+    const html = designerHtml('N');
+    assert.match(html, /#center::-webkit-scrollbar-thumb, /,'scroll bars of the theme colours, wide enough to grab');
+    assert.match(html, /\$\('center'\)\.addEventListener\('wheel'[\s\S]*?ctrlKey \|\| ev\.metaKey[\s\S]*?preventDefault\(\)[\s\S]*?\{ passive: false \}/, 'Ctrl + wheel is handled, and the page is scrolled by the plain wheel as before');
+    assert.match(html, /Math\.max\(0\.25, Math\.min\(3,/, 'the zoom is kept between 25% and 300%');
+    assert.match(html, /<option id="zoomcustom" value="custom" hidden>/, 'a zoom that is not a preset gets a line of its own');
+    assert.match(html, /ev\.button !== 1/, 'the middle button pans');
+    assert.match(html, /\.dxvs \{/);
+    assert.match(html, /'dxvs'/);
+    assert.match(html, /'dxhs'/);
+});

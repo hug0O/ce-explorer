@@ -96,6 +96,14 @@ button.active { background: var(--vscode-button-background); color: var(--vscode
 .split:hover, .split.drag { background: var(--vscode-sash-hoverBorder, #0a84ff); opacity: 0.8; }
 body.resizing { cursor: col-resize; user-select: none; }
 body.hide-left #splitL, body.hide-right #splitR { display: none; }
+#center, #left, #right, #outline { scrollbar-width: auto; scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.5)) transparent; }
+#center::-webkit-scrollbar, #left::-webkit-scrollbar, #right::-webkit-scrollbar, #outline::-webkit-scrollbar { width: 14px; height: 14px; }
+#center::-webkit-scrollbar-track, #left::-webkit-scrollbar-track, #right::-webkit-scrollbar-track, #outline::-webkit-scrollbar-track { background: transparent; }
+#center::-webkit-scrollbar-corner { background: transparent; }
+#center::-webkit-scrollbar-thumb, #left::-webkit-scrollbar-thumb, #right::-webkit-scrollbar-thumb, #outline::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.5)); border: 3px solid transparent; background-clip: padding-box; border-radius: 7px; min-height: 30px; min-width: 30px; }
+#center::-webkit-scrollbar-thumb:hover, #left::-webkit-scrollbar-thumb:hover, #right::-webkit-scrollbar-thumb:hover, #outline::-webkit-scrollbar-thumb:hover { background: var(--vscode-scrollbarSlider-hoverBackground, rgba(150, 150, 150, 0.7)); background-clip: padding-box; }
+#center::-webkit-scrollbar-thumb:active { background: var(--vscode-scrollbarSlider-activeBackground, rgba(190, 190, 190, 0.8)); background-clip: padding-box; }
+#center.panning, #center.panning * { cursor: grabbing !important; }
 #center { flex: 1; overflow: auto; background: var(--vscode-editorWidget-background, #2d2d2d); padding: 20px; }
 h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); }
 .pal { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -262,6 +270,13 @@ body.full #toolbar { padding: 3px 8px; }
 .colrow:hover { background: var(--vscode-list-hoverBackground); }
 .tips { margin: 4px 0 0 16px; padding: 0; font-size: 11px; line-height: 1.6; color: var(--vscode-descriptionForeground); }
 .k-grid { overflow: hidden; }
+.dxvs, .dxhs { position: absolute; background: #f0f0f0; pointer-events: none; }
+.dxvs { top: 22px; right: 0; bottom: 0; width: 17px; border-left: 1px solid #d6d6d6; }
+.dxhs { left: 0; bottom: 0; height: 17px; border-top: 1px solid #d6d6d6; }
+.dxvs .th { position: absolute; left: 3px; right: 3px; top: 20px; height: 34%; background: #c1c1c1; border-radius: 2px; }
+.dxhs .th { position: absolute; top: 3px; bottom: 3px; left: 20px; width: 46%; background: #c1c1c1; border-radius: 2px; }
+.dxvs .ar, .dxhs .ar { position: absolute; font-size: 7px; color: #606060; line-height: 17px; text-align: center; width: 17px; }
+.dxvs .ar.a { top: 0; } .dxvs .ar.b { bottom: 0; } .dxhs .ar.a { left: 0; } .dxhs .ar.b { right: 0; }
 .k-gridcolumn > .chrome { border-right: 1px solid #d4d4d4; background: transparent; }
 .k-gridcolumn .gh { height: 22px; background: linear-gradient(#fafafa, #e9e9e9); border-bottom: 1px solid #b4b4b4; padding: 3px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style></head>
@@ -278,7 +293,7 @@ body.full #toolbar { padding: 3px 8px; }
   </div>
   <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
   <div class="tg">
-    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels"><option value="fit">Fit window</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
     <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
     <label title="Show the name of every component"><input type="checkbox" id="names"> names</label>
     <label title="Outline every container with its name, coloured by depth"><input type="checkbox" id="showparents"> containers</label>
@@ -433,6 +448,13 @@ body.full #toolbar { padding: 3px 8px; }
         // rows only: the columns draw their own vertical lines
         chrome.style.backgroundImage = 'linear-gradient(#ececec 1px, transparent 1px)'; chrome.style.backgroundSize = '100% 21px';
         if (n.gridBand !== false) { chrome.appendChild(el('div', 'dxband', 'Drag a column header here to group by that column')); }
+        // the scroll bars of the grid: vertical always, horizontal when the columns are wider than the grid
+        var vs = el('div', 'dxvs'); vs.appendChild(el('span', 'ar a', '▲')); vs.appendChild(el('div', 'th')); vs.appendChild(el('span', 'ar b', '▼')); chrome.appendChild(vs);
+        var colsW = 0;
+        (function sum(x) { x.children.forEach(function (c) { if (kind(c.cls) === 'gridcolumn' && c.props['Visible'] !== 'False') { colsW += Number(c.props['Width'] || 64); } else { sum(c); } }); })(n);
+        if (colsW > n.w - 17) {
+          var hs = el('div', 'dxhs'); hs.appendChild(el('span', 'ar a', '◀')); var th = el('div', 'th'); th.style.width = Math.max(10, Math.min(90, Math.round(((n.w - 40) / colsW) * 100))) + '%'; hs.appendChild(th); hs.appendChild(el('span', 'ar b', '▶')); hs.style.right = '17px'; chrome.appendChild(hs);
+        }
       }
       else { var hd = el('div', 'gridhead'); hd.style.height = (Number(n.props['FixedRows'] || 1) * rh) + 'px'; chrome.appendChild(hd); var fx = el('div', 'gridfix'); fx.style.width = (Number(n.props['FixedCols'] || 1) * cw) + 'px'; chrome.appendChild(fx); }
     }
@@ -531,6 +553,30 @@ body.full #toolbar { padding: 3px 8px; }
     drawSel(); renderOutline(); renderInspector(); renderStatus();
     $('undo').disabled = !state.canUndo; $('redo').disabled = !state.canRedo;
     markCut(); showDirty();
+  }
+  var ZOOM_PRESETS = ['0.5', '0.75', '1', '1.25', '1.5', '2'];
+  /* The zoom select shows a value that is not one of its presets (a Ctrl + wheel zoom) in a line of its own. */
+  function showZoom() {
+    var sel = $('zoom');
+    if (state.fit) { sel.value = 'fit'; return; }
+    var key = String(Math.round(state.zoom * 100) / 100);
+    if (ZOOM_PRESETS.indexOf(key) >= 0) { sel.value = key; return; }
+    var o = $('zoomcustom');
+    o.textContent = Math.round(state.zoom * 100) + '%'; o.hidden = false; o.value = 'custom';
+    sel.value = 'custom';
+  }
+  /* Zoom to z, keeping the point under (px, py) of the visible area where it is. */
+  function setZoom(z, px, py) {
+    z = Math.max(0.25, Math.min(3, Math.round(z * 100) / 100));
+    if (z === state.zoom) { return; }
+    var c = $('center');
+    var r = c.getBoundingClientRect();
+    var ax = px === undefined ? c.clientWidth / 2 : px - r.left, ay = py === undefined ? c.clientHeight / 2 : py - r.top;
+    var cx = (c.scrollLeft + ax) / state.zoom, cy = (c.scrollTop + ay) / state.zoom;
+    state.fit = false; state.zoom = z;
+    applyZoom(); showZoom();
+    c.scrollLeft = cx * z - ax; c.scrollTop = cy * z - ay;
+    drawSel(); saveUi();
   }
   function applyZoom() {
     var z = state.zoom;
@@ -1687,12 +1733,35 @@ body.full #toolbar { padding: 3px 8px; }
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       state.fit = !!st.fit;
       if (state.fit) { $('zoom').value = 'fit'; }
-      else if (st.zoom >= 0.5 && st.zoom <= 2) { state.zoom = st.zoom; $('zoom').value = String(st.zoom); if ($('zoom').value !== String(st.zoom)) { $('zoom').value = '1'; state.zoom = 1; } }
+      else if (st.zoom >= 0.25 && st.zoom <= 3) { state.zoom = st.zoom; applyZoom(); showZoom(); }
     }
     applyUi();
   })();
+  $('center').addEventListener('wheel', function (ev) {
+    if (!(ev.ctrlKey || ev.metaKey)) { return; }
+    ev.preventDefault();
+    // a wheel notch is about 10 percent, a trackpad pinch (small deltas) follows the finger
+    var step = Math.max(-0.5, Math.min(0.5, -ev.deltaY / (ev.deltaMode === 1 ? 20 : 200)));
+    setZoom(state.zoom * (1 + step * 0.5), ev.clientX, ev.clientY);
+  }, { passive: false });
+  /* Pan the form with the middle button, as in a drawing program. */
+  (function () {
+    var pan = null;
+    $('center').addEventListener('mousedown', function (ev) {
+      if (ev.button !== 1) { return; }
+      ev.preventDefault();
+      pan = { x: ev.clientX, y: ev.clientY, l: $('center').scrollLeft, t: $('center').scrollTop };
+      $('center').classList.add('panning');
+    });
+    window.addEventListener('mousemove', function (ev) {
+      if (!pan) { return; }
+      $('center').scrollLeft = pan.l - (ev.clientX - pan.x); $('center').scrollTop = pan.t - (ev.clientY - pan.y);
+    });
+    window.addEventListener('mouseup', function () { if (pan) { pan = null; $('center').classList.remove('panning'); } });
+  })();
   $('zoom').addEventListener('change', function () {
     var v = $('zoom').value;
+    if (v === 'custom') { return; }
     state.fit = v === 'fit';
     if (state.fit) { fitZoom(true); } else { state.zoom = Number(v); applyZoom(); drawSel(); }
     saveUi();

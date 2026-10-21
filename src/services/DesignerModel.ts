@@ -146,6 +146,9 @@ export interface DNode {
     /** A grid column: the colours of its header (its style, its view's, the style sheet's). */
     headerColor?: string;
     headerText?: string;
+    /** A DevExpress grid: the view it shows, and which scroll bars it draws (`OptionsView.ScrollBars` of that view: ssBoth, ssVertical, ssHorizontal, ssNone). */
+    scrollView?: string;
+    scrollBars?: string;
     /** The text wraps inside the width (WordWrap = True; a memo wraps unless WordWrap = False). */
     wrap?: boolean;
     /** A dataset: columns of its SELECT with no persistent field. A grid view: fields of its dataset with no column. What "create all" would add. */
@@ -288,12 +291,14 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         : n.props['Items'] !== undefined && /group$/i.test(n.className) ? collectionCaptions(dfm, n, 'Items') : [];
     const colors = resolveColors(n);
     const header = isGridColumn(n.className) ? gridPartColors(n, 'header') : undefined;
+    const shown = isGridHost(n.className) ? shownView(n) : undefined;
     const wrapProp = n.props['WordWrap'] ?? n.props['Properties.WordWrap'];
     const wrap = /(memo|richedit)$/i.test(n.className) ? wrapProp !== 'False' : wrapProp === 'True';
     const newFields = isDataset(n.className) ? fieldsToCreate(dfm, n).length : isGridView(n.className) ? columnsToCreate(dfm, n).length : undefined;
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         newFields,
+        scrollView: shown?.name, scrollBars: shown ? shown.props['OptionsView.ScrollBars'] ?? 'ssBoth' : undefined,
         colorTo: colors.colorTo, gradient: colors.gradient, borderColor: colors.borderColor, rounding: colors.rounding,
         headerColor: header?.color,
         headerText: header?.text,
@@ -710,17 +715,17 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
     TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
-    Color: 'color', 'Font.Color': 'color',
+    Color: 'color', 'Font.Color': 'color', 'OptionsView.ScrollBars': 'enum',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
-const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES };
+const ENUM_VALUES: Record<string, string[]> = { Align: ALIGN_VALUES, Size: TILE_SIZES, 'OptionsView.ScrollBars': ['ssBoth', 'ssVertical', 'ssHorizontal', 'ssNone'] };
 /** Properties that exist only on some classes: refused on any other. */
 const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     Size: c => isTileItem(c) || isDatasetField(c), GroupIndex: isTileItem, IndexInGroup: isTileItem, 'Text1.Value': isTileItem, 'Text2.Value': isTileItem, 'Caption.Text': isTileGroup,
     'DataBinding.FieldName': isGridColumn, GridView: isGridLevel,
     FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
     ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
-    TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl,
+    TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl, 'OptionsView.ScrollBars': isGridView,
     Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
 };
 /** What a link property may point to. */
@@ -765,8 +770,8 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         text = written;
     } else if (kind === 'enum') {
         if (typeof value !== 'string' || !(ENUM_VALUES[prop] ?? []).includes(value)) { return fail(`Unknown ${prop} value.`); }
-        if (prop === 'Align' && value === 'alNone') {
-            const e = deleteProp(dfm, node, 'Align');
+        if ((prop === 'Align' && value === 'alNone') || (prop === 'OptionsView.ScrollBars' && value === 'ssBoth')) {
+            const e = deleteProp(dfm, node, prop);
             return { dfmEdits: e ? [e] : [], pasEdits: [] };
         }
         text = value;

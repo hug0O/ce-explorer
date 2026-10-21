@@ -302,7 +302,9 @@ body.full #toolbar { padding: 3px 8px; }
 .colrow:hover { background: var(--vscode-list-hoverBackground); }
 .tips { margin: 4px 0 0 16px; padding: 0; font-size: 11px; line-height: 1.6; color: var(--vscode-descriptionForeground); }
 .k-grid { overflow: hidden; }
-.dxvs, .dxhs { position: absolute; background: #f0f0f0; pointer-events: none; }
+.dxvs, .dxhs { position: absolute; background: #f0f0f0; pointer-events: auto; cursor: default; }
+.dxvs.sbsel, .dxhs.sbsel { background: #dbeaff; outline: 2px solid #0a84ff; outline-offset: -2px; }
+.dxvs.sbsel .th, .dxhs.sbsel .th { background: #6b9fe0; }
 .dxvs { top: 22px; right: 0; bottom: 0; width: 17px; border-left: 1px solid #d6d6d6; }
 .dxhs { left: 0; bottom: 0; height: 17px; border-top: 1px solid #d6d6d6; }
 .dxvs .th { position: absolute; left: 3px; right: 3px; top: 20px; height: 34%; background: #c1c1c1; border-radius: 2px; }
@@ -493,11 +495,13 @@ body.full #toolbar { padding: 3px 8px; }
         chrome.style.backgroundImage = 'linear-gradient(#ececec 1px, transparent 1px)'; chrome.style.backgroundSize = '100% 21px';
         if (n.gridBand !== false) { chrome.appendChild(el('div', 'dxband', 'Drag a column header here to group by that column')); }
         // the scroll bars of the grid: vertical always, horizontal when the columns are wider than the grid
-        var vs = el('div', 'dxvs'); vs.appendChild(el('span', 'ar a', '▲')); vs.appendChild(el('div', 'th')); vs.appendChild(el('span', 'ar b', '▼')); chrome.appendChild(vs);
+        var sbs = n.scrollBars || 'ssBoth';
+        var vs = el('div', 'dxvs'); vs.title = 'Scroll bar of the grid: click to select it (OptionsView.ScrollBars of ' + (n.scrollView || 'the view') + ')'; vs.appendChild(el('span', 'ar a', '▲')); vs.appendChild(el('div', 'th')); vs.appendChild(el('span', 'ar b', '▼'));
+        if (sbs === 'ssBoth' || sbs === 'ssVertical') { chrome.appendChild(vs); }
         var colsW = 0;
         (function sum(x) { x.children.forEach(function (c) { if (kind(c.cls) === 'gridcolumn' && c.props['Visible'] !== 'False') { colsW += Number(c.props['Width'] || 64); } else { sum(c); } }); })(n);
-        if (colsW > n.w - 17) {
-          var hs = el('div', 'dxhs'); hs.appendChild(el('span', 'ar a', '◀')); var th = el('div', 'th'); th.style.width = Math.max(10, Math.min(90, Math.round(((n.w - 40) / colsW) * 100))) + '%'; hs.appendChild(th); hs.appendChild(el('span', 'ar b', '▶')); hs.style.right = '17px'; chrome.appendChild(hs);
+        if (colsW > n.w - 17 && (sbs === 'ssBoth' || sbs === 'ssHorizontal')) {
+          var hs = el('div', 'dxhs'); hs.title = 'Scroll bar of the grid: click to select it (OptionsView.ScrollBars of ' + (n.scrollView || 'the view') + ')'; hs.appendChild(el('span', 'ar a', '◀')); var th = el('div', 'th'); th.style.width = Math.max(10, Math.min(90, Math.round(((n.w - 40) / colsW) * 100))) + '%'; hs.appendChild(th); hs.appendChild(el('span', 'ar b', '▶')); hs.style.right = '17px'; chrome.appendChild(hs);
         }
       }
       else { var hd = el('div', 'gridhead'); hd.style.height = (Number(n.props['FixedRows'] || 1) * rh) + 'px'; chrome.appendChild(hd); var fx = el('div', 'gridfix'); fx.style.width = (Number(n.props['FixedCols'] || 1) * cw) + 'px'; chrome.appendChild(fx); }
@@ -601,7 +605,7 @@ body.full #toolbar { padding: 3px 8px; }
     if (state.fit) { fitZoom(true); } else { applyZoom(); }
     drawSel(); renderOutline(); renderInspector(); renderStatus();
     $('undo').disabled = !state.canUndo; $('redo').disabled = !state.canRedo;
-    markCut(); showDirty();
+    markCut(); showDirty(); markScrollbar();
   }
   var ZOOM_PRESETS = ['0.5', '0.75', '1', '1.25', '1.5', '2'];
   /* The zoom select shows a value that is not one of its presets (a Ctrl + wheel zoom) in a line of its own. */
@@ -1055,6 +1059,11 @@ body.full #toolbar { padding: 3px 8px; }
       box.appendChild(labelled('View', vs));
       box.appendChild(el('div', 'hint', 'The view this level shows. The first level of a grid decides which view is drawn.'));
     } else {
+      var sbSel = el('select');
+      [['ssBoth', 'Both (default)'], ['ssVertical', 'Vertical only'], ['ssHorizontal', 'Horizontal only'], ['ssNone', 'None']].forEach(function (p) { var o = el('option', '', p[1]); o.value = p[0]; sbSel.appendChild(o); });
+      sbSel.value = n.props['OptionsView.ScrollBars'] || 'ssBoth';
+      sbSel.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'OptionsView.ScrollBars', value: sbSel.value }); });
+      box.appendChild(labelled('Scroll bars', sbSel));
       var cols = n.children.filter(function (c) { return kind(c.cls) === 'gridcolumn'; });
       box.appendChild(el('div', 'fehead', 'Columns (' + cols.length + ')'));
       var cbar = el('div', 'febar');
@@ -1546,10 +1555,20 @@ ${snapScript()}
     });
     return o;
   }
+  /* The scroll bar that was clicked keeps its highlight while its view stays selected. */
+  function markScrollbar() {
+    document.querySelectorAll('.dxvs.sbsel, .dxhs.sbsel').forEach(function (e) { e.classList.remove('sbsel'); });
+    var s = state.sbSel;
+    if (!s || state.sel.indexOf((byName[s.grid] || {}).scrollView) < 0) { state.sbSel = null; return; }
+    var g = els[s.grid];
+    var b = g && g.querySelector(s.axis === 'v' ? '.dxvs' : '.dxhs');
+    if (b) { b.classList.add('sbsel'); }
+  }
   function select(names) {
     state.sel = names;
+    state.sbSel = null;
     if (Object.keys(wantedDetails()).sort().join() !== Object.keys(state.details).sort().join()) { render(); return; }
-    drawSel(); renderOutline(); renderInspector(); renderStatus();
+    drawSel(); renderOutline(); renderInspector(); renderStatus(); markScrollbar();
   }
 
   document.addEventListener('mousedown', function (ev) {
@@ -1585,6 +1604,14 @@ ${snapScript()}
     var ctl = t.closest('.ctl');
     if (!ctl) { startMarquee(ev); return; }
     var name = ctl.getAttribute('data-name');
+    // the scroll bar of a DevExpress grid: a click selects it (its settings are those of the view the grid shows)
+    var bar = t.closest('.dxvs, .dxhs');
+    if (bar && byName[name] && byName[name].scrollView) {
+      select([byName[name].scrollView]);
+      state.sbSel = { grid: name, axis: bar.classList.contains('dxvs') ? 'v' : 'h' };
+      markScrollbar();
+      return;
+    }
     if (ev.shiftKey || ev.ctrlKey) {
       var i = state.sel.indexOf(name);
       if (i >= 0) { state.sel.splice(i, 1); } else { state.sel.push(name); }

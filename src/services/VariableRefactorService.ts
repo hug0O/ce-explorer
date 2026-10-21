@@ -19,8 +19,9 @@ export class VariableRefactorService {
     ) {}
 
     /**
-     * Rename a variable across all its occurrences (possibly multi-file).
-     * Returns false if nothing matched or the name was unchanged.
+     * Rename a variable where it is: in this file (and the header / source it is paired with). The language server
+     * answers for the whole project, .dfm and other languages included: only the occurrences in files of the same language
+     * are ever touched, and the ones in other files only when asked. Returns false if nothing matched or the name was unchanged.
      */
     async rename(ref: VariableRef, provider: ILanguageProvider | undefined, newName: string, cursorPosition?: vscode.Position): Promise<boolean> {
         if (!newName || newName === ref.name) {
@@ -31,16 +32,39 @@ export class VariableRefactorService {
             vscode.window.showWarningMessage(`CE: Could not locate "${ref.name}".`);
             return false;
         }
+        const chosen = await this.chooseScope(ref, provider, occurrences);
+        if (!chosen) { return false; }
         const wsEdit = new vscode.WorkspaceEdit();
-        for (const occ of occurrences) {
+        for (const occ of chosen) {
             wsEdit.replace(occ.uri, occ.range, newName);
         }
         const ok = await vscode.workspace.applyEdit(wsEdit);
         if (ok) {
             this.codeExplorer.refresh();
-            vscode.window.showInformationMessage(`CE: Renamed "${ref.name}" → "${newName}" (${occurrences.length} occurrence${occurrences.length > 1 ? 's' : ''}).`);
+            vscode.window.showInformationMessage(`CE: Renamed "${ref.name}" → "${newName}" (${chosen.length} occurrence${chosen.length > 1 ? 's' : ''}).`);
         }
         return ok;
+    }
+
+    /** The occurrences to rename: this file and its pair; those of other files of the same language only if the user says so. */
+    private async chooseScope(ref: VariableRef, provider: ILanguageProvider | undefined, all: Occurrence[]): Promise<Occurrence[] | undefined> {
+        const here = ref.document.uri.toString();
+        const paired = provider?.findPairedFile(ref.document.uri)?.toString();
+        const exts = (provider?.fileExtensions ?? []).map(e => e.toLowerCase());
+        const sameLanguage = (o: Occurrence): boolean => exts.length === 0 || exts.some(e => o.uri.fsPath.toLowerCase().endsWith(e));
+        const inFile = all.filter(o => o.uri.toString() === here || o.uri.toString() === paired);
+        const others = all.filter(o => o.uri.toString() !== here && o.uri.toString() !== paired && sameLanguage(o));
+        if (others.length === 0) { return inFile.length ? inFile : undefined; }
+        const files = new Set(others.map(o => shortFile(o.uri.fsPath)));
+        const pick = await vscode.window.showQuickPick(
+            [
+                ...(inFile.length ? [{ label: 'Rename here only', description: `${inFile.length} in this file`, more: false }] : []),
+                { label: `Also in ${files.size} other file${files.size > 1 ? 's' : ''}`, description: `${others.length} more: ${[...files].slice(0, 3).join(', ')}${files.size > 3 ? '…' : ''}`, more: true },
+            ],
+            { title: `Rename "${ref.name}"`, placeHolder: 'Other languages and form files are never changed here' },
+        );
+        if (!pick) { return undefined; }
+        return pick.more ? [...inFile, ...others] : inFile;
     }
 
     /**

@@ -154,7 +154,7 @@ test('Tools tab shows the PL/SQL block only for PL/SQL documents', () => {
     panel.isPlSql = () => true;
     const html: string = panel.getHtml();
     assert.match(html, /id="plBlock"/);
-    for (const cmd of ['syncPackage', 'newPackage', 'crudFromTable', 'extractProcedure', 'exceptionBlock', 'docHeader', 'utplsql', 'findCallers']) {
+    for (const cmd of ['syncPackage', 'newPackage', 'sqlFromTable', 'extractProcedure', 'exceptionBlock', 'docHeader', 'utplsql', 'findCallers']) {
         assert.ok(html.includes(`data-pl="ce.plsql.${cmd}"`), cmd);
     }
     for (const id of ['params', 'values', 'assign', 'arrow', 'comment', 'alias']) { assert.ok(html.includes(`data-pa="${id}"`), id); }
@@ -181,12 +181,14 @@ test('Tools are split into sub-tabs; only the pages that apply to the file are o
     const shown = (html: string) => [...html.matchAll(/data-sub="(\w+)"( hidden)?/g)].filter(m => !m[2]).map(m => m[1]);
 
     const plain: string = panel.getHtml();
-    assert.deepEqual(subs(plain), [], 'a plain file has only the Align tools: no sub-tab bar');
+    assert.deepEqual(subs(plain), ['align', 'analyze'], 'a plain file has the Align and Analyze pages');
     assert.deepEqual(shown(plain), ['align']);
+    for (const ak of ['review', 'documentation', 'export', 'deadcode']) { assert.ok(plain.includes(`data-ak="${ak}"`), ak); }
+    assert.equal(plain.split('data-ak="review"').length - 1, 1, 'the Analyze buttons are in Tools only, once');
 
     panel.isDelphi = () => true;
     const delphi: string = panel.getHtml();
-    assert.deepEqual(subs(delphi), ['form', 'align'], 'no Components page (the designer adds components) and no Spacing page');
+    assert.deepEqual(subs(delphi), ['form', 'align', 'analyze'], 'no Components page (the designer adds components) and no Spacing page');
     assert.deepEqual(shown(delphi), ['form'], 'the designer / layout page first');
     assert.ok(delphi.includes('id="dlBlock"') && !delphi.includes('id="sFields"') && !delphi.includes('id="dAdd"') && delphi.includes('id="alignToken"'));
     assert.doesNotMatch(delphi, /id="plBlock"/);
@@ -198,10 +200,33 @@ test('Tools are split into sub-tabs; only the pages that apply to the file are o
     panel.isPlSql = () => true;
     panel._toolsTab = 'form';
     const sql: string = panel.getHtml();
-    assert.deepEqual(subs(sql), ['plsql', 'align']);
+    assert.deepEqual(subs(sql), ['plsql', 'align', 'analyze']);
     assert.deepEqual(shown(sql), ['plsql'], 'a remembered tab that does not apply falls back to the first one');
     assert.doesNotMatch(sql, /id="dlBlock"/, 'Delphi tools are absent from a SQL file');
     assert.match(sql, /command: 'toolsTab'/);
+});
+
+test('switching file redraws the tabs even when neither file has a member under the cursor', () => {
+    const panel = makePanel({ subscriptions: [] }, {
+        getByDocument: (doc: any) => (doc.uri.fsPath.endsWith('.pas') ? { languageId: 'pascal', displayName: 'Pascal' } : { languageId: 'plsql', displayName: 'PL/SQL' }),
+    }, { getParsedDocument: () => ({ classes: [], standaloneProcedures: [] }), refresh() {} });
+    const pas = { uri: { fsPath: '/x/u.pas', toString: () => 'file:///x/u.pas' }, version: 1 };
+    const sql = { uri: { fsPath: '/x/o.pks', toString: () => 'file:///x/o.pks' }, version: 1 };
+    panel._tab = 'tools';
+    panel._view = { webview: { html: '' } };
+
+    vscodeMock.window.activeTextEditor = { document: pas, selection: { active: new FakePosition(0, 0) } };
+    panel.onCursorChanged(vscodeMock.window.activeTextEditor);
+    const first: string = panel._view.webview.html;
+    assert.match(first, /data-sub-tab="form"/, 'a Delphi unit shows the Form page');
+    assert.doesNotMatch(first, /data-sub-tab="plsql"/);
+
+    vscodeMock.window.activeTextEditor = { document: sql, selection: { active: new FakePosition(0, 0) } };
+    panel.onCursorChanged(vscodeMock.window.activeTextEditor);
+    const second: string = panel._view.webview.html;
+    assert.notEqual(second, first, 'the tabs are drawn again for the other file');
+    assert.match(second, /data-sub-tab="plsql"/, 'the PL/SQL page replaces the Delphi one');
+    assert.doesNotMatch(second, /data-sub-tab="form"/);
 });
 
 /* ───────────── Structure: filter, grouping, type selector, same abilities as the former Classes tree ───────────── */
@@ -516,4 +541,22 @@ test('Tools: the drop-down is still there while a sidebar page has the focus (no
         panel._tab = 'tools';
         assert.match(panel.getHtml(), /<select id="langSel"[\s\S]*every \.inc file/);
     } finally { w.visibleTextEditors = undefined; }
+});
+
+test('Structure: the filter is emptied when another file comes to the front', () => {
+    const w = vscodeMock.window as any;
+    const before = w.onDidChangeActiveTextEditor;
+    let fire: ((e: any) => void) | undefined;
+    w.onDidChangeActiveTextEditor = (cb: (e: any) => void) => { fire = cb; return { dispose() {} }; };
+    w.activeTextEditor = { document: { uri: { fsPath: 'C:\a\One.pas', scheme: 'file', toString: () => 'file:///a/One.pas' } } };
+    try {
+        const panel = new MemberViewerPanel({} as any, { getByDocument: () => undefined }, {} as any, {} as any, { subscriptions: [] } as any) as any;
+        panel._manageFilter = 'Run';
+        panel._manageKind = 'method';
+        panel._filterFile = 'file:///a/One.pas';
+        fire!({ document: { uri: { fsPath: 'C:\a\One.pas', scheme: 'file', toString: () => 'file:///a/One.pas' } } });
+        assert.equal(panel._manageFilter, 'Run', 'the same file keeps its filter');
+        fire!({ document: { uri: { fsPath: 'C:\a\Two.pas', scheme: 'file', toString: () => 'file:///a/Two.pas' } } });
+        assert.deepEqual([panel._manageFilter, panel._manageKind], ['', ''], 'another file starts clean');
+    } finally { w.onDidChangeActiveTextEditor = before; w.activeTextEditor = undefined; }
 });

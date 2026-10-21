@@ -88,6 +88,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _toolsTab = '';
     // Structure tab: filter text and kind, grouping, and the type being managed ('' = the one under the cursor).
     private _manageFilter = '';
+    /** The file the Structure filter was typed for: another file starts with an empty filter. */
+    private _filterFile = '';
     private _manageKind = '';
     private _manageGroup: ManageGroup = 'source';
     private _manageClassId = '';
@@ -140,6 +142,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             vscode.window.onDidChangeActiveTextEditor(editor => {
                 // Another file: the tabs must be drawn again even when the new file has the same member id.
                 this._stateKey = '';
+                if (editor && editor.document.uri.scheme !== 'output') {
+                    const file = editor.document.uri.toString();
+                    if (this._filterFile && file !== this._filterFile) { this._manageFilter = ''; this._manageKind = ''; }
+                    this._filterFile = file;
+                }
                 if (editor) {
                     this.scheduleCursorUpdate(editor);
                 } else if (this._mode === 'view') {
@@ -230,6 +237,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'manageFilter':
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
+                    this._filterFile = currentDocument()?.uri.toString() ?? this._filterFile;
                     this._manageKind = ['method', 'field', 'property', 'constructor'].includes(msg.kind) ? msg.kind : '';
                     break;
                 case 'manageGroup': if ((MANAGE_GROUPS as string[]).includes(msg.mode)) { this._manageGroup = msg.mode as ManageGroup; this.setTab('manage'); } break;

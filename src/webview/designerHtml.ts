@@ -1848,7 +1848,7 @@ ${snapScript()}
     $('snapedges').checked = state.snap.edges; $('snapcenters').checked = state.snap.centers; $('snapcont').checked = state.snap.container; $('snapguides').checked = state.snap.guides;
   }
   $('snap').addEventListener('click', function () { state.snap.on = !state.snap.on; showSnap(); saveUi(); });
-  $('snapopt').addEventListener('click', function (ev) { ev.stopPropagation(); $('snapmenu').hidden = !$('snapmenu').hidden; });
+  $('snapopt').addEventListener('click', function () { $('snapmenu').hidden = !$('snapmenu').hidden; });
   [['snapedges', 'edges'], ['snapcenters', 'centers'], ['snapcont', 'container'], ['snapguides', 'guides']].forEach(function (p) {
     $(p[0]).addEventListener('change', function () { state.snap[p[1]] = $(p[0]).checked; saveUi(); });
   });

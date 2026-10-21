@@ -14,6 +14,9 @@ import {
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
 import { loadMarks, saveMarks } from '../services/DesignerStore';
 import { handlerPreviews } from '../services/DesignerPreview';
+import { compareItems, ghostsOf } from '../services/DesignerCompare';
+import { diffDfm } from '../services/DfmDiff';
+import { gitShow } from './ProjectPanel';
 import { SheetColors, sameSheets, sheetReferences } from '../services/DelphiColors';
 import { ExternalSheets } from '../services/ExternalSheets';
 import { unitFacts } from '../services/ProjectUnused';
@@ -191,6 +194,17 @@ export class FormDesignerPanel {
         if (!sameSheets(loaded, this.sheets)) { this.sheets = loaded; this.sendModel(); }
     }
 
+    /** The version the form is compared with (its .dfm text), while the comparison is on. */
+    private compareWith: { ref: string; before: string } | undefined;
+
+    private sendCompare(): void {
+        const c = this.compareWith;
+        if (!c) { return; }
+        const diff = diffDfm(c.before, this.dfmDoc.getText());
+        const old = buildDesignModel(c.before, this.sheets);
+        void this.panel.webview.postMessage({ type: 'compare', ref: c.ref, items: compareItems(diff), ghosts: old ? ghostsOf(diff, old) : [] });
+    }
+
     private sendModel(selection?: string[], notice?: string): void {
         void this.refreshSheets();
         const model = buildDesignModel(this.dfmDoc.getText(), this.sheets);
@@ -203,6 +217,7 @@ export class FormDesignerPanel {
             canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
+        this.sendCompare();
     }
 
     /** Saves the .dfm and the .pas together, the way the designer's Save button and Ctrl+S ask. */
@@ -437,6 +452,19 @@ export class FormDesignerPanel {
                 await this.commit(`Paste ${clip.components.length} component(s)`, r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
                 return;
             }
+            case 'compareAsk': {
+                const ref = await vscode.window.showInputBox({
+                    title: 'Compare the form with a git version', prompt: 'HEAD, a branch, a tag or a commit', value: this.compareWith?.ref ?? 'HEAD',
+                    validateInput: v => (/^[\w][\w./~^@{}-]*$/.test(v.trim()) ? undefined : 'Not a version git can read'),
+                });
+                if (!ref) { return; }
+                try {
+                    this.compareWith = { ref: ref.trim(), before: await gitShow(this.dfmDoc.uri.fsPath, ref.trim()) };
+                    this.sendCompare();
+                } catch (e) { this.sendModel(undefined, 'Compare: ' + (e instanceof Error ? e.message : String(e))); }
+                return;
+            }
+            case 'compareClose': { this.compareWith = undefined; return; }
             case 'designerState': {
                 await saveMarks(this.dfmDoc.uri.fsPath, { groups: m.groups, locks: m.locks, hidden: m.hidden });
                 return;

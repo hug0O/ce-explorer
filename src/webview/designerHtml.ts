@@ -226,9 +226,9 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .snapgrp { position: relative; display: inline-flex; align-items: center; gap: 0; }
 #snapmenu { position: absolute; top: 100%; left: 0; z-index: 60; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, #555)); border-radius: 4px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 #snapmenu[hidden] { display: none; }
-.guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; opacity: 0.9; }
-.guide.v { top: 0; bottom: 0; width: 1px; }
-.guide.h { left: 0; right: 0; height: 1px; }
+.guide { position: absolute; background: #ff2d95; pointer-events: none; z-index: 40; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55), 0 0 6px rgba(255, 45, 149, 0.8); }
+.guide.v { top: -2000px; bottom: -2000px; width: 2px; margin-left: -1px; }
+.guide.h { left: -2000px; right: -2000px; height: 2px; margin-top: -1px; }
 .fehead { font-weight: 600; margin: 6px 0 3px; }
 .febar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .febar button { font-size: 11px; padding: 2px 8px; }

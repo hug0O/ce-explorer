@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -65,6 +65,13 @@
           "name": "Member",
           "when": "ce:isActive",
           "type": "webview"
+        },
+        {
+          "id": "ceGuideView",
+          "name": "Changelog + Guide",
+          "when": "ce:isActive",
+          "type": "webview",
+          "visibility": "collapsed"
         }
       ]
     },

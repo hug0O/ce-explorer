@@ -29,6 +29,7 @@ import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { GuidePanel } from './webview/GuidePanel';
+import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
 import { ProjectScanner } from './services/ProjectScanner';
 import { registerLanguageCommands } from './services/LanguageCommands';
@@ -154,6 +155,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         memberViewer = new MemberViewerPanel(context.extensionUri, providerRegistry, codeExplorer, codeGenerator, context);
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(MemberViewerPanel.viewType, memberViewer)
+        );
+
+        context.subscriptions.push(
+            vscode.window.registerWebviewViewProvider(GuideSidebarPanel.viewType, new GuideSidebarPanel(context.extensionUri, (context.extension?.packageJSON as { version?: string } | undefined)?.version))
         );
 
         const templateSidebar = new TemplateSidebarPanel(

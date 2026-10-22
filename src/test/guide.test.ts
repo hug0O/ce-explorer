@@ -38,12 +38,23 @@ test('text is escaped, with code and bold kept', () => {
     assert.equal(inline('a <b> `x&y` **bold**'), 'a &lt;b&gt; <code>x&amp;y</code> <b>bold</b>');
 });
 
-test('the sidebar section is called Changelog + Guide, folded, with one line per topic and the versions', () => {
+test('the Changelog + Guide view has one line per topic and the versions', () => {
     const md = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
     const html = changelogHtml(parseChangelog(md), '0.0.0');
-    assert.match(html, /^<details class="clog" id="changelog"><summary>Changelog \+ Guide /, 'folded: no open attribute');
+    assert.match(html, /^<details class="clog-ver clog-guide" open>/, 'the guide comes first');
     assert.equal((html.match(/data-guide="[a-z]+"/g) ?? []).length, GUIDE.length);
     assert.match(html, /data-guide=""/, 'the whole guide');
     assert.match(guideListHtml(), /🎞/);
     assert.match(html, /<div class="clog-h">Changelog<\/div>/);
+});
+
+test('the view is declared below Member, folded, and registered', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { views: Record<string, { id: string; name: string; visibility?: string }[]> } };
+    const views = pkg.contributes.views['ce-explorer'];
+    const guide = views.find(v => v.id === 'ceGuideView');
+    assert.equal(guide?.name, 'Changelog + Guide');
+    assert.equal(guide?.visibility, 'collapsed');
+    assert.ok(views.findIndex(v => v.id === 'ceViewer') < views.indexOf(guide!), 'after Member');
+    assert.match(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8'), /registerWebviewViewProvider\(GuideSidebarPanel\.viewType/);
+    assert.ok(!/changelog/i.test(fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8')), 'Member no longer carries it');
 });

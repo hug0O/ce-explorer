@@ -19,8 +19,6 @@ import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
-import { changelogCss, changelogHtml, parseChangelog } from './changelogSection';
-import { GuidePanel } from './GuidePanel';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
@@ -203,7 +201,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'preview': this.handleSessionPreview(msg.data as MemberFormResult); break;
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
-                case 'openGuide': GuidePanel.show(this._extensionUri, typeof msg.topic === 'string' && /^[a-z]{1,20}$/.test(msg.topic) ? msg.topic : undefined); break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
                 case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'detail'); break;
                 case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
@@ -577,19 +574,6 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     private extensionId(): string {
         return this._extensionContext.extension?.id ?? 'ce.ce-code-explorer';
-    }
-
-    /** The versions of CHANGELOG.md, folded at the bottom of every tab (read once: the file does not change while VS Code runs). */
-    private _changelog: string | undefined;
-    private getChangelogHtml(): string {
-        if (this._changelog === undefined) {
-            try {
-                const md = fs.readFileSync(path.join(this._extensionUri.fsPath, 'CHANGELOG.md'), 'utf8');
-                const version = (this._extensionContext.extension?.packageJSON as { version?: string } | undefined)?.version;
-                this._changelog = changelogHtml(parseChangelog(md), version);
-            } catch { this._changelog = changelogHtml([]); }
-        }
-        return this._changelog;
     }
 
     /** Shortcuts tab: the keybindings of this extension, by the mode they work in. */
@@ -1328,7 +1312,6 @@ ${reviewCss()}
 <body>
 <div class="bar"><h2>${escapeHtml(title)}</h2><button class="btnClose" id="btnClose">✕ Close</button></div>
 ${body}
-${this.getChangelogHtml()}
 <script nonce="${nonce}">
 (function () {
     var api = acquireVsCodeApi();
@@ -1496,7 +1479,6 @@ ${toolsCss()}
 ${manageCss()}
 ${memoCss()}
 ${shortcutsCss()}
-${changelogCss()}
 </style>
 </head>
 <body>
@@ -1509,9 +1491,6 @@ ${memoScript()}
 ${shortcutsScript()}
 (function() {
     var api = acquireVsCodeApi();
-    document.querySelectorAll('[data-guide]').forEach(function(b) {
-        b.addEventListener('click', function() { api.postMessage({ command: 'openGuide', topic: b.getAttribute('data-guide') }); });
-    });
     initTools(api);
     initManage(api);
     initMemo(api);
@@ -1695,7 +1674,6 @@ ${toolsCss()}
 ${manageCss()}
 ${memoCss()}
 ${shortcutsCss()}
-${changelogCss()}
 </style>
 </head>
 <body>`;
@@ -1811,8 +1789,6 @@ ${changelogCss()}
             html += `<p class="empty-section">No member selected. Place cursor on a method, field, or property.</p>`;
         }
 
-        html += this.getChangelogHtml();
-
         html += `<script nonce="${nonce}">
 ${toolsScript()}
 ${manageScript()}
@@ -1820,9 +1796,6 @@ ${memoScript()}
 ${shortcutsScript()}
 (function() {
     var vscodeApi = acquireVsCodeApi();
-    document.querySelectorAll('[data-guide]').forEach(function(b) {
-        b.addEventListener('click', function() { vscodeApi.postMessage({ command: 'openGuide', topic: b.getAttribute('data-guide') }); });
-    });
     initTools(vscodeApi);
     initManage(vscodeApi);
     initMemo(vscodeApi);

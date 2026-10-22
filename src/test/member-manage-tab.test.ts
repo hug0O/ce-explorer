@@ -322,7 +322,7 @@ test('Structure: commands that used to drive the tree now drive the tab', () => 
 
 test('the Classes tree view is gone from the sidebar, with its menus', () => {
     const pkg = require('../../package.json');
-    assert.deepEqual(pkg.contributes.views['ce-explorer'].map((v: any) => v.id), ['ceTemplates', 'ceViewer']);
+    assert.deepEqual(pkg.contributes.views['ce-explorer'].map((v: any) => v.id), ['ceTemplates', 'ceViewer', 'ceGuideView']);
     assert.doesNotMatch(JSON.stringify(pkg.contributes.menus), /ceCodeExplorer/);
     for (const c of ['ce.manageMembers', 'ce.filterTree', 'ce.toggleGroupBy', 'ce.clearFilter', 'ce.memo.open']) {
         assert.ok(pkg.contributes.commands.some((x: any) => x.command === c), c + ' stays available');

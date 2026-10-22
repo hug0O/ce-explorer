@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.17 — 2026-10-22
+- Sidebar: **Changelog + Guide** is a view of its own below Member, folded until opened, instead of a block at the bottom of every Member tab.
+
 ## 0.1.16 — 2026-10-22
 - **User guide** with pictures and animations (GIF) of the form designer: open the form designer, add a component, magnetism, several components at once, find, the View menu, compare with git, form sizes, menus, and the sidebar. It opens from the sidebar and from **CE: Open the User Guide**.
 - Sidebar: the folded section is now **Changelog + Guide**: one line per guide topic, then the versions.

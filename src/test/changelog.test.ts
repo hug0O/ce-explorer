@@ -21,11 +21,11 @@ test('headings and items are read, whatever the dash and the line ends', () => {
     assert.deepEqual(e, [{ version: '1.2.3', date: '2026-01-02', items: ['one', 'two continued'] }, { version: '1.2.2', date: '', items: ['old'] }]);
 });
 
-test('the sidebar block is folded, the newest version open, markup escaped', () => {
+test('the sidebar view lists the versions, the newest one open, markup escaped', () => {
     assert.equal(inlineMarkup('a <b> **x** `y&z`'), 'a &lt;b&gt; <b>x</b> <code>y&amp;z</code>');
     const html = changelogHtml(parseChangelog(md), pkg.version);
-    assert.match(html, /^<details class="clog" id="changelog">/, 'no open attribute: folded');
+    assert.ok(!html.includes('id="changelog"'), 'no block of its own: the view is the block');
     assert.equal((html.match(/<details class="clog-ver" open>/g) ?? []).length, 1);
     assert.match(html, /installed/);
-    assert.match(changelogHtml([]), /Changelog \+ Guide/, 'the guide stays when the changelog file cannot be read');
+    assert.match(changelogHtml([]), /data-guide=""/, 'the guide stays when the changelog file cannot be read');
 });

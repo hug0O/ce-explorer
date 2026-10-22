@@ -1,6 +1,6 @@
 /**
- * The changelog and the guide at the bottom of the sidebar, folded: one line "Changelog + Guide" that opens onto the guide
- * topics and the versions, each folded too (the newest one open). It reads CHANGELOG.md, whose headings are `## 0.1.13 — 2026-10-21` and whose items are
+ * The "Changelog + Guide" view of the sidebar, a view of its own below Member, folded until it is opened: the guide
+ * topics, then the versions, each folded (the newest one open). It reads CHANGELOG.md, whose headings are `## 0.1.13 — 2026-10-21` and whose items are
  * `- text`, with `**bold**` and `code` allowed in the text.
  *
  * Pure: builds markup from the text of the file, so it is testable without VS Code.
@@ -36,15 +36,11 @@ export function changelogHtml(entries: ChangelogEntry[], current?: string): stri
         return `<details class="clog-ver"${i === 0 ? ' open' : ''}><summary><span class="clog-v">${esc(e.version)}</span>${here ? '<span class="clog-here">installed</span>' : ''}<span class="clog-d">${esc(e.date)}</span></summary>`
             + `<ul>${e.items.map(t => `<li>${inlineMarkup(t)}</li>`).join('')}</ul></details>`;
     }).join('');
-    const latest = entries.length ? `<span class="clog-latest">${esc(entries[0].version)}</span>` : '';
-    return `<details class="clog" id="changelog"><summary>Changelog + Guide ${latest}</summary>${guideListHtml()}${entries.length ? '<div class="clog-h">Changelog</div>' : ''}${rows}</details>`;
+    return `${guideListHtml()}${entries.length ? '<div class="clog-h">Changelog</div>' : ''}${rows}`;
 }
 
 export function changelogCss(): string {
     return `
-.clog { margin: 14px 0 6px; border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); padding-top: 6px; }
-.clog > summary { cursor: pointer; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); }
-.clog .clog-latest { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.8; margin-left: 4px; }
 .clog-h { margin: 8px 0 2px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--vscode-descriptionForeground); }
 .clog-ver { margin: 4px 0 0 4px; }
 .clog-topic { display: flex; align-items: center; gap: 6px; width: 100%; margin: 1px 0; padding: 2px 6px; text-align: left; font: inherit; font-size: 12px; color: var(--vscode-foreground); background: transparent; border: 0; border-radius: 3px; cursor: pointer; }

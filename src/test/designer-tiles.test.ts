@@ -48,8 +48,8 @@ test('tile layout: groups side by side, tiles flow in columns by size, nothing i
     assert.equal(host.container, false, 'no control can be dropped into a tile control');
     // a large tile is twice as wide as a regular one, an extra large one twice as high too
     assert.deepEqual(rect('dxTileControl1Item1'), [24, 100, 246, 120]);
-    assert.deepEqual(rect('dxTileControl1Item2'), [24, 226, 120, 120], 'IndexInGroup order: next free place below');
-    assert.deepEqual(rect('dxTileControl1Item3'), [24, 352, 57, 57], 'a small tile is half a regular one');
+    assert.deepEqual(rect('dxTileControl1Item2'), [24, 226, 120, 120], 'IndexInGroup order: the next row, as the tiles go row by row');
+    assert.deepEqual(rect('dxTileControl1Item3'), [150, 226, 57, 57], 'a small tile is half a regular one, and goes on the same row, beside the regular tile');
     assert.deepEqual(rect('dxTileControl1Item4'), [310, 100, 246, 246], 'the second group starts after the first');
     assert.deepEqual(rect('dxTileControl1Group1'), [24, 72, 246, 22]);
     for (const n of ['dxTileControl1Group1', 'dxTileControl1Item1', 'dxTileControl1Item4']) {

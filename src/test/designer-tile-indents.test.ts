@@ -35,3 +35,29 @@ test('the indents of the control decide the spaces: between tiles, between group
     assert.equal(r.reg.y - (r.big.y + r.big.h), 5, 'ItemIndent between two tiles');
     assert.equal(r.other.x, 20 + (2 * 120 + 5) + 12, 'GroupIndent between the groups');
 });
+
+// The order Delphi gives the tiles of the groups of a real form (seen in the IDE): row by row, two cells wide when a large tile is there, holes never filled.
+const real = (tiles: string[][]): string => [
+    'object F: TF', '  object tc: TdxTileControl', '    Left = 0', '    Top = 0', '    Width = 800', '    Height = 600', '    OptionsView.GroupMaxRowCount = 6',
+    ...tiles.flatMap((t, i) => ['    object t' + i + ': TdxTileControlItem', '      GroupIndex = 0', '      IndexInGroup = ' + i, ...t.map(l => '      ' + l), '    end']),
+    '  end', 'end', '',
+].join('\n');
+const cells = (tiles: string[][]): string[] => {
+    const tc = parseDfmTree(real(tiles))!.children[0];
+    const l = tileLayout(tc);
+    return tc.children.map(c => { const r = l.items.get(c)!; return `${Math.round((r.x - 24) / 63)},${Math.round((r.y - 44) / 63)}`; });
+};
+
+test('tiles go row by row in a two-cell band, a tile that does not fit leaves a hole, a tile can be two rows high', () => {
+    // Stocks of the real form: reg, reg, reg, large
+    assert.deepEqual(cells([[], [], [], ['Size = tcisLarge']]), ['0,0', '2,0', '0,2', '0,4'], 'the large one goes under the third: the cell beside it stays empty');
+    // Expeditions: large, regular with RowCount = 2, regular, regular, large, large
+    assert.deepEqual(cells([['Size = tcisLarge'], ['RowCount = 2'], [], [], ['Size = tcisLarge'], ['Size = tcisLarge']]), ['0,0', '0,2', '2,2', '2,4', '0,6', '0,8']);
+});
+
+test('a group of regular tiles is one column that goes on in a new column after GroupMaxRowCount rows', () => {
+    const c = cells(Array.from({ length: 8 }, () => []));
+    assert.equal(c[0], '0,0');
+    assert.equal(c[5], '0,10', 'the sixth row');
+    assert.equal(c[6], '2,0', 'the seventh tile starts the next column');
+});

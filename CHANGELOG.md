@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.19 — 2026-10-22
+- Designer: **tile control layout as Delphi lays it out**: tiles go in their order, row by row, in a band as wide as the widest tile of the group (two cells when a large tile is there), a tile that does not fit leaves its hole, a new column starts after `GroupMaxRowCount` rows, and `RowCount` / `ColumnCount` of a tile are honoured (a regular tile two rows high).
+
 ## 0.1.18 — 2026-10-22
 - Designer: **DevExpress bars**. A `TdxBarDockControl` draws the bars docked in it with their items (buttons, static texts, sub-menus, combos, separators between groups); a `TdxBar` and its items (`TdxBarButton`, `TdxBarStatic`, `TdxBarSubItem`…) have their own inspector (caption, hint, width, shown or hidden with `ivAlways` / `ivNever`, dock control of a bar, the list of its items).
 - Designer: **TeeChart**. `TChart` and `TDBChart` are in the palette (TeeChart) and drawn as a plot with the title, the legend and sample values for each series in its colour (bars, horizontal bars, lines, areas, points, pie). Series (`TBarSeries`, `TLineSeries`, `TAreaSeries`, `TPointSeries`, `TPieSeries`…) and tools (`TDragMarksTool`, `TAnnotationTool`…) are listed in the chart, added from its inspector or the palette, and edited (title, colour, active, marks); the chart title, legend and 3D view too.

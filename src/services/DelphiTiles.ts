@@ -66,23 +66,36 @@ export function tileLayout(host: DfmNode): { items: Map<DfmNode, TileRect>; grou
     for (const idx of [...indexes].sort((a, b) => a - b)) {
         const members = tiles.map((node, order) => ({ node, order })).filter(m => itemGroup(m.node) === idx)
             .sort((a, b) => ((num(a.node.props['IndexInGroup']) ?? 0) - (num(b.node.props['IndexInGroup']) ?? 0)) || a.order - b.order);
-        const taken: boolean[][] = [];
+        // Delphi places the tiles in their order, row by row, in a band as wide as the widest tile of the group (two cells when a
+        // large tile is there, else one), and starts a new band when the rows of GroupMaxRowCount are used. It never goes back to fill a hole.
+        const spanOf = (n: DfmNode): [number, number] => {
+            const [w0, h0] = SPAN[tileSizeOf(n)];
+            const cols = num(n.props['ColumnCount']), rows = num(n.props['RowCount']);
+            return [cols ? cols * 2 : w0, rows ? rows * 2 : h0];
+        };
+        const band = Math.max(1, ...members.map(m => spanOf(m.node)[0]));
+        let taken: boolean[][] = [];
+        let bandX = 0;
+        let cursor = 0;
         const free = (c: number, r: number, cw: number, ch: number): boolean => {
             for (let i = c; i < c + cw; i++) { for (let j = r; j < r + ch; j++) { if (taken[i]?.[j]) { return false; } } }
             return true;
         };
         let cols = 0;
         for (const m of members) {
-            const [cw, ch] = SPAN[tileSizeOf(m.node)];
-            let placed = false;
-            for (let c = 0; c < 400 && !placed; c++) {
-                for (let r = 0; r + ch <= maxRows && !placed; r++) {
-                    if (!free(c, r, cw, ch)) { continue; }
-                    for (let i = c; i < c + cw; i++) { for (let j = r; j < r + ch; j++) { (taken[i] ??= [])[j] = true; } }
-                    items.set(m.node, { x: Math.round(x + c * hw), y: Math.round(top + GROUP_HEADER + 6 + r * hh), w: Math.round(cw * hw - gap), h: Math.round(ch * hh - gap) });
-                    cols = Math.max(cols, c + cw);
-                    placed = true;
+            const [cw, ch] = spanOf(m.node);
+            const w = Math.min(cw, band);
+            const step = w >= 2 ? 2 : 1;
+            for (let guard = 0; guard < 4000; guard++) {
+                const c = cursor % band, r = Math.floor(cursor / band);
+                if (r + ch > maxRows) { bandX += band; taken = []; cursor = 0; continue; }
+                if (c % step === 0 && c + w <= band && (step === 1 || r % 2 === 0) && free(c, r, w, ch)) {
+                    for (let i = c; i < c + w; i++) { for (let j = r; j < r + ch; j++) { (taken[i] ??= [])[j] = true; } }
+                    items.set(m.node, { x: Math.round(x + (bandX + c) * hw), y: Math.round(top + GROUP_HEADER + 6 + r * hh), w: Math.round(w * hw - gap), h: Math.round(ch * hh - gap) });
+                    cols = Math.max(cols, bandX + c + w);
+                    break;
                 }
+                cursor++;
             }
         }
         const width = Math.max(90, Math.round(cols * hw - gap));

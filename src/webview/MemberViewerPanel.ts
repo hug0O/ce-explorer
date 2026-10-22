@@ -19,6 +19,7 @@ import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
+import { changelogCss, changelogHtml, parseChangelog } from './changelogSection';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
 import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
@@ -574,6 +575,19 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     private extensionId(): string {
         return this._extensionContext.extension?.id ?? 'ce.ce-code-explorer';
+    }
+
+    /** The versions of CHANGELOG.md, folded at the bottom of every tab (read once: the file does not change while VS Code runs). */
+    private _changelog: string | undefined;
+    private getChangelogHtml(): string {
+        if (this._changelog === undefined) {
+            try {
+                const md = fs.readFileSync(path.join(this._extensionUri.fsPath, 'CHANGELOG.md'), 'utf8');
+                const version = (this._extensionContext.extension?.packageJSON as { version?: string } | undefined)?.version;
+                this._changelog = changelogHtml(parseChangelog(md), version);
+            } catch { this._changelog = ''; }
+        }
+        return this._changelog;
     }
 
     /** Shortcuts tab: the keybindings of this extension, by the mode they work in. */
@@ -1312,6 +1326,7 @@ ${reviewCss()}
 <body>
 <div class="bar"><h2>${escapeHtml(title)}</h2><button class="btnClose" id="btnClose">✕ Close</button></div>
 ${body}
+${this.getChangelogHtml()}
 <script nonce="${nonce}">
 (function () {
     var api = acquireVsCodeApi();
@@ -1479,6 +1494,7 @@ ${toolsCss()}
 ${manageCss()}
 ${memoCss()}
 ${shortcutsCss()}
+${changelogCss()}
 </style>
 </head>
 <body>
@@ -1674,6 +1690,7 @@ ${toolsCss()}
 ${manageCss()}
 ${memoCss()}
 ${shortcutsCss()}
+${changelogCss()}
 </style>
 </head>
 <body>`;
@@ -1788,6 +1805,8 @@ ${shortcutsCss()}
         } else {
             html += `<p class="empty-section">No member selected. Place cursor on a method, field, or property.</p>`;
         }
+
+        html += this.getChangelogHtml();
 
         html += `<script nonce="${nonce}">
 ${toolsScript()}

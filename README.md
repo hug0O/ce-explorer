@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.13.vsix
+code --install-extension ce-code-explorer-0.1.14.vsix
 ```
 
 ## Supported Languages
@@ -58,7 +58,7 @@ Nothing is read in the background: the project panel scans only when asked, in s
 ## Features
 
 ### Sidebar: Structure, Tools, Memo
-The **Member** view of the Code Explorer sidebar has five tabs: *Details* (the member under the cursor), **Structure**, **Tools**, **Memo** and **Shortcuts**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file.
+The **Member** view of the Code Explorer sidebar has five tabs: *Details* (the member under the cursor), **Structure**, **Tools**, **Memo** and **Shortcuts**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file. A folded **Changelog** of every version closes each tab.
 
 - **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
 - **Add** a field, method, property or constructor to the chosen type (compact buttons that wrap, close together); insert a template; synchronise declarations and implementations; open the templates manager; refresh.

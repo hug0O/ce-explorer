@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.14.vsix
+code --install-extension ce-code-explorer-0.1.15.vsix
 ```
 
 ## Supported Languages
@@ -341,6 +341,10 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **Test other form sizes**: shows the form at 640×480 … 1920×1080 (or any size) as `Align` and `Anchors` would lay it out, and marks in red what a new size breaks: a component pushed out of its container, or two that now overlap. The `.dfm` is never touched.
 - **Layouts**: save the selected panel (with its content, fields and handlers) under a name, then insert it from the View menu in any form.
 - **Several components at once**: `Ctrl` / `Shift` + click (on the form or in the list) adds to the selection; the inspector then shows **Common properties** (position, size, Align, Anchors, Visible, Enabled, colours, Hint), blank or undetermined where they differ, and a change goes to every selected component. The left column lists the components above the palette.
+
+#### Designer: menus
+
+- **`TPopupMenu` / `TMainMenu` and their `TMenuItem`s** (palette, *System*): the items and sub-items are listed under their menu, never painted. Select a menu to see a **preview** of it and to add items; select an item to edit its caption (`&` marks the access key, `-` is a separator), **shortcut** (typed as `Ctrl+Shift+S`, written as the number the IDE stores), checked / auto-check / radio / default, enabled, visible and image, and to add sub-items or a separator. Deleting an item deletes its sub-items; an item never leaves its menu by drag or paste.
 
 #### Designer: zoom, scroll, colours, magnetism, fields
 

@@ -8,10 +8,11 @@ import type { DfmNode } from './DelphiLayout';
 import { isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { isTileChild, isTileHost } from './DelphiTiles';
 import { isDataset, isDatasetField, isKnownField } from './DelphiData';
+import { isMenuHost, isMenuItem } from './DelphiMenus';
 import { isBarChild, isBarManager, isBarPart, isStyle, isStyleRepository } from './DelphiBars';
 
 export interface NestedRule {
-    id: 'tile' | 'grid' | 'view' | 'dataset' | 'bars' | 'styles';
+    id: 'tile' | 'grid' | 'view' | 'dataset' | 'bars' | 'styles' | 'menu';
     applies: (cls: string) => boolean;
     host: (n: DfmNode) => boolean;
     /** "goes inside …", for messages. */
@@ -27,12 +28,13 @@ export const NESTED_RULES: NestedRule[] = [
     { id: 'dataset', applies: c => isKnownField(c), host: n => isDataset(n.className), what: 'a dataset' },
     { id: 'bars', applies: c => isBarPart(c), host: n => isBarManager(n.className), what: 'a TdxBarManager' },
     { id: 'styles', applies: c => isStyle(c), host: n => isStyleRepository(n.className), what: 'a TcxStyleRepository' },
+    { id: 'menu', applies: c => isMenuItem(c), host: n => isMenuHost(n.className) || isMenuItem(n.className), what: 'a menu (TPopupMenu, TMainMenu) or a menu item' },
 ];
 
 export const nestedRuleOf = (cls: string): NestedRule | undefined => NESTED_RULES.find(r => r.applies(cls));
 
 /** Parts the form never moves out of their parent (a detail site is an ordinary container, so it is not one). */
-export const isNestedChild = (cls: string): boolean => isTileChild(cls) || isGridChild(cls) || isBarChild(cls);
+export const isNestedChild = (cls: string): boolean => isTileChild(cls) || isGridChild(cls) || isBarChild(cls) || isMenuItem(cls);
 
 /** Same, for a node of the .dfm: a persistent field is a part only inside a dataset (a custom control named …Field is not). */
 export const isNestedNode = (n: DfmNode): boolean => isNestedChild(n.className) || (isDatasetField(n.className) && !!n.parent && isDataset(n.parent.className));
@@ -45,6 +47,8 @@ export function onlyHolds(host: DfmNode): string | undefined {
     if (isDataset(host.className)) { return 'A dataset only holds its fields'; }
     if (isBarManager(host.className)) { return 'A TdxBarManager only holds bars and their items'; }
     if (isStyleRepository(host.className)) { return 'A TcxStyleRepository only holds styles'; }
+    if (isMenuHost(host.className)) { return 'A menu only holds menu items'; }
+    if (isMenuItem(host.className)) { return 'A menu item only holds menu items'; }
     return undefined;
 }
 

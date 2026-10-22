@@ -16,6 +16,7 @@ import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayou
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
 import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
+import { isMenuItem, shortcutText, shortcutValue } from './DelphiMenus';
 import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
 import { SheetColors, cssToDelphi, delphiToCss, gridPartColors, resolveColors, withExternalSheets } from './DelphiColors';
 import { ClipPayload, pasteComponents } from './DelphiClip';
@@ -117,6 +118,8 @@ export interface DNode {
     /** Texts of a tile (Text1…Text4), `Size` of a tile. */
     tileTexts?: string[];
     tileSize?: string;
+    /** A menu item: its shortcut as the IDE writes it (`Ctrl+O`). */
+    shortcut?: string;
     /** Placed by its parent control (tile, grid column…): selected and edited, never dragged, resized or moved to another parent. */
     fixed?: boolean;
     /** Structure with nothing to draw (grid views, levels, hidden columns): listed and edited, not painted. */
@@ -305,6 +308,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         headerColor: header?.color,
         headerText: header?.text,
         wrap: wrap || undefined,
+        shortcut: isMenuItem(n.className) ? shortcutText(n.props['ShortCut']) || undefined : undefined,
         nonVisual: isNonVisual(n),
         inherited: n.inherited || undefined,
         container: isContainer(n) && !isNonVisual(n),
@@ -712,7 +716,7 @@ export function renameEdits(pas: string, dfm: string, from: string, to: string):
     return { dfmEdits: plan.dfmEdits, pasEdits, note: plan.handlers.length ? `handlers renamed: ${plan.handlers.map(h => h.from + '→' + h.to).join(', ')}` : undefined };
 }
 
-export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref' | 'color'> = {
+export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref' | 'color' | 'shortcut'> = {
     Left: 'int', Top: 'int', Width: 'int', Height: 'int', TabOrder: 'int', Caption: 'string', Text: 'string', Hint: 'string',
     Visible: 'bool', Enabled: 'bool', ShowHint: 'bool', ReadOnly: 'bool', Checked: 'bool', TabStop: 'bool', Align: 'enum', Anchors: 'anchors',
     // DevExpress tile control: tiles and groups.
@@ -723,6 +727,7 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
     TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
+    ShortCut: 'shortcut', AutoCheck: 'bool', RadioItem: 'bool', Default: 'bool', ImageIndex: 'int',
     Color: 'color', 'Font.Color': 'color', 'OptionsView.ScrollBars': 'enum',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
@@ -734,6 +739,7 @@ const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
     ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
     TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl, 'OptionsView.ScrollBars': isGridView,
+    ShortCut: isMenuItem, AutoCheck: isMenuItem, RadioItem: isMenuItem, Default: isMenuItem, ImageIndex: isMenuItem,
     Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
 };
 /** What a link property may point to. */
@@ -759,6 +765,11 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         text = String(v);
     } else if (kind === 'string') {
         text = toDfmString(String(value ?? ''));
+    } else if (kind === 'shortcut') {
+        const v = shortcutValue(String(value ?? ''));
+        if (v === undefined) { return fail(`"${String(value)}" is not a shortcut (Ctrl+O, Ctrl+Shift+S, F5, Alt+F4…).`); }
+        if (v === 0) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
+        text = String(v);
     } else if (kind === 'bool') {
         text = value === true || value === 'True' ? 'True' : 'False';
     } else if (kind === 'ref') {
@@ -845,6 +856,8 @@ export interface AddRequest {
     width?: number;
     height?: number;
     unit?: string;
+    /** The caption of a new menu item (`-` makes a separator). */
+    caption?: string;
 }
 
 /** Drops a new component at an exact position (the designer's palette tool). */
@@ -853,6 +866,7 @@ export function addEdits(pas: string, dfm: string, req: AddRequest): DesignResul
     if (!root) { return fail('The .dfm is not in text format.'); }
     const def = resolveComponentDef(req.className, req.unit);
     const sized = { ...def, width: req.width ?? def.width, height: req.height ?? def.height };
+    if (req.caption !== undefined && isMenuItem(req.className)) { sized.props = def.props.map(p => (/^Caption = /.test(p) ? 'Caption = ' + toDfmString(req.caption!) : p)); }
     const parent = req.parentName ? findNode(root, req.parentName) : root;
     let container = parent && isContainer(parent) ? parent : (parent?.parent ?? root);
     // a component that is not a control (query, timer, controller…) is placed on the form itself, whatever the container it was dropped on
@@ -866,7 +880,8 @@ export function addEdits(pas: string, dfm: string, req: AddRequest): DesignResul
         container = host;
     }
     // `%PARENT%` in a name prefix: the IDE names a grid's view cxGrid1DBTableView1 and its column cxGrid1DBTableView1Column1.
-    const name = nextComponentName(def.namePrefix.replace('%PARENT%', container.name), existingNames(dfm, pas));
+    const prefix = req.caption === '-' && isMenuItem(req.className) ? 'N' : def.namePrefix;
+    const name = nextComponentName(prefix.replace('%PARENT%', container.name), existingNames(dfm, pas));
     const plan = planAddComponent(pas, dfm, {
         className: req.className, name, side: 'auto', parentName: container.depth === 0 ? undefined : container.name,
         def: sized, position: { left: Math.max(0, Math.round(req.left)), top: Math.max(0, Math.round(req.top)) },

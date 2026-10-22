@@ -18,7 +18,7 @@ export interface PaletteEntry {
     group: string;
     icon: string;
     /** Goes inside a component of this kind (tiles, groups and detail pages go inside a tile control). */
-    host?: 'tile' | 'grid' | 'view' | 'dataset';
+    host?: 'tile' | 'grid' | 'view' | 'dataset' | 'menu';
 }
 
 export const PALETTE: PaletteEntry[] = [
@@ -31,6 +31,7 @@ export const PALETTE: PaletteEntry[] = [
     { cls: 'TBevel', group: 'Additional', icon: '▬' }, { cls: 'TSplitter', group: 'Additional', icon: '┃' }, { cls: 'TCheckListBox', group: 'Additional', icon: '☑' },
     { cls: 'TProgressBar', group: 'Win32', icon: '▰' }, { cls: 'TTrackBar', group: 'Win32', icon: '⎯' }, { cls: 'TDateTimePicker', group: 'Win32', icon: '📅' },
     { cls: 'TRichEdit', group: 'Win32', icon: '📄' }, { cls: 'TTimer', group: 'System', icon: '⏱' },
+    { cls: 'TPopupMenu', group: 'System', icon: '☰' }, { cls: 'TMainMenu', group: 'System', icon: '☰' }, { cls: 'TMenuItem', group: 'System', icon: '≡', host: 'menu' },
 ];
 
 const ICONS: [RegExp, string][] = [
@@ -45,7 +46,7 @@ const ICONS: [RegExp, string][] = [
 /** Non-visual components: an icon that says what they are (they are drawn as small icons on the form). */
 const NV_ICONS: [RegExp, string][] = [
     [/UniProvider$/, '🧩'], [/Connection$/, '🔌'], [/Transaction$/, '⇄'], [/DataSource$/, '🔗'], [/Script$/, '📜'], [/(Query|Table|StoredProc)$/, '🗃'],
-    [/SQL$/, '▤'], [/MetaData$/, 'ℹ'], [/(Loader|Dump)$/, '📦'], [/Alerter$/, '🔔'], [/Dialog$/, '🗔'], [/Encryptor$/, '🔐'],
+    [/(Popup|Main)Menu$/, '☰'], [/SQL$/, '▤'], [/MetaData$/, 'ℹ'], [/(Loader|Dump)$/, '📦'], [/Alerter$/, '🔔'], [/Dialog$/, '🗔'], [/Encryptor$/, '🔐'],
 ];
 function iconFor(def: ComponentDef): string {
     if (def.width === undefined && def.height === undefined) { return (NV_ICONS.find(([re]) => re.test(def.className)) ?? [/./, '⚙'])[1]; }
@@ -57,6 +58,7 @@ function hostOf(cls: string): PaletteEntry['host'] {
     if (/^TcxGrid(DB)?(Table)?View$|^TcxGridLevel$/.test(cls)) { return 'grid'; }
     if (/^TcxGrid(DB)?Column$/.test(cls)) { return 'view'; }
     if (isDatasetField(cls)) { return 'dataset'; }
+    if (cls === 'TMenuItem') { return 'menu'; }
     return undefined;
 }
 for (const [group, defs] of [
@@ -251,6 +253,17 @@ ${layoutsCss()}
 .febar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
 .febar button { font-size: 11px; padding: 2px 8px; }
 .febar button:disabled { opacity: 0.45; cursor: default; }
+.mprev { border: 1px solid var(--vscode-panel-border, #444); border-radius: 3px; padding: 3px 0; margin: 3px 0 6px; background: var(--vscode-editorWidget-background, rgba(128,128,128,0.08)); }
+.mrow { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 4px; cursor: pointer; font-size: 11.5px; }
+.mrow:hover { background: var(--vscode-list-hoverBackground); }
+.mrow.sel { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.mrow.off { opacity: 0.5; }
+.mrow.hid .mcap { text-decoration: line-through; }
+.mrow .mchk { width: 12px; flex: none; text-align: center; }
+.mrow .mcap { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow .msc { color: var(--vscode-descriptionForeground); font-size: 10.5px; }
+.mrow .msub { width: 10px; flex: none; text-align: right; }
+.msep { height: 1px; margin: 3px 4px; background: var(--vscode-panel-border, #555); }
 .ferow { display: flex; align-items: center; gap: 6px; }
 .ferow .fename { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ferow .fetype { font-size: 10px; color: var(--vscode-descriptionForeground); }
@@ -399,6 +412,7 @@ ${viewHtml()}
   function nvGlyph(cls) {
     var l = cls.toLowerCase();
     if (l === 'ttimer') { return '⏱'; }
+    if (l === 'tpopupmenu' || l === 'tmainmenu') { return '☰'; }
     if (l.indexOf('provider') >= 0) { return '🧩'; }
     if (l.slice(-10) === 'connection') { return '🔌'; }
     if (l.slice(-11) === 'transaction') { return '⇄'; }
@@ -415,6 +429,8 @@ ${viewHtml()}
   }
   function kind(c) {
     var l = c.toLowerCase();
+    if (l === 'tmenuitem') { return 'menuitem'; }
+    if (l === 'tpopupmenu' || l === 'tmainmenu') { return 'menu'; }
     if (l === 'tdxtilecontrol') { return 'tilecontrol'; }
     if (l === 'tdxtilecontrolitem') { return 'tile'; }
     if (l === 'tdxtilecontrolgroup') { return 'tilegroup'; }
@@ -761,7 +777,7 @@ ${viewHtml()}
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  var ICONS = { menuitem: '≡', button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
   function iconOf(n) { return n.nonVisual ? nvGlyph(n.cls) : (ICONS[kind(n.cls)] || '◻'); }
   /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
@@ -802,13 +818,14 @@ ${viewHtml()}
     order.forEach(function (g) { var o = el('option', '', g + ' (' + count[g] + ')'); o.value = g; sel.appendChild(o); });
   }
   /* Parts go inside a host: tiles into a tile control, levels and views into a grid, columns into a view. The selected one, or the one that is clicked. */
-  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset' };
+  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset', menu: 'a menu or a menu item' };
   function hostMatch(h, name) {
     var n = byName[name];
     if (!n) { return false; }
     if (h === 'tile') { return kind(n.cls) === 'tilecontrol'; }
     if (h === 'grid') { return n.cls === 'TcxGrid'; }
     if (h === 'dataset') { return !!n.dataset; }
+    if (h === 'menu') { return kind(n.cls) === 'menu' || kind(n.cls) === 'menuitem'; }
     if (h === 'view') { return kind(n.cls) === 'gridview' && n.cls.slice(-4) === 'View'; }
     return false;
   }
@@ -1052,7 +1069,7 @@ ${viewHtml()}
   }
   /* ───────── inspector: identity, position, content, state, events — in collapsible sections ───────── */
   var TILE_SIZES = ['tcisSmall', 'tcisRegular', 'tcisLarge', 'tcisExtraLarge'];
-  var PART_TITLES = { tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level', datafield: 'Field' };
+  var PART_TITLES = { menuitem: 'Menu item', tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level', datafield: 'Field' };
   var DB_PROVIDERS = ['Oracle', 'SQL Server', 'MySQL', 'PostgreSQL', 'SQLite', 'InterBase', 'Access', 'ODBC', 'DB2', 'ASE', 'Advantage', 'NexusDB'];
   function section(box, title, key, build) {
     var d = el('details', 'insec');
@@ -1197,9 +1214,67 @@ ${viewHtml()}
     box.appendChild(checkbox('Visible', n.visible, setter(n, 'Visible')));
     box.appendChild(el('div', 'hint', 'A field of its dataset (listed under it): events OnGetText, OnSetText, OnChange, OnValidate.'));
   }
+  /* Menus: the items of a TPopupMenu / TMainMenu and the sub-items of an item, as the menu shows them. */
+  function menuShown(c) {
+    var s = String(c || ''), out = '', i = 0;
+    while (i < s.length) {
+      if (s.charAt(i) === '&') { if (s.charAt(i + 1) === '&') { out += '&'; i += 2; } else { i++; } continue; }
+      out += s.charAt(i); i++;
+    }
+    return out;
+  }
+  function menuBar(b, n) {
+    var bar = el('div', 'febar');
+    var add = el('button', '', '＋ Add ' + (n.cls === 'TMenuItem' ? 'sub-item' : 'item')); add.title = 'A new menu item here: change its caption in the inspector afterwards';
+    add.addEventListener('click', function () { post({ type: 'add', className: 'TMenuItem', parent: n.name, left: 0, top: 0 }); });
+    var sep = el('button', '', '＋ Separator'); sep.title = 'A line between two items (an item whose Caption is -)';
+    sep.addEventListener('click', function () { post({ type: 'add', className: 'TMenuItem', parent: n.name, left: 0, top: 0, caption: '-' }); });
+    bar.appendChild(add); bar.appendChild(sep); b.appendChild(bar);
+  }
+  function menuPreview(b, n) {
+    var box = el('div', 'mprev');
+    var rows = 0;
+    var walk = function (item, depth) {
+      item.children.forEach(function (c) {
+        if (kind(c.cls) !== 'menuitem') { return; }
+        rows++;
+        if (c.caption === '-') { var line = el('div', 'msep'); line.style.marginLeft = (depth * 14 + 4) + 'px'; box.appendChild(line); return; }
+        var r = el('div', 'mrow' + (c.enabled ? '' : ' off') + (c.visible ? '' : ' hid') + (state.sel.indexOf(c.name) >= 0 ? ' sel' : ''));
+        r.setAttribute('data-pick', c.name); r.style.paddingLeft = (depth * 14 + 4) + 'px'; r.title = c.name + (c.visible ? '' : ' (not visible)') + (c.enabled ? '' : ' (disabled)');
+        r.appendChild(el('span', 'mchk', c.props['RadioItem'] === 'True' && c.props['Checked'] === 'True' ? '●' : (c.props['Checked'] === 'True' ? '✓' : '')));
+        r.appendChild(el('span', 'mcap', menuShown(c.caption !== undefined ? c.caption : c.name)));
+        r.appendChild(el('span', 'msc', c.shortcut || ''));
+        r.appendChild(el('span', 'msub', c.children.some(function (k) { return kind(k.cls) === 'menuitem'; }) ? '▸' : ''));
+        box.appendChild(r);
+        walk(c, depth + 1);
+      });
+    };
+    walk(n, 0);
+    if (!rows) { box.appendChild(el('div', 'hint', 'No item yet: add one above, or pick TMenuItem in the palette (System) while the menu is selected.')); }
+    b.appendChild(el('div', 'fehead', 'Preview'));
+    b.appendChild(box);
+  }
+  function menuItemFields(box, n) {
+    box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
+    box.appendChild(el('div', 'hint', 'An & marks the access key; a caption of - makes a separator.'));
+    if (n.caption === '-') { return; }
+    var sc = textInput(n.shortcut || '', setter(n, 'ShortCut')); sc.placeholder = 'Ctrl+O, Ctrl+Shift+S, F5…'; sc.title = 'Written as the IDE does: a number in the .dfm';
+    box.appendChild(labelled('Shortcut', sc));
+    box.appendChild(labelled('Image', textInput(n.props['ImageIndex'] !== undefined ? Number(n.props['ImageIndex']) : -1, function (v) { post({ type: 'setProp', name: n.name, prop: 'ImageIndex', value: Number(v) }); }, 'number')));
+    var flags = el('div', 'g2');
+    flags.appendChild(checkbox('Checked', n.props['Checked'] === 'True', setter(n, 'Checked')));
+    flags.appendChild(checkbox('AutoCheck', n.props['AutoCheck'] === 'True', setter(n, 'AutoCheck')));
+    flags.appendChild(checkbox('RadioItem', n.props['RadioItem'] === 'True', setter(n, 'RadioItem')));
+    flags.appendChild(checkbox('Default', n.props['Default'] === 'True', setter(n, 'Default')));
+    flags.appendChild(checkbox('Enabled', n.props['Enabled'] !== 'False', setter(n, 'Enabled')));
+    flags.appendChild(checkbox('Visible', n.props['Visible'] !== 'False', setter(n, 'Visible')));
+    box.appendChild(flags);
+    menuBar(box, n);
+    menuPreview(box, n);
+  }
   function partFields(box, n) {
     var k = kind(n.cls);
-    if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else if (k === 'datafield') { dataFieldFields(box, n); } else { gridFields(box, n); }
+    if (k === 'menuitem') { menuItemFields(box, n); } else if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else if (k === 'datafield') { dataFieldFields(box, n); } else { gridFields(box, n); }
   }
   /* Link to another component: a select of the components of a kind, the current one first. */
   function linkSelect(n, prop, label, wanted) {
@@ -1497,6 +1572,7 @@ ${viewHtml()}
         b.appendChild(ar);
       });
       dataFields(box, n);
+      if (k === 'menu') { section(box, 'Menu', 'menu', function (b) { menuBar(b, n); menuPreview(b, n); }); }
       var hasCap = n.caption !== undefined || ['button', 'label', 'check', 'radio', 'panel', 'group', 'sheet', 'statusbar'].indexOf(k) >= 0;
       var hasText = n.text !== undefined || ['edit', 'combo'].indexOf(k) >= 0;
       if (hasCap || hasText) {

@@ -418,6 +418,7 @@ export class FormDesignerPanel {
                 const r = addEdits(this.pasDoc.getText(), this.dfmDoc.getText(), {
                     className, parentName: NAME_RE.test(str(m.parent)) ? str(m.parent) : undefined,
                     left: num(m.left) ?? 16, top: num(m.top) ?? 16, width: num(m.width), height: num(m.height), unit: def.unit || undefined,
+                    caption: typeof m.caption === 'string' ? m.caption.slice(0, 120) : undefined,
                 });
                 await this.commit('Add ' + className, r, 'name' in r && r.name ? [r.name] : undefined, { added: 'name' in r && r.name ? [r.name] : [] });
                 return;

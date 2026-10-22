@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.15 — 2026-10-22
+- Designer: **menus**. `TPopupMenu` and `TMainMenu` are in the palette (System) with `TMenuItem`; an item and its sub-items are listed in the tree, edited in the inspector (caption, shortcut written as `Ctrl+O`, checked, auto-check, radio, default, enabled, visible, image) and added or deleted, with a separator button and a live preview of the menu.
+
 ## 0.1.14 — 2026-10-22
 - Sidebar: a **Changelog** of every version, folded at the bottom of each tab (the newest version open, the installed one marked). It is the `CHANGELOG.md` of the extension.
 

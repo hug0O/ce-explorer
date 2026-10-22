@@ -49,7 +49,11 @@ function sizeApply(r) {
     lines.push(i.kind === 'outside' ? i.name + ' goes out of its container' : i.name + ' overlaps ' + i.other);
   });
   sizeBar(lines, r.issues);
-  fitZoom(true);
+  if (state.fit) {
+    var ctr = $('center');
+    var zf = Math.min((ctr.clientWidth - 44) / (r.width + 2), (ctr.clientHeight - 44) / (r.height + 33));
+    state.zoom = Math.floor(Math.max(0.2, Math.min(2, zf)) * 100) / 100; applyZoom(); drawSel();
+  }
 }
 function sizeBar(lines, issues) {
   var bar = $('szbar');

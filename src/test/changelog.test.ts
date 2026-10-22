@@ -27,5 +27,5 @@ test('the sidebar block is folded, the newest version open, markup escaped', () 
     assert.match(html, /^<details class="clog" id="changelog">/, 'no open attribute: folded');
     assert.equal((html.match(/<details class="clog-ver" open>/g) ?? []).length, 1);
     assert.match(html, /installed/);
-    assert.equal(changelogHtml([]), '');
+    assert.match(changelogHtml([]), /Changelog \+ Guide/, 'the guide stays when the changelog file cannot be read');
 });

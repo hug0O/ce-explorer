@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.16 — 2026-10-22
+- **User guide** with pictures and animations (GIF) of the form designer: open the form designer, add a component, magnetism, several components at once, find, the View menu, compare with git, form sizes, menus, and the sidebar. It opens from the sidebar and from **CE: Open the User Guide**.
+- Sidebar: the folded section is now **Changelog + Guide**: one line per guide topic, then the versions.
+- Designer: the form size test fits the zoom to the size tested when *Fit window* is on.
+
 ## 0.1.15 — 2026-10-22
 - Designer: **menus**. `TPopupMenu` and `TMainMenu` are in the palette (System) with `TMenuItem`; an item and its sub-items are listed in the tree, edited in the inspector (caption, shortcut written as `Ctrl+O`, checked, auto-check, radio, default, enabled, visible, image) and added or deleted, with a separator button and a live preview of the menu.
 

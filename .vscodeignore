@@ -11,3 +11,4 @@ tmp_*
 *.vsix
 tsconfig.json
 .eslintrc.json
+tools/**

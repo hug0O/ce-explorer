@@ -1,10 +1,12 @@
 /**
- * The changelog at the bottom of the sidebar, folded: one line "Changelog" that opens onto the versions, each folded
- * too (the newest one open). It reads CHANGELOG.md, whose headings are `## 0.1.13 — 2026-10-21` and whose items are
+ * The changelog and the guide at the bottom of the sidebar, folded: one line "Changelog + Guide" that opens onto the guide
+ * topics and the versions, each folded too (the newest one open). It reads CHANGELOG.md, whose headings are `## 0.1.13 — 2026-10-21` and whose items are
  * `- text`, with `**bold**` and `code` allowed in the text.
  *
  * Pure: builds markup from the text of the file, so it is testable without VS Code.
  */
+
+import { guideListHtml } from './guideContent';
 
 export interface ChangelogEntry { version: string; date: string; items: string[] }
 
@@ -29,13 +31,13 @@ export function inlineMarkup(text: string): string {
 }
 
 export function changelogHtml(entries: ChangelogEntry[], current?: string): string {
-    if (!entries.length) { return ''; }
     const rows = entries.map((e, i) => {
         const here = current === e.version;
         return `<details class="clog-ver"${i === 0 ? ' open' : ''}><summary><span class="clog-v">${esc(e.version)}</span>${here ? '<span class="clog-here">installed</span>' : ''}<span class="clog-d">${esc(e.date)}</span></summary>`
             + `<ul>${e.items.map(t => `<li>${inlineMarkup(t)}</li>`).join('')}</ul></details>`;
     }).join('');
-    return `<details class="clog" id="changelog"><summary>Changelog <span class="clog-latest">${esc(entries[0].version)}</span></summary>${rows}</details>`;
+    const latest = entries.length ? `<span class="clog-latest">${esc(entries[0].version)}</span>` : '';
+    return `<details class="clog" id="changelog"><summary>Changelog + Guide ${latest}</summary>${guideListHtml()}${entries.length ? '<div class="clog-h">Changelog</div>' : ''}${rows}</details>`;
 }
 
 export function changelogCss(): string {
@@ -43,7 +45,12 @@ export function changelogCss(): string {
 .clog { margin: 14px 0 6px; border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); padding-top: 6px; }
 .clog > summary { cursor: pointer; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); }
 .clog .clog-latest { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.8; margin-left: 4px; }
+.clog-h { margin: 8px 0 2px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--vscode-descriptionForeground); }
 .clog-ver { margin: 4px 0 0 4px; }
+.clog-topic { display: flex; align-items: center; gap: 6px; width: 100%; margin: 1px 0; padding: 2px 6px; text-align: left; font: inherit; font-size: 12px; color: var(--vscode-foreground); background: transparent; border: 0; border-radius: 3px; cursor: pointer; }
+.clog-topic:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
+.clog-topic .clog-ti { flex: none; width: 16px; text-align: center; }
+.clog-all { margin-top: 4px; color: var(--vscode-textLink-foreground, #3794ff); }
 .clog-ver > summary { cursor: pointer; font-size: 12px; display: flex; gap: 6px; align-items: baseline; }
 .clog-v { font-weight: 600; }
 .clog-d { margin-left: auto; font-size: 10px; color: var(--vscode-descriptionForeground); }

@@ -43,9 +43,13 @@ export function tileLayout(host: DfmNode): { items: Map<DfmNode, TileRect>; grou
     const groups = new Map<DfmNode, TileRect>();
     const itemW = Math.max(40, num(host.props['OptionsView.ItemWidth']) ?? 120);
     const itemH = Math.max(40, num(host.props['OptionsView.ItemHeight']) ?? 120);
-    const gap = 6;
-    const hw = Math.round((itemW + gap) / 2);
-    const hh = Math.round((itemH + gap) / 2);
+    // the spaces the control itself is set to (ItemIndent between tiles, GroupIndent between groups, IndentHorz / IndentVert around)
+    const gap = Math.max(0, num(host.props['OptionsView.ItemIndent']) ?? 6);
+    const groupGap = Math.max(0, num(host.props['OptionsView.GroupIndent']) ?? 40);
+    const marginX = Math.max(0, num(host.props['OptionsView.IndentHorz']) ?? 24);
+    const marginY = Math.max(0, num(host.props['OptionsView.IndentVert']) ?? 16);
+    const hw = (itemW + gap) / 2;
+    const hh = (itemH + gap) / 2;
     const maxRows = Math.max(1, num(host.props['OptionsView.GroupMaxRowCount']) ?? 3) * 2;
 
     const groupNodes = host.children.filter(c => isTileGroup(c.className));
@@ -57,8 +61,8 @@ export function tileLayout(host: DfmNode): { items: Map<DfmNode, TileRect>; grou
     groupNodes.forEach(g => indexes.add(groupIndex(g)));
     tiles.forEach(t => indexes.add(itemGroup(t)));
 
-    const top = 16 + (host.props['Title.Text'] !== undefined ? 56 : 0);
-    let x = 24;
+    const top = marginY + (host.props['Title.Text'] !== undefined ? 56 : 0);
+    let x = marginX;
     for (const idx of [...indexes].sort((a, b) => a - b)) {
         const members = tiles.map((node, order) => ({ node, order })).filter(m => itemGroup(m.node) === idx)
             .sort((a, b) => ((num(a.node.props['IndexInGroup']) ?? 0) - (num(b.node.props['IndexInGroup']) ?? 0)) || a.order - b.order);
@@ -75,18 +79,18 @@ export function tileLayout(host: DfmNode): { items: Map<DfmNode, TileRect>; grou
                 for (let r = 0; r + ch <= maxRows && !placed; r++) {
                     if (!free(c, r, cw, ch)) { continue; }
                     for (let i = c; i < c + cw; i++) { for (let j = r; j < r + ch; j++) { (taken[i] ??= [])[j] = true; } }
-                    items.set(m.node, { x: x + c * hw, y: top + GROUP_HEADER + 6 + r * hh, w: cw * hw - gap, h: ch * hh - gap });
+                    items.set(m.node, { x: Math.round(x + c * hw), y: Math.round(top + GROUP_HEADER + 6 + r * hh), w: Math.round(cw * hw - gap), h: Math.round(ch * hh - gap) });
                     cols = Math.max(cols, c + cw);
                     placed = true;
                 }
             }
         }
-        const width = Math.max(90, cols * hw - gap);
+        const width = Math.max(90, Math.round(cols * hw - gap));
         const group = groupNodes.find(g => groupIndex(g) === idx);
         if (group) { groups.set(group, { x, y: top, w: width, h: GROUP_HEADER }); }
-        x += width + 40;
+        x += width + groupGap;
     }
     // A group declared twice with the same Index (or after the others) still gets a caption.
-    for (const g of groupNodes) { if (!groups.has(g)) { groups.set(g, { x, y: top, w: 90, h: GROUP_HEADER }); x += 130; } }
+    for (const g of groupNodes) { if (!groups.has(g)) { groups.set(g, { x, y: top, w: 90, h: GROUP_HEADER }); x += 90 + groupGap; } }
     return { items, groups };
 }

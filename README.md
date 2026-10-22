@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.17.vsix
+code --install-extension ce-code-explorer-0.1.18.vsix
 ```
 
 ## Supported Languages
@@ -341,6 +341,11 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **Test other form sizes**: shows the form at 640×480 … 1920×1080 (or any size) as `Align` and `Anchors` would lay it out, and marks in red what a new size breaks: a component pushed out of its container, or two that now overlap. The `.dfm` is never touched.
 - **Layouts**: save the selected panel (with its content, fields and handlers) under a name, then insert it from the View menu in any form.
 - **Several components at once**: `Ctrl` / `Shift` + click (on the form or in the list) adds to the selection; the inspector then shows **Common properties** (position, size, Align, Anchors, Visible, Enabled, colours, Hint), blank or undetermined where they differ, and a change goes to every selected component. The left column lists the components above the palette.
+
+#### Designer: DevExpress bars and TeeChart
+
+- **Bars**: a `TdxBarDockControl` shows the bars docked in it (`DockControl`) with the captions of their items (`ItemLinks`): buttons, static texts, sub-menus with ▾, combos, a separator where a group begins. A `TdxBar` and each item of a bar are edited in the inspector (caption, hint, image, shown / hidden, the dock control of a bar, the items of a bar); a bar with no dock control is listed but not drawn.
+- **TeeChart**: `TChart` / `TDBChart` (palette, *TeeChart*) are drawn as a plot with title, legend and sample values for each series; the series and the tools (`TDragMarksTool`…) are listed in the chart, added from the chart's inspector or the palette, and edited. The data of a series is not drawn: it comes from the code or the DataSource.
 
 #### Designer: menus
 

@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.18 — 2026-10-22
+- Designer: **DevExpress bars**. A `TdxBarDockControl` draws the bars docked in it with their items (buttons, static texts, sub-menus, combos, separators between groups); a `TdxBar` and its items (`TdxBarButton`, `TdxBarStatic`, `TdxBarSubItem`…) have their own inspector (caption, hint, width, shown or hidden with `ivAlways` / `ivNever`, dock control of a bar, the list of its items).
+- Designer: **TeeChart**. `TChart` and `TDBChart` are in the palette (TeeChart) and drawn as a plot with the title, the legend and sample values for each series in its colour (bars, horizontal bars, lines, areas, points, pie). Series (`TBarSeries`, `TLineSeries`, `TAreaSeries`, `TPointSeries`, `TPieSeries`…) and tools (`TDragMarksTool`, `TAnnotationTool`…) are listed in the chart, added from its inspector or the palette, and edited (title, colour, active, marks); the chart title, legend and 3D view too.
+- Designer: the tile control honours its own `OptionsView.ItemIndent`, `GroupIndent`, `IndentHorz` and `IndentVert`, and a large tile is exactly two regular cells wide.
+
 ## 0.1.17 — 2026-10-22
 - Sidebar: **Changelog + Guide** is a view of its own below Member, folded until opened, instead of a block at the bottom of every Member tab.
 

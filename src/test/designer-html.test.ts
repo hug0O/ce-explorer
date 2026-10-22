@@ -176,7 +176,7 @@ test('inspector: sections, one drop-down for the events, grid parts and the how-
     for (const k of ["'gridcolumn'", "'gridview'", "'gridlevel'"]) { assert.ok(html.includes(k), k); }
     assert.match(html, /\.k-gridcolumn \.gh/);
     assert.match(html, /if \(n\.structural\) \{ e\.style\.display = 'none'/, 'structure is listed, never painted');
-    assert.match(html, /HOST_LABEL = \{ tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset', menu: 'a menu or a menu item' \}/);
+    assert.match(html, /HOST_LABEL = \{ tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset', menu: 'a menu or a menu item', chart: 'a TChart or TDBChart' \}/);
     assert.match(html, /function hostFromElement/);
     for (const prop of ["'DataBinding.FieldName'", "'GridView'"]) { assert.ok(html.includes(prop), prop); }
     assert.doesNotThrow(() => new vm.Script(html.match(/<script nonce="N">([\s\S]*)<\/script>/)![1]));

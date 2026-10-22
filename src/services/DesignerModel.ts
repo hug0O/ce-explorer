@@ -15,7 +15,9 @@ import { hasSql, isConnection, isDataset, isDatasetField, isDataSource } from '.
 import { TILE_SIZES, isTileChild, isTileGroup, isTileHost, isTileItem, tileLayout, tileSizeOf } from './DelphiTiles';
 import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGridLevel, isGridView, shownView } from './DelphiGrid';
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
-import { isBarChild, isBarManager, isDockControl } from './DelphiBars';
+import { isBarChild, isBarManager, isBarPart, isDockControl } from './DelphiBars';
+import { BarItem, DockedBar, dockedBars } from './DelphiDockBars';
+import { ChartInfo, ChartSeries, isChart, isChartChild, isSeries, seriesKind } from './DelphiCharts';
 import { isMenuItem, shortcutText, shortcutValue } from './DelphiMenus';
 import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
 import { SheetColors, cssToDelphi, delphiToCss, gridPartColors, resolveColors, withExternalSheets } from './DelphiColors';
@@ -118,6 +120,12 @@ export interface DNode {
     /** Texts of a tile (Text1…Text4), `Size` of a tile. */
     tileTexts?: string[];
     tileSize?: string;
+    /** A TeeChart chart: its title, its series and its tools, to draw it. */
+    chart?: ChartInfo;
+    /** A dock control: the bars docked in it, with their items. */
+    dockBars?: DockedBar[];
+    /** A bar of a bar manager: its items, hidden ones included. */
+    barItems?: BarItem[];
     /** A menu item: its shortcut as the IDE writes it (`Ctrl+O`). */
     shortcut?: string;
     /** Placed by its parent control (tile, grid column…): selected and edited, never dragged, resized or moved to another parent. */
@@ -271,6 +279,20 @@ function editValueText(v: string | undefined): string | undefined {
     return String(Math.round(Number(v) * 100) / 100);
 }
 
+/** What a chart shows: its title, whether it has a legend and a 3D view, and its series (in the order of the .dfm) and tools. */
+function chartInfoOf(dfm: string, n: DfmNode): ChartInfo {
+    const titles = n.props['Title.Text.Strings'] !== undefined ? multilineStrings(dfm, n, 'Title.Text.Strings', 3) : [n.className];
+    const series: ChartSeries[] = n.children.filter(c => isSeries(c.className)).map(c => ({
+        name: c.name, cls: c.className, kind: seriesKind(c.className),
+        title: c.props['Title'] !== undefined ? fromDfmString(c.props['Title']) : c.name,
+        color: cssColor(c.props['SeriesColor']), visible: c.props['Active'] !== 'False',
+    }));
+    return {
+        title: n.props['Title.Visible'] === 'False' ? '' : titles.join(' '), view3D: n.props['View3D'] !== 'False', legend: n.props['Legend.Visible'] !== 'False',
+        series, tools: n.children.filter(c => isChartChild(c.className) && !isSeries(c.className)).map(c => c.name),
+    };
+}
+
 function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: number; h: number }, docked: boolean, align: string | undefined): DNode {
     // a TMS smooth label keeps its font under Caption
     const fontHeight = num(n.props['Font.Height'] ?? n.props['Caption.Font.Height']);
@@ -302,6 +324,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
     const newFields = isDataset(n.className) ? fieldsToCreate(dfm, n).length : isGridView(n.className) ? columnsToCreate(dfm, n).length : undefined;
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
+        chart: isChart(n.className) ? chartInfoOf(dfm, n) : undefined,
         newFields,
         scrollView: shown?.name, scrollBars: shown ? shown.props['OptionsView.ScrollBars'] ?? 'ssBoth' : undefined,
         colorTo: colors.colorTo, gradient: colors.gradient, borderColor: colors.borderColor, rounding: colors.rounding,
@@ -320,7 +343,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
         fontFrom: colors.fontFrom,
         bold: /fsBold/.test(style),
         fontSize: fontHeight !== undefined ? Math.max(8, Math.round(Math.abs(fontHeight) * 0.75 + 0.4)) : 9,
-        visible: (n.props['Visible'] ?? 'True') !== 'False',
+        visible: (n.props['Visible'] ?? 'True') !== 'False' && n.props['Visible'] !== 'ivNever',
         enabled: (n.props['Enabled'] ?? 'True') !== 'False',
         anchors: [...parseAnchors(n.props['Anchors'])],
         tab: num(n.props['TabOrder']),
@@ -511,6 +534,15 @@ function buildModel(dfm: string): DesignModel | undefined {
     const ch = num(root.props['ClientHeight']) ?? Math.max(40, (root.height ?? 240) - (dataModule ? 0 : 39));
     const rootNode = toDNode(dfm, root, { x: 0, y: 0, w: cw, h: ch }, false, undefined);
     rootNode.children = layoutChildren(dfm, root, cw, ch);
+    const docked = dockedBars(dfm, root, fromDfmString);
+    if (docked.bars.size) {
+        (function attach(n: DNode): void {
+            if (isDockControl(n.cls)) { n.dockBars = docked.docks.get(n.name) ?? []; }
+            const own = /^TdxBar$/i.test(n.cls) ? docked.bars.get(n.name) : undefined;
+            if (own) { n.barItems = own.items; }
+            n.children.forEach(attach);
+        })(rootNode);
+    }
     let skinName: string | undefined;
     (function scan(n: DfmNode): void {
         const v = n.props['SkinName'] ?? n.props['LookAndFeel.SkinName'];
@@ -727,7 +759,8 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
     TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
-    ShortCut: 'shortcut', AutoCheck: 'bool', RadioItem: 'bool', Default: 'bool', ImageIndex: 'int',
+    View3D: 'bool', 'Legend.Visible': 'bool', 'Title.Visible': 'bool', Title: 'string', SeriesColor: 'color', Active: 'bool', ColorEachPoint: 'bool', 'Marks.Visible': 'bool',
+    ShortCut: 'shortcut', AutoCheck: 'bool', RadioItem: 'bool', Default: 'bool', ImageIndex: 'int', DockControl: 'ref',
     Color: 'color', 'Font.Color': 'color', 'OptionsView.ScrollBars': 'enum',
 };
 export const ALIGN_VALUES = ['alNone', 'alTop', 'alBottom', 'alLeft', 'alRight', 'alClient'];
@@ -739,13 +772,14 @@ const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
     ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
     TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl, 'OptionsView.ScrollBars': isGridView,
-    ShortCut: isMenuItem, AutoCheck: isMenuItem, RadioItem: isMenuItem, Default: isMenuItem, ImageIndex: isMenuItem,
+    View3D: isChart, 'Legend.Visible': isChart, 'Title.Visible': isChart, Title: isSeries, SeriesColor: isSeries, ColorEachPoint: isSeries, 'Marks.Visible': isSeries, Active: isChartChild,
+    ShortCut: isMenuItem, AutoCheck: isMenuItem, RadioItem: isMenuItem, Default: isMenuItem, ImageIndex: c => isMenuItem(c) || isBarPart(c), DockControl: c => /^TdxBar$/i.test(c),
     Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
 };
 /** What a link property may point to. */
 const REF_TARGET: Record<string, { ok: (cls: string) => boolean; what: string }> = {
     GridView: { ok: isGridView, what: 'a grid view' }, Connection: { ok: isConnection, what: 'a connection' }, DataSet: { ok: isDataset, what: 'a dataset' },
-    BarManager: { ok: isBarManager, what: 'a bar manager' },
+    BarManager: { ok: isBarManager, what: 'a bar manager' }, DockControl: { ok: isDockControl, what: 'a dock control' },
 };
 
 /** One property edit from the inspector, validated and written the way Delphi would. */
@@ -771,11 +805,16 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         if (v === 0) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
         text = String(v);
     } else if (kind === 'bool') {
-        text = value === true || value === 'True' ? 'True' : 'False';
+        const on = value === true || value === 'True';
+        // an item of a bar shows itself with ivAlways / ivNever, not True / False
+        text = prop === 'Visible' && isBarPart(node.className) && !/^TdxBar$/i.test(node.className) ? (on ? 'ivAlways' : 'ivNever') : (on ? 'True' : 'False');
     } else if (kind === 'ref') {
         // A link to another component of the form: a grid level points to one of the views, empty unlinks it.
         const target = typeof value === 'string' ? value.trim() : '';
-        if (!target) { const e = deleteProp(dfm, node, prop); return { dfmEdits: e ? [e] : [], pasEdits: [] }; }
+        if (!target) {
+            const gone = [deleteProp(dfm, node, prop), prop === 'DockControl' ? deleteProp(dfm, node, 'DockedDockControl') : undefined].filter((e): e is TextEdit => !!e);
+            return { dfmEdits: gone, pasEdits: [] };
+        }
         const wanted = REF_TARGET[prop];
         const found = findNode(root, target);
         if (!wanted || !found || !wanted.ok(found.className)) { return fail(`${target} is not ${wanted?.what ?? 'a valid target'} of this form.`); }
@@ -808,6 +847,8 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         const v = Number(text);
         return { dfmEdits: [setProp(dfm, node, 'DesignInfo', designInfoOf(prop === 'Left' ? v : at.left ?? 0, prop === 'Top' ? v : at.top ?? 0))], pasEdits: [] };
     }
+    // the bar docks in a control through DockControl, and the IDE keeps the control it is docked in beside it
+    if (prop === 'DockControl' && node.props['DockedDockControl'] !== undefined) { return { dfmEdits: [setProp(dfm, node, prop, text), setProp(dfm, node, 'DockedDockControl', text)], pasEdits: [] }; }
     return { dfmEdits: [setProp(dfm, node, prop, text)], pasEdits: [] };
 }
 
@@ -827,13 +868,27 @@ export function setSqlEdits(dfm: string, name: string, lines: string[]): DesignR
     if (!node) { return fail(`Component "${name}" not found.`); }
     if (!hasSql(node.className)) { return fail(`${node.className} has no SQL property.`); }
     if (lines.length > 2000 || lines.some(l => typeof l !== 'string' || l.length > 4000)) { return fail('The SQL is too long.'); }
+    return stringsEdits(dfm, node, 'SQL.Strings', lines);
+}
+
+/** The title of a chart (`Title.Text.Strings`), one line per string; an empty title is written as one empty string. */
+export function setChartTitleEdits(dfm: string, name: string, lines: string[]): DesignResult {
+    const root = parseDfmTree(dfm);
+    if (!root) { return fail('The .dfm is not in text format.'); }
+    const node = findNode(root, name);
+    if (!node || !isChart(node.className)) { return fail(`${name} is not a chart.`); }
+    if (lines.length > 10 || lines.some(l => typeof l !== 'string' || l.length > 200)) { return fail('The title is too long.'); }
+    return stringsEdits(dfm, node, 'Title.Text.Strings', lines.length ? lines : ['']);
+}
+
+function stringsEdits(dfm: string, node: DfmNode, prop: string, lines: string[]): DesignResult {
     const eol = dfm.includes('\r\n') ? '\r\n' : '\n';
     const pad = '  '.repeat(node.depth + 1);
     const inner = pad + '  ';
-    const text = lines.length === 0 ? '' : `${pad}SQL.Strings = (${eol}${lines.map(l => inner + sqlItem(l, inner, eol)).join(eol)})${eol}`;
+    const text = lines.length === 0 ? '' : `${pad}${prop} = (${eol}${lines.map(l => inner + sqlItem(l, inner, eol)).join(eol)})${eol}`;
     const all = dfm.split('\n');
     const starts = lineStartOffsets(dfm);
-    const first = node.propLines['SQL.Strings'];
+    const first = node.propLines[prop];
     if (first === undefined) {
         if (!text) { return { dfmEdits: [], pasEdits: [] }; }
         const at = node.children.length > 0 ? node.children[0].startLine : node.endLine;

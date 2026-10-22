@@ -18,7 +18,7 @@ export interface PaletteEntry {
     group: string;
     icon: string;
     /** Goes inside a component of this kind (tiles, groups and detail pages go inside a tile control). */
-    host?: 'tile' | 'grid' | 'view' | 'dataset' | 'menu';
+    host?: 'tile' | 'grid' | 'view' | 'dataset' | 'menu' | 'chart';
 }
 
 export const PALETTE: PaletteEntry[] = [
@@ -32,6 +32,11 @@ export const PALETTE: PaletteEntry[] = [
     { cls: 'TProgressBar', group: 'Win32', icon: '▰' }, { cls: 'TTrackBar', group: 'Win32', icon: '⎯' }, { cls: 'TDateTimePicker', group: 'Win32', icon: '📅' },
     { cls: 'TRichEdit', group: 'Win32', icon: '📄' }, { cls: 'TTimer', group: 'System', icon: '⏱' },
     { cls: 'TPopupMenu', group: 'System', icon: '☰' }, { cls: 'TMainMenu', group: 'System', icon: '☰' }, { cls: 'TMenuItem', group: 'System', icon: '≡', host: 'menu' },
+    { cls: 'TChart', group: 'TeeChart', icon: '📊' }, { cls: 'TDBChart', group: 'TeeChart', icon: '📊' },
+    { cls: 'TBarSeries', group: 'TeeChart', icon: '▮', host: 'chart' }, { cls: 'THorizBarSeries', group: 'TeeChart', icon: '▬', host: 'chart' }, { cls: 'TLineSeries', group: 'TeeChart', icon: '📈', host: 'chart' },
+    { cls: 'TFastLineSeries', group: 'TeeChart', icon: '📈', host: 'chart' }, { cls: 'TAreaSeries', group: 'TeeChart', icon: '◢', host: 'chart' }, { cls: 'TPointSeries', group: 'TeeChart', icon: '⁘', host: 'chart' },
+    { cls: 'TPieSeries', group: 'TeeChart', icon: '◔', host: 'chart' }, { cls: 'TDragMarksTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TAnnotationTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
+    { cls: 'TCursorTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TMarksTipTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TRotateTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
 ];
 
 const ICONS: [RegExp, string][] = [
@@ -59,6 +64,7 @@ function hostOf(cls: string): PaletteEntry['host'] {
     if (/^TcxGrid(DB)?Column$/.test(cls)) { return 'view'; }
     if (isDatasetField(cls)) { return 'dataset'; }
     if (cls === 'TMenuItem') { return 'menu'; }
+    if (/^T(?!cx|dx)[A-Za-z0-9]*Series$/.test(cls) || /^T(DragMarks|Annotation|Cursor|MarksTip|Rotate)Tool$/.test(cls)) { return 'chart'; }
     return undefined;
 }
 for (const [group, defs] of [
@@ -192,6 +198,16 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-grid > .chrome { background: #fff; border: 1px solid #7a7a7a; background-image: linear-gradient(#c8c8c8 1px, transparent 1px), linear-gradient(90deg, #c8c8c8 1px, transparent 1px); background-size: 64px 20px; }
 .k-progress > .chrome { border: 1px solid #bcbcbc; background: linear-gradient(90deg, #06b025 35%, #e6e6e6 35%); }
 .k-track > .chrome { border-top: 2px solid #aaa; top: 45%; height: 4px; }
+.k-chart > .chrome { background: #fff; border: 1px solid #b8b8b8; overflow: hidden; }
+.k-chart > .chrome > svg { display: block; font-family: 'Segoe UI', sans-serif; }
+.k-dock > .chrome { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 3px 6px; padding: 2px 3px; background: #eceff4; border-bottom: 1px solid #c4cad4; overflow: hidden; }
+.dxbar { display: flex; align-items: center; gap: 1px; padding: 1px 4px; background: #f8f9fb; border: 1px solid #cfd5df; border-radius: 3px; font-size: 11px; color: #222; height: 24px; white-space: nowrap; }
+.dxbi { padding: 1px 7px; border-radius: 2px; }
+.dxbi.button, .dxbi.sub { background: linear-gradient(#fff, #e8ecf3); border: 1px solid #d3d9e4; }
+.dxbi.edit, .dxbi.combo { background: #fff; border: 1px solid #b9c1cf; }
+.dxbi.static { color: #444; }
+.dxbi.dim { color: #889; font-style: italic; }
+.dxsep { width: 1px; height: 16px; margin: 0 3px; background: #c4cad4; }
 .k-statusbar > .chrome, .k-toolbar > .chrome { background: #f0f0f0; border-top: 1px solid #d0d0d0; padding: 2px 6px; }
 .k-radiogroup > .chrome { border: 1px solid #dcdcdc; border-radius: 3px; top: 7px; padding: 12px 8px 4px; overflow: hidden; }
 .k-radiogroup > .legend { position: absolute; left: 8px; top: -8px; background: #f0f0f0; padding: 0 3px; white-space: nowrap; }
@@ -429,6 +445,12 @@ ${viewHtml()}
   }
   function kind(c) {
     var l = c.toLowerCase();
+    if (l === 'tchart' || l === 'tdbchart') { return 'chart'; }
+    if (/^t[a-z0-9]*series$/.test(l) && l.indexOf('tcx') !== 0 && l.indexOf('tdx') !== 0) { return 'series'; }
+    if (/^t(dragmarks|annotation|cursor|markstip|rotate|dragpoint|nearest|colorband|gridband|axisarrow|image|seriesanimation|colorline)tool$/.test(l)) { return 'charttool'; }
+    if (l === 'tdxbardockcontrol') { return 'dock'; }
+    if (l === 'tdxbar') { return 'bar'; }
+    if (l.indexOf('tdxbar') === 0 && l !== 'tdxbarmanager' && l !== 'tdxbarpopupmenu' && l.indexOf('tdxbarscreentip') !== 0) { return 'baritem'; }
     if (l === 'tmenuitem') { return 'menuitem'; }
     if (l === 'tpopupmenu' || l === 'tmainmenu') { return 'menu'; }
     if (l === 'tdxtilecontrol') { return 'tilecontrol'; }
@@ -496,6 +518,134 @@ ${viewHtml()}
     var hit = sheets.filter(function (s) { return s.name === want; })[0];
     return (hit || sheets[0] || {}).name;
   }
+  /* A TeeChart chart: title, axes, and sample values for each series in the colour of the series. */
+  var CHART_COLORS = ['#e04a4a', '#3cb371', '#e8c84a', '#4a7be0', '#9aa0a6', '#b25cc8', '#3ab7b7', '#e08a3c'];
+  function svgEl(tag, attrs) {
+    var x = document.createElementNS(['http', '//www.w3.org/2000/svg'].join(':'), tag);
+    Object.keys(attrs || {}).forEach(function (a) { x.setAttribute(a, attrs[a]); });
+    return x;
+  }
+  function chartContent(n, chrome) {
+    var c = n.chart || { title: '', series: [], legend: true, view3D: false, tools: [] };
+    var W = Math.max(60, n.w), H = Math.max(40, n.h);
+    var svg = svgEl('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    var series = c.series.filter(function (s) { return s.visible; });
+    var legendW = c.legend && series.length ? Math.min(120, Math.max(64, W * 0.24)) : 0;
+    var x0 = 34, y0 = c.title ? 28 : 10, x1 = W - legendW - 10, y1 = H - 22;
+    if (c.title) { var tt = svgEl('text', { x: (W - legendW) / 2, y: 18, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 600, fill: '#333' }); tt.textContent = c.title; svg.appendChild(tt); }
+    var pw = x1 - x0, ph = y1 - y0;
+    if (pw > 30 && ph > 20) {
+      for (var g = 0; g <= 5; g++) {
+        var gy = y1 - g * ph / 5;
+        svg.appendChild(svgEl('line', { x1: x0, y1: gy, x2: x1, y2: gy, stroke: '#e3e3e3', 'stroke-width': 1 }));
+        var lab = svgEl('text', { x: x0 - 4, y: gy + 3, 'text-anchor': 'end', 'font-size': 9, fill: '#666' }); lab.textContent = String(g * 2); svg.appendChild(lab);
+      }
+      svg.appendChild(svgEl('line', { x1: x0, y1: y0, x2: x0, y2: y1, stroke: '#888', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('line', { x1: x0, y1: y1, x2: x1, y2: y1, stroke: '#888', 'stroke-width': 1 }));
+      var cats = 5, gw = pw / cats, base = [3, 5, 2, 6, 4];
+      for (var q = 0; q < cats; q++) { var xl = svgEl('text', { x: x0 + (q + 0.5) * gw, y: y1 + 12, 'text-anchor': 'middle', 'font-size': 9, fill: '#666' }); xl.textContent = String.fromCharCode(65 + q); svg.appendChild(xl); }
+      var pie = series.filter(function (s) { return s.kind === 'pie'; })[0];
+      if (pie) {
+        var cx = x0 + pw / 2, cy = y0 + ph / 2, r = Math.max(6, Math.min(pw, ph) / 2 - 2), a0 = -Math.PI / 2, tot = 0, v;
+        base.forEach(function (b) { tot += b; });
+        base.forEach(function (b, j) {
+          var a1 = a0 + 2 * Math.PI * b / tot;
+          var d = 'M ' + cx + ' ' + cy + ' L ' + (cx + r * Math.cos(a0)) + ' ' + (cy + r * Math.sin(a0)) + ' A ' + r + ' ' + r + ' 0 ' + (a1 - a0 > Math.PI ? 1 : 0) + ' 1 ' + (cx + r * Math.cos(a1)) + ' ' + (cy + r * Math.sin(a1)) + ' Z';
+          svg.appendChild(svgEl('path', { d: d, fill: CHART_COLORS[j % CHART_COLORS.length], stroke: '#fff', 'stroke-width': 1 }));
+          a0 = a1;
+        });
+      }
+      var plain = series.filter(function (s) { return s.kind !== 'pie'; });
+      var bars = plain.filter(function (s) { return s.kind === 'bar'; });
+      plain.forEach(function (s, i) {
+        var col = s.color || CHART_COLORS[series.indexOf(s) % CHART_COLORS.length];
+        var vals = base.map(function (b, j) { return ((b + i * 2 + j) % 6) + 1; });
+        var px = function (j) { return x0 + (j + 0.5) * gw; };
+        var py = function (v) { return y1 - v / 7 * ph; };
+        if (s.kind === 'bar') {
+          var bw = gw * 0.7 / Math.max(1, bars.length), bi = bars.indexOf(s);
+          vals.forEach(function (v, j) { svg.appendChild(svgEl('rect', { x: x0 + j * gw + gw * 0.15 + bi * bw, y: py(v), width: Math.max(1, bw - 1), height: y1 - py(v), fill: col })); });
+        } else if (s.kind === 'hbar') {
+          var rh = ph / cats;
+          vals.forEach(function (v, j) { svg.appendChild(svgEl('rect', { x: x0, y: y0 + j * rh + rh * 0.15, width: v / 7 * pw, height: rh * 0.7, fill: col })); });
+        } else if (s.kind === 'area') {
+          var pts = vals.map(function (v, j) { return px(j) + ',' + py(v); }).join(' ');
+          svg.appendChild(svgEl('polygon', { points: px(0) + ',' + y1 + ' ' + pts + ' ' + px(cats - 1) + ',' + y1, fill: col, opacity: 0.6 }));
+        } else {
+          if (s.kind === 'line') { svg.appendChild(svgEl('polyline', { points: vals.map(function (v, j) { return px(j) + ',' + py(v); }).join(' '), fill: 'none', stroke: col, 'stroke-width': 2 })); }
+          vals.forEach(function (v, j) { svg.appendChild(svgEl('circle', { cx: px(j), cy: py(v), r: s.kind === 'point' ? 3.5 : 2.5, fill: col })); });
+        }
+      });
+    }
+    if (legendW) {
+      var ly = y0 + 2;
+      series.forEach(function (s, i) {
+        svg.appendChild(svgEl('rect', { x: W - legendW, y: ly, width: 9, height: 9, fill: s.color || CHART_COLORS[i % CHART_COLORS.length] }));
+        var lt = svgEl('text', { x: W - legendW + 13, y: ly + 8, 'font-size': 10, fill: '#333' }); lt.textContent = s.title.length > 14 ? s.title.slice(0, 13) + '…' : s.title; svg.appendChild(lt);
+        ly += 15;
+      });
+    }
+    if (!series.length) { var nt = svgEl('text', { x: (x0 + x1) / 2, y: (y0 + y1) / 2, 'text-anchor': 'middle', 'font-size': 11, fill: '#999', 'font-style': 'italic' }); nt.textContent = 'No series: add one from the palette (TeeChart)'; svg.appendChild(nt); }
+    chrome.appendChild(svg);
+  }
+  /* A chart: title, legend, 3D, and its series and tools to add; a series: its title, colour and visibility. */
+  function chartFields(box, n) {
+    var c = n.chart || { title: '', series: [], legend: true, view3D: false, tools: [] };
+    section(box, 'Chart', 'chart', function (b) {
+      b.appendChild(labelled('Title', textInput(c.title, function (v) { post({ type: 'setChartTitle', name: n.name, lines: [v] }); })));
+      b.appendChild(checkbox('Show the title', n.props['Title.Visible'] !== 'False', setter(n, 'Title.Visible')));
+      b.appendChild(checkbox('Legend', c.legend, setter(n, 'Legend.Visible')));
+      b.appendChild(checkbox('3D view', n.props['View3D'] === 'True', setter(n, 'View3D')));
+      b.appendChild(el('div', 'fehead', 'Series (' + c.series.length + ')'));
+      c.series.forEach(function (s) { if (byName[s.name]) { b.appendChild(fieldRow(byName[s.name], s.title + (s.visible ? '' : ' (hidden)'), s.cls)); } });
+      var addS = el('select'); var h1 = el('option', '', '＋ Add a series…'); h1.value = ''; addS.appendChild(h1);
+      ['TBarSeries', 'THorizBarSeries', 'TLineSeries', 'TFastLineSeries', 'TAreaSeries', 'TPointSeries', 'TPieSeries'].forEach(function (k2) { var o = el('option', '', k2); o.value = k2; addS.appendChild(o); });
+      addS.addEventListener('change', function () { if (addS.value) { post({ type: 'add', className: addS.value, parent: n.name, left: 0, top: 0 }); } });
+      b.appendChild(addS);
+      b.appendChild(el('div', 'fehead', 'Tools (' + c.tools.length + ')'));
+      c.tools.forEach(function (t) { if (byName[t]) { b.appendChild(fieldRow(byName[t], t, byName[t].cls)); } });
+      var addT = el('select'); var h2 = el('option', '', '＋ Add a tool…'); h2.value = ''; addT.appendChild(h2);
+      ['TDragMarksTool', 'TAnnotationTool', 'TCursorTool', 'TMarksTipTool', 'TRotateTool'].forEach(function (k3) { var o = el('option', '', k3); o.value = k3; addT.appendChild(o); });
+      addT.addEventListener('change', function () { if (addT.value) { post({ type: 'add', className: addT.value, parent: n.name, left: 0, top: 0 }); } });
+      b.appendChild(addT);
+      b.appendChild(el('div', 'hint', 'The plot shows sample values: the data of a series comes from the code or its DataSource.'));
+    });
+  }
+  function seriesFields(box, n) {
+    if (kind(n.cls) === 'charttool') {
+      box.appendChild(checkbox('Active', n.props['Active'] !== 'False', setter(n, 'Active')));
+      box.appendChild(el('div', 'hint', 'A chart tool adds behaviour at run time (dragging marks, annotations, a cursor…); nothing is drawn for it.'));
+      return;
+    }
+    var chart = byName[parentOf[n.name]];
+    var info = chart && chart.chart ? chart.chart.series.filter(function (s) { return s.name === n.name; })[0] : undefined;
+    box.appendChild(labelled('Title', textInput(n.props['Title'] !== undefined ? fromDfmText(n.props['Title']) : '', setter(n, 'Title'))));
+    box.appendChild(colorRow(n, 'Color', 'SeriesColor', info ? info.color : undefined, undefined));
+    box.appendChild(checkbox('Active', n.props['Active'] !== 'False', setter(n, 'Active')));
+    box.appendChild(checkbox('Color each point', n.props['ColorEachPoint'] === 'True', setter(n, 'ColorEachPoint')));
+    box.appendChild(checkbox('Marks', n.props['Marks.Visible'] === 'True', setter(n, 'Marks.Visible')));
+    box.appendChild(el('div', 'hint', 'A series draws in the chart that holds it, with sample values here.'));
+  }
+  /* A dock control draws the bars docked in it, with the captions of their items. */
+  function dockContent(n, chrome) {
+    var bars = n.dockBars || [];
+    bars.forEach(function (b) {
+      var bar = el('div', 'dxbar'); bar.title = b.name + (b.caption ? ' - ' + b.caption : '');
+      var any = false;
+      b.items.forEach(function (it) {
+        if (!it.visible) { return; }
+        any = true;
+        if (it.beginGroup) { bar.appendChild(el('span', 'dxsep', '')); }
+        var x = el('span', 'dxbi ' + it.kind, (it.caption || (it.kind === 'button' ? '◻' : '')) + (it.kind === 'sub' ? ' ▾' : ''));
+        x.title = it.name + ' : ' + it.cls;
+        if (it.width && it.kind !== 'button') { x.style.minWidth = Math.min(it.width, 300) + 'px'; }
+        bar.appendChild(x);
+      });
+      if (!any) { bar.appendChild(el('span', 'dxbi dim', b.caption)); }
+      chrome.appendChild(bar);
+    });
+    if (!bars.length) { chrome.appendChild(el('span', 'dxbi dim', 'Dock control: no bar docked here')); }
+  }
   function content(n, e, chrome) {
     var k = kind(n.cls);
     var cap = n.caption !== undefined ? n.caption : (n.text !== undefined ? n.text : '');
@@ -530,6 +680,8 @@ ${viewHtml()}
       }
       else { var hd = el('div', 'gridhead'); hd.style.height = (Number(n.props['FixedRows'] || 1) * rh) + 'px'; chrome.appendChild(hd); var fx = el('div', 'gridfix'); fx.style.width = (Number(n.props['FixedCols'] || 1) * cw) + 'px'; chrome.appendChild(fx); }
     }
+    else if (k === 'dock') { dockContent(n, chrome); }
+    else if (k === 'chart') { chartContent(n, chrome); }
     else if (k === 'statusbar' || k === 'toolbar') { chrome.textContent = k === 'statusbar' ? cap : ''; }
     else if (k === 'generic') { chrome.textContent = n.cls + (cap ? ' – ' + cap : ''); }
     else if (k === 'sheet') { chrome.style.background = n.color || '#fff'; }
@@ -777,7 +929,7 @@ ${viewHtml()}
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { menuitem: '≡', button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  var ICONS = { chart: '📊', series: '▮', charttool: '🛠', dock: '▬', bar: '▤', baritem: '▫', menuitem: '≡', button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
   function iconOf(n) { return n.nonVisual ? nvGlyph(n.cls) : (ICONS[kind(n.cls)] || '◻'); }
   /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
@@ -818,7 +970,7 @@ ${viewHtml()}
     order.forEach(function (g) { var o = el('option', '', g + ' (' + count[g] + ')'); o.value = g; sel.appendChild(o); });
   }
   /* Parts go inside a host: tiles into a tile control, levels and views into a grid, columns into a view. The selected one, or the one that is clicked. */
-  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset', menu: 'a menu or a menu item' };
+  var HOST_LABEL = { tile: 'a TdxTileControl', grid: 'a TcxGrid', view: 'a grid view', dataset: 'a dataset', menu: 'a menu or a menu item', chart: 'a TChart or TDBChart' };
   function hostMatch(h, name) {
     var n = byName[name];
     if (!n) { return false; }
@@ -826,6 +978,7 @@ ${viewHtml()}
     if (h === 'grid') { return n.cls === 'TcxGrid'; }
     if (h === 'dataset') { return !!n.dataset; }
     if (h === 'menu') { return kind(n.cls) === 'menu' || kind(n.cls) === 'menuitem'; }
+    if (h === 'chart') { return kind(n.cls) === 'chart'; }
     if (h === 'view') { return kind(n.cls) === 'gridview' && n.cls.slice(-4) === 'View'; }
     return false;
   }
@@ -1069,7 +1222,7 @@ ${viewHtml()}
   }
   /* ───────── inspector: identity, position, content, state, events — in collapsible sections ───────── */
   var TILE_SIZES = ['tcisSmall', 'tcisRegular', 'tcisLarge', 'tcisExtraLarge'];
-  var PART_TITLES = { menuitem: 'Menu item', tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level', datafield: 'Field' };
+  var PART_TITLES = { series: 'Series', charttool: 'Chart tool', bar: 'Bar', baritem: 'Bar item', menuitem: 'Menu item', tile: 'Tile', tilegroup: 'Tile group', gridcolumn: 'Column', gridview: 'View', gridlevel: 'Level', datafield: 'Field' };
   var DB_PROVIDERS = ['Oracle', 'SQL Server', 'MySQL', 'PostgreSQL', 'SQLite', 'InterBase', 'Access', 'ODBC', 'DB2', 'ASE', 'Advantage', 'NexusDB'];
   function section(box, title, key, build) {
     var d = el('details', 'insec');
@@ -1272,9 +1425,33 @@ ${viewHtml()}
     menuBar(box, n);
     menuPreview(box, n);
   }
+  /* A bar of a bar manager (where it docks, its items) and an item of a bar (caption, shown or not). */
+  function barFields(box, n) {
+    if (kind(n.cls) === 'bar') {
+      box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
+      box.appendChild(linkSelect(n, 'DockControl', 'Dock control', function (c) { return kind(c.cls) === 'dock'; }));
+      box.appendChild(checkbox('Visible', n.props['Visible'] !== 'False', setter(n, 'Visible')));
+      var items = n.barItems || [];
+      box.appendChild(el('div', 'fehead', 'Items (' + items.length + ')'));
+      items.forEach(function (it) {
+        if (byName[it.name]) { box.appendChild(fieldRow(byName[it.name], (it.beginGroup ? '| ' : '') + (it.caption || it.name) + (it.visible ? '' : ' (hidden)'), it.cls)); }
+        else { box.appendChild(el('div', 'hint', it.name + ' : ' + it.cls)); }
+      });
+      if (!items.length) { box.appendChild(el('div', 'hint', 'No item linked: the items of a bar are its ItemLinks.')); }
+      box.appendChild(el('div', 'hint', 'The bar shows in the dock control it is linked to; a bar with none is not drawn.'));
+      return;
+    }
+    box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
+    box.appendChild(labelled('Hint', textInput(n.props['Hint'] !== undefined ? fromDfmText(n.props['Hint']) : '', setter(n, 'Hint'))));
+    if (/static$/i.test(n.cls)) { box.appendChild(labelled('Width', textInput(n.props['Width'] !== undefined ? Number(n.props['Width']) : '', function (v) { if (v !== '') { post({ type: 'setProp', name: n.name, prop: 'Width', value: Number(v) }); } }, 'number'))); }
+    box.appendChild(labelled('Image', textInput(n.props['ImageIndex'] !== undefined ? Number(n.props['ImageIndex']) : -1, function (v) { post({ type: 'setProp', name: n.name, prop: 'ImageIndex', value: Number(v) }); }, 'number')));
+    box.appendChild(checkbox('Shown (ivAlways)', n.props['Visible'] !== 'ivNever', setter(n, 'Visible')));
+    box.appendChild(el('div', 'hint', 'A bar item shows where a bar links it (ItemLinks); its click handler is in Events.'));
+  }
+  function fromDfmText(v) { var s = String(v); return s.charAt(0) === String.fromCharCode(39) && s.charAt(s.length - 1) === String.fromCharCode(39) ? s.slice(1, -1) : s; }
   function partFields(box, n) {
     var k = kind(n.cls);
-    if (k === 'menuitem') { menuItemFields(box, n); } else if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else if (k === 'datafield') { dataFieldFields(box, n); } else { gridFields(box, n); }
+    if (k === 'series' || k === 'charttool') { seriesFields(box, n); } else if (k === 'bar' || k === 'baritem') { barFields(box, n); } else if (k === 'menuitem') { menuItemFields(box, n); } else if (k === 'tile' || k === 'tilegroup') { tileFields(box, n); } else if (k === 'datafield') { dataFieldFields(box, n); } else { gridFields(box, n); }
   }
   /* Link to another component: a select of the components of a kind, the current one first. */
   function linkSelect(n, prop, label, wanted) {
@@ -1572,6 +1749,7 @@ ${viewHtml()}
         b.appendChild(ar);
       });
       dataFields(box, n);
+      if (k === 'chart') { chartFields(box, n); }
       if (k === 'menu') { section(box, 'Menu', 'menu', function (b) { menuBar(b, n); menuPreview(b, n); }); }
       var hasCap = n.caption !== undefined || ['button', 'label', 'check', 'radio', 'panel', 'group', 'sheet', 'statusbar'].indexOf(k) >= 0;
       var hasText = n.text !== undefined || ['edit', 'combo'].indexOf(k) >= 0;

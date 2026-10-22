@@ -10,6 +10,7 @@ import {
 import { isTileChild, isTileGroup, isTileHost } from './DelphiTiles';
 import { isGridChild, isGridHost, isGridView } from './DelphiGrid';
 import { nestedRuleOf, onlyHolds } from './DelphiNested';
+import { isChart, isChartChild } from './DelphiCharts';
 import { isDataset, isDatasetField } from './DelphiData';
 
 export interface DfmNode {
@@ -45,6 +46,8 @@ export function isContainer(node: DfmNode): boolean {
     if (node.depth === 0) { return true; }
     // A tile control or a grid holds parts that it places itself (tiles, levels, views, columns): no control can be dropped into it.
     if (isTileHost(node.className) || isTileChild(node.className) || isGridHost(node.className) || isGridChild(node.className)) { return false; }
+    // A chart holds series and tools, which are not controls.
+    if (isChart(node.className) || isChartChild(node.className)) { return false; }
     // A dataset holds its persistent fields, which are not controls.
     if (isDataset(node.className) || (isDatasetField(node.className) && !!node.parent && isDataset(node.parent.className))) { return false; }
     return node.children.length > 0 || (CONTAINER_RE.test(node.className) && !NOT_CONTAINER_RE.test(node.className));

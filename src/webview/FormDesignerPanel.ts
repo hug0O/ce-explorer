@@ -9,7 +9,7 @@ import { loadComponentDef } from '../services/FormLibrary';
 import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
 import { planAddEvent } from '../services/DelphiEvents';
 import {
-    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setSqlEdits, verifyEdit,
+    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setChartTitleEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
 import { layouts, loadMarks, saveLayouts, saveMarks } from '../services/DesignerStore';
@@ -565,6 +565,12 @@ export class FormDesignerPanel {
                 }
                 if (!touched.length) { this.sendModel(undefined, firstError ?? 'Nothing to change.'); return; }
                 await this.commit(`${[...props].filter(p => p !== 'DesignInfo').join(', ')} of ${touched.length} components`, { dfmEdits, pasEdits }, touched, { touched, props: [...props] });
+                return;
+            }
+            case 'setChartTitle': {
+                const lines = Array.isArray(m.lines) ? m.lines.filter((l): l is string => typeof l === 'string') : [];
+                const name = str(m.name);
+                await this.commit(`${name}.Title`, setChartTitleEdits(dfm, name, lines), [name], { touched: [name], props: ['Title.Text.Strings'] });
                 return;
             }
             case 'setSql': {

@@ -79,6 +79,8 @@ export class FormDesignerPanel {
         private dfmDoc: vscode.TextDocument,
     ) {
         panel.webview.html = designerHtml(nonce());
+        // the units of the project are read in the background, so the first click on a 🗗 or a 🔗 does not wait for them
+        void projectIndex().catch(() => undefined);
         this.disposables.push(
             panel.onDidChangeViewState(e => { if (e.webviewPanel.visible) { this.sendModel(); } }),
             panel.onDidDispose(() => this.dispose()),
@@ -628,11 +630,14 @@ export class FormDesignerPanel {
                 const impl = handler ? handlerImplementation(pas, root.className, handler) : undefined;
                 if (!node || !handler || !impl) { this.sendModel(undefined, 'This event has no handler in the unit yet.'); return; }
                 const index = await projectIndex();
-                const found = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className);
-                if (found.length === 0) { this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units read).`); return; }
+                const all = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className, index.methods);
+                // the forms really opened (created, shown, named); the ones the code only mentions are offered when it opens none
+                const opened = all.filter(f => !f.how.startsWith('refers to'));
+                const found = opened.length ? opened : all;
+                if (found.length === 0) { this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units read, ${index.forms.length} forms).`); return; }
                 const pick = found.length === 1 ? found[0] : (await vscode.window.showQuickPick(
                     found.map(f => ({ label: f.form.className, description: [f.how, f.via ? 'via ' + f.via : ''].filter(Boolean).join(' · '), detail: f.form.pas, ref: f })),
-                    { title: `Forms opened by ${handler}`, placeHolder: 'Open its designer' }))?.ref;
+                    { title: opened.length ? `Forms opened by ${handler}` : `${handler} opens no form: it refers to`, placeHolder: 'Open its designer' }))?.ref;
                 if (pick) { await this.openFormFile(pick.form.pas); }
                 return;
             }

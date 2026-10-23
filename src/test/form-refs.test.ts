@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KnownForm, calledNames, classOfArg, dprUnits, formNamedBy, formsInCode, formsOpenedBy, hostedForms, methodBodies, nameDistance, stripCode } from '../services/DelphiFormRefs';
+import { KnownForm, calledNames, classOfArg, dprUnits, formNamedBy, formsInCode, formsOpenedBy, hostedForms, indexMethods, indexMethodsOf, forgetUnit, methodBodies, nameDistance, stripCode } from '../services/DelphiFormRefs';
 
 const forms: KnownForm[] = [
     { className: 'TfrmMain', vars: ['frmMain'], pas: 'Main.pas', dfm: 'Main.dfm' },
@@ -95,4 +95,27 @@ test('a button that opens a form by its name, in the call of a method of another
     const units = new Map([['Ecran.pas', "procedure TGestion.fAfficheListe(psClasse: string);\nbegin\n  Open('TIERS_Fiche_frm');\nend;\n"]]);
     assert.deepEqual(formsOpenedBy('frmMain.oG.fAfficheListe(1);', all, units, 'TfrmMain').map(x => [x.form.className, x.via]), [['TfrmTIERSFiche', 'fAfficheListe']]);
     assert.deepEqual(formsOpenedBy("ShowMessage('TfrmTIERSFiche');", all, new Map(), 'TfrmTIERSFiche'), [], 'never the form itself');
+});
+
+test('the methods are indexed once: header offsets by name, and only real implementations', () => {
+    const unit = 'unit U;\ninterface\ntype\n  TG = class\n    procedure fOpen;\n  end;\nimplementation\nprocedure TG.fOpen;\nbegin\n  frmListe.Show;\nend;\nprocedure Plain;\nbegin\n  frmDetail.Show;\nend;\nend.\n';
+    const index = indexMethods(new Map([['U.pas', unit]]));
+    assert.deepEqual([...index.keys()].sort(), ['fopen', 'plain'], 'the declaration in the class is not an implementation');
+    const units = new Map([['U.pas', unit]]);
+    assert.match(methodBodies(units, 'fOpen', index)[0], /frmListe\.Show/);
+    assert.match(methodBodies(units, 'Plain', index)[0], /frmDetail\.Show/);
+    forgetUnit('U.pas', index);
+    assert.equal(index.size, 0, 'a saved unit is forgotten, then read again alone');
+    indexMethodsOf('U.pas', unit, index);
+    assert.equal(index.size, 2);
+});
+
+test('a big project is indexed fast: a hundred thousand lines, forty lookups', () => {
+    const body = Array.from({ length: 400 }, (_, i) => `procedure TG.Meth${i}(a: Integer);\nbegin\n  DoSomething(a);\n  TfrmX${i % 7}.Create(nil);\nend;\n`).join('\n');
+    const units = new Map<string, string>();
+    for (let u = 0; u < 120; u++) { units.set(`U${u}.pas`, `unit U${u};\ninterface\nimplementation\n${body}\nend.\n`); }
+    const t0 = Date.now();
+    const index = indexMethods(units);
+    for (let i = 0; i < 40; i++) { methodBodies(units, 'Meth' + i, index); }
+    assert.ok(Date.now() - t0 < 1500, 'took ' + (Date.now() - t0) + ' ms');
 });

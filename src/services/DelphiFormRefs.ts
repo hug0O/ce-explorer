@@ -99,26 +99,62 @@ export function formsInCode(code: string, forms: KnownForm[], self?: string): Fo
     return [...out.values()];
 }
 
-/** The implementation of the methods called `name` in the units: the text from their header to their closing `end;`. */
-export function methodBodies(units: Map<string, string>, name: string): string[] {
+/** Where each method is implemented: name (lower case) → the unit and the offset of its header. Built once for the project, one pass per unit. */
+export type MethodIndex = Map<string, { unit: string; at: number }[]>;
+
+/** Adds the methods a unit implements (`procedure TGestion.fName`, or a plain routine after `implementation`). */
+export function indexMethodsOf(unit: string, text: string, into: MethodIndex): void {
+    const impl = text.search(/^[ \t]*implementation\b/im);
+    const header = /^[ \t]*(?:class\s+)?(?:procedure|function|constructor|destructor)\s+(?:(\w+)\s*\.\s*)?(\w+)/gim;
+    for (let h = header.exec(text); h; h = header.exec(text)) {
+        if (!h[1] && !(impl >= 0 && h.index > impl)) { continue; }
+        const key = lc(h[2]);
+        const list = into.get(key) ?? [];
+        list.push({ unit, at: h.index });
+        into.set(key, list);
+    }
+}
+
+export function forgetUnit(unit: string, index: MethodIndex): void {
+    for (const [k, v] of index) {
+        const kept = v.filter(e => e.unit !== unit);
+        if (kept.length) { index.set(k, kept); } else { index.delete(k); }
+    }
+}
+
+export function indexMethods(units: Map<string, string>): MethodIndex {
+    const index: MethodIndex = new Map();
+    for (const [unit, text] of units) { indexMethodsOf(unit, text, index); }
+    return index;
+}
+
+function bodyAt(text: string, from: number): string | undefined {
+    const begin = /^[ \t]*begin\b/gim;
+    begin.lastIndex = from;
+    const b = begin.exec(text);
+    if (!b) { return undefined; }
+    const end = /^[ \t]*end;/gim;
+    end.lastIndex = b.index;
+    const e = end.exec(text);
+    return text.slice(b.index, e ? e.index : Math.min(text.length, b.index + 6000));
+}
+
+/** The implementation of the methods called `name`: the text from their `begin` to their closing `end;` (the index is built from the units when not given). */
+export function methodBodies(units: Map<string, string>, name: string, index?: MethodIndex): string[] {
+    const idx = index ?? indexMethods(units);
     const out: string[] = [];
-    const header = new RegExp('^[ \\t]*(?:class\\s+)?(?:procedure|function|constructor|destructor)\\s+(?:\\w+\\s*\\.\\s*)?' + escapeRe(name) + '\\b', 'gim');
-    for (const text of units.values()) {
-        for (const h of text.matchAll(header)) {
-            const start = h.index ?? 0;
-            const begin = text.slice(start).search(/^[ \t]*begin\b/im);
-            if (begin < 0) { continue; }
-            const from = start + begin;
-            const end = /^[ \t]*end;/im.exec(text.slice(from));
-            out.push(text.slice(from, end ? from + end.index : Math.min(text.length, from + 6000)));
-            if (out.length >= 6) { return out; }
-        }
+    for (const e of idx.get(lc(name)) ?? []) {
+        const text = units.get(e.unit);
+        const body = text === undefined ? undefined : bodyAt(text, e.at);
+        if (body !== undefined) { out.push(body); }
+        if (out.length >= 6) { break; }
     }
     return out;
 }
 
 /** The forms a handler opens, with the method that opens each one when the handler only calls it (two levels deep). */
-export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Map<string, string>, self?: string): FormRef[] {
+export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Map<string, string>, self?: string, methods?: MethodIndex): FormRef[] {
+    const index = methods ?? indexMethods(units);
     const found = new Map<string, FormRef>();
     for (const r of formsInCode(handlerCode, forms, self)) { found.set(lc(r.form.className), r); }
     const seen = new Set<string>();
@@ -127,7 +163,7 @@ export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Ma
         for (const name of calledNames(code)) {
             if (seen.has(lc(name))) { continue; }
             seen.add(lc(name));
-            for (const body of methodBodies(units, name)) {
+            for (const body of methodBodies(units, name, index)) {
                 for (const r of formsInCode(body, forms, self)) {
                     // the forms the method opens beat the ones it merely mentions
                     const old = found.get(lc(r.form.className));

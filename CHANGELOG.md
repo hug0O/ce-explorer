@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.29 — 2026-10-24
+- Designer: **the 🗗 and 🔗 links are fast.** The units of the project are read in the background as soon as a designer opens, many at a time, and the methods of the whole project are indexed in one pass (before, every call followed was a search through all the units); a saved unit is read again alone instead of the whole project.
+- Designer: the list of forms offered by 🗗 holds **only the forms the code really opens** (created, shown, or named in a text); the ones it merely mentions are no longer listed, and **a single form opens at once**. When the code opens none, the forms it refers to are offered, titled as such.
+
 ## 0.1.28 — 2026-10-24
 - Designer: the 🗗 button of an event also finds a form that is **opened by its name**, as in `fAfficheListe('TfrmTIERSFiche', ...)`: the text is matched with the forms of the project as its `.dpr` lists them (`TIERS_Fiche_frm in 'TransactionsTiersTIERS_Fiche_frm.pas' {frmTIERSFiche}`), by class, by form name or by unit name, and a slip in the name (`TfrmTIERSFihce`) is forgiven when only one form is that close. The method it calls is read too, so the name can be given there.
 

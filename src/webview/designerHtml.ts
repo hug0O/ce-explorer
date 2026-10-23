@@ -1621,10 +1621,10 @@ ${viewHtml()}
       var r = el('div', 'evrow wired'); r.setAttribute('data-event', e4);
       r.appendChild(el('span', 'dot', '●')); r.appendChild(el('span', 'evn', e4)); r.appendChild(el('span', 'evh', n.events[e4]));
       r.title = 'Open ' + n.events[e4] + ' in the code';
-      var fb = el('span', 'evgo evform', '🗗'); fb.title = 'The form this handler opens (followed through the methods it calls): open its designer';
-      r.appendChild(fb);
+      var fb = (state.formLinks || {})[n.name + '|' + e4] ? el('span', 'evgo evform', '🗗') : null;
+      if (fb) { fb.title = 'The form this handler opens (followed through the methods it calls): open its designer'; r.appendChild(fb); }
       r.addEventListener('click', function (ev) {
-        if (ev.target === fb) { post({ type: 'handlerForms', name: n.name, event: e4 }); return; }
+        if (fb && ev.target === fb) { post({ type: 'handlerForms', name: n.name, event: e4 }); return; }
         post({ type: 'open', name: n.name, event: e4 });
       });
       box.appendChild(r);
@@ -2555,6 +2555,12 @@ ${layoutsScript()}
     try { onMessage(m); } catch (err) { state.notice = 'Could not display the update: ' + (err && err.message ? err.message : err); renderStatus(); }
   });
   function onMessage(m) {
+    if (m.type === 'formLinks') {
+      var links = {}; (m.list || []).forEach(function (l) { links[l.name + '|' + l.event] = true; });
+      state.formLinks = links;
+      if (m.hosts) { state.hosts = m.hosts; render(); } else { renderInspector(); }
+      return;
+    }
     if (m.type === 'toggleFull') { setFull(!state.ui.full); return; }
     if (m.type === 'model') {
       state.model = m.model;

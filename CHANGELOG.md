@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.31 — 2026-10-24
+- Designer: **no link where there is nothing to open.** The 🗗 button appears only on an event whose handler (or a method it calls) opens a form of the workspace, and the 🔗 / *Hosted form* link only for a container whose form the workspace has; both are worked out in the background once the project is read. A form the code only mentions is no longer a reason for a link.
+- Designer: when a click on 🗗 finds nothing, a message says so with **Show details**, which opens the *CE Form links* output: the names read in the handler, the methods followed (with how many implementations were found) and what was matched.
+
 ## 0.1.30 — 2026-10-24
 - Designer: **the form named in the call is the one 🗗 opens.** A name between quotes in the handler (or in a list, `['TfrmA', 'TfrmB']`), or in a string **constant** of the project (`const csTiers = 'TIERS_Fiche';` then `fAfficheListe(csTiers)`), is matched with the forms of the project by class, by form name, by unit name and **without the Delphi decorations** (`TfrmTIERSFiche`, `frmTIERSFiche`, `TIERS_Fiche_frm` and `TIERS_Fiche` are the same name); when the code names a form, **no other form is offered** next to it (a message form created on an error path no longer comes first). When nothing matches, the message lists the names it read, and up to 400 `.dpr` files are read.
 

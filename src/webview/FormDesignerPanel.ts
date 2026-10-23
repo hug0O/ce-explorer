@@ -146,6 +146,10 @@ export class FormDesignerPanel {
         await FormDesignerPanel.createOrShow(doc);
     }
 
+    private static output: vscode.OutputChannel | undefined;
+    /** What the 🗗 button read and found, for the cases where it finds nothing. */
+    private static log(): vscode.OutputChannel { return (FormDesignerPanel.output ??= vscode.window.createOutputChannel('CE Form links')); }
+
     /** Ctrl+K F in the designer tab: the full screen of the form, the same as its button. */
     static toggleFullScreen(): void {
         for (const d of FormDesignerPanel.open.values()) {
@@ -249,6 +253,56 @@ export class FormDesignerPanel {
         return hostedForms(this.pasDoc.getText(), helpers, [], names);
     }
 
+    private resolvedHosts: { parent: string; formArg: string; className?: string }[] = [];
+    private linkCache = new Map<string, boolean>();
+    private linkTimer: ReturnType<typeof setTimeout> | undefined;
+    private linkRun = 0;
+
+    /** Links are offered only where there is something to open: the forms put in a container and the handlers that open a form, once the project is read. */
+    private scheduleLinks(): void {
+        if (this.linkTimer) { clearTimeout(this.linkTimer); }
+        this.linkTimer = setTimeout(() => { void this.sendLinks(); }, 350);
+    }
+
+    private async sendLinks(): Promise<void> {
+        const run = ++this.linkRun;
+        const root = parseDfmTree(this.dfmDoc.getText());
+        if (!root) { return; }
+        let index;
+        try { index = await projectIndex(); } catch { return; }
+        const pas = this.pasDoc.getText();
+        // the containers that hold a form which the workspace has
+        const hosts = this.hosts().map(h => {
+            const cls = h.className || classOfArg(pas, h.formArg, index.forms);
+            const form = index.forms.find(f => f.className.toLowerCase() === (cls ?? '').toLowerCase());
+            return form ? { ...h, className: form.className } : undefined;
+        }).filter((h): h is { parent: string; formArg: string; className: string } => !!h);
+        const hostsChanged = JSON.stringify(hosts) !== JSON.stringify(this.resolvedHosts);
+        this.resolvedHosts = hosts;
+        // the events whose handler opens a form (a few at a time, so the editor stays responsive)
+        const list: { name: string; event: string }[] = [];
+        let n = 0;
+        const walk = async (node: DfmNode): Promise<void> => {
+            for (const [event, handler] of Object.entries(wiredEvents(node))) {
+                const impl = handlerImplementation(pas, root.className, handler);
+                if (!impl) { continue; }
+                const body = pas.slice(impl.start, impl.end);
+                let opens = this.linkCache.get(body);
+                if (opens === undefined) {
+                    opens = formsOpenedBy(body, index.forms, index.units, root.className, index.methods, index.consts).some(f => !f.how.startsWith('refers to'));
+                    this.linkCache.set(body, opens);
+                }
+                if (opens) { list.push({ name: node.name, event }); }
+                if (++n % 25 === 0) { await new Promise(r => setImmediate(r)); if (run !== this.linkRun) { return; } }
+            }
+            for (const c of node.children) { await walk(c); if (run !== this.linkRun) { return; } }
+        };
+        await walk(root);
+        if (run !== this.linkRun) { return; }
+        if (this.linkCache.size > 3000) { this.linkCache.clear(); }
+        void this.panel.webview.postMessage({ type: 'formLinks', list, hosts: hostsChanged ? hosts : undefined });
+    }
+
     private async openFormFile(pas: string): Promise<void> {
         await FormDesignerPanel.createOrShow(vscode.Uri.file(pas));
     }
@@ -262,11 +316,12 @@ export class FormDesignerPanel {
         }
         void this.panel.webview.postMessage({
             type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })), anchorModes: ANCHOR_MODES,
-            hosts: this.hosts(), canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
+            hosts: this.resolvedHosts, canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
         this.sendCompare();
         this.sendLayouts();
+        this.scheduleLinks();
     }
 
     private sendLayouts(): void {
@@ -630,11 +685,16 @@ export class FormDesignerPanel {
                 const impl = handler ? handlerImplementation(pas, root.className, handler) : undefined;
                 if (!node || !handler || !impl) { this.sendModel(undefined, 'This event has no handler in the unit yet.'); return; }
                 const index = await projectIndex();
-                const all = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className, index.methods, index.consts);
+                const trace: string[] = [`handler ${handler} of ${node.name}`, `${index.units.size} units, ${index.forms.length} forms, ${index.methods.size} methods, ${index.consts.size} name constants read from the workspace`];
+                const all = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className, index.methods, index.consts, trace);
                 // the forms really opened (created, shown, named); the ones the code only mentions are offered when it opens none
-                const opened = all.filter(f => !f.how.startsWith('refers to'));
-                const found = opened.length ? opened : all;
+                const found = all.filter(f => !f.how.startsWith('refers to'));
+                const opened = found;
+                trace.push(found.length ? 'forms found: ' + found.map(f => `${f.form.className} (${f.how}${f.via ? ', via ' + f.via : ''})`).join('; ') : 'no form found');
+                const log = FormDesignerPanel.log();
+                log.appendLine(`[${new Date().toLocaleTimeString()}] ` + trace.join('\n    '));
                 if (found.length === 0) {
+                    void vscode.window.showInformationMessage(`CE: ${handler} opens no form of the workspace.`, 'Show details').then(c => { if (c) { log.show(true); } });
                     const names = stringNames(pas.slice(impl.start, impl.end)).slice(0, 8);
                     this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units, ${index.forms.length} forms read).${names.length ? ' Names in its code that match no form: ' + names.join(', ') + '.' : ''}`);
                     return;

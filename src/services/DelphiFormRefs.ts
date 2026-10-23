@@ -194,8 +194,10 @@ export function methodBodies(units: Map<string, string>, name: string, index?: M
 }
 
 /** The forms a handler opens, with the method that opens each one when the handler only calls it (two levels deep). */
-export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Map<string, string>, self?: string, methods?: MethodIndex, consts?: ConstIndex): FormRef[] {
+export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Map<string, string>, self?: string, methods?: MethodIndex, consts?: ConstIndex, trace?: string[]): FormRef[] {
     const index = methods ?? indexMethods(units);
+    trace?.push('names between quotes in the handler: ' + (stringNames(handlerCode).join(', ') || '(none)'));
+    trace?.push('names the handler calls: ' + (calledNames(handlerCode).join(', ') || '(none)'));
     const found = new Map<string, FormRef>();
     for (const r of formsInCode(handlerCode, forms, self, consts)) { found.set(lc(r.form.className), r); }
     const seen = new Set<string>();
@@ -204,7 +206,9 @@ export function formsOpenedBy(handlerCode: string, forms: KnownForm[], units: Ma
         for (const name of calledNames(code)) {
             if (seen.has(lc(name))) { continue; }
             seen.add(lc(name));
-            for (const body of methodBodies(units, name, index)) {
+            const bodies = methodBodies(units, name, index);
+            trace?.push(`${'  '.repeat(depth)}${name}: ${bodies.length ? bodies.length + ' implementation(s) read' : 'no implementation found in the workspace'}${bodies.length ? '; names in it: ' + (bodies.flatMap(b => stringNames(b)).slice(0, 8).join(', ') || '(none)') : ''}`);
+            for (const body of bodies) {
                 for (const r of formsInCode(body, forms, self, consts)) {
                     // the forms the method opens beat the ones it merely mentions
                     const old = found.get(lc(r.form.className));

@@ -67,3 +67,12 @@ test('a panel that holds a form, and a handler that opens one, are linked to its
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { configuration: { properties: Record<string, { default: unknown }> } } };
     assert.deepEqual(pkg.contributes.configuration.properties['ce.delphi.hostCalls'].default, ['fAddFormInto']);
 });
+
+test('a link is offered only where there is something to open', () => {
+    const html = designerHtml('N');
+    assert.match(html, /\(state\.formLinks \|\| \{\}\)\[n\.name \+ '\|' \+ e4\] \? el\('span', 'evgo evform', '🗗'\) : null/, 'no 🗗 on a handler that opens no form');
+    assert.match(html, /m\.type === 'formLinks'/);
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'FormDesignerPanel.ts'), 'utf8');
+    assert.match(panel, /hosts: this\.resolvedHosts/, 'the model carries only the forms the workspace has');
+    assert.match(panel, /\.some\(f => !f\.how\.startsWith\('refers to'\)\)/, 'a form that is only mentioned is no reason for a link');
+});

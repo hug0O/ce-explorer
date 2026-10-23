@@ -40,8 +40,9 @@ test('a click on a component brings the inspector, the zoom is 100% until the us
     assert.match(html, /Math\.min\(state\.fitSet \? 2 : 1, z\)/, 'a small form keeps its size, a big one shrinks');
 });
 
-test('the toolbar spreads over the whole width and never cuts a group: a long one wraps inside itself', () => {
-    assert.match(html, /#toolbar \{ gap: 4px 8px; justify-content: space-between; min-width: 0; \}/);
+test('the toolbar flows from the left, the groups side by side with no gap, and goes on the next line like text; a long group wraps inside itself', () => {
+    assert.match(html, /#toolbar \{ gap: 4px 0; justify-content: flex-start; min-width: 0; \}/);
+    assert.ok(!/\.tg\.end \{ margin-left: auto/.test(html), 'nothing is pushed to the far right');
     assert.match(html, /\.tg \{ display: flex; flex-wrap: wrap; max-width: 100%;/);
 });
 

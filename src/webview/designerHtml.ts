@@ -330,10 +330,11 @@ body.hide-left #left, body.hide-right #right { display: none; }
 body.hide-left #edgeL { left: 0; }
 body.hide-right #edgeR { right: 0; }
 body.full #toolbar { padding: 3px 8px; }
-#toolbar { gap: 4px 8px; justify-content: space-between; min-width: 0; }
+#toolbar { gap: 4px 0; justify-content: flex-start; min-width: 0; }
 .tgtitle { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); cursor: help; }
-.tg { display: flex; flex-wrap: wrap; max-width: 100%; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
-.tg.end { margin-left: auto; border-right: none; padding-right: 0; }
+.tg { display: flex; flex-wrap: wrap; max-width: 100%; gap: 4px; align-items: center; padding: 0 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
+.tg:first-child { padding-left: 0; }
+.tg.end { border-right: none; }
 .tg:empty { display: none; }
 .ib { min-width: 26px; padding: 2px 6px; }
 .ag { display: inline-flex; gap: 1px; padding: 0 3px; border-right: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3)); }

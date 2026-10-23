@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.26 — 2026-10-23
+- Designer: the **toolbar flows from the left to the right**, the groups side by side with no gap between them, and goes on to the next line like text when the width is used up (nothing is pushed to the far right any more).
+
 ## 0.1.25 — 2026-10-23
 - Designer: the zoom is **100% by default** again (Fit window stays in the list, and a zoom you choose is remembered).
 - Designer: **clicking a component** on the form or in the list **opens the inspector** if it was hidden.

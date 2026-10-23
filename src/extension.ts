@@ -501,6 +501,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.alignSelection', alignSelection),
         vscode.commands.registerCommand('ce.delphi.designer', (uri?: vscode.Uri) => FormDesignerPanel.createOrShow(uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('ce.openGuide', (topic?: unknown) => GuidePanel.show(context.extensionUri, typeof topic === 'string' ? topic : undefined)),
+        vscode.commands.registerCommand('ce.delphi.designerFullScreen', () => FormDesignerPanel.toggleFullScreen()),
         vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('ce.delphi.align', delphi.alignComponentsCommand),
         vscode.commands.registerCommand('ce.delphi.anchors', delphi.anchorsCommand),

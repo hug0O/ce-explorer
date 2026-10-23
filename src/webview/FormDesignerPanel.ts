@@ -8,7 +8,8 @@ import { ALIGN_OPS, AlignOp, alignComponents } from '../services/DelphiAlign';
 import { addEventToComponent, resolveFormPair } from '../services/FormCommands';
 import { loadComponentDef } from '../services/FormLibrary';
 import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/DelphiForm';
-import { planAddEvent } from '../services/DelphiEvents';
+import { planAddEvent, wiredEvents } from '../services/DelphiEvents';
+import { handlerImplementation } from '../services/DelphiSync';
 import {
     DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setChartTitleEdits, setSqlEdits, verifyEdit,
 } from '../services/DesignerModel';
@@ -16,6 +17,8 @@ import { createColumnsEdits, createFieldsEdits } from '../services/DesignerField
 import { layouts, loadMarks, saveLayouts, saveMarks } from '../services/DesignerStore';
 import { handlerPreviews } from '../services/DesignerPreview';
 import { compareItems, ghostsOf } from '../services/DesignerCompare';
+import { classOfArg, formsOpenedBy, hostedForms } from '../services/DelphiFormRefs';
+import { projectIndex } from '../services/ProjectFormIndex';
 import { resizeForm } from '../services/DesignerResponsive';
 import { diffDfm } from '../services/DfmDiff';
 import { gitShow } from './ProjectPanel';
@@ -141,6 +144,13 @@ export class FormDesignerPanel {
         await FormDesignerPanel.createOrShow(doc);
     }
 
+    /** Ctrl+K F in the designer tab: the full screen of the form, the same as its button. */
+    static toggleFullScreen(): void {
+        for (const d of FormDesignerPanel.open.values()) {
+            if (d.panel.active) { void d.panel.webview.postMessage({ type: 'toggleFull' }); return; }
+        }
+    }
+
     private isOurs(d: vscode.TextDocument): boolean {
         const u = d.uri.toString();
         return u === this.dfmDoc.uri.toString() || u === this.pasDoc.uri.toString();
@@ -227,6 +237,20 @@ export class FormDesignerPanel {
         void this.panel.webview.postMessage({ type: 'compare', ref: c.ref, items: compareItems(diff), ghosts: old ? ghostsOf(diff, old) : [] });
     }
 
+    /** The forms this unit puts in containers of the form (fAddFormInto(oForm, pnl), oForm.Parent := pnl). */
+    private hosts(): { parent: string; formArg: string; className?: string }[] {
+        const root = parseDfmTree(this.dfmDoc.getText());
+        if (!root) { return []; }
+        const names = new Set<string>();
+        (function walk(n: DfmNode): void { names.add(n.name); n.children.forEach(walk); })(root);
+        const helpers = vscode.workspace.getConfiguration('ce.delphi').get<string[]>('hostCalls', ['fAddFormInto']);
+        return hostedForms(this.pasDoc.getText(), helpers, [], names);
+    }
+
+    private async openFormFile(pas: string): Promise<void> {
+        await FormDesignerPanel.createOrShow(vscode.Uri.file(pas));
+    }
+
     private sendModel(selection?: string[], notice?: string): void {
         void this.refreshSheets();
         const model = buildDesignModel(this.dfmDoc.getText(), this.sheets);
@@ -236,7 +260,7 @@ export class FormDesignerPanel {
         }
         void this.panel.webview.postMessage({
             type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })), anchorModes: ANCHOR_MODES,
-            canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
+            hosts: this.hosts(), canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
         this.sendCompare();
@@ -586,6 +610,30 @@ export class FormDesignerPanel {
                 }
                 if (!touched.length) { this.sendModel(undefined, firstError ?? 'Nothing to change.'); return; }
                 await this.commit(`${[...props].filter(p => p !== 'DesignInfo').join(', ')} of ${touched.length} components`, { dfmEdits, pasEdits }, touched, { touched, props: [...props] });
+                return;
+            }
+            case 'openHostedForm': {
+                // a panel of this form holds a form: its designer opens
+                const index = await projectIndex();
+                const cls = str(m.cls) || classOfArg(this.pasDoc.getText(), str(m.arg), index.forms);
+                const form = index.forms.find(f => f.className.toLowerCase() === (cls ?? '').toLowerCase());
+                if (!form) { this.sendModel(undefined, `The form held by ${str(m.arg)} was not found in the workspace${cls ? ' (' + cls + ')' : ''}.`); return; }
+                await this.openFormFile(form.pas);
+                return;
+            }
+            case 'handlerForms': {
+                // the forms that the handler of an event opens, followed through the methods it calls
+                const node = NAME_RE.test(str(m.name)) ? findNode(root, str(m.name)) : undefined;
+                const handler = node ? wiredEvents(node)[str(m.event)] : undefined;
+                const impl = handler ? handlerImplementation(pas, root.className, handler) : undefined;
+                if (!node || !handler || !impl) { this.sendModel(undefined, 'This event has no handler in the unit yet.'); return; }
+                const index = await projectIndex();
+                const found = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className);
+                if (found.length === 0) { this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units read).`); return; }
+                const pick = found.length === 1 ? found[0] : (await vscode.window.showQuickPick(
+                    found.map(f => ({ label: f.form.className, description: [f.how, f.via ? 'via ' + f.via : ''].filter(Boolean).join(' · '), detail: f.form.pas, ref: f })),
+                    { title: `Forms opened by ${handler}`, placeHolder: 'Open its designer' }))?.ref;
+                if (pick) { await this.openFormFile(pick.form.pas); }
                 return;
             }
             case 'runTool': {

@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.26.vsix
+code --install-extension ce-code-explorer-0.1.27.vsix
 ```
 
 ## Supported Languages
@@ -341,6 +341,12 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **Test other form sizes**: shows the form at 640×480 … 1920×1080 (or any size) as `Align` and `Anchors` would lay it out, and marks in red what a new size breaks: a component pushed out of its container, or two that now overlap. The `.dfm` is never touched.
 - **Layouts**: save the selected panel (with its content, fields and handlers) under a name, then insert it from the View menu in any form.
 - **Several components at once**: `Ctrl` / `Shift` + click (on the form or in the list) adds to the selection; the inspector then shows **Common properties** (position, size, Align, Anchors, Visible, Enabled, colours, Hint), blank or undetermined where they differ, and a change goes to every selected component. The left column lists the components above the palette.
+
+#### Designer: from the code to the forms
+
+- **A handler that opens a form**: the 🗗 button of a wired event reads the handler, follows the methods it calls (two levels) and opens the designer of the form it creates or shows (`TfrmX.Create`, `Application.CreateForm`, `frmX.ShowModal`…). The units of the workspace are read once and again after a save.
+- **A panel that holds a form**: `fAddFormInto(oForm, pnl)` (add your own helpers to `ce.delphi.hostCalls`) and `oForm.Parent := pnl` link the panel to the form it hosts: a 🔗 badge on the panel and a *Hosted form* section in the inspector that opens its designer.
+- **Captions** run on several lines (Enter, written `#13#10`) with a *Word wrap* check box for the classes that have one; **Ctrl+K F** toggles the full screen.
 
 #### Designer: the Tools menu
 

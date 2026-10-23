@@ -2,6 +2,12 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.27 — 2026-10-24
+- Designer: a **caption on several lines** (Enter in the Caption box, written as `#13#10` like the IDE) is drawn on several lines, and **Word wrap** is a check box for the classes that have it (`TLabel`, `TCheckBox`, `TRadioButton`, `TcxLabel` and the other DevExpress / TMS labels, buttons and check boxes).
+- Designer: **full screen** has a shortcut, **Ctrl+K F** (while the designer is the active tab; VS Code uses it to close a folder elsewhere), shown on the button.
+- Designer: **from a button to the form its code opens.** A wired event has a 🗗 button: it reads the handler, follows the methods it calls (`frmMain.oGestionAffichageEcran.fAfficheListe(...)` is followed to the body of `fAfficheListe`, two levels deep) and opens the designer of the form that is created or shown (a list when there are several).
+- Designer: **from a panel to the form it holds.** `fAddFormInto(oForm, pnl)` (the helpers are the new setting `ce.delphi.hostCalls`) and `oForm.Parent := pnl` are detected in the unit: the container gets a 🔗 badge and a *Hosted form* section in the inspector with a click that opens the designer of that form.
+
 ## 0.1.26 — 2026-10-23
 - Designer: the **toolbar flows from the left to the right**, the groups side by side with no gap between them, and goes on to the next line like text when the width is used up (nothing is pushed to the far right any more).
 

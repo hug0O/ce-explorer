@@ -125,6 +125,8 @@ export interface DNode {
     colField?: ColumnField;
     /** A persistent field: the grid columns bound to it. */
     fieldUsers?: string[];
+    /** The property that makes the text of this component wrap on several lines, when its class has one. */
+    wrapProp?: string;
     /** A TeeChart chart: its title, its series and its tools, to draw it. */
     chart?: ChartInfo;
     /** A dock control: the bars docked in it, with their items. */
@@ -330,6 +332,7 @@ function toDNode(dfm: string, n: DfmNode, rect: { x: number; y: number; w: numbe
     return {
         name: n.name, cls: n.className, depth: n.depth, ...rect, docked, align,
         chart: isChart(n.className) ? chartInfoOf(dfm, n) : undefined,
+        wrapProp: wordWrapProp(n.className, n.props),
         newFields,
         scrollView: shown?.name, scrollBars: shown ? shown.props['OptionsView.ScrollBars'] ?? 'ssBoth' : undefined,
         colorTo: colors.colorTo, gradient: colors.gradient, borderColor: colors.borderColor, rounding: colors.rounding,
@@ -763,6 +766,15 @@ export function renameEdits(pas: string, dfm: string, from: string, to: string):
     return { dfmEdits: plan.dfmEdits, pasEdits, note: plan.handlers.length ? `handlers renamed: ${plan.handlers.map(h => h.from + '→' + h.to).join(', ')}` : undefined };
 }
 
+/** The classes whose text wraps on several lines: the property that says so (`WordWrap`, or `Properties.WordWrap` for DevExpress editors). */
+const WRAP_CLASSES = /^(TLabel|TCheckBox|TRadioButton|TStaticText|TBitBtn|TButton|TcxLabel|TcxCheckBox|TcxRadioButton|TcxButton|TcxGroupBox|TAdvLabel|TAdvSmoothLabel|TAdvSmoothButton|TAdvGlowButton|TAdvOfficeCheckBox|TAdvOfficeRadioButton|TLabeledEdit)$/i;
+export function wordWrapProp(className: string, props: Record<string, string>): string | undefined {
+    if (props['Properties.WordWrap'] !== undefined) { return 'Properties.WordWrap'; }
+    if (props['WordWrap'] !== undefined) { return 'WordWrap'; }
+    if (!WRAP_CLASSES.test(className)) { return undefined; }
+    return /^Tcx/i.test(className) && !/^TcxButton$/i.test(className) ? 'Properties.WordWrap' : 'WordWrap';
+}
+
 export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' | 'anchors' | 'ref' | 'color' | 'shortcut'> = {
     Left: 'int', Top: 'int', Width: 'int', Height: 'int', TabOrder: 'int', Caption: 'string', Text: 'string', Hint: 'string',
     Visible: 'bool', Enabled: 'bool', ShowHint: 'bool', ReadOnly: 'bool', Checked: 'bool', TabStop: 'bool', Align: 'enum', Anchors: 'anchors',
@@ -774,6 +786,7 @@ export const EDITABLE_PROPS: Record<string, 'int' | 'string' | 'bool' | 'enum' |
     FieldName: 'string', DisplayLabel: 'string', DisplayWidth: 'int', Required: 'bool',
     ProviderName: 'string', Server: 'string', Database: 'string', Username: 'string', Port: 'int', LoginPrompt: 'bool',
     TableName: 'string', Connection: 'ref', DataSet: 'ref', BarManager: 'ref',
+    WordWrap: 'bool', 'Properties.WordWrap': 'bool',
     View3D: 'bool', 'Legend.Visible': 'bool', 'Title.Visible': 'bool', Title: 'string', SeriesColor: 'color', Active: 'bool', ColorEachPoint: 'bool', 'Marks.Visible': 'bool',
     ShortCut: 'shortcut', AutoCheck: 'bool', RadioItem: 'bool', Default: 'bool', ImageIndex: 'int', DockControl: 'ref',
     Color: 'color', 'Font.Color': 'color', 'OptionsView.ScrollBars': 'enum',
@@ -787,6 +800,7 @@ const PROP_CLASS: Record<string, (cls: string) => boolean> = {
     FieldName: isDatasetField, DisplayLabel: isDatasetField, DisplayWidth: isDatasetField, Required: isDatasetField,
     ProviderName: isConnection, Server: isConnection, Database: isConnection, Username: isConnection, Port: isConnection, LoginPrompt: isConnection,
     TableName: isDataset, DataSet: isDataSource, BarManager: isDockControl, 'OptionsView.ScrollBars': isGridView,
+    WordWrap: c => WRAP_CLASSES.test(c), 'Properties.WordWrap': c => WRAP_CLASSES.test(c),
     View3D: isChart, 'Legend.Visible': isChart, 'Title.Visible': isChart, Title: isSeries, SeriesColor: isSeries, ColorEachPoint: isSeries, 'Marks.Visible': isSeries, Active: isChartChild,
     ShortCut: isMenuItem, AutoCheck: isMenuItem, RadioItem: isMenuItem, Default: isMenuItem, ImageIndex: c => isMenuItem(c) || isBarPart(c), DockControl: c => /^TdxBar$/i.test(c),
     Connection: c => isDataset(c) || /^TUni(SQL|Script|Transaction|MetaData|Dump|Loader|Alerter)$/i.test(c),
@@ -813,7 +827,8 @@ export function setPropertyEdits(dfm: string, name: string, prop: string, value:
         if (v === undefined) { return fail(`${prop} must be a whole number.`); }
         text = String(v);
     } else if (kind === 'string') {
-        text = toDfmString(String(value ?? ''));
+        // a new line typed in a text area is the Delphi one: #13#10
+        text = toDfmString(String(value ?? '').replace(/\r?\n/g, '\r\n'));
     } else if (kind === 'shortcut') {
         const v = shortcutValue(String(value ?? ''));
         if (v === undefined) { return fail(`"${String(value)}" is not a shortcut (Ctrl+O, Ctrl+Shift+S, F5, Alt+F4…).`); }

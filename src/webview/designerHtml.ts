@@ -185,6 +185,10 @@ body.resizing-v { cursor: row-resize; user-select: none; }
 .k-combo > .chrome::after, .k-datepick > .chrome::after { content: '▾'; margin-left: auto; padding-left: 4px; font-size: 10px; }
 .k-memo > .chrome, .k-list > .chrome, .k-listview > .chrome, .k-treeview > .chrome { background: #fff; border: 1px solid #7a7a7a; padding: 2px 3px; white-space: pre; }
 .k-label > .chrome { overflow: visible; white-space: nowrap; }
+.host-badge { position: absolute; right: 2px; top: 2px; z-index: 6; font-size: 11px; line-height: 1; padding: 1px 3px; border-radius: 3px; background: rgba(0, 120, 215, 0.85); color: #fff; pointer-events: auto; }
+.ctl.ml > .chrome { white-space: pre; text-align: center; }
+.k-label.ml > .chrome, .k-check.ml > .chrome, .k-radio.ml > .chrome { text-align: left; }
+textarea.capbox { width: 100%; min-height: 36px; resize: vertical; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 2px 6px; }
 .ctl.wrap > .chrome { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; overflow: hidden; }
 .k-check.wrap > .chrome, .k-radio.wrap > .chrome { align-items: flex-start; }
 .k-check.wrap .box, .k-radio.wrap .box { margin-top: 1px; }
@@ -397,7 +401,7 @@ ${viewHtml()}
     ${toolsButton()}
   </div>
   <div class="tg end">
-    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
+    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F, or Ctrl+K F). Press again to come back">⛶ Full screen<span class="kbd">Ctrl+K F</span></button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
   </div>
 </div>
 <div id="main">
@@ -666,6 +670,7 @@ ${viewHtml()}
     var k = kind(n.cls);
     var cap = n.caption !== undefined ? n.caption : (n.text !== undefined ? n.text : '');
     setFont(e, n);
+    if (cap.indexOf(String.fromCharCode(10)) >= 0 || cap.indexOf(String.fromCharCode(13)) >= 0) { e.classList.add('ml'); }
     if (n.color && (k === 'panel' || k === 'edit' || k === 'memo' || k === 'scroll' || k === 'group' || k === 'sheet' || k === 'generic' || (k === 'label' && n.props['Transparent'] === 'False') || k === 'combo' || k === 'datepick' || k === 'list' || k === 'listview' || k === 'treeview' || k === 'gridcolumn' || k === 'toolbar' || k === 'statusbar')) { paintFill(chrome, n); }
     if (k === 'button' || k === 'label') { chrome.textContent = cap; }
     else if (k === 'edit' || k === 'combo' || k === 'datepick') {
@@ -725,6 +730,8 @@ ${viewHtml()}
     }
     if (n.nonVisual) { chrome.textContent = nvGlyph(n.cls); e.appendChild(el('div', 'nvname', n.name)); }
   }
+  /* The forms the unit puts in a container of this form: fAddFormInto(oForm, pnl) and oForm.Parent := pnl. */
+  function hostsOf(name) { return (state.hosts || []).filter(function (h) { return h.parent === name; }); }
   function mkInner(n, parent) {
     var k = kind(n.cls);
     var e = el('div', 'ctl k-' + k + (n.family ? ' fam-' + famCls(n.family) : '') + (n.container ? ' cont' : '') + (n.visible ? '' : ' hidden') + (n.enabled ? '' : ' disabled') + (n.nonVisual ? ' nonvisual' : '') + (n.inherited ? ' inherited' : '') + (n.wrap ? ' wrap' : ''));
@@ -740,6 +747,8 @@ ${viewHtml()}
     try { content(n, e, chrome); } catch (err) { chrome.textContent = n.cls; }
     if (k === 'generic' && !n.nonVisual) { e.classList.add('unmanaged'); var q = el('span', 'unmgd-badge', '?'); q.title = 'Class not recognised by the designer: drawn as a placeholder, its properties stay exactly as written in the .dfm'; e.appendChild(q); }
     if (Object.keys(n.events).length && !n.nonVisual) { e.appendChild(el('span', 'ev-badge', '⚡')); }
+    var hs = hostsOf(n.name);
+    if (hs.length) { var hb = el('span', 'host-badge', '🔗'); hb.title = 'Holds the form ' + hs.map(function (h) { return h.className || h.formArg; }).join(', ') + ' (see the inspector)'; e.appendChild(hb); }
     if (state.names && !n.nonVisual && n.depth > 0) { e.appendChild(el('span', 'nm', n.name)); }
     els[n.name] = e;
     parent.appendChild(e);
@@ -1612,7 +1621,12 @@ ${viewHtml()}
       var r = el('div', 'evrow wired'); r.setAttribute('data-event', e4);
       r.appendChild(el('span', 'dot', '●')); r.appendChild(el('span', 'evn', e4)); r.appendChild(el('span', 'evh', n.events[e4]));
       r.title = 'Open ' + n.events[e4] + ' in the code';
-      r.addEventListener('click', function () { post({ type: 'open', name: n.name, event: e4 }); });
+      var fb = el('span', 'evgo evform', '🗗'); fb.title = 'The form this handler opens (followed through the methods it calls): open its designer';
+      r.appendChild(fb);
+      r.addEventListener('click', function (ev) {
+        if (ev.target === fb) { post({ type: 'handlerForms', name: n.name, event: e4 }); return; }
+        post({ type: 'open', name: n.name, event: e4 });
+      });
       box.appendChild(r);
     });
   }
@@ -1806,7 +1820,15 @@ ${viewHtml()}
       var hasText = n.text !== undefined || ['edit', 'combo'].indexOf(k) >= 0;
       if (hasCap || hasText) {
         section(box, 'Content', 'content', function (b) {
-          if (hasCap) { b.appendChild(labelled('Caption', textInput(n.caption, setter(n, 'Caption')))); }
+          if (hasCap) {
+            // a caption can run over several lines (Enter = a new line, written as #13#10); Word wrap breaks the long lines too
+            var ta = el('textarea', 'capbox'); ta.rows = (n.caption || '').split(String.fromCharCode(10)).length > 1 || n.wrap ? 3 : 2; ta.spellcheck = false;
+            ta.value = n.caption === undefined ? '' : n.caption;
+            ta.title = 'Enter makes a new line; click elsewhere to apply';
+            ta.addEventListener('change', function () { post({ type: 'setProp', name: n.name, prop: 'Caption', value: ta.value }); });
+            b.appendChild(labelled('Caption', ta));
+            if (n.wrapProp) { b.appendChild(checkbox('Word wrap', n.wrap === true, setter(n, n.wrapProp))); }
+          }
           if (hasText) { b.appendChild(labelled('Text', textInput(n.text, setter(n, 'Text')))); }
         });
       }
@@ -1834,6 +1856,18 @@ ${viewHtml()}
     }
     if (k === 'tilecontrol') { box.appendChild(el('div', 'hint', 'Add tiles and groups with the palette (type DevExpress) while this control is selected; its detail pages go here too.')); }
     if (n.cls === 'TcxGrid') { box.appendChild(el('div', 'hint', 'Add levels, views and columns with the palette (type DevExpress) while this grid is selected. The columns of the view its first level shows are drawn in its header.')); }
+    var held = hostsOf(n.name);
+    if (held.length) {
+      section(box, 'Hosted form', 'hosted', function (b) {
+        held.forEach(function (h) {
+          var r = el('div', 'colrow ferow'); r.title = 'Open the designer of ' + (h.className || h.formArg);
+          r.appendChild(el('span', 'fename', (h.className || '?') + '  ←  ' + h.formArg)); r.appendChild(el('span', 'fetype', '🗗 open'));
+          r.addEventListener('click', function () { post({ type: 'openHostedForm', cls: h.className || '', arg: h.formArg }); });
+          b.appendChild(r);
+        });
+        b.appendChild(el('div', 'hint', 'The unit puts a form in this container (the helpers are the setting ce.delphi.hostCalls, or Form.Parent := ...).'));
+      });
+    }
     section(box, 'Events', 'events', function (b) { eventsList(b, n); });
     var del = el('button', 'danger', '🗑 Delete ' + n.name);
     del.addEventListener('click', function () { post({ type: 'delete', names: [n.name] }); });
@@ -2341,7 +2375,7 @@ ${layoutsScript()}
     $('edgeL').textContent = state.ui.left ? '‹' : '›'; $('edgeL').title = (state.ui.left ? 'Hide' : 'Show') + ' the palette and the component list (P)';
     $('edgeR').textContent = state.ui.right ? '›' : '‹'; $('edgeR').title = (state.ui.right ? 'Hide' : 'Show') + ' the inspector (I)';
     $('palsec').open = !!state.ui.pal;
-    $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen';
+    $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen'; $('full').appendChild(el('span', 'kbd', 'Ctrl+K F'));
     if (state.fit) { fitZoom(true); }
     saveUi();
   }
@@ -2521,8 +2555,10 @@ ${layoutsScript()}
     try { onMessage(m); } catch (err) { state.notice = 'Could not display the update: ' + (err && err.message ? err.message : err); renderStatus(); }
   });
   function onMessage(m) {
+    if (m.type === 'toggleFull') { setFull(!state.ui.full); return; }
     if (m.type === 'model') {
       state.model = m.model;
+      state.hosts = m.hosts || [];
       if (m.palette && !state.palette.length) { state.palette = m.palette; fillPalGroups(); renderPalette(); }
       if (m.ops && !state.ops.length) {
         state.ops = m.ops;

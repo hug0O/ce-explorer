@@ -2,6 +2,12 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.20 — 2026-10-23
+- Designer: **grid column ⇄ query field**. On a `TcxGridDBColumn` the inspector shows the persistent field of the query behind its view (`DataController.DataSource` → `DataSet`), jumps to it with a click, and edits its `DisplayLabel` and `DisplayWidth` from the column; on a field it lists the columns that show it. A column with no persistent field says so.
+- Designer: chart tools `TSeriesBandTool`, `TColorBandTool`, `TGridBandTool`, `TDragPointTool`, `TNearestTool` (palette and chart inspector); `TChartBook` is drawn with a tab per chart.
+- Designer: **full screen** turns off the centred layout of Zen mode while it lasts (and puts your setting back), so the form gets the whole width.
+- Designer: the placeholder of a `TImage` is a faint dotted frame with a small icon.
+
 ## 0.1.19 — 2026-10-22
 - Designer: **tile control layout as Delphi lays it out**: tiles go in their order, row by row, in a band as wide as the widest tile of the group (two cells when a large tile is there), a tile that does not fit leaves its hole, a new column starts after `GroupMaxRowCount` rows, and `RowCount` / `ColumnCount` of a tile are honoured (a regular tile two rows high).
 

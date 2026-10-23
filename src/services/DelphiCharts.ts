@@ -8,7 +8,7 @@
 export const isChart = (cls: string): boolean => /^T(DB)?Chart$/i.test(cls);
 export const isChartBook = (cls: string): boolean => /^TChartBook$/i.test(cls);
 export const isSeries = (cls: string): boolean => /^T[A-Za-z0-9]*Series$/i.test(cls) && !/^T(cx|dx|DataSeries)/i.test(cls);
-const TOOLS = 'DragMarks|Annotation|Cursor|MarksTip|Rotate|DragPoint|Nearest|ColorBand|GridBand|AxisArrow|Image|SeriesAnimation|ColorLine';
+const TOOLS = 'DragMarks|Annotation|Cursor|MarksTip|Rotate|DragPoint|Nearest|ColorBand|GridBand|SeriesBand|AxisArrow|Image|SeriesAnimation|ColorLine';
 export const isChartTool = (cls: string): boolean => new RegExp(`^T(${TOOLS})Tool$`, 'i').test(cls);
 /** A series or a tool: placed by its chart, never moved to another parent. */
 export const isChartChild = (cls: string): boolean => isSeries(cls) || isChartTool(cls);

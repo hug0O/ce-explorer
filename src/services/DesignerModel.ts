@@ -17,6 +17,7 @@ import { columnRects, hasGroupBand, isGridChild, isGridColumn, isGridHost, isGri
 import { findHost, isNestedNode, nestedRuleOf, onlyHolds } from './DelphiNested';
 import { isBarChild, isBarManager, isBarPart, isDockControl } from './DelphiBars';
 import { BarItem, DockedBar, dockedBars } from './DelphiDockBars';
+import { ColumnField, fieldLinks } from './DelphiFieldLinks';
 import { ChartInfo, ChartSeries, isChart, isChartChild, isSeries, seriesKind } from './DelphiCharts';
 import { isMenuItem, shortcutText, shortcutValue } from './DelphiMenus';
 import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
@@ -120,6 +121,10 @@ export interface DNode {
     /** Texts of a tile (Text1…Text4), `Size` of a tile. */
     tileTexts?: string[];
     tileSize?: string;
+    /** A grid column: the persistent field of the query behind its view, when there is one. */
+    colField?: ColumnField;
+    /** A persistent field: the grid columns bound to it. */
+    fieldUsers?: string[];
     /** A TeeChart chart: its title, its series and its tools, to draw it. */
     chart?: ChartInfo;
     /** A dock control: the bars docked in it, with their items. */
@@ -534,6 +539,16 @@ function buildModel(dfm: string): DesignModel | undefined {
     const ch = num(root.props['ClientHeight']) ?? Math.max(40, (root.height ?? 240) - (dataModule ? 0 : 39));
     const rootNode = toDNode(dfm, root, { x: 0, y: 0, w: cw, h: ch }, false, undefined);
     rootNode.children = layoutChildren(dfm, root, cw, ch);
+    const links = fieldLinks(root, fromDfmString);
+    if (links.columns.size) {
+        (function attach(n: DNode): void {
+            const col = links.columns.get(n.name);
+            if (col) { n.colField = col; }
+            const users = links.users.get(n.name);
+            if (users) { n.fieldUsers = users; }
+            n.children.forEach(attach);
+        })(rootNode);
+    }
     const docked = dockedBars(dfm, root, fromDfmString);
     if (docked.bars.size) {
         (function attach(n: DNode): void {

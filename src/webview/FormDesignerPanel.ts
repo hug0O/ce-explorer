@@ -161,12 +161,32 @@ export class FormDesignerPanel {
     private async setZen(on: boolean): Promise<void> {
         if (on === this.zen) { return; }
         this.zen = on;
+        // Zen mode centres the editor in a narrow column by default (zenMode.centerLayout): the designer would not get the whole width.
+        if (on) { await this.centreLayout(false); }
         try { await vscode.commands.executeCommand('workbench.action.toggleZenMode'); } catch { this.zen = !on; }
+        if (!on || !this.zen) { await this.centreLayout(true); }
+    }
+
+    /** The user's own zenMode.centerLayout, kept while the designer turns it off, and put back when the full screen ends. */
+    private static savedCentre: { value: boolean | undefined } | undefined;
+
+    private async centreLayout(restore: boolean): Promise<void> {
+        const cfg = vscode.workspace.getConfiguration('zenMode');
+        try {
+            if (!restore) {
+                if (!FormDesignerPanel.savedCentre) { FormDesignerPanel.savedCentre = { value: cfg.inspect<boolean>('centerLayout')?.globalValue }; }
+                if (cfg.get<boolean>('centerLayout') !== false) { await cfg.update('centerLayout', false, vscode.ConfigurationTarget.Global); }
+            } else if (FormDesignerPanel.savedCentre && ![...FormDesignerPanel.open.values()].some(p => p !== this && p.zen)) {
+                const was = FormDesignerPanel.savedCentre.value;
+                FormDesignerPanel.savedCentre = undefined;
+                await cfg.update('centerLayout', was, vscode.ConfigurationTarget.Global);
+            }
+        } catch { /* settings cannot be written here: the full screen still works, only narrower */ }
     }
 
     private dispose(): void {
         // Closing the designer must not leave the window stripped of its interface.
-        if (this.zen) { this.zen = false; void vscode.commands.executeCommand('workbench.action.toggleZenMode'); }
+        if (this.zen) { this.zen = false; void vscode.commands.executeCommand('workbench.action.toggleZenMode'); void this.centreLayout(true); }
         FormDesignerPanel.open.delete(this.dfmDoc.uri.toString());
         if (this.refreshTimer) { clearTimeout(this.refreshTimer); }
         this.disposables.forEach(d => d.dispose());

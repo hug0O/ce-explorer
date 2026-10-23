@@ -37,6 +37,8 @@ export const PALETTE: PaletteEntry[] = [
     { cls: 'TFastLineSeries', group: 'TeeChart', icon: '📈', host: 'chart' }, { cls: 'TAreaSeries', group: 'TeeChart', icon: '◢', host: 'chart' }, { cls: 'TPointSeries', group: 'TeeChart', icon: '⁘', host: 'chart' },
     { cls: 'TPieSeries', group: 'TeeChart', icon: '◔', host: 'chart' }, { cls: 'TDragMarksTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TAnnotationTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
     { cls: 'TCursorTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TMarksTipTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TRotateTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
+    { cls: 'TSeriesBandTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TColorBandTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TGridBandTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
+    { cls: 'TDragPointTool', group: 'TeeChart', icon: '🛠', host: 'chart' }, { cls: 'TNearestTool', group: 'TeeChart', icon: '🛠', host: 'chart' },
 ];
 
 const ICONS: [RegExp, string][] = [
@@ -64,7 +66,7 @@ function hostOf(cls: string): PaletteEntry['host'] {
     if (/^TcxGrid(DB)?Column$/.test(cls)) { return 'view'; }
     if (isDatasetField(cls)) { return 'dataset'; }
     if (cls === 'TMenuItem') { return 'menu'; }
-    if (/^T(?!cx|dx)[A-Za-z0-9]*Series$/.test(cls) || /^T(DragMarks|Annotation|Cursor|MarksTip|Rotate)Tool$/.test(cls)) { return 'chart'; }
+    if (/^T(?!cx|dx)[A-Za-z0-9]*Series$/.test(cls) || /^T(DragMarks|Annotation|Cursor|MarksTip|Rotate|SeriesBand|ColorBand|GridBand|DragPoint|Nearest)Tool$/.test(cls)) { return 'chart'; }
     return undefined;
 }
 for (const [group, defs] of [
@@ -191,13 +193,17 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .k-group > .legend { position: absolute; left: 8px; top: -8px; background: #f0f0f0; padding: 0 3px; white-space: nowrap; }
 .k-scroll > .chrome, .k-generic.cont > .chrome { border: 1px solid #a0a0a0; }
 .k-generic > .chrome { border: 1px dashed #8a8a8a; background: rgba(255, 215, 0, 0.12); color: #555; padding: 2px 4px; font-size: 11px; }
-.k-image > .chrome { border: 1px dashed #aaa; background: #f8f8f8; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.k-image > .chrome { border: 1px dotted rgba(0, 0, 0, 0.22); background: transparent; font-size: 11px; line-height: 1; padding: 2px 3px; opacity: 0.5; }
 .k-shape > .chrome { border: 1px solid #000; background: #fff; }
 .k-bevel > .chrome { border: 1px solid #a0a0a0; border-bottom-color: #fff; border-right-color: #fff; }
 .k-splitter > .chrome { background: #e0e0e0; }
 .k-grid > .chrome { background: #fff; border: 1px solid #7a7a7a; background-image: linear-gradient(#c8c8c8 1px, transparent 1px), linear-gradient(90deg, #c8c8c8 1px, transparent 1px); background-size: 64px 20px; }
 .k-progress > .chrome { border: 1px solid #bcbcbc; background: linear-gradient(90deg, #06b025 35%, #e6e6e6 35%); }
 .k-track > .chrome { border-top: 2px solid #aaa; top: 45%; height: 4px; }
+.k-chartbook > .chrome { border: 1px solid #b8b8b8; background: #f4f4f4; }
+.cbtabs { display: flex; gap: 2px; padding: 2px 2px 0; }
+.cbtab { padding: 1px 9px; font-size: 11px; border: 1px solid #b8b8b8; border-bottom: none; background: #e4e4e4; color: #333; }
+.cbtab.on { background: #fff; }
 .k-chart > .chrome { background: #fff; border: 1px solid #b8b8b8; overflow: hidden; }
 .k-chart > .chrome > svg { display: block; font-family: 'Segoe UI', sans-serif; }
 .k-dock > .chrome { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 3px 6px; padding: 2px 3px; background: #eceff4; border-bottom: 1px solid #c4cad4; overflow: hidden; }
@@ -446,8 +452,9 @@ ${viewHtml()}
   function kind(c) {
     var l = c.toLowerCase();
     if (l === 'tchart' || l === 'tdbchart') { return 'chart'; }
+    if (l === 'tchartbook') { return 'chartbook'; }
     if (/^t[a-z0-9]*series$/.test(l) && l.indexOf('tcx') !== 0 && l.indexOf('tdx') !== 0) { return 'series'; }
-    if (/^t(dragmarks|annotation|cursor|markstip|rotate|dragpoint|nearest|colorband|gridband|axisarrow|image|seriesanimation|colorline)tool$/.test(l)) { return 'charttool'; }
+    if (/^t(dragmarks|annotation|cursor|markstip|rotate|dragpoint|nearest|colorband|gridband|seriesband|axisarrow|image|seriesanimation|colorline)tool$/.test(l)) { return 'charttool'; }
     if (l === 'tdxbardockcontrol') { return 'dock'; }
     if (l === 'tdxbar') { return 'bar'; }
     if (l.indexOf('tdxbar') === 0 && l !== 'tdxbarmanager' && l !== 'tdxbarpopupmenu' && l.indexOf('tdxbarscreentip') !== 0) { return 'baritem'; }
@@ -605,7 +612,7 @@ ${viewHtml()}
       b.appendChild(el('div', 'fehead', 'Tools (' + c.tools.length + ')'));
       c.tools.forEach(function (t) { if (byName[t]) { b.appendChild(fieldRow(byName[t], t, byName[t].cls)); } });
       var addT = el('select'); var h2 = el('option', '', '＋ Add a tool…'); h2.value = ''; addT.appendChild(h2);
-      ['TDragMarksTool', 'TAnnotationTool', 'TCursorTool', 'TMarksTipTool', 'TRotateTool'].forEach(function (k3) { var o = el('option', '', k3); o.value = k3; addT.appendChild(o); });
+      ['TDragMarksTool', 'TAnnotationTool', 'TCursorTool', 'TMarksTipTool', 'TRotateTool', 'TSeriesBandTool', 'TColorBandTool', 'TGridBandTool', 'TDragPointTool', 'TNearestTool'].forEach(function (k3) { var o = el('option', '', k3); o.value = k3; addT.appendChild(o); });
       addT.addEventListener('change', function () { if (addT.value) { post({ type: 'add', className: addT.value, parent: n.name, left: 0, top: 0 }); } });
       b.appendChild(addT);
       b.appendChild(el('div', 'hint', 'The plot shows sample values: the data of a series comes from the code or its DataSource.'));
@@ -682,6 +689,13 @@ ${viewHtml()}
     }
     else if (k === 'dock') { dockContent(n, chrome); }
     else if (k === 'chart') { chartContent(n, chrome); }
+    else if (k === 'chartbook') {
+      var tabs = el('div', 'cbtabs');
+      var pages = n.children.filter(function (c) { return kind(c.cls) === 'chart'; });
+      pages.forEach(function (c, i) { tabs.appendChild(el('span', 'cbtab' + (i === 0 ? ' on' : ''), (c.chart && c.chart.title) || c.name)); });
+      if (!pages.length) { tabs.appendChild(el('span', 'cbtab on', n.name)); }
+      chrome.appendChild(tabs);
+    }
     else if (k === 'statusbar' || k === 'toolbar') { chrome.textContent = k === 'statusbar' ? cap : ''; }
     else if (k === 'generic') { chrome.textContent = n.cls + (cap ? ' – ' + cap : ''); }
     else if (k === 'sheet') { chrome.style.background = n.color || '#fff'; }
@@ -929,7 +943,7 @@ ${viewHtml()}
   }
 
   /* ───────── side panels ───────── */
-  var ICONS = { chart: '📊', series: '▮', charttool: '🛠', dock: '▬', bar: '▤', baritem: '▫', menuitem: '≡', button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
+  var ICONS = { chartbook: '📚', chart: '📊', series: '▮', charttool: '🛠', dock: '▬', bar: '▤', baritem: '▫', menuitem: '≡', button: '🔘', label: '🅰', edit: '▭', memo: '📝', check: '☑', radio: '◉', combo: '▾', list: '☰', panel: '▢', group: '⛶', pages: '🗂', sheet: '📄', grid: '▦', image: '🏞', shape: '◆', bevel: '▬', splitter: '┃', progress: '▰', tilecontrol: '🟦', tile: '◼', tilegroup: '▤', gridcolumn: '▮', gridview: '▦', gridlevel: '🗂', datafield: '▫', dataset: '🗃', connection: '🔌', track: '⎯', datepick: '📅', treeview: '🌳', radiogroup: '◉', statusbar: '▁', toolbar: '▤', scroll: '⬚', listview: '☰', generic: '❓' };
   function iconOf(n) { return n.nonVisual ? nvGlyph(n.cls) : (ICONS[kind(n.cls)] || '◻'); }
   /* The palette shows ONE type (family) at a time, chosen in the list; a name filter searches every type. */
   function renderPalette() {
@@ -1289,6 +1303,7 @@ ${viewHtml()}
     if (k === 'gridcolumn') {
       box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
       box.appendChild(labelled('Field', textInput(n.gridField || '', setter(n, 'DataBinding.FieldName'))));
+      columnFieldLink(box, n);
       box.appendChild(labelled('Width', textInput(n.props['Width'] !== undefined ? Number(n.props['Width']) : 64, function (v) { post({ type: 'setProp', name: n.name, prop: 'Width', value: Number(v) }); }, 'number')));
       box.appendChild(checkbox('Visible', n.props['Visible'] !== 'False', setter(n, 'Visible')));
       box.appendChild(el('div', 'hint', 'Drawn in the header of the view the grid shows, in the order of the .dfm.'));
@@ -1353,6 +1368,25 @@ ${viewHtml()}
     return r;
   }
   /* A persistent field of a dataset. */
+  /* The persistent field of the query behind a grid column: jump to it, and edit its label from the column. */
+  function columnFieldLink(box, n) {
+    var cf = n.colField;
+    if (!cf) { return; }
+    var f = cf.field ? byName[cf.field] : undefined;
+    box.appendChild(el('div', 'fehead', 'Field of ' + cf.dataset));
+    if (!f) {
+      box.appendChild(el('div', 'hint', cf.fieldName + ' has no persistent field in ' + cf.dataset + ': add it with the dataset field editor (select the dataset, From the SELECT).'));
+      var ds = el('button', '', 'Select ' + cf.dataset); ds.addEventListener('click', function () { if (byName[cf.dataset]) { select([cf.dataset]); } });
+      box.appendChild(ds);
+      return;
+    }
+    var go = el('div', 'colrow ferow'); go.title = 'Select the field ' + f.name; go.setAttribute('data-pick', f.name);
+    go.appendChild(el('span', 'fename', f.name)); go.appendChild(el('span', 'fetype', f.cls.replace(/^T/, '').replace(/Field$/, '')));
+    box.appendChild(go);
+    box.appendChild(labelled('Label', textInput(cf.fieldLabel || '', function (v) { post({ type: 'setProp', name: f.name, prop: 'DisplayLabel', value: v }); })));
+    box.appendChild(labelled('Display width', textInput(cf.fieldWidth !== undefined ? cf.fieldWidth : '', function (v) { if (v !== '') { post({ type: 'setProp', name: f.name, prop: 'DisplayWidth', value: Number(v) }); } }, 'number')));
+    box.appendChild(el('div', 'hint', 'The label and the width are properties of the field (DisplayLabel, DisplayWidth): the column shows them when it has no caption of its own.'));
+  }
   function dataFieldFields(box, n) {
     var dp = n.dataProps || {};
     var l = n.cls.toLowerCase();
@@ -1365,6 +1399,11 @@ ${viewHtml()}
     box.appendChild(checkbox('Required', n.props['Required'] === 'True', setter(n, 'Required')));
     box.appendChild(checkbox('Read only', n.props['ReadOnly'] === 'True', setter(n, 'ReadOnly')));
     box.appendChild(checkbox('Visible', n.visible, setter(n, 'Visible')));
+    var users = n.fieldUsers || [];
+    if (users.length) {
+      box.appendChild(el('div', 'fehead', 'Shown by (' + users.length + ')'));
+      users.forEach(function (u) { if (byName[u]) { box.appendChild(fieldRow(byName[u], byName[u].caption || columnTitle(byName[u]), byName[u].cls)); } });
+    }
     box.appendChild(el('div', 'hint', 'A field of its dataset (listed under it): events OnGetText, OnSetText, OnChange, OnValidate.'));
   }
   /* Menus: the items of a TPopupMenu / TMainMenu and the sub-items of an item, as the menu shows them. */

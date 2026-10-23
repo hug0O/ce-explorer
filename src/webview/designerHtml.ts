@@ -330,9 +330,9 @@ body.hide-left #left, body.hide-right #right { display: none; }
 body.hide-left #edgeL { left: 0; }
 body.hide-right #edgeR { right: 0; }
 body.full #toolbar { padding: 3px 8px; }
-#toolbar { gap: 4px 8px; }
+#toolbar { gap: 4px 8px; justify-content: space-between; min-width: 0; }
 .tgtitle { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); cursor: help; }
-.tg { display: flex; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
+.tg { display: flex; flex-wrap: wrap; max-width: 100%; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
 .tg.end { margin-left: auto; border-right: none; padding-right: 0; }
 .tg:empty { display: none; }
 .ib { min-width: 26px; padding: 2px 6px; }
@@ -870,8 +870,11 @@ ${viewHtml()}
   }
   var ZOOM_PRESETS = ['0.5', '0.75', '1', '1.25', '1.5', '2'];
   /* The zoom select shows a value that is not one of its presets (a Ctrl + wheel zoom) in a line of its own. */
+  /* The Fit window entry says the zoom it gives: the form is shown whole, at 100% when it fits. */
+  function fitLabel() { var o = $('zoom').options[0]; if (o && o.value === 'fit') { o.textContent = 'Fit window (' + Math.round(state.zoom * 100) + '%)'; } }
   function showZoom() {
     var sel = $('zoom');
+    fitLabel();
     if (state.fit) { sel.value = 'fit'; return; }
     var key = String(Math.round(state.zoom * 100) / 100);
     if (ZOOM_PRESETS.indexOf(key) >= 0) { sel.value = key; return; }
@@ -2356,6 +2359,7 @@ ${layoutsScript()}
     var z = Math.min(aw / (state.model.width + 2), ah / (state.model.height + 33));
     z = Math.floor(Math.max(0.2, Math.min(state.fitSet ? 2 : 1, z)) * 100) / 100; // by default a small form keeps its size, a big one shrinks to be seen whole
     if (force || Math.abs(z - state.zoom) >= 0.01) { state.zoom = z; applyZoom(); drawSel(); }
+    fitLabel();
   }
   /* The palette and the inspector are resized with the mouse (drag the thin bar between them and the form). */
   function setPanelWidth(key, w, quiet) {

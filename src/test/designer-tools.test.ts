@@ -36,3 +36,13 @@ test('the whole form is shown by default, a zoom chosen by the user is kept', ()
     assert.match(html, /state\.fitSet = st\.fitSet === true;\s+state\.fit = state\.fitSet \? !!st\.fit : true;/);
     assert.match(html, /Math\.min\(state\.fitSet \? 2 : 1, z\)/, 'a small form keeps its size, a big one shrinks');
 });
+
+test('the toolbar spreads over the whole width and never cuts a group: a long one wraps inside itself', () => {
+    assert.match(html, /#toolbar \{ gap: 4px 8px; justify-content: space-between; min-width: 0; \}/);
+    assert.match(html, /\.tg \{ display: flex; flex-wrap: wrap; max-width: 100%;/);
+});
+
+test('Fit window says the zoom it gives, so the whole form is shown and the percentage is known', () => {
+    assert.match(html, /o\.textContent = 'Fit window \(' \+ Math\.round\(state\.zoom \* 100\) \+ '%\)'/);
+    assert.match(html, /fitLabel\(\);\n/);
+});

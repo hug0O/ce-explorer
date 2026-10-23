@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.24 — 2026-10-23
+- Designer: the **Fit window** entry of the zoom list shows the zoom it gives (`Fit window (100%)` when the form fits, `Fit window (47%)` when a big form is reduced to be seen whole).
+- Designer: the **toolbar spreads over the whole width**, left to right, and a long group wraps inside itself instead of being cut off.
+
 ## 0.1.23 — 2026-10-23
 - Designer: **the whole form is shown by default** (Fit window, a big form shrinks to be seen entire, a small one keeps its size) until you choose a zoom yourself, which is then remembered.
 - Designer: a **🛠 Tools menu** brings the sidebar's Delphi layout & checks into the designer: Anchors / docking of the selection (the modes of the old command, one click), Duplicate (`Ctrl+D`), Change class, Check the form (with its safe fixes), Clean the handlers, Form from fields, Form from a class. Tab order and Compare with git were already in the View menu.

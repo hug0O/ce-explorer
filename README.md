@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.22.vsix
+code --install-extension ce-code-explorer-0.1.23.vsix
 ```
 
 ## Supported Languages
@@ -341,6 +341,10 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **Test other form sizes**: shows the form at 640×480 … 1920×1080 (or any size) as `Align` and `Anchors` would lay it out, and marks in red what a new size breaks: a component pushed out of its container, or two that now overlap. The `.dfm` is never touched.
 - **Layouts**: save the selected panel (with its content, fields and handlers) under a name, then insert it from the View menu in any form.
 - **Several components at once**: `Ctrl` / `Shift` + click (on the form or in the list) adds to the selection; the inspector then shows **Common properties** (position, size, Align, Anchors, Visible, Enabled, colours, Hint), blank or undetermined where they differ, and a change goes to every selected component. The left column lists the components above the palette.
+
+#### Designer: the Tools menu
+
+- **🛠 Tools** (top toolbar): **Anchors / docking** of the selection (default, right, bottom, stretch, from position…), **Duplicate** (`Ctrl+D`), **Change class…**, **Check the form…** (the .dfm against the unit, with the safe fixes applied in one go), **Clean the handlers…**, **Form from fields…** and **Form from a class…**. They used to be in the sidebar's Tools tab, which now keeps *Open the designer* and *Project insights*; the commands are still in the command palette.
 
 #### Designer: DevExpress bars and TeeChart
 

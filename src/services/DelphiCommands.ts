@@ -26,8 +26,16 @@ interface Loaded {
     pair: { pas: vscode.Uri; dfm: vscode.Uri };
 }
 
+let formDoc: vscode.TextDocument | undefined;
+
+/** Runs one of these commands on a given unit (the one a designer shows) instead of the file of the active editor. */
+export async function runOnForm<T>(doc: vscode.TextDocument, run: () => Promise<T>): Promise<T> {
+    formDoc = doc;
+    try { return await run(); } finally { formDoc = undefined; }
+}
+
 async function load(): Promise<Loaded | undefined> {
-    const doc = vscode.window.activeTextEditor?.document;
+    const doc = formDoc ?? vscode.window.activeTextEditor?.document;
     const pair = await resolveFormPair(doc);
     if (!pair) {
         vscode.window.showWarningMessage('CE: Open a Delphi unit (.pas) that has a text .dfm of the same name next to it.');

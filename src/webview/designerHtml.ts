@@ -5,6 +5,7 @@
 
 import { snapScript } from './designerSnap';
 import { viewButton, viewCss, viewHtml, viewScript } from './designerView';
+import { toolsButton, toolsCss, toolsScript } from './designerTools';
 import { marksCss, marksScript } from './designerMarks';
 import { compareCss, compareScript } from './designerCompare';
 import { layoutsCss, layoutsScript } from './designerLayouts';
@@ -257,6 +258,7 @@ body.resizing-v { cursor: row-resize; user-select: none; }
 .k-pages > .chrome > .body { position: absolute; left: 0; right: 0; top: 24px; bottom: 0; border: 1px solid #a0a0a0; background: #fff; }
 .k-sheet > .chrome { background: #fff; }
 ${viewCss()}
+${toolsCss()}
 ${marksCss()}
 ${compareCss()}
 ${layoutsCss()}
@@ -376,31 +378,25 @@ body.full #toolbar { padding: 3px 8px; }
 <body>
 ${viewHtml()}
 <div id="toolbar">
-  <div class="tg">
-    <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button>
-  </div>
-  <div class="tg">
-    <button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
+  <div class="tg" title="File">
+    <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button><button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
   </div>
   <div class="tg" title="Copy, cut and paste components: cut then paste into another container moves them">
-    <button id="copy" class="ib" title="Copy the selected components (Ctrl+C)">⎘</button><button id="cut" class="ib" title="Cut the selected components (Ctrl+X): paste them into another container to move them">✂</button><button id="paste" class="ib" title="Paste into the selected container, or the container of the selected component (Ctrl+V)">📋</button>
+    <button id="copy" class="ib" title="Copy the selected components (Ctrl+C)">⎘</button><button id="cut" class="ib" title="Cut the selected components (Ctrl+X): paste them into another container to move them">✂</button><button id="paste" class="ib" title="Paste into the selected container, or the container of the selected component (Ctrl+V)">📋</button><button id="dup" class="ib" title="Duplicate the selected components next to the originals, with their handlers (Ctrl+D)">⧉</button>
   </div>
   <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
-  <div class="tg">
-    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
-    ${viewButton()}
-  </div>
   <div class="tg" id="placegrp" title="Placing precisely. Snap (the magnet): while you drag or resize, a component is pulled to the edges and centres of its neighbours and of its container, and to equal gaps, with pink guide lines; hold Alt to move freely. Grid: the step in pixels that what you move or resize is rounded to, and that Shift + arrows move by; off is one pixel at a time.">
     <span class="tgtitle">Snap &amp; Grid</span>
     <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><div class="hint">What the magnet catches while you drag or resize:</div><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapspacing" checked> Equal spacing</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
     <label title="The step in pixels that what you move or resize is rounded to, and that Shift + arrows move by. off: one pixel at a time. The finest steps (1, 2, 3 px) are for exact placing; 8 to 16 px for tidy layouts.">Grid <select id="grid"><option value="0">off</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option><option value="4" selected>4 px</option><option value="5">5 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option><option value="32">32 px</option><option value="48">48 px</option><option value="64">64 px</option></select></label>
   </div>
-  </div>
-  <div class="tg">
-    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
+  <div class="tg" title="How the form is shown, and the tools that work on it">
+    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit" selected>Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+    ${viewButton()}
+    ${toolsButton()}
   </div>
   <div class="tg end">
-    <button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
+    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
   </div>
 </div>
 <div id="main">
@@ -432,7 +428,7 @@ ${viewHtml()}
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0, pal: false, oh: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0, pal: false, oh: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: true, fitSet: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -891,7 +887,7 @@ ${viewHtml()}
     var r = c.getBoundingClientRect();
     var ax = px === undefined ? c.clientWidth / 2 : px - r.left, ay = py === undefined ? c.clientHeight / 2 : py - r.top;
     var cx = (c.scrollLeft + ax) / state.zoom, cy = (c.scrollTop + ay) / state.zoom;
-    state.fit = false; state.zoom = z;
+    state.fit = false; state.fitSet = true; state.zoom = z;
     applyZoom(); showZoom();
     c.scrollLeft = cx * z - ax; c.scrollTop = cy * z - ay;
     drawSel(); saveUi();
@@ -1975,6 +1971,7 @@ ${viewHtml()}
   }
 ${snapScript()}
 ${viewScript()}
+${toolsScript()}
 ${marksScript()}
 ${compareScript()}
 ${layoutsScript()}
@@ -2325,7 +2322,7 @@ ${layoutsScript()}
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, pal: state.ui.pal, oh: state.ui.oh, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap, view: { names: state.view.names, containers: state.view.containers, tab: state.view.tab, rulers: state.view.rulers, theme: state.view.theme } }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, pal: state.ui.pal, oh: state.ui.oh, collapsed: state.collapsed, fit: state.fit, fitSet: state.fitSet, zoom: state.zoom, after: state.openAfter, snap: state.snap, view: { names: state.view.names, containers: state.view.containers, tab: state.view.tab, rulers: state.view.rulers, theme: state.view.theme } }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -2357,7 +2354,7 @@ ${layoutsScript()}
     var aw = c.clientWidth - 44, ah = c.clientHeight - 44;
     if (aw < 80 || ah < 80) { return; }
     var z = Math.min(aw / (state.model.width + 2), ah / (state.model.height + 33));
-    z = Math.floor(Math.max(0.2, Math.min(2, z)) * 100) / 100;
+    z = Math.floor(Math.max(0.2, Math.min(state.fitSet ? 2 : 1, z)) * 100) / 100; // by default a small form keeps its size, a big one shrinks to be seen whole
     if (force || Math.abs(z - state.zoom) >= 0.01) { state.zoom = z; applyZoom(); drawSel(); }
   }
   /* The palette and the inspector are resized with the mouse (drag the thin bar between them and the form). */
@@ -2439,7 +2436,9 @@ ${layoutsScript()}
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       if (st.snap && typeof st.snap === 'object') { ['on', 'edges', 'centers', 'container', 'guides', 'spacing'].forEach(function (k) { if (typeof st.snap[k] === 'boolean') { state.snap[k] = st.snap[k]; } }); }
       if (st.view && typeof st.view === 'object') { ['names', 'containers', 'tab', 'rulers'].forEach(function (k) { if (typeof st.view[k] === 'boolean') { state.view[k] = st.view[k]; } }); if (typeof st.view.theme === 'string') { state.view.theme = st.view.theme; } }
-      state.fit = !!st.fit;
+      // until the user has chosen a zoom, the whole form is shown (an older saved state without the choice does not count)
+      state.fitSet = st.fitSet === true;
+      state.fit = state.fitSet ? !!st.fit : true;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.25 && st.zoom <= 3) { state.zoom = st.zoom; applyZoom(); showZoom(); }
     }
@@ -2470,7 +2469,7 @@ ${layoutsScript()}
   $('zoom').addEventListener('change', function () {
     var v = $('zoom').value;
     if (v === 'custom') { return; }
-    state.fit = v === 'fit';
+    state.fit = v === 'fit'; state.fitSet = true;
     if (state.fit) { fitZoom(true); } else { state.zoom = Number(v); applyZoom(); drawSel(); }
     saveUi();
   });
@@ -2486,6 +2485,8 @@ ${layoutsScript()}
   });
   document.addEventListener('mousedown', function (ev) { if (!$('snapmenu').hidden && !$('snapmenu').contains(ev.target) && ev.target !== $('snapopt')) { $('snapmenu').hidden = true; } });
   viewInit();
+  toolsInit();
+  $('dup').addEventListener('click', duplicateSelection);
   marksInit();
   compareInit();
   layoutsInit();
@@ -2517,6 +2518,7 @@ ${layoutsScript()}
       if (m.palette && !state.palette.length) { state.palette = m.palette; fillPalGroups(); renderPalette(); }
       if (m.ops && !state.ops.length) {
         state.ops = m.ops;
+        state.anchorModes = m.anchorModes || [];
         buildAlignBar(m.ops);
       }
       takeMarks(m.designer);

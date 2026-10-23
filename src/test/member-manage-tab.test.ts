@@ -168,7 +168,7 @@ test('Tools tab shows the Delphi layout block only for Delphi units', () => {
     panel.isDelphi = () => true;
     const html: string = panel.getHtml();
     assert.match(html, /id="dlBlock"/);
-    for (const c of ['align', 'anchors', 'tabOrder', 'copy', 'paste', 'duplicate', 'formFromFields', 'formFromClass', 'changeClass', 'check', 'cleanHandlers']) {
+    for (const c of ['designer', 'project']) {
         assert.ok(html.includes(`data-dl="ce.delphi.${c}"`), c);
     }
     assert.match(html, /command: 'delphiCmd'/);
@@ -337,9 +337,10 @@ test('tools show their keyboard shortcut next to the button', () => {
     panel.isDelphi = () => true;
     let html: string = panel.getHtml();
     assert.match(html, /data-dl="ce.delphi.designer"[^>]*>🎨 Open the visual form designer<span class="kbd"[^>]*>Ctrl\+K D<\/span>/);
-    assert.match(html, /data-dl="ce.delphi.check"[^>]*>✅ Check form<span class="kbd"[^>]*>Ctrl\+K C<\/span>/);
+    assert.match(html, /data-dl="ce.delphi.project"[^>]*>🗂️ Project insights/);
+    assert.doesNotMatch(html, /data-dl="ce.delphi.(check|align|anchors|tabOrder|duplicate|changeClass|formFromFields)"/, 'the layout and check tools moved to the designer');
     assert.match(html, /id="alignGo"[^>]*>Align<span class="kbd"[^>]*>Ctrl\+K J<\/span>/);
-    assert.equal((html.match(/class="kbd"/g) ?? []).length, 14 + 1, 'the 14 Delphi tools and the align button');
+    assert.equal((html.match(/class="kbd"/g) ?? []).length, 2 + 1, 'the designer and the project insights, and the align button');
 
     panel.isDelphi = () => false;
     panel.isPlSql = () => true;

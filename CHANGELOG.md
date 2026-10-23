@@ -2,6 +2,12 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.23 — 2026-10-23
+- Designer: **the whole form is shown by default** (Fit window, a big form shrinks to be seen entire, a small one keeps its size) until you choose a zoom yourself, which is then remembered.
+- Designer: a **🛠 Tools menu** brings the sidebar's Delphi layout & checks into the designer: Anchors / docking of the selection (the modes of the old command, one click), Duplicate (`Ctrl+D`), Change class, Check the form (with its safe fixes), Clean the handlers, Form from fields, Form from a class. Tab order and Compare with git were already in the View menu.
+- Designer: **top toolbar reorganised** in groups that follow the work: file (Save, Undo, Redo), edit (Copy, Cut, Paste, Duplicate), arrange (align icons), Snap & Grid, view and tools (Zoom, View, Tools), then the panels and Code / .dfm on the right.
+- Sidebar: the Tools tab keeps only **Open the designer** and **Project insights** for a Delphi unit; the other buttons moved to the designer.
+
 ## 0.1.22 — 2026-10-23
 - Designer: **Snap & Grid** are one titled group of the toolbar (its tooltip says what each is for: the magnet that catches neighbours, the grid step that rounds moving and resizing), and the grid offers many more steps: off, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 48 and 64 px, for exact placing.
 - Designer: a **double click on the fold handle** of the components opens the panel as wide as the longest line of the list, so every name and class is readable.

@@ -176,24 +176,12 @@ function delphiBlock(): string {
     const btn = (cmd: string, label: string, title: string) => `<button class="ana has-kbd" data-dl="${cmd}" title="${escapeAttr(title)}">${label}${kbdHtml('delphi', cmd)}</button>`;
     return `
 <div class="tools-block" id="dlBlock">
-<div class="section-title">Delphi layout &amp; checks</div>
+<div class="section-title">Delphi form</div>
 <button class="ana has-kbd tool-lead" data-dl="ce.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components">🎨 Open the visual form designer${kbdHtml('delphi', 'ce.delphi.designer')}</button>
 <div class="analyze-grid">
-${btn('ce.delphi.align', '⬌ Align components', 'Edges, centres, same size, equal spacing')}
-${btn('ce.delphi.anchors', '📌 Anchors / docking', 'Anchors from position, stretch, alClient…')}
-${btn('ce.delphi.tabOrder', '🔢 TabOrder by position', 'Reading order on screen')}
-${btn('ce.delphi.copy', '📋 Copy components', 'With their handlers and code')}
-${btn('ce.delphi.paste', '📥 Paste components', 'Into any container, renamed if needed')}
-${btn('ce.delphi.duplicate', '🧬 Duplicate', 'Copy + paste next to the original')}
-${btn('ce.delphi.formFromFields', '🧱 Form from fields', 'Label + input rows, aligned')}
-${btn('ce.delphi.formFromClass', '🏷️ Form from a class', 'Fields of a class of the unit')}
-${btn('ce.delphi.changeClass', '♻️ Change class', 'TEdit → TcxTextEdit… keeping compatible properties')}
-${btn('ce.delphi.check', '✅ Check form', '.dfm vs .pas: handlers, fields, TabOrder, layout')}
-${btn('ce.delphi.cleanHandlers', '🧹 Clean handlers', 'Missing, orphan and empty handlers')}
-${btn('ce.delphi.diffForm', '🔀 Compare with git', 'What changed in this form since a commit, component by component')}
 ${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, units and components nothing uses, the checks of every form (read on demand)')}
 </div>
-<div class="tool-note">Adding components and their events is done in the visual designer.</div>
+<div class="tool-note">Anchors, duplicate, form check, handler cleanup, class change and form generation are in the designer's 🛠 Tools menu, with adding components and events.</div>
 </div>
 `;
 }

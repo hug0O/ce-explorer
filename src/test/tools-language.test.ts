@@ -25,8 +25,8 @@ test('what was chosen is selected, and what the extension detects is named', () 
 });
 
 test('the tools of a language appear once it is chosen, and the drop-down is not there without a file', () => {
-    assert.ok(!/data-dl="ce.delphi.check"/.test(toolsHtml(':=', undefined, false, false, '', info())), 'not Delphi: no Delphi tools');
-    assert.match(toolsHtml(':=', undefined, false, true, '', info({ current: 'pascal' })), /data-dl="ce.delphi.check"/);
+    assert.ok(!/data-dl="ce.delphi.designer"/.test(toolsHtml(':=', undefined, false, false, '', info())), 'not Delphi: no Delphi tools');
+    assert.match(toolsHtml(':=', undefined, false, true, '', info({ current: 'pascal' })), /data-dl="ce.delphi.designer"/);
     assert.match(toolsHtml(':=', undefined, true, false, '', info({ current: 'plsql' })), /data-pl="ce.plsql.syncPackage"/);
     assert.ok(!/langSel/.test(toolsHtml(':=')), 'no active file, no drop-down');
 });

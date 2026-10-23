@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { TextEdit } from '../services/DelphiForm';
 import { DfmNode, parseDfmTree, findNode, isContainer, listContainers } from '../services/DelphiLayout';
-import { planTabOrder } from '../services/DelphiAlign';
+import { ANCHOR_MODES, AnchorMode, applyAnchorMode, planTabOrder } from '../services/DelphiAlign';
+import { changeClassCommand, checkFormCommand, cleanHandlersCommand, formFromClassCommand, formFromFieldsCommand, runOnForm } from '../services/DelphiCommands';
 import { copyComponents, parseClip, serializeClip } from '../services/DelphiClip';
 import { ALIGN_OPS, AlignOp, alignComponents } from '../services/DelphiAlign';
 import { addEventToComponent, resolveFormPair } from '../services/FormCommands';
@@ -234,7 +235,7 @@ export class FormDesignerPanel {
             return;
         }
         void this.panel.webview.postMessage({
-            type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })),
+            type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })), anchorModes: ANCHOR_MODES,
             canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
@@ -585,6 +586,37 @@ export class FormDesignerPanel {
                 }
                 if (!touched.length) { this.sendModel(undefined, firstError ?? 'Nothing to change.'); return; }
                 await this.commit(`${[...props].filter(p => p !== 'DesignInfo').join(', ')} of ${touched.length} components`, { dfmEdits, pasEdits }, touched, { touched, props: [...props] });
+                return;
+            }
+            case 'runTool': {
+                // The tools that need a choice (a class, a list of problems) run with VS Code's pickers, on the unit of this designer.
+                const tools: Record<string, () => Promise<void>> = {
+                    check: () => checkFormCommand(), clean: () => cleanHandlersCommand(), changeClass: () => changeClassCommand(),
+                    formFromFields: () => formFromFieldsCommand(), formFromClass: () => formFromClassCommand(),
+                };
+                const run = tools[str(m.id)];
+                if (run) { await runOnForm(this.pasDoc, run); this.sendModel(); }
+                return;
+            }
+            case 'anchors': {
+                const list = names(m.names).map(n => findNode(root, n)).filter((n): n is DfmNode => !!n);
+                const mode = ANCHOR_MODES.find(x => x.id === m.mode);
+                const parent = list[0]?.parent;
+                if (!mode || !parent || !list.every(n => n.parent === parent)) { this.sendModel(undefined, 'Anchors: select components of the same container.'); return; }
+                const r = applyAnchorMode(dfm, parent, list, mode.id as AnchorMode);
+                const touched = list.map(n => n.name);
+                await this.commit(mode.label, 'error' in r ? r : { dfmEdits: r.edits, pasEdits: [] }, touched, { touched, props: ['Anchors', 'Align', 'Left', 'Top', 'Width', 'Height'] });
+                return;
+            }
+            case 'duplicate': {
+                const list = names(m.names);
+                const first = list.length ? findNode(root, list[0]) : undefined;
+                if (!first) { return; }
+                const copied = copyComponents(pas, dfm, list, await this.unitsOf(root, list));
+                if ('error' in copied) { this.sendModel(undefined, copied.error); return; }
+                const into = first.parent && first.parent.depth > 0 ? first.parent.name : undefined;
+                const r = pasteEdits(pas, dfm, copied.payload, into);
+                await this.commit('Duplicate ' + list.join(', '), r, 'roots' in r ? r.roots : undefined, { added: 'added' in r ? r.added ?? [] : [] });
                 return;
             }
             case 'setChartTitle': {

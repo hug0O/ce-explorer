@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.30 — 2026-10-24
+- Designer: **the form named in the call is the one 🗗 opens.** A name between quotes in the handler (or in a list, `['TfrmA', 'TfrmB']`), or in a string **constant** of the project (`const csTiers = 'TIERS_Fiche';` then `fAfficheListe(csTiers)`), is matched with the forms of the project by class, by form name, by unit name and **without the Delphi decorations** (`TfrmTIERSFiche`, `frmTIERSFiche`, `TIERS_Fiche_frm` and `TIERS_Fiche` are the same name); when the code names a form, **no other form is offered** next to it (a message form created on an error path no longer comes first). When nothing matches, the message lists the names it read, and up to 400 `.dpr` files are read.
+
 ## 0.1.29 — 2026-10-24
 - Designer: **the 🗗 and 🔗 links are fast.** The units of the project are read in the background as soon as a designer opens, many at a time, and the methods of the whole project are indexed in one pass (before, every call followed was a search through all the units); a saved unit is read again alone instead of the whole project.
 - Designer: the list of forms offered by 🗗 holds **only the forms the code really opens** (created, shown, or named in a text); the ones it merely mentions are no longer listed, and **a single form opens at once**. When the code opens none, the forms it refers to are offered, titled as such.

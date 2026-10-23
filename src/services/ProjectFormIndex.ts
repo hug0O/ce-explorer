@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { KnownForm, MethodIndex, dprUnits, forgetUnit, indexMethods, indexMethodsOf } from './DelphiFormRefs';
+import { ConstIndex, KnownForm, MethodIndex, dprUnits, forgetConsts, forgetUnit, indexConstsOf, indexMethods, indexMethodsOf } from './DelphiFormRefs';
 
 /**
  * The units and the forms of the workspace, read once when the designer first needs them (to follow a handler to the form it opens, a panel
  * to the form put in it) and again after a unit is saved.
  */
-export interface ProjectIndex { forms: KnownForm[]; units: Map<string, string>; methods: MethodIndex }
+export interface ProjectIndex { forms: KnownForm[]; units: Map<string, string>; methods: MethodIndex; consts: ConstIndex }
 
 let cache: Promise<ProjectIndex> | undefined;
 let watching = false;
@@ -40,7 +40,7 @@ async function build(): Promise<ProjectIndex> {
     // many files at once: reading them one after the other is what made the first click so slow
     for (let i = 0; i < files.length; i += 48) { await Promise.all(files.slice(i, i + 48).map(one)); }
     // the .dpr says how the project names each form: `Unit in 'dir\\Unit.pas' {frmName}` (a form can be opened by that name)
-    const dprs = await vscode.workspace.findFiles('**/*.dpr', '**/{node_modules,.git}/**', 40);
+    const dprs = await vscode.workspace.findFiles('**/*.dpr', '**/{node_modules,.git}/**', 400);
     for (const d of dprs) {
         try {
             const text = await fs.promises.readFile(d.fsPath, 'latin1');
@@ -57,7 +57,9 @@ async function build(): Promise<ProjectIndex> {
             }
         } catch { /* a project file that cannot be read is left out */ }
     }
-    return { forms, units, methods: indexMethods(units) };
+    const consts: ConstIndex = new Map();
+    for (const [unit, text] of units) { indexConstsOf(unit, text, consts); }
+    return { forms, units, methods: indexMethods(units), consts };
 }
 
 export function projectIndex(): Promise<ProjectIndex> {
@@ -69,8 +71,10 @@ export function projectIndex(): Promise<ProjectIndex> {
             try {
                 const index = await cache;
                 forgetUnit(d.fileName, index.methods);
+                forgetConsts(d.fileName, index.consts);
                 index.units.set(d.fileName, d.getText());
                 indexMethodsOf(d.fileName, d.getText(), index.methods);
+                indexConstsOf(d.fileName, d.getText(), index.consts);
             } catch { invalidateProjectIndex(); }
         });
     }

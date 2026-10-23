@@ -17,7 +17,7 @@ import { createColumnsEdits, createFieldsEdits } from '../services/DesignerField
 import { layouts, loadMarks, saveLayouts, saveMarks } from '../services/DesignerStore';
 import { handlerPreviews } from '../services/DesignerPreview';
 import { compareItems, ghostsOf } from '../services/DesignerCompare';
-import { classOfArg, formsOpenedBy, hostedForms } from '../services/DelphiFormRefs';
+import { classOfArg, formsOpenedBy, hostedForms, stringNames } from '../services/DelphiFormRefs';
 import { projectIndex } from '../services/ProjectFormIndex';
 import { resizeForm } from '../services/DesignerResponsive';
 import { diffDfm } from '../services/DfmDiff';
@@ -630,11 +630,15 @@ export class FormDesignerPanel {
                 const impl = handler ? handlerImplementation(pas, root.className, handler) : undefined;
                 if (!node || !handler || !impl) { this.sendModel(undefined, 'This event has no handler in the unit yet.'); return; }
                 const index = await projectIndex();
-                const all = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className, index.methods);
+                const all = formsOpenedBy(pas.slice(impl.start, impl.end), index.forms, index.units, root.className, index.methods, index.consts);
                 // the forms really opened (created, shown, named); the ones the code only mentions are offered when it opens none
                 const opened = all.filter(f => !f.how.startsWith('refers to'));
                 const found = opened.length ? opened : all;
-                if (found.length === 0) { this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units read, ${index.forms.length} forms).`); return; }
+                if (found.length === 0) {
+                    const names = stringNames(pas.slice(impl.start, impl.end)).slice(0, 8);
+                    this.sendModel(undefined, `${handler} opens no form of the workspace (${index.units.size} units, ${index.forms.length} forms read).${names.length ? ' Names in its code that match no form: ' + names.join(', ') + '.' : ''}`);
+                    return;
+                }
                 const pick = found.length === 1 ? found[0] : (await vscode.window.showQuickPick(
                     found.map(f => ({ label: f.form.className, description: [f.how, f.via ? 'via ' + f.via : ''].filter(Boolean).join(' · '), detail: f.form.pas, ref: f })),
                     { title: opened.length ? `Forms opened by ${handler}` : `${handler} opens no form: it refers to`, placeHolder: 'Open its designer' }))?.ref;

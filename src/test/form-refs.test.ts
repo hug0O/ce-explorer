@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KnownForm, calledNames, classOfArg, dprUnits, formNamedBy, formsInCode, formsOpenedBy, hostedForms, indexMethods, indexMethodsOf, forgetUnit, methodBodies, nameDistance, stripCode } from '../services/DelphiFormRefs';
+import { ConstIndex, KnownForm, calledNames, classOfArg, dprUnits, formNamedBy, formsInCode, formsOpenedBy, hostedForms, formKey, forgetConsts, indexConstsOf, stringNames, indexMethods, indexMethodsOf, forgetUnit, methodBodies, nameDistance, stripCode } from '../services/DelphiFormRefs';
 
 const forms: KnownForm[] = [
     { className: 'TfrmMain', vars: ['frmMain'], pas: 'Main.pas', dfm: 'Main.dfm' },
@@ -118,4 +118,28 @@ test('a big project is indexed fast: a hundred thousand lines, forty lookups', (
     const index = indexMethods(units);
     for (let i = 0; i < 40; i++) { methodBodies(units, 'Meth' + i, index); }
     assert.ok(Date.now() - t0 < 1500, 'took ' + (Date.now() - t0) + ' ms');
+});
+
+test('a name given as a text, in a constant or in a list is the form asked for, and nothing else is offered next to it', () => {
+    const all = [...forms, tiers, { className: 'TfrmMessage', vars: ['frmMessage'], pas: 'Message_frm.pas', dfm: 'Message_frm.dfm', names: ['Message_frm'] }];
+    const units = new Map([['Ecran.pas', "procedure TGestion.fAfficheListe(psClasse: string);\nbegin\n  if not Found then fMessageErreur;\nend;\nprocedure TGestion.fMessageErreur;\nbegin\n  TfrmMessage.Create(nil).ShowModal;\nend;\n"]]);
+    // the error path creates a message form, but the call names the form it opens
+    const r = formsOpenedBy("frmMain.oGestion.fAfficheListe('TIERS_Fiche', pnlHost);", all, units, 'TfrmMain');
+    assert.deepEqual(r.map(x => x.form.className), ['TfrmTIERSFiche'], 'a unit name without the prefix of the class is found, and the message form is not offered');
+    // a constant holds the name
+    const consts: ConstIndex = new Map();
+    indexConstsOf('Const.pas', "const\n  csTiers = 'TIERS_Fiche';\n  csLong = 'a long text with spaces';\n  csNum = 'x';\n", consts);
+    assert.deepEqual([...consts.keys()], ['cstiers'], 'only the values that look like names');
+    assert.deepEqual(formsOpenedBy('oEcran.fAfficheListe(csTiers);', all, new Map(), 'TfrmMain', undefined, consts).map(x => [x.form.className, x.how]), [['TfrmTIERSFiche', "named csTiers = 'TIERS_Fiche'"]]);
+    forgetConsts('Const.pas', consts);
+    assert.equal(consts.size, 0);
+    // a list of names
+    assert.deepEqual(formsOpenedBy("fAfficheListes(['TfrmTIERSFiche', 'TfrmDetail']);", all, new Map(), 'TfrmMain').map(x => x.form.className).sort(), ['TfrmDetail', 'TfrmTIERSFiche']);
+    // the names read, for the message when nothing matches
+    assert.deepEqual(stringNames("fAffiche('Hello world', 'XyzUnknown', 'TfrmTIERSFiche'); // 'Commented'"), ['XyzUnknown', 'TfrmTIERSFiche']);
+});
+
+test('the names of the Delphi conventions all give the same key', () => {
+    for (const n of ['TfrmTIERSFiche', 'frmTIERSFiche', 'TIERS_Fiche_frm', 'TIERS_Fiche', 'tiers_fiche']) { assert.equal(formKey(n), 'tiersfiche', n); }
+    assert.equal(formKey('TfrmMain'), 'main');
 });

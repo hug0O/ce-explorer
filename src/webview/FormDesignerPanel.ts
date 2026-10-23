@@ -250,57 +250,31 @@ export class FormDesignerPanel {
         const names = new Set<string>();
         (function walk(n: DfmNode): void { names.add(n.name); n.children.forEach(walk); })(root);
         const helpers = vscode.workspace.getConfiguration('ce.delphi').get<string[]>('hostCalls', ['fAddFormInto']);
-        return hostedForms(this.pasDoc.getText(), helpers, [], names);
+        return hostedForms(this.pasDoc.getText(), helpers, [], names).map(h => ({ ...h, className: h.className ?? this.hostClass.get(h.formArg) }));
     }
 
-    private resolvedHosts: { parent: string; formArg: string; className?: string }[] = [];
-    private linkCache = new Map<string, boolean>();
+    /** The class of the form a container holds, found in the workspace once the project is read (the unit alone does not always say). */
+    private hostClass = new Map<string, string>();
     private linkTimer: ReturnType<typeof setTimeout> | undefined;
-    private linkRun = 0;
 
-    /** Links are offered only where there is something to open: the forms put in a container and the handlers that open a form, once the project is read. */
     private scheduleLinks(): void {
         if (this.linkTimer) { clearTimeout(this.linkTimer); }
-        this.linkTimer = setTimeout(() => { void this.sendLinks(); }, 350);
+        this.linkTimer = setTimeout(() => { void this.resolveHosts(); }, 350);
     }
 
-    private async sendLinks(): Promise<void> {
-        const run = ++this.linkRun;
-        const root = parseDfmTree(this.dfmDoc.getText());
-        if (!root) { return; }
+    private async resolveHosts(): Promise<void> {
+        const wanted = this.hosts().filter(h => !h.className && !this.hostClass.has(h.formArg));
+        if (!wanted.length) { return; }
         let index;
         try { index = await projectIndex(); } catch { return; }
         const pas = this.pasDoc.getText();
-        // the containers that hold a form which the workspace has
-        const hosts = this.hosts().map(h => {
-            const cls = h.className || classOfArg(pas, h.formArg, index.forms);
+        let changed = false;
+        for (const h of wanted) {
+            const cls = classOfArg(pas, h.formArg, index.forms);
             const form = index.forms.find(f => f.className.toLowerCase() === (cls ?? '').toLowerCase());
-            return form ? { ...h, className: form.className } : undefined;
-        }).filter((h): h is { parent: string; formArg: string; className: string } => !!h);
-        const hostsChanged = JSON.stringify(hosts) !== JSON.stringify(this.resolvedHosts);
-        this.resolvedHosts = hosts;
-        // the events whose handler opens a form (a few at a time, so the editor stays responsive)
-        const list: { name: string; event: string }[] = [];
-        let n = 0;
-        const walk = async (node: DfmNode): Promise<void> => {
-            for (const [event, handler] of Object.entries(wiredEvents(node))) {
-                const impl = handlerImplementation(pas, root.className, handler);
-                if (!impl) { continue; }
-                const body = pas.slice(impl.start, impl.end);
-                let opens = this.linkCache.get(body);
-                if (opens === undefined) {
-                    opens = formsOpenedBy(body, index.forms, index.units, root.className, index.methods, index.consts).some(f => !f.how.startsWith('refers to'));
-                    this.linkCache.set(body, opens);
-                }
-                if (opens) { list.push({ name: node.name, event }); }
-                if (++n % 25 === 0) { await new Promise(r => setImmediate(r)); if (run !== this.linkRun) { return; } }
-            }
-            for (const c of node.children) { await walk(c); if (run !== this.linkRun) { return; } }
-        };
-        await walk(root);
-        if (run !== this.linkRun) { return; }
-        if (this.linkCache.size > 3000) { this.linkCache.clear(); }
-        void this.panel.webview.postMessage({ type: 'formLinks', list, hosts: hostsChanged ? hosts : undefined });
+            if (form) { this.hostClass.set(h.formArg, form.className); changed = true; }
+        }
+        if (changed) { void this.panel.webview.postMessage({ type: 'hosts', hosts: this.hosts() }); }
     }
 
     private async openFormFile(pas: string): Promise<void> {
@@ -316,7 +290,7 @@ export class FormDesignerPanel {
         }
         void this.panel.webview.postMessage({
             type: 'model', model, designer: loadMarks(this.dfmDoc.uri.fsPath), palette: PALETTE, ops: ALIGN_OPS.map(o => ({ id: o.id, label: o.label })), anchorModes: ANCHOR_MODES,
-            hosts: this.resolvedHosts, canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
+            hosts: this.hosts(), canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0, selection, notice,
             dirty: this.dfmDoc.isDirty || this.pasDoc.isDirty, cut: this.cut?.names ?? [],
         });
         this.sendCompare();

@@ -68,11 +68,11 @@ test('a panel that holds a form, and a handler that opens one, are linked to its
     assert.deepEqual(pkg.contributes.configuration.properties['ce.delphi.hostCalls'].default, ['fAddFormInto']);
 });
 
-test('a link is offered only where there is something to open', () => {
+test('the 🗗 button is on every wired event, and a form that is only mentioned is never offered; the 🔗 shows whenever the unit puts a form in a container', () => {
     const html = designerHtml('N');
-    assert.match(html, /\(state\.formLinks \|\| \{\}\)\[n\.name \+ '\|' \+ e4\] \? el\('span', 'evgo evform', '🗗'\) : null/, 'no 🗗 on a handler that opens no form');
-    assert.match(html, /m\.type === 'formLinks'/);
+    assert.match(html, /var fb = el\('span', 'evgo evform', '🗗'\)/, 'the button is always there');
+    assert.match(html, /m\.type === 'hosts'/);
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'FormDesignerPanel.ts'), 'utf8');
-    assert.match(panel, /hosts: this\.resolvedHosts/, 'the model carries only the forms the workspace has');
-    assert.match(panel, /\.some\(f => !f\.how\.startsWith\('refers to'\)\)/, 'a form that is only mentioned is no reason for a link');
+    assert.match(panel, /hosts: this\.hosts\(\), canUndo/, 'the model carries every container that holds a form, the workspace having it or not');
+    assert.match(panel, /const found = all\.filter\(f => !f\.how\.startsWith\('refers to'\)\)/, 'the forms the code only mentions (frmMain, a data module) are not links');
 });

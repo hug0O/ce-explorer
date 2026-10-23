@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.32 — 2026-10-24
+- Designer: back to how it was: the **🗗 button is on every wired event** and the **🔗 link of a container shows whenever the unit puts a form in it** (the form does not have to be in the workspace). What stays from the last version: a form that the code only **mentions** (`frmMain`, a data module such as `dmdConnect`) is **never a link**; only the forms it creates, shows or names are offered.
+
 ## 0.1.31 — 2026-10-24
 - Designer: **no link where there is nothing to open.** The 🗗 button appears only on an event whose handler (or a method it calls) opens a form of the workspace, and the 🔗 / *Hosted form* link only for a container whose form the workspace has; both are worked out in the background once the project is read. A form the code only mentions is no longer a reason for a link.
 - Designer: when a click on 🗗 finds nothing, a message says so with **Show details**, which opens the *CE Form links* output: the names read in the handler, the methods followed (with how many implementations were found) and what was matched.

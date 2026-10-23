@@ -137,7 +137,9 @@ test('room for complex forms: each side panel hides, Fit window scales the form,
     const html = designerHtml('N');
     for (const id of ['togleft', 'togright', 'full', 'edgeL', 'edgeR']) { assert.ok(html.includes(`id="${id}"`), id); }
     assert.match(html, /body\.hide-left #left, body\.hide-right #right \{ display: none; \}/, 'the panels hide');
-    assert.match(html, /body\.hide-left #edgeL, body\.hide-right #edgeR \{ display: block; \}/, 'a tab on the edge brings a hidden panel back');
+    assert.match(html, /body\.hide-left #edgeL \{ left: 0; \}/, 'the fold handle of a hidden panel stays on the edge of the window');
+    assert.match(html, /<details class="sec" id="palsec">/, 'the palette is folded by default');
+    assert.match(html, /id="splitV"/, 'a bar between the components and the palette');
     assert.match(html, /<option value="fit">Fit window<\/option>/);
     assert.match(html, /function fitZoom/);
     assert.match(html, /new ResizeObserver/, 'the fit follows the room left by the panels and the window');
@@ -214,7 +216,7 @@ test('the palette and the inspector are resized with the mouse (bars between the
     assert.match(html, /addEventListener\('dblclick', function \(\) \{ setPanelWidth\(key, 0\)/, 'double-click gives the default width back');
     assert.match(html, /wl: state\.ui\.wl, wr: state\.ui\.wr/, 'widths are remembered');
     assert.match(html, /body\.hide-left #splitL, body\.hide-right #splitR \{ display: none; \}/, 'no bar next to a hidden panel');
-    assert.match(html, /#outline \{[^}]*resize: vertical/, 'the component list is also resizable in height');
+    assert.match(html, /#outline \{[^}]*height: var\(--outh/, 'the component list has a height the bar below it changes');
 });
 
 test('copy, cut and paste: copies are pasted into the chosen container, a cut moves the very same components', () => {

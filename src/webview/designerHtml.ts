@@ -126,7 +126,10 @@ h4 { margin: 10px 0 4px; font-size: 10px; text-transform: uppercase; letter-spac
 .sec > summary { cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 4px; }
 .pal-head { font-size: 10px; color: var(--vscode-descriptionForeground); margin: 6px 0 2px; }
 .pal-group > summary { cursor: pointer; font-size: 10px; color: var(--vscode-descriptionForeground); margin: 4px 0 2px; }
-#outline { max-height: 42vh; min-height: 120px; overflow: auto; resize: vertical; }
+#outline { height: var(--outh, auto); max-height: var(--outh, 42vh); min-height: 60px; overflow: auto; }
+.vsplit { height: 5px; margin: 6px -2px 2px; cursor: row-resize; background: transparent; border-top: 1px solid var(--vscode-panel-border, #444); touch-action: none; }
+.vsplit:hover, .vsplit.drag { background: var(--vscode-sash-hoverBorder, #0a84ff); opacity: 0.8; }
+body.resizing-v { cursor: row-resize; user-select: none; }
 .outline .tw { display: inline-block; width: 12px; text-align: center; cursor: pointer; opacity: 0.8; font-size: 10px; }
 .outline .tw:hover { opacity: 1; }
 .outline div.hiddenrow { opacity: 0.45; }
@@ -317,10 +320,13 @@ ${layoutsCss()}
 .band { position: absolute; border: 1px dashed #0078d7; background: rgba(0, 120, 215, 0.12); pointer-events: none; }
 .tool-on #client { cursor: crosshair; }
 body.hide-left #left, body.hide-right #right { display: none; }
-.edge { position: absolute; top: 40%; z-index: 30; display: none; writing-mode: vertical-rl; padding: 10px 3px; font-size: 11px; opacity: 0.9; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
-#edgeL { left: 0; border-radius: 0 5px 5px 0; }
-#edgeR { right: 0; border-radius: 5px 0 0 5px; }
-body.hide-left #edgeL, body.hide-right #edgeR { display: block; }
+/* the fold handle of a panel: a small tab on its edge, a chevron that points where the panel goes */
+.edge { position: absolute; top: 50%; transform: translateY(-50%); z-index: 30; display: flex; align-items: center; justify-content: center; width: 14px; height: 56px; padding: 0; font-size: 15px; line-height: 1; color: var(--vscode-descriptionForeground); background: var(--vscode-editorWidget-background, #252526); border: 1px solid var(--vscode-panel-border, #444); opacity: 0.75; }
+.edge:hover:not(:disabled) { opacity: 1; color: var(--vscode-foreground); background: var(--vscode-list-hoverBackground, #2a2d2e); }
+#edgeL { left: var(--wl, 210px); border-left: none; border-radius: 0 6px 6px 0; }
+#edgeR { right: var(--wr, 240px); border-right: none; border-radius: 6px 0 0 6px; }
+body.hide-left #edgeL { left: 0; }
+body.hide-right #edgeR { right: 0; }
 body.full #toolbar { padding: 3px 8px; }
 #toolbar { gap: 4px 8px; }
 .tg { display: flex; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
@@ -382,7 +388,7 @@ ${viewHtml()}
   <div class="tg">
     <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
     <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapspacing" checked> Equal spacing</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
-    <label>Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
+    <label title="Grid step in pixels: what you move or resize snaps to multiples of it, and Shift + arrows move by it. off: free, 1 pixel at a time (the magnetism of the Snap button is separate: it catches the neighbours)">Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
     ${viewButton()}
   </div>
   <div class="tg">
@@ -393,7 +399,7 @@ ${viewHtml()}
   </div>
 </div>
 <div id="main">
-  <button id="edgeL" class="edge" title="Show the palette and the component list (P)">▸ Palette</button>
+  <button id="edgeL" class="edge" title="Hide the palette and the component list (P)">‹</button>
   <div id="left">
     <details open class="sec" id="compsec"><summary>Components <span class="hint" id="compcount"></span></summary>
       <div class="row"><input type="text" id="cfname" placeholder="Filter by name or class…"></div>
@@ -402,7 +408,8 @@ ${viewHtml()}
       <div class="row"><select id="cfsort" title="Sort"><option value="form">Form order</option><option value="name">By name</option><option value="type">By type</option><option value="pos">By position</option></select><label title="One flat list instead of the tree"><input type="checkbox" id="cfflat"> flat</label></div>
       <div id="outline" class="outline"></div>
     </details>
-    <details open class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
+    <div id="splitV" class="vsplit" title="Drag to give more room to the components or to the palette (double-click: default)"></div>
+    <details class="sec" id="palsec"><summary>Palette <span class="hint" id="palcount"></span></summary>
       <div class="row"><input type="text" id="palfilter" placeholder="Filter by name…"></div>
       <div class="row"><select id="palgroup" title="Component type: only the components of this type are listed"></select></div>
       <div id="palette"></div>
@@ -413,14 +420,14 @@ ${viewHtml()}
   <div id="center"><div id="zoomwrap"><div id="formframe"><div id="titlebar"><span id="ftitle"></span><span class="ctrls">–□✕</span></div><div id="client" tabindex="0"><div id="overlay"></div><div id="hov"></div></div></div></div></div>
   <div id="splitR" class="split" title="Drag to resize the inspector (double-click: default width)"></div>
   <div id="right"><div id="inspector"></div></div>
-  <button id="edgeR" class="edge" title="Show the inspector (I)">◂ Inspector</button>
+  <button id="edgeR" class="edge" title="Hide the inspector (I)">›</button>
 </div>
 <div id="status"></div>
 <div id="droplabel"></div>
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0, pal: false, oh: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -2313,7 +2320,7 @@ ${layoutsScript()}
   /* Room for complex forms: each side panel can be hidden (a tab on the edge brings it back), "Fit window" scales the form to what is left,
      and Full screen hides both panels and, in VS Code, the rest of the interface (Zen mode). */
   function saveUi() {
-    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap, view: { names: state.view.names, containers: state.view.containers, tab: state.view.tab, rulers: state.view.rulers, theme: state.view.theme } }); } catch (err) { /* no state available */ }
+    try { vscode.setState({ left: state.ui.left, right: state.ui.right, wl: state.ui.wl, wr: state.ui.wr, pal: state.ui.pal, oh: state.ui.oh, collapsed: state.collapsed, fit: state.fit, zoom: state.zoom, after: state.openAfter, snap: state.snap, view: { names: state.view.names, containers: state.view.containers, tab: state.view.tab, rulers: state.view.rulers, theme: state.view.theme } }); } catch (err) { /* no state available */ }
   }
   function applyUi() {
     document.body.classList.toggle('hide-left', !state.ui.left);
@@ -2322,6 +2329,9 @@ ${layoutsScript()}
     $('togleft').classList.toggle('active', state.ui.left);
     $('togright').classList.toggle('active', state.ui.right);
     $('full').classList.toggle('active', state.ui.full);
+    $('edgeL').textContent = state.ui.left ? '‹' : '›'; $('edgeL').title = (state.ui.left ? 'Hide' : 'Show') + ' the palette and the component list (P)';
+    $('edgeR').textContent = state.ui.right ? '›' : '‹'; $('edgeR').title = (state.ui.right ? 'Hide' : 'Show') + ' the inspector (I)';
+    $('palsec').open = !!state.ui.pal;
     $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen';
     if (state.fit) { fitZoom(true); }
     saveUi();
@@ -2370,6 +2380,30 @@ ${layoutsScript()}
     });
     bar.addEventListener('dblclick', function () { setPanelWidth(key, 0); saveUi(); });
   }
+  /* The components list and the palette share the left column: the bar between them gives more room to one or the other. */
+  function setOutlineHeight(h) {
+    h = h ? Math.max(60, Math.min(Math.round(window.innerHeight * 0.9), Math.round(h))) : 0;
+    state.ui.oh = h;
+    if (h) { document.documentElement.style.setProperty('--outh', h + 'px'); } else { document.documentElement.style.removeProperty('--outh'); }
+  }
+  (function () {
+    var bar = $('splitV');
+    bar.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) { return; }
+      var y0 = ev.clientY, h0 = $('outline').offsetHeight;
+      try { bar.setPointerCapture(ev.pointerId); } catch (err) { /* no capture: the bar still follows the mouse over the page */ }
+      bar.classList.add('drag'); document.body.classList.add('resizing-v');
+      var move = function (e) { setOutlineHeight(h0 + (e.clientY - y0)); };
+      var up = function () {
+        bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
+        bar.classList.remove('drag'); document.body.classList.remove('resizing-v'); saveUi();
+      };
+      bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+      ev.preventDefault();
+    });
+    bar.addEventListener('dblclick', function () { setOutlineHeight(0); saveUi(); });
+    $('palsec').addEventListener('toggle', function () { if (state.ui.pal !== $('palsec').open) { state.ui.pal = $('palsec').open; saveUi(); } });
+  })();
   splitter('splitL', 'wl', 1);
   splitter('splitR', 'wr', -1);
   $('togleft').addEventListener('click', toggleLeft);
@@ -2384,6 +2418,8 @@ ${layoutsScript()}
     if (st && typeof st === 'object') {
       state.ui.left = st.left !== false; state.ui.right = st.right !== false; state.openAfter = !!st.after;
       if (st.collapsed && typeof st.collapsed === 'object') { state.collapsed = st.collapsed; }
+      state.ui.pal = st.pal === true;
+      if (st.oh >= 60) { setOutlineHeight(st.oh); }
       if (st.wl >= 120) { setPanelWidth('wl', st.wl, true); }
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       if (st.snap && typeof st.snap === 'object') { ['on', 'edges', 'centers', 'container', 'guides', 'spacing'].forEach(function (k) { if (typeof st.snap[k] === 'boolean') { state.snap[k] = st.snap[k]; } }); }

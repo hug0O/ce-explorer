@@ -29,7 +29,8 @@ export const SCENARIOS: Record<string, { file: string; run: Scenario }> = {
     },
     add: {
         file: 'add-component.gif', run: async s => {
-            await s.caption('1. Pick a component in the palette');
+            await s.page.click('#palsec > summary'); await s.settle(200);
+            await s.caption('1. Pick a component in the palette (folded by default: click Palette to open it)');
             await s.snap(700);
             const b = await s.byText('#palette button', 'Button'); await s.click(b.x, b.y);
             await s.caption('2. Click on the form where it goes (or draw its size)');

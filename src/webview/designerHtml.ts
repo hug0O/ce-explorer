@@ -391,7 +391,7 @@ ${viewHtml()}
     <label title="The step in pixels that what you move or resize is rounded to, and that Shift + arrows move by. off: one pixel at a time. The finest steps (1, 2, 3 px) are for exact placing; 8 to 16 px for tidy layouts.">Grid <select id="grid"><option value="0">off</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option><option value="4" selected>4 px</option><option value="5">5 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option><option value="32">32 px</option><option value="48">48 px</option><option value="64">64 px</option></select></label>
   </div>
   <div class="tg" title="How the form is shown, and the tools that work on it">
-    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit" selected>Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+    <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
     ${viewButton()}
     ${toolsButton()}
   </div>
@@ -428,7 +428,7 @@ ${viewHtml()}
 <script nonce="${nonce}">
 (function () {
   var vscode = acquireVsCodeApi();
-  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0, pal: false, oh: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: true, fitSet: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
+  var state = { model: null, sel: [], tool: null, showParents: false, hover: null, dragNames: null, cf: { text: '', type: '', sort: 'form', flat: false }, palOpen: {}, palGroup: '', palHost: {}, details: {}, openAfter: false, insOpen: {}, ui: { left: true, right: true, full: false, before: null, wl: 0, wr: 0, pal: false, oh: 0 }, collapsed: {}, revealKey: '', cut: [], dirty: false, fit: false, fitSet: false, listOrder: [], lastPick: '', zoom: 1, grid: 4, gscroll: {}, view: { names: false, containers: false, tab: false, rulers: false, theme: 'auto', mouse: null }, snap: { on: true, edges: true, centers: true, container: true, guides: true, spacing: true }, names: false, tabs: {}, palette: [], ops: [], canUndo: false, canRedo: false };
   var byName = {}, parentOf = {}, els = {};
   var drag = null;
   function $(id) { return document.getElementById(id); }
@@ -2043,6 +2043,8 @@ ${layoutsScript()}
     var b = g && g.querySelector(s.axis === 'v' ? '.dxvs' : '.dxhs');
     if (b) { b.classList.add('sbsel'); }
   }
+  /* Clicking a component, on the form or in the list, brings the inspector if it was hidden. */
+  function openInspector() { if (!state.ui.right) { state.ui.right = true; applyUi(); } }
   function select(names) {
     state.sel = names;
     state.sbSel = null;
@@ -2066,7 +2068,7 @@ ${layoutsScript()}
     var crumb = t.closest && t.closest('[data-crumb]');
     if (crumb) { var cn = crumb.getAttribute('data-crumb'); if (cn === rootName()) { select([]); } else { listClick(cn, ev); } return; }
     var pick = t.closest && t.closest('[data-pick]');
-    if (pick) { listClick(pick.getAttribute('data-pick'), ev); return; }
+    if (pick) { listClick(pick.getAttribute('data-pick'), ev); openInspector(); return; }
     if (!inClient) { return; }
     $('client').focus();
     state.notice = '';
@@ -2096,9 +2098,10 @@ ${layoutsScript()}
     if (ev.shiftKey || ev.ctrlKey) {
       var i = state.sel.indexOf(name);
       if (i >= 0) { state.sel.splice(i, 1); } else { state.sel.push(name); }
-      select(state.sel.slice()); return;
+      select(state.sel.slice()); openInspector(); return;
     }
     if (state.sel.indexOf(name) < 0) { select([name]); }
+    openInspector();
     startMove(ev);
   });
 
@@ -2440,9 +2443,9 @@ ${layoutsScript()}
       if (st.wr >= 120) { setPanelWidth('wr', st.wr, true); }
       if (st.snap && typeof st.snap === 'object') { ['on', 'edges', 'centers', 'container', 'guides', 'spacing'].forEach(function (k) { if (typeof st.snap[k] === 'boolean') { state.snap[k] = st.snap[k]; } }); }
       if (st.view && typeof st.view === 'object') { ['names', 'containers', 'tab', 'rulers'].forEach(function (k) { if (typeof st.view[k] === 'boolean') { state.view[k] = st.view[k]; } }); if (typeof st.view.theme === 'string') { state.view.theme = st.view.theme; } }
-      // until the user has chosen a zoom, the whole form is shown (an older saved state without the choice does not count)
+      // 100% until the user chooses another zoom (an older saved state without the choice does not count)
       state.fitSet = st.fitSet === true;
-      state.fit = state.fitSet ? !!st.fit : true;
+      state.fit = state.fitSet ? !!st.fit : false;
       if (state.fit) { $('zoom').value = 'fit'; }
       else if (st.zoom >= 0.25 && st.zoom <= 3) { state.zoom = st.zoom; applyZoom(); showZoom(); }
     }

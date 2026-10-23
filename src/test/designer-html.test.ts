@@ -140,8 +140,9 @@ test('room for complex forms: each side panel hides, Fit window scales the form,
     assert.match(html, /body\.hide-left #edgeL \{ left: 0; \}/, 'the fold handle of a hidden panel stays on the edge of the window');
     assert.match(html, /<details class="sec" id="palsec">/, 'the palette is folded by default');
     assert.match(html, /id="splitV"/, 'a bar between the components and the palette');
-    assert.match(html, /<option value="fit" selected>Fit window<\/option>/, 'the whole form is shown by default');
-    assert.match(html, /fit: true, fitSet: false/, 'until the user picks a zoom of their own');
+    assert.match(html, /<option value="fit">Fit window<\/option>/);
+    assert.match(html, /<option value="1" selected>100%<\/option>/, '100% by default');
+    assert.match(html, /fit: false, fitSet: false/, 'until the user picks a zoom of their own');
     assert.match(html, /function fitZoom/);
     assert.match(html, /new ResizeObserver/, 'the fit follows the room left by the panels and the window');
     assert.match(html, /vscode\.setState\(\{ left: state\.ui\.left, right: state\.ui\.right/, 'the choice is remembered');

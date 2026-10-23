@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.25 — 2026-10-23
+- Designer: the zoom is **100% by default** again (Fit window stays in the list, and a zoom you choose is remembered).
+- Designer: **clicking a component** on the form or in the list **opens the inspector** if it was hidden.
+
 ## 0.1.24 — 2026-10-23
 - Designer: the **Fit window** entry of the zoom list shows the zoom it gives (`Fit window (100%)` when the form fits, `Fit window (47%)` when a big form is reduced to be seen whole).
 - Designer: the **toolbar spreads over the whole width**, left to right, and a long group wraps inside itself instead of being cut off.

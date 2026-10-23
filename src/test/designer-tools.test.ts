@@ -31,9 +31,12 @@ test('the anchor modes the menu lists come from the extension', () => {
     assert.match(html, /state\.anchorModes = m\.anchorModes \|\| \[\]/);
 });
 
-test('the whole form is shown by default, a zoom chosen by the user is kept', () => {
-    assert.match(html, /fit: true, fitSet: false/);
-    assert.match(html, /state\.fitSet = st\.fitSet === true;\s+state\.fit = state\.fitSet \? !!st\.fit : true;/);
+test('a click on a component brings the inspector, the zoom is 100% until the user chooses another', () => {
+    assert.match(html, /function openInspector\(\) \{ if \(!state\.ui\.right\) \{ state\.ui\.right = true; applyUi\(\); \} \}/);
+    assert.match(html, /openInspector\(\);\n {4}startMove\(ev\);/, 'a click on the form');
+    assert.match(html, /listClick\(pick\.getAttribute\('data-pick'\), ev\); openInspector\(\);/, 'a click in the list');
+    assert.match(html, /fit: false, fitSet: false/);
+    assert.match(html, /state\.fitSet = st\.fitSet === true;\s+state\.fit = state\.fitSet \? !!st\.fit : false;/);
     assert.match(html, /Math\.min\(state\.fitSet \? 2 : 1, z\)/, 'a small form keeps its size, a big one shrinks');
 });
 

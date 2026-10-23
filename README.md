@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.27.vsix
+code --install-extension ce-code-explorer-0.1.28.vsix
 ```
 
 ## Supported Languages
@@ -344,7 +344,7 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 
 #### Designer: from the code to the forms
 
-- **A handler that opens a form**: the 🗗 button of a wired event reads the handler, follows the methods it calls (two levels) and opens the designer of the form it creates or shows (`TfrmX.Create`, `Application.CreateForm`, `frmX.ShowModal`…). The units of the workspace are read once and again after a save.
+- **A handler that opens a form**: the 🗗 button of a wired event reads the handler, follows the methods it calls (two levels) and opens the designer of the form it creates or shows (`TfrmX.Create`, `Application.CreateForm`, `frmX.ShowModal`…) or names in a text (`fAfficheListe('TfrmTIERSFiche', …)`: the name is looked up among the forms of the `.dpr`). The units of the workspace are read once and again after a save.
 - **A panel that holds a form**: `fAddFormInto(oForm, pnl)` (add your own helpers to `ce.delphi.hostCalls`) and `oForm.Parent := pnl` link the panel to the form it hosts: a 🔗 badge on the panel and a *Hosted form* section in the inspector that opens its designer.
 - **Captions** run on several lines (Enter, written `#13#10`) with a *Word wrap* check box for the classes that have one; **Ctrl+K F** toggles the full screen.
 

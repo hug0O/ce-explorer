@@ -8,7 +8,57 @@
  */
 
 /** A form of the project: the class, the variables that hold an instance, and where it lives. */
-export interface KnownForm { className: string; vars: string[]; pas: string; dfm: string }
+export interface KnownForm {
+    className: string;
+    vars: string[];
+    pas: string;
+    dfm: string;
+    /** Other names the project knows the form by: the name of its unit, the name written beside it in the .dpr. */
+    names?: string[];
+}
+
+/** The units a .dpr lists: `TIERS_Fiche_frm in 'Transactions\\Tiers\\TIERS_Fiche_frm.pas' {frmTIERSFiche},` */
+export interface DprUnit { unit: string; path: string; form?: string }
+
+export function dprUnits(dpr: string): DprUnit[] {
+    const out: DprUnit[] = [];
+    for (const m of dpr.replace(/\/\/[^\n]*/g, ' ').matchAll(/([A-Za-z_][\w.]*)\s+in\s+'([^']+)'\s*(?:\{\s*([A-Za-z_]\w*)\s*(?::\s*\w+)?\s*\})?/g)) {
+        out.push({ unit: m[1], path: m[2], form: m[3] });
+    }
+    return out;
+}
+
+/** Edit distance, a swapped pair of letters counting as one (the name of a form is often typed with one slip). */
+export function nameDistance(a: string, b: string): number {
+    const x = a.toLowerCase(), y = b.toLowerCase();
+    const d: number[][] = Array.from({ length: x.length + 1 }, (_, i) => [i, ...new Array<number>(y.length).fill(0)]);
+    for (let j = 1; j <= y.length; j++) { d[0][j] = j; }
+    for (let i = 1; i <= x.length; i++) {
+        for (let j = 1; j <= y.length; j++) {
+            d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+            if (i > 1 && j > 1 && x[i - 1] === y[j - 2] && x[i - 2] === y[j - 1]) { d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1); }
+        }
+    }
+    return d[x.length][y.length];
+}
+
+/** The form that a text names: a class (`'TfrmTIERSFiche'`), a form name or a unit, as written or with one slip of the keyboard. */
+export function formNamedBy(text: string, forms: KnownForm[]): KnownForm | undefined {
+    const t = text.trim();
+    if (!/^[A-Za-z_][\w.]*$/.test(t) || t.length < 4) { return undefined; }
+    const namesOf = (f: KnownForm): string[] => [f.className, ...f.vars, ...(f.names ?? []), ...(f.names ?? []).map(n => 'T' + n)];
+    const exact = forms.find(f => namesOf(f).some(n => n.toLowerCase() === t.toLowerCase()));
+    if (exact) { return exact; }
+    if (t.length < 9) { return undefined; }
+    let best: { f: KnownForm; d: number } | undefined;
+    let tie = false;
+    for (const f of forms) {
+        const d = Math.min(...namesOf(f).map(n => nameDistance(n, t)));
+        if (d > 2) { continue; }
+        if (!best || d < best.d) { best = { f, d }; tie = false; } else if (d === best.d && f !== best.f) { tie = true; }
+    }
+    return best && !tie ? best.f : undefined;
+}
 
 export interface FormRef { form: KnownForm; how: string; /** The method that opens it, when it is not the handler itself. */ via?: string }
 
@@ -43,6 +93,8 @@ export function formsInCode(code: string, forms: KnownForm[], self?: string): Fo
     for (const m of src.matchAll(/\b(T\w+)\s*\.\s*Create\b/g)) { put(byClass.get(lc(m[1])), 'creates ' + m[1]); }
     for (const m of src.matchAll(/CreateForm\s*\(\s*(T\w+)/gi)) { put(byClass.get(lc(m[1])), 'creates ' + m[1]); }
     for (const m of src.matchAll(/\b(\w+)\s*\.\s*(ShowModal|Show|Visible\s*:=|BringToFront)\b/gi)) { put(byVar.get(lc(m[1])), m[1] + '.' + m[2].replace(/\s+/g, '')); }
+    // a form opened by its name: fAfficheListe('TfrmTIERSFiche', ...), the name being the one the project (.dpr, unit) gives it
+    for (const m of code.replace(/\{[^}]*\}|\(\*[\s\S]*?\*\)|\/\/[^\n]*/g, ' ').matchAll(/'((?:[^']|'')*)'/g)) { put(formNamedBy(m[1], forms), "named '" + m[1] + "'"); }
     for (const m of src.matchAll(/\b([A-Za-z_]\w*)\s*\./g)) { put(byVar.get(lc(m[1])), 'refers to ' + m[1]); }
     return [...out.values()];
 }

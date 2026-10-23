@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.28 — 2026-10-24
+- Designer: the 🗗 button of an event also finds a form that is **opened by its name**, as in `fAfficheListe('TfrmTIERSFiche', ...)`: the text is matched with the forms of the project as its `.dpr` lists them (`TIERS_Fiche_frm in 'TransactionsTiersTIERS_Fiche_frm.pas' {frmTIERSFiche}`), by class, by form name or by unit name, and a slip in the name (`TfrmTIERSFihce`) is forgiven when only one form is that close. The method it calls is read too, so the name can be given there.
+
 ## 0.1.27 — 2026-10-24
 - Designer: a **caption on several lines** (Enter in the Caption box, written as `#13#10` like the IDE) is drawn on several lines, and **Word wrap** is a check box for the classes that have it (`TLabel`, `TCheckBox`, `TRadioButton`, `TcxLabel` and the other DevExpress / TMS labels, buttons and check boxes).
 - Designer: **full screen** has a shortcut, **Ctrl+K F** (while the designer is the active tab; VS Code uses it to close a folder elsewhere), shown on the button.

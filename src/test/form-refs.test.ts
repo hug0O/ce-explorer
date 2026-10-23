@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KnownForm, calledNames, classOfArg, formsInCode, formsOpenedBy, hostedForms, methodBodies, stripCode } from '../services/DelphiFormRefs';
+import { KnownForm, calledNames, classOfArg, dprUnits, formNamedBy, formsInCode, formsOpenedBy, hostedForms, methodBodies, nameDistance, stripCode } from '../services/DelphiFormRefs';
 
 const forms: KnownForm[] = [
     { className: 'TfrmMain', vars: ['frmMain'], pas: 'Main.pas', dfm: 'Main.dfm' },
@@ -60,4 +60,39 @@ test('fAddFormInto(form, panel) and form.Parent := panel put a form in a contain
     assert.deepEqual(hosts.map(h => [h.parent, h.formArg, h.className]), [['pnlSales', 'oongSales', 'TongSales'], ['pnlDetail', 'poDetail', undefined]]);
     assert.equal(hostedForms(pas, ['fAddFormInto'], forms).length, 3, 'without the list of containers every one is reported');
     assert.equal(hostedForms(pas, [], forms, new Set(['pnlSales'])).length, 0, 'no helper named, no call read');
+});
+
+test('the .dpr says how the project names its forms: unit in path {form}', () => {
+    const dpr = [
+        'program Gestion;', 'uses', '  Forms,', "  TIERS_Fiche_frm in 'Transactions\Tiers\TIERS_Fiche_frm.pas' {frmTIERSFiche},", "  Main_frm in 'Main_frm.pas' {frmMain},", "  Outils in 'Outils.pas'; // no form",
+        'begin', 'end.',
+    ].join('\n');
+    assert.deepEqual(dprUnits(dpr), [
+        { unit: 'TIERS_Fiche_frm', path: 'Transactions\Tiers\TIERS_Fiche_frm.pas', form: 'frmTIERSFiche' },
+        { unit: 'Main_frm', path: 'Main_frm.pas', form: 'frmMain' },
+        { unit: 'Outils', path: 'Outils.pas', form: undefined },
+    ]);
+});
+
+const tiers: KnownForm = { className: 'TfrmTIERSFiche', vars: ['frmTIERSFiche'], pas: 'Tiers\TIERS_Fiche_frm.pas', dfm: 'Tiers\TIERS_Fiche_frm.dfm', names: ['TIERS_Fiche_frm', 'frmTIERSFiche'] };
+
+test('a form is named by its class, its form name or its unit, and a slip of the keyboard is forgiven', () => {
+    const all = [...forms, tiers];
+    for (const t of ['TfrmTIERSFiche', 'frmTIERSFiche', 'TIERS_Fiche_frm', 'tfrmtiersfiche']) { assert.equal(formNamedBy(t, all)?.className, 'TfrmTIERSFiche', t); }
+    assert.equal(formNamedBy('TfrmTIERSFihce', all)?.className, 'TfrmTIERSFiche', 'two letters swapped');
+    assert.equal(formNamedBy('TfrmTIERSFichee', all)?.className, 'TfrmTIERSFiche', 'one letter more');
+    assert.equal(formNamedBy('Customer name', all), undefined, 'a text with spaces is not a name');
+    assert.equal(formNamedBy('TfrmFacture', all), undefined, 'too far from every form');
+    assert.equal(nameDistance('abcd', 'abdc'), 1);
+});
+
+test('a button that opens a form by its name, in the call of a method of another object, finds the form of the .dpr', () => {
+    const all = [...forms, tiers];
+    const code = "frmMain.oGestionAffichageEcran.fAfficheListe('TfrmTIERSFihce', pnlContent);";
+    const r = formsOpenedBy(code, all, new Map(), 'TfrmMain');
+    assert.deepEqual(r.map(x => [x.form.className, x.how]), [['TfrmTIERSFiche', "named 'TfrmTIERSFihce'"]]);
+    // the name may be given deeper: the method that is called is followed, its string too
+    const units = new Map([['Ecran.pas', "procedure TGestion.fAfficheListe(psClasse: string);\nbegin\n  Open('TIERS_Fiche_frm');\nend;\n"]]);
+    assert.deepEqual(formsOpenedBy('frmMain.oG.fAfficheListe(1);', all, units, 'TfrmMain').map(x => [x.form.className, x.via]), [['TfrmTIERSFiche', 'fAfficheListe']]);
+    assert.deepEqual(formsOpenedBy("ShowMessage('TfrmTIERSFiche');", all, new Map(), 'TfrmTIERSFiche'), [], 'never the form itself');
 });

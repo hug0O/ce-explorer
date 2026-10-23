@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.22 — 2026-10-23
+- Designer: **Snap & Grid** are one titled group of the toolbar (its tooltip says what each is for: the magnet that catches neighbours, the grid step that rounds moving and resizing), and the grid offers many more steps: off, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 48 and 64 px, for exact placing.
+- Designer: a **double click on the fold handle** of the components opens the panel as wide as the longest line of the list, so every name and class is readable.
+
 ## 0.1.21 — 2026-10-23
 - Designer: the **palette is folded by default** (and remembers how you left it); a **bar between the components and the palette** gives more room to one or the other (double-click: default).
 - Designer: each side panel has a **fold handle** on its edge, a small chevron tab that hides or shows it (it stays on the window edge while the panel is hidden), instead of the vertical text tabs.

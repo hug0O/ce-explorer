@@ -329,6 +329,7 @@ body.hide-left #edgeL { left: 0; }
 body.hide-right #edgeR { right: 0; }
 body.full #toolbar { padding: 3px 8px; }
 #toolbar { gap: 4px 8px; }
+.tgtitle { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); cursor: help; }
 .tg { display: flex; gap: 4px; align-items: center; padding-right: 8px; border-right: 1px solid var(--vscode-panel-border, #444); }
 .tg.end { margin-left: auto; border-right: none; padding-right: 0; }
 .tg:empty { display: none; }
@@ -387,9 +388,13 @@ ${viewHtml()}
   <div class="tg" id="alignbar" title="Align and size the selected components (select two or more)"></div>
   <div class="tg">
     <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
-    <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapspacing" checked> Equal spacing</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
-    <label title="Grid step in pixels: what you move or resize snaps to multiples of it, and Shift + arrows move by it. off: free, 1 pixel at a time (the magnetism of the Snap button is separate: it catches the neighbours)">Grid <select id="grid"><option value="0">off</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option><option value="16">16</option></select></label>
     ${viewButton()}
+  </div>
+  <div class="tg" id="placegrp" title="Placing precisely. Snap (the magnet): while you drag or resize, a component is pulled to the edges and centres of its neighbours and of its container, and to equal gaps, with pink guide lines; hold Alt to move freely. Grid: the step in pixels that what you move or resize is rounded to, and that Shift + arrows move by; off is one pixel at a time.">
+    <span class="tgtitle">Snap &amp; Grid</span>
+    <span class="snapgrp"><button id="snap" class="active" title="Magnetism: components catch the edges and the centres of the others and of their container, with guide lines. Hold Alt while dragging to turn it off for a moment">🧲 Snap</button><button id="snapopt" class="ib" title="What the magnetism catches">▾</button><div id="snapmenu" hidden><div class="hint">What the magnet catches while you drag or resize:</div><label><input type="checkbox" id="snapedges" checked> Edges</label><label><input type="checkbox" id="snapcenters" checked> Centres</label><label><input type="checkbox" id="snapcont" checked> Container edges and centre</label><label><input type="checkbox" id="snapspacing" checked> Equal spacing</label><label><input type="checkbox" id="snapguides" checked> Guide lines</label></div></span>
+    <label title="The step in pixels that what you move or resize is rounded to, and that Shift + arrows move by. off: one pixel at a time. The finest steps (1, 2, 3 px) are for exact placing; 8 to 16 px for tidy layouts.">Grid <select id="grid"><option value="0">off</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option><option value="4" selected>4 px</option><option value="5">5 px</option><option value="6">6 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="12">12 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="24">24 px</option><option value="32">32 px</option><option value="48">48 px</option><option value="64">64 px</option></select></label>
+  </div>
   </div>
   <div class="tg">
     <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F). Press again to come back">⛶ Full screen</button>
@@ -2410,6 +2415,16 @@ ${layoutsScript()}
   $('togright').addEventListener('click', toggleRight);
   $('edgeL').addEventListener('click', toggleLeft);
   $('edgeR').addEventListener('click', toggleRight);
+  /* A double click on a fold handle opens the panel, as wide as the longest line of the components list (names and classes in full). */
+  function fitLeftWidth() {
+    var widest = 0;
+    document.querySelectorAll('#outline div').forEach(function (r) { if (r.scrollWidth > widest) { widest = r.scrollWidth; } });
+    var room = $('left').clientWidth - $('outline').clientWidth + 14;
+    setPanelWidth('wl', widest + room);
+    saveUi();
+  }
+  $('edgeL').addEventListener('dblclick', function () { state.ui.left = true; applyUi(); fitLeftWidth(); });
+  $('edgeR').addEventListener('dblclick', function () { state.ui.right = true; applyUi(); });
   $('full').addEventListener('click', function () { setFull(!state.ui.full); });
   if (window.ResizeObserver) { new ResizeObserver(function () { if (state.fit) { fitZoom(false); } }).observe($('center')); }
   (function () {

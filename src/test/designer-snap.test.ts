@@ -105,3 +105,20 @@ test('equal spacing: the box is pulled to the gap the others have, or to the mid
     const down = plain(magnetGaps({ x: 5, y: 62, w: 50, h: 20 }, col, 6, 'y')) as { d: number };
     assert.equal(down.d, -2, 'a gap of 10 under the second: 50 + 10 = 60');
 });
+
+test('Snap and Grid form one titled group that says what they are for, and the grid has fine steps', () => {
+    const html = designerHtml('N');
+    assert.match(html, /<div class="tg" id="placegrp" title="Placing precisely\./);
+    assert.match(html, /<span class="tgtitle">Snap &amp; Grid<\/span>/);
+    const group = html.slice(html.indexOf('id="placegrp"'), html.indexOf('</div>\n', html.indexOf('id="grid"')));
+    assert.ok(group.includes('id="snap"') && group.includes('id="grid"'), 'both are in the group');
+    for (const step of ['0', '1', '2', '3', '4', '5', '6', '8', '10', '12', '16', '20', '24', '32', '48', '64']) { assert.ok(group.includes(`<option value="${step}"`), 'grid step ' + step); }
+    assert.match(html, /<option value="4" selected>4 px<\/option>/, '4 px stays the default');
+});
+
+test('a double click on the fold handle of the components opens the panel as wide as its longest line', () => {
+    const html = designerHtml('N');
+    assert.match(html, /\$\('edgeL'\)\.addEventListener\('dblclick', function \(\) \{ state\.ui\.left = true; applyUi\(\); fitLeftWidth\(\); \}\);/);
+    assert.match(html, /function fitLeftWidth\(\)/);
+    assert.match(html, /querySelectorAll\('#outline div'\)/, 'the widest row of the list decides');
+});

@@ -150,7 +150,7 @@ export class FormDesignerPanel {
     /** What the 🗗 button read and found, for the cases where it finds nothing. */
     private static log(): vscode.OutputChannel { return (FormDesignerPanel.output ??= vscode.window.createOutputChannel('CE Form links')); }
 
-    /** Ctrl+K F in the designer tab: the full screen of the form, the same as its button. */
+    /** Ctrl+K Ctrl+F in the designer tab: the full screen of the form, the same as its button. */
     static toggleFullScreen(): void {
         for (const d of FormDesignerPanel.open.values()) {
             if (d.panel.active) { void d.panel.webview.postMessage({ type: 'toggleFull' }); return; }

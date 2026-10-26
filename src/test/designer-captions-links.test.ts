@@ -47,14 +47,14 @@ test('Word wrap is offered for the classes that have it, with the property each 
     assert.match(designerHtml('N'), /checkbox\('Word wrap', n\.wrap === true, setter\(n, n\.wrapProp\)\)/);
 });
 
-test('Ctrl+K F toggles the full screen of the designer, and the button says so', () => {
+test('Ctrl+K Ctrl+F toggles the full screen of the designer, and the button says so', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { keybindings: { key: string; command: string; when?: string }[]; commands: { command: string }[] } };
     const kb = pkg.contributes.keybindings.find(k => k.command === 'ce.delphi.designerFullScreen')!;
-    assert.deepEqual([kb.key, kb.when], ['ctrl+k f', "activeWebviewPanelId == 'ceFormDesigner'"], 'only while the designer is the active tab');
+    assert.deepEqual([kb.key, kb.when], ['ctrl+k ctrl+f', "activeWebviewPanelId == 'ceFormDesigner'"], 'only while the designer is the active tab');
     assert.ok(pkg.contributes.commands.some(c => c.command === 'ce.delphi.designerFullScreen'));
     assert.match(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8'), /registerCommand\('ce\.delphi\.designerFullScreen'/);
     const html = designerHtml('N');
-    assert.match(html, /⛶ Full screen<span class="kbd">Ctrl\+K F<\/span>/);
+    assert.match(html, /⛶ Full screen<span class="kbd">Ctrl\+K Ctrl\+F<\/span>/);
     assert.match(html, /if \(m\.type === 'toggleFull'\) \{ setFull\(!state\.ui\.full\); return; \}/);
 });
 

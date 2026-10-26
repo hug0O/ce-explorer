@@ -401,7 +401,7 @@ ${viewHtml()}
     ${toolsButton()}
   </div>
   <div class="tg end">
-    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F, or Ctrl+K F). Press again to come back">⛶ Full screen<span class="kbd">Ctrl+K F</span></button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
+    <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F, or Ctrl+K Ctrl+F). Press again to come back">⛶ Full screen<span class="kbd">Ctrl+K Ctrl+F</span></button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
   </div>
 </div>
 <div id="main">
@@ -2375,7 +2375,7 @@ ${layoutsScript()}
     $('edgeL').textContent = state.ui.left ? '‹' : '›'; $('edgeL').title = (state.ui.left ? 'Hide' : 'Show') + ' the palette and the component list (P)';
     $('edgeR').textContent = state.ui.right ? '›' : '‹'; $('edgeR').title = (state.ui.right ? 'Hide' : 'Show') + ' the inspector (I)';
     $('palsec').open = !!state.ui.pal;
-    $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen'; $('full').appendChild(el('span', 'kbd', 'Ctrl+K F'));
+    $('full').textContent = state.ui.full ? '⛶ Exit full screen' : '⛶ Full screen'; $('full').appendChild(el('span', 'kbd', 'Ctrl+K Ctrl+F'));
     if (state.fit) { fitZoom(true); }
     saveUi();
   }

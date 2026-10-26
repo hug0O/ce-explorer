@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.33 — 2026-10-26
+- Designer: the full screen shortcut is now **Ctrl+K Ctrl+F** (it was Ctrl+K F, which VS Code uses to close a folder), while the designer is the active tab; it is shown on the Full screen button, in the Shortcuts tab and in the guide. The key `F` alone still works in the designer.
+
 ## 0.1.32 — 2026-10-24
 - Designer: back to how it was: the **🗗 button is on every wired event** and the **🔗 link of a container shows whenever the unit puts a form in it** (the form does not have to be in the workspace). What stays from the last version: a form that the code only **mentions** (`frmMain`, a data module such as `dmdConnect`) is **never a link**; only the forms it creates, shows or names are offered.
 

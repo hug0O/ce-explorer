@@ -23,7 +23,7 @@ export const GUIDE: GuideTopic[] = [
             'Open a `.pas` or a `.dfm` and press `Ctrl+K D`, or use the **🎨 Designer** button (title bar, sidebar tab bar), **Form Designer** in the status bar, or right-click the file.',
             'The **component list** and the **palette** are on the left, the form in the middle, the **inspector** on the right (hide each with `P` / `I`, full screen with `F`). Everything you do is written into the `.dfm` and the unit the way the IDE writes it, and `Ctrl+Z` undoes it. A component the designer does not know is drawn as a placeholder and its properties are left untouched.',
         ],
-        keys: [{ keys: 'Ctrl+K D', what: 'open the designer' }, { keys: 'Ctrl+K Ctrl+B', what: 'designer ⇄ code' }, { keys: 'Ctrl+S', what: 'save the .dfm and the unit' }, { keys: 'Ctrl+K F', what: 'full screen of the designer' }],
+        keys: [{ keys: 'Ctrl+K D', what: 'open the designer' }, { keys: 'Ctrl+K Ctrl+B', what: 'designer ⇄ code' }, { keys: 'Ctrl+S', what: 'save the .dfm and the unit' }, { keys: 'Ctrl+K Ctrl+F', what: 'full screen of the designer' }],
     },
     {
         id: 'add', title: 'Add a component', summary: 'Pick it in the palette, click on the form', media: 'add-component.gif',

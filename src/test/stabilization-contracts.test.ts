@@ -31,6 +31,10 @@ test('the extension activates on startup and for every supported language', () =
         'onLanguage:javascript',
         'onLanguage:javascriptreact',
         'onLanguage:plsql',
+        'onLanguage:bat',
+        'onLanguage:powershell',
+        'onLanguage:shellscript',
+        'onLanguage:markdown',
     ];
 
     assert.deepEqual(manifest.activationEvents, expected);

@@ -80,6 +80,8 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
                 return new vscode.ThemeIcon('symbol-field');
             case MemberKind.Property:
                 return new vscode.ThemeIcon('symbol-property');
+            case MemberKind.Heading:
+                return new vscode.ThemeIcon('symbol-string');
             case MemberKind.Method:
             default:
                 if (member.isStatic) {
@@ -174,7 +176,8 @@ export class CodeExplorerService {
             out.push({ label: cls.name, description: cls.classType ?? 'class', position: cls.range.start, kind: 'class' });
             for (const m of cls.members) {
                 const pos = m.implementationRange?.start ?? m.range.start;
-                out.push({ label: m.name, description: `${cls.name} • ${m.kind}`, position: pos, kind: m.kind });
+                const label = m.kind === MemberKind.Heading ? `${'#'.repeat(Number(m.type?.slice(1)) || 1)} ${m.name}` : m.name;
+                out.push({ label, description: `${cls.name} • ${m.kind}`, position: pos, kind: m.kind });
             }
         }
         for (const proc of parsed.standaloneProcedures) {

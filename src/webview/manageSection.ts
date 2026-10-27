@@ -73,8 +73,8 @@ function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const ICONS: Record<string, string> = { field: '📦', property: '🔑', constructor: '🏗️', destructor: '🧹', method: '🔧' };
-const KIND_LABELS: Record<string, string> = { method: 'Methods', field: 'Fields', property: 'Properties', constructor: 'Constructors', destructor: 'Destructors' };
+const ICONS: Record<string, string> = { field: '📦', property: '🔑', constructor: '🏗️', destructor: '🧹', method: '🔧', heading: '§' };
+const KIND_LABELS: Record<string, string> = { method: 'Methods', field: 'Fields', property: 'Properties', constructor: 'Constructors', destructor: 'Destructors', heading: 'Headings' };
 const VIS_LETTER: Record<string, string> = { public: '+', private: '-', protected: '#', published: '★' };
 
 /** Rows in the order of the chosen grouping, each with the heading it falls under (empty for none). */

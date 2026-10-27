@@ -12,6 +12,10 @@ import { CSharpLanguageProvider } from '../providers/CSharpLanguageProvider';
 import { GoLanguageProvider } from '../providers/GoLanguageProvider';
 import { TypeScriptLanguageProvider } from '../providers/TypeScriptLanguageProvider';
 import { PlSqlLanguageProvider } from '../providers/PlSqlLanguageProvider';
+import { BatchLanguageProvider } from '../providers/BatchLanguageProvider';
+import { PowerShellLanguageProvider } from '../providers/PowerShellLanguageProvider';
+import { ShellLanguageProvider } from '../providers/ShellLanguageProvider';
+import { MarkdownLanguageProvider } from '../providers/MarkdownLanguageProvider';
 
 export class ProviderRegistry {
     private providers: Map<string, ILanguageProvider> = new Map();
@@ -30,6 +34,10 @@ export class ProviderRegistry {
         this.register(new GoLanguageProvider());
         this.register(new TypeScriptLanguageProvider());
         this.register(new PlSqlLanguageProvider());
+        this.register(new BatchLanguageProvider());
+        this.register(new PowerShellLanguageProvider());
+        this.register(new ShellLanguageProvider());
+        this.register(new MarkdownLanguageProvider());
     }
 
     register(provider: ILanguageProvider): void {

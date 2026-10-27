@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.37.vsix
+code --install-extension ce-code-explorer-0.1.38.vsix
 ```
 
 ## Supported Languages
@@ -30,6 +30,10 @@ code --install-extension ce-code-explorer-0.1.37.vsix
 | Go | `.go` |
 | TypeScript / JavaScript | `.ts` `.tsx` `.js` `.jsx` |
 | PL/SQL | `.pks` `.pkb` `.sql` `.txt` |
+| Batch (Windows) | `.bat` `.cmd` (labels = routines, `set` = variables) |
+| PowerShell | `.ps1` `.psm1` (functions, classes, variables) |
+| Shell (sh / bash / zsh) | `.sh` `.bash` `.zsh` `.ksh` (functions, variables) |
+| Markdown | `.md` `.markdown` (the headings are the members: Structure tab, `Alt+G`, `Alt+PageUp/Down` walk the document by title) |
 
 
 ## What it is for

@@ -19,8 +19,8 @@ function classInfoOf(cls: ClassInfo): ReviewClassInfo {
     return {
         name: cls.name, parentClass: cls.parentClass, isInterface: cls.isInterface, isRecord: cls.isRecord,
         startLine: cls.range.start.line, endLine: cls.range.end.line,
-        members: cls.members.map(m => ({
-            name: m.name, kind: m.kind, visibility: m.visibility, isVirtual: m.isVirtual, isAbstract: m.isAbstract, isOverride: m.isOverride,
+        members: cls.members.filter(m => m.kind !== MemberKind.Heading).map(m => ({
+            name: m.name, kind: m.kind as ReviewClassInfo['members'][number]['kind'], visibility: m.visibility, isVirtual: m.isVirtual, isAbstract: m.isAbstract, isOverride: m.isOverride,
             modifiers: m.modifiers ?? [], returnType: m.returnType, params: m.parameters.map(p => p.name),
             startLine: m.range.start.line, endLine: m.range.end.line,
             implStart: m.implementationRange?.start.line, implEnd: m.implementationRange?.end.line,

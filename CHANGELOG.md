@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.38 — 2026-10-28
+- **Four new languages**: Windows **batch** (`.bat` `.cmd`: labels are the routines, `set` the variables), **PowerShell** (`.ps1` `.psm1`: functions with their parameters, classes with methods and properties, variables), Unix **shell** (`.sh` `.bash` `.zsh`: functions, variables) and **Markdown** (`.md`).
+- **Markdown by title**: the headings (ATX and Setext, with their level, ignoring code blocks, comments and front matter) are the members: the Structure tab lists them, `Alt+G` finds a title by a few letters, `Alt+PageDown` / `Alt+PageUp` jump to the next / previous title, and *Add method* appends a new section.
+- These files get the same Structure tab, member keys, quick actions and code lens as the other languages; generating a routine or a variable writes it in the syntax of the language.
+
 ## 0.1.37 — 2026-10-28
 - **The vi-like quick navigation mode is removed**, replaced by shortcuts that need no mode, each in the Shortcuts tab, the *Code Explorer* right-click submenu and the quick actions: `Ctrl+Shift+Down` / `Ctrl+Shift+Up` next / previous member, `Alt+Enter` from a declaration to its implementation and back (the interface / implementation jump of Delphi, for every language whose members have both), `Alt+G` a box to pick a member by typing a few letters, the code scrolling to each one as you move (Esc brings you back). The keys avoid what VS Code binds in the editor (`Alt+Up/Down` move a line, `Alt+PageUp/PageDown` scroll, `Ctrl+Alt+Up/Down` add a cursor…) and need no AltGr on an AZERTY keyboard; a test checks that no key of the extension is one VS Code uses, and that two commands share a key only for different kinds of file. `Alt+Left` / `Alt+Right` (back / forward) are VS Code's own.
 

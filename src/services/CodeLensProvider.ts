@@ -27,12 +27,15 @@ export class CeCodeLensProvider implements vscode.CodeLensProvider {
             const methodCount = cls.members.filter(m => m.kind === MemberKind.Method || m.kind === MemberKind.Constructor).length;
             const fieldCount = cls.members.filter(m => m.kind === MemberKind.Field).length;
             const propertyCount = cls.members.filter(m => m.kind === MemberKind.Property).length;
+            const headingCount = cls.members.filter(m => m.kind === MemberKind.Heading).length;
             const typeLabel = cls.classType || (cls.isInterface ? 'interface' : cls.isRecord ? 'record' : 'class');
 
             const parts: string[] = [];
             if (methodCount > 0) parts.push(`${methodCount} method${methodCount > 1 ? 's' : ''}`);
             if (fieldCount > 0) parts.push(`${fieldCount} field${fieldCount > 1 ? 's' : ''}`);
             if (propertyCount > 0) parts.push(`${propertyCount} propert${propertyCount > 1 ? 'ies' : 'y'}`);
+
+            if (headingCount > 0) parts.push(`${headingCount} heading${headingCount > 1 ? 's' : ''}`);
 
             const summary = parts.length > 0 ? parts.join(', ') : 'empty';
             lenses.push(new vscode.CodeLens(

@@ -7,6 +7,8 @@ export enum MemberKind {
     Property = 'property',
     Constructor = 'constructor',
     Destructor = 'destructor',
+    /** A title of a Markdown document. */
+    Heading = 'heading',
 }
 
 export enum Visibility {

@@ -72,6 +72,7 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: 'Tab / Shift+Tab', label: 'Select the next / previous component (form order, siblings by TabOrder)' },
     { keys: 'Enter', label: 'Create or open the default handler of the selected component' },
     { keys: '0 / 9', label: 'Zoom 100% / Fit window' },
+    { keys: '/', label: 'Go to a component: a box to find it by name, class or caption (arrows and Enter)' },
     { keys: 'Ctrl+D', label: 'Duplicate the selected components next to the originals' },
     { keys: 'Arrows', label: 'Move the selection by 1 pixel (Shift: by a grid step)' },
     { keys: 'Ctrl+Arrows', label: 'Resize the selection by 1 pixel (Shift: by a grid step)' },

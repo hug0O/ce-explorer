@@ -11,7 +11,7 @@ import { COMPONENTS, EVENT_PROP_RE, resolveComponentDef } from '../services/Delp
 import { planAddEvent, wiredEvents } from '../services/DelphiEvents';
 import { handlerImplementation } from '../services/DelphiSync';
 import {
-    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setChartTitleEdits, setSqlEdits, verifyEdit,
+    DesignResult, EditExpectation, addEdits, buildDesignModel, danglingRefs, deleteEdits, namesWithin, nodeAtLine, pasteEdits, rectEdits, renameEdits, reparentEdits, setPropertyEdits, setChartTitleEdits, setSqlEdits, zOrderEdits, verifyEdit,
 } from '../services/DesignerModel';
 import { createColumnsEdits, createFieldsEdits } from '../services/DesignerFields';
 import { layouts, loadMarks, saveLayouts, saveMarks } from '../services/DesignerStore';
@@ -677,6 +677,12 @@ export class FormDesignerPanel {
                     found.map(f => ({ label: f.form.className, description: [f.how, f.via ? 'via ' + f.via : ''].filter(Boolean).join(' · '), detail: f.form.pas, ref: f })),
                     { title: opened.length ? `Forms opened by ${handler}` : `${handler} opens no form: it refers to`, placeHolder: 'Open its designer' }))?.ref;
                 if (pick) { await this.openFormFile(pick.form.pas); }
+                return;
+            }
+            case 'zorder': {
+                const list = names(m.names);
+                const dir = m.dir === 'back' ? 'back' : 'front';
+                await this.commit(dir === 'front' ? 'Bring to front' : 'Send to back', zOrderEdits(dfm, list, dir), list, { touched: list, props: [] });
                 return;
             }
             case 'runTool': {

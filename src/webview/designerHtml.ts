@@ -1265,7 +1265,7 @@ ${ergoHtml()}
   function section(box, title, key, build) {
     var d = el('details', 'insec');
     d.open = state.insOpen[key] !== false;
-    d.addEventListener('toggle', function () { state.insOpen[key] = d.open; });
+    d.addEventListener('toggle', function () { if (!d.hasAttribute('data-forced')) { state.insOpen[key] = d.open; } });
     d.appendChild(el('summary', '', title));
     build(d);
     box.appendChild(d);
@@ -1881,8 +1881,9 @@ ${ergoHtml()}
     var count = Object.keys(byName).length - 1;
     var s = m.root.name + ' · ' + count + ' component(s)';
     if (state.sel.length === 1) { var n = byName[state.sel[0]]; s += ' · ' + pathOf(n.name).join(' › ') + ' (' + n.x + ', ' + n.y + ') ' + n.w + '×' + n.h + (n.align ? ' · ' + n.align : ''); }
-    else if (state.sel.length > 1) { s += ' · ' + state.sel.length + ' selected'; }
+    else if (state.sel.length > 1) { s += ' · ' + state.sel.length + ' selected' + ergoBox(); }
     if (state.tool) { s += ' · tool: ' + state.tool + (state.palHost[state.tool] ? ' — click ' + HOST_LABEL[state.palHost[state.tool]] + ' on the form' : '') + ' (Esc to cancel)'; }
+    ergoToast(state.notice);
     $('status').textContent = state.notice ? state.notice : s;
   }
 

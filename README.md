@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.34.vsix
+code --install-extension ce-code-explorer-0.1.35.vsix
 ```
 
 ## Supported Languages
@@ -350,7 +350,7 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 
 #### Designer: right-click, rename and keyboard
 
-- **Right-click** a component (on the form or in the list) for its menu: cut, copy, paste, duplicate, rename, default handler, parent, lock, hide, delete. **F2** renames in place. **Tab / Shift+Tab** walk the components, **Enter** opens the default handler, **0** / **9** set 100% / Fit window.
+- **Right-click** a component (on the form or in the list) for its menu: cut, copy, paste, duplicate, rename, default handler, parent, lock, hide, delete. **F2** renames in place. **Tab / Shift+Tab** walk the components, **Enter** opens the default handler, **0** / **9** set 100% / Fit window, **/** goes to a component by name. The menu also copies and pastes an *appearance* and brings to front / sends to back; the inspector has a *Filter properties* box.
 
 #### Designer: the Tools menu
 

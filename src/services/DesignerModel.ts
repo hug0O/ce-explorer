@@ -8,6 +8,7 @@ import { COMPONENTS, TextEdit, existingNames, nextComponentName, resolveComponen
 import { DfmNode, findNode, isContainer, parseDfmTree, planAddComponent } from './DelphiLayout';
 import { planDfmDelete, planDfmRename } from './DelphiSync';
 import { wiredEvents } from './DelphiEvents';
+import { insertIntoNode } from './DelphiLayout';
 import { nodeBlock, reindentBlock, renameIdentifiers, setProp, lineStartOffsets, deleteProp, parseAnchors } from '../utils/dfmEdit';
 import { applyTextEdits } from './DelphiForm';
 import { Family, familyOf } from './DelphiThirdParty';
@@ -931,6 +932,44 @@ function stringsEdits(dfm: string, node: DfmNode, prop: string, lines: string[])
     const from = starts[first];
     const to = starts[last + 1] ?? dfm.length;
     return { dfmEdits: [{ offset: from, length: to - from, text }], pasEdits: [] };
+}
+
+/**
+ * Brings components to the front or sends them to the back: the order of the objects in their parent is the order they are
+ * drawn in (the last one is on top), so the block of each is moved to the end or to the start of its parent. The relative order of the
+ * moved ones is kept; the ones already in place are left alone.
+ */
+export function zOrderEdits(dfm: string, names: string[], dir: 'front' | 'back'): DesignResult {
+    const root = parseDfmTree(dfm);
+    if (!root) { return fail('The .dfm is not in text format.'); }
+    const picked = names.map(n => findNode(root, n)).filter((n): n is DfmNode => !!n && n.depth > 0 && !!n.parent);
+    if (!picked.length) { return fail('Select components to move in front of or behind the others.'); }
+    const bad = picked.find(n => isNestedNode(n) || isPart(n));
+    if (bad) { return fail(`${bad.name} has no place of its own: its order is the one its parent gives it.`); }
+    const starts = lineStartOffsets(dfm);
+    const edits: TextEdit[] = [];
+    const parents = [...new Set(picked.map(n => n.parent!))];
+    for (const parent of parents) {
+        const kids = parent.children;
+        const moving = kids.filter(k => picked.includes(k));
+        // the ones already at the end (or the start) of the parent stay where they are
+        let skip = 0;
+        if (dir === 'front') { while (skip < moving.length && kids[kids.length - 1 - skip] === moving[moving.length - 1 - skip]) { skip++; } }
+        else { while (skip < moving.length && kids[skip] === moving[skip]) { skip++; } }
+        const todo = dir === 'front' ? moving.slice(0, moving.length - skip) : moving.slice(skip);
+        if (!todo.length) { continue; }
+        const text = todo.map(n => nodeBlock(dfm, n).text).join('');
+        for (const n of todo) { const b = nodeBlock(dfm, n); edits.push({ offset: b.offset, length: b.length, text: '' }); }
+        if (dir === 'front') {
+            const stay = kids.slice(kids.length - skip);
+            const at = stay.length ? starts[stay[0].startLine] : insertIntoNode(dfm, parent, '').offset;
+            edits.push({ offset: at, length: 0, text });
+        } else {
+            const first = kids.find(k => !moving.slice(0, skip).includes(k) && !todo.includes(k));
+            edits.push({ offset: first ? starts[first.startLine] : insertIntoNode(dfm, parent, '').offset, length: 0, text });
+        }
+    }
+    return { dfmEdits: edits, pasEdits: [] };
 }
 
 export interface AddRequest {

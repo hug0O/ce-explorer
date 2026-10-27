@@ -46,3 +46,28 @@ test('the keys that need no modifier are listed for the Shortcuts tab', () => {
     assert.match(script, /ev\.key === '0'/);
     assert.match(script, /ev\.key === '9'/);
 });
+
+test('the quick box, the appearance copy, the inspector filter, the toast and the order are in the page', () => {
+    assert.match(html, /id="gotoq"/);
+    assert.match(html, /if \(ev\.key === '\/'\) \{ openGoto\(\); ev\.preventDefault\(\); return true; \}/);
+    assert.match(html, /addViewAction\('Go to a component\.\.\.'/);
+    for (const label of ['Copy appearance', 'Paste appearance', 'Bring to front', 'Send to back']) { assert.ok(html.includes(label), label); }
+    assert.match(html, /post\(\{ type: 'zorder', names: state\.sel\.slice\(\), dir: 'front' \}\)/);
+    assert.match(html, /placeholder = 'Filter properties\.\.\.'/);
+    assert.match(html, /renderInspector = function \(\) \{ plainRender\(\); applyInspFilter\(\); \}/);
+    assert.match(html, /ergoToast\(state\.notice\);/);
+    assert.match(html, /ergoBox\(\)/, 'the box of several selected components is in the status bar');
+    assert.match(html, /if \(!d\.hasAttribute\('data-forced'\)\)/, 'a section opened by the filter is not remembered as open');
+});
+
+test('the quick box finds by name, class or caption, the closest names first', () => {
+    const box = { byName: {} as Record<string, unknown> } as Record<string, unknown>;
+    vm.createContext(box);
+    vm.runInContext(ergoScript(), box);
+    vm.runInContext(`
+      var byName = { form: { name: 'form', cls: 'TF' }, btnSave: { name: 'btnSave', cls: 'TButton', caption: 'Save' }, lblSaveAs: { name: 'lblSaveAs', cls: 'TLabel', caption: 'x' }, edtName: { name: 'edtName', cls: 'TEdit', text: 'save me' }, part: { name: 'part', cls: 'TcxGridColumn', structural: true } };
+      function rootName() { return 'form'; }
+      var $ = function () { return { value: 'save' }; };`, box);
+    // a name that contains the text comes before one that only has it in its caption or text, then by name
+    assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('gotoMatches()', box))).map((m: { name: string }) => m.name), ['btnSave', 'lblSaveAs', 'edtName']);
+});

@@ -22,7 +22,11 @@ test('every keybinding of package.json is listed, in the mode its when clause na
     const groups = buildShortcutGroups(pkg);
     const by = (id: string) => groups.find(g => g.id === id)!;
     const listed = groups.flatMap(g => g.items).filter(i => i.command).map(i => i.command);
-    for (const k of pkg.contributes.keybindings) { assert.ok(listed.includes(k.command), k.command + ' is listed'); }
+    for (const k of pkg.contributes.keybindings) {
+        if (/ce\.navMode/.test(k.when ?? '')) { continue; }   // the keys of the quick navigation mode are listed as a group of their own
+        assert.ok(listed.includes(k.command), k.command + ' is listed');
+    }
+    assert.ok(by('nav').items.length >= 40, 'the quick navigation mode has its own group');
 
     const commands = (id: string): (string | undefined)[] => by(id).items.map(i => i.command);
     assert.ok(commands('delphi').includes('ce.delphi.align') && commands('delphi').includes('ce.delphi.designer') && commands('delphi').includes('ce.delphi.toggleDesigner'));
@@ -31,7 +35,7 @@ test('every keybinding of package.json is listed, in the mode its when clause na
     assert.ok(commands('code').includes('ce.manageMembers') && commands('code').includes('ce.editMember'), 'the Structure tab key works in any code file');
     assert.ok(commands('any').includes('ce.alignSelection') && commands('any').includes('ce.memo.open'), 'keys with no file restriction');
     assert.ok(commands('designer').includes('ce.delphi.toggleDesigner'), 'Ctrl+K Ctrl+B also works from inside the designer');
-    assert.deepEqual(groups.map(g => g.id), ['code', 'any', 'delphi', 'plsql', 'designer', 'sidebar']);
+    assert.deepEqual(groups.map(g => g.id), ['code', 'any', 'delphi', 'plsql', 'designer', 'nav', 'sidebar']);
 
     const align = by('delphi').items.find(i => i.command === 'ce.delphi.align')!;
     const callers = by('plsql').items.find(i => i.command === 'ce.plsql.findCallers')!;
@@ -147,11 +151,11 @@ test('a Designer button sits in the tab bar for a Delphi file, and stays while t
 
 test('the designer can be opened from the title bar, the editor and Explorer menus, and the Delphi status bar button', () => {
     const menus = (pkg as any).contributes.menus;
-    for (const where of ['editor/title', 'editor/context', 'explorer/context']) {
+    for (const where of ['editor/title', 'ce.editorMenu', 'explorer/context']) {
         assert.ok(menus[where].some((m: any) => m.command === 'ce.delphi.designer' && /pas\|dfm/.test(m.when)), where);
     }
-    const ext = fs.readFileSync(path.join(__dirname, '..', 'extension.ts'), 'utf8');
-    assert.ok(/createStatusBarItem\(vscode\.StatusBarAlignment\.Left, 90\)/.test(ext) && /designerStatus\.command = 'ce\.delphi\.designer'/.test(ext));
+    const status = fs.readFileSync(path.join(__dirname, '..', 'services', 'StatusMenu.ts'), 'utf8');
+    assert.ok(/command: 'ce\.delphi\.designer'/.test(status), 'the status bar menu offers the designer on a Delphi file');
     const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'FormDesignerPanel.ts'), 'utf8');
     assert.ok(/From the designer tab itself there is no text editor: the designer that is open is shown again/.test(panel), 'the command works from the designer tab');
 });

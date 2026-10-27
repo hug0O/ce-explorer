@@ -71,6 +71,9 @@ const ALLOWED_RUN_COMMANDS = new Set<string>([
     'ce.editMember', 'ce.renameMember', 'ce.deleteMember',
 ]);
 
+/** A small picture in front of the name of each tab, so that the tab bar stays on one line in a narrow sidebar. */
+const TAB_ICONS: Record<string, string> = { detail: '🔍', manage: '☰', tools: '🛠', memo: '📝', shortcuts: '⌨' };
+
 export class MemberViewerPanel implements vscode.WebviewViewProvider {
     public static readonly viewType = 'ceViewer';
     private static readonly CHIPS_KEY = 'ce.alignChips';
@@ -84,6 +87,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     // Active tab of the member view: 'detail' (selected member) or 'manage'
     // (add / edit / rename / delete any member of the current type at any time).
     private _tab: SidebarTab = 'detail';
+    /** The tab last chosen for each language: a Delphi unit opens on Structure, a SQL file on Tools, whatever was chosen there last. */
+    private _tabByLanguage: Record<string, SidebarTab> = {};
+    private _tabLanguage = '';
     // Sub-tab of the Tools tab (form / components / spacing / plsql / align); '' = the first one that applies.
     private _toolsTab = '';
     // Structure tab: filter text and kind, grouping, and the type being managed ('' = the one under the cursor).
@@ -135,6 +141,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         private readonly _codeGenerator: CodeGeneratorService,
         private readonly _extensionContext: vscode.ExtensionContext
     ) {
+        this._tabByLanguage = _extensionContext.globalState?.get<Record<string, SidebarTab>>('ce.tabByLanguage', {}) ?? {};
         _extensionContext.subscriptions.push(
             vscode.window.onDidChangeTextEditorSelection(e => {
                 this.scheduleCursorUpdate(e.textEditor);
@@ -142,6 +149,14 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             vscode.window.onDidChangeActiveTextEditor(editor => {
                 // Another file: the tabs must be drawn again even when the new file has the same member id.
                 this._stateKey = '';
+                if (editor && editor.document.uri.scheme !== 'output') {
+                    const lang = this._providerRegistry.getByDocument?.(editor.document)?.languageId ?? editor.document.languageId;
+                    if (lang && lang !== this._tabLanguage) {
+                        this._tabLanguage = lang;
+                        const saved = this._tabByLanguage[lang];
+                        if (saved) { this._tab = saved; }
+                    }
+                }
                 if (editor && editor.document.uri.scheme !== 'output') {
                     const file = editor.document.uri.toString();
                     if (this._filterFile && file !== this._filterFile) { this._manageFilter = ''; this._manageKind = ''; }
@@ -202,7 +217,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'detail'); break;
+                case 'setTab': this.rememberTab(msg.tab); this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'detail'); break;
                 case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
                 case 'openKeybindings': await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', '@ext:' + this.extensionId()); break;
                 case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
@@ -695,6 +710,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (!this._memoFolder || path.dirname(doc.uri.fsPath) !== this._memoFolder || !/[.]md$/i.test(doc.uri.fsPath)) { return; }
         this._memoCache.delete(sanitizeLang(path.basename(doc.uri.fsPath, path.extname(doc.uri.fsPath))));
         if (this._tab === 'memo' && this._mode === 'view') { this._stateKey = ''; this.updateView(); }
+    }
+
+    /** The tab the user picked is the one this language comes back to. */
+    private rememberTab(tab: unknown): void {
+        if (!this._tabLanguage || (tab !== 'detail' && tab !== 'manage' && tab !== 'tools' && tab !== 'memo' && tab !== 'shortcuts')) { return; }
+        this._tabByLanguage[this._tabLanguage] = tab;
+        void this._extensionContext.globalState?.update('ce.tabByLanguage', this._tabByLanguage);
     }
 
     private setTab(tab: SidebarTab): void {
@@ -1520,7 +1542,7 @@ ${shortcutsScript()}
 
     private tabsHtml(firstLabel: string): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
-            `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''}>${label}</button>`;
+            `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''} data-ico="${TAB_ICONS[id] ?? ''}">${label}</button>`;
         return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
     }
 
@@ -1658,7 +1680,11 @@ li.param-item:hover .param-edit { opacity: 0.8; }
 .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
 .var-btn:hover { filter: brightness(1.3); }
 ${toolsCss()}
-.tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; white-space: nowrap; }
+.tab[data-ico]::before { content: attr(data-ico); margin-right: 4px; opacity: 0.85; }
+@media (max-width: 300px) { .tab { padding: 5px 6px; } .tab:not(.active)[data-ico]::before { margin-right: 0; } }
 .tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
 .tab:hover { color: var(--vscode-foreground); }

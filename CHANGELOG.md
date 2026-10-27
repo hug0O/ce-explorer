@@ -2,6 +2,14 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.36 — 2026-10-28
+- **Quick actions** (`Ctrl+K Ctrl+A`): the menu is now built from the commands of the extension that suit the file (Delphi ones in Delphi files, PL/SQL ones in PL/SQL files, nothing that needs a tree), grouped (Navigate, Members, Variables and refactoring, Review, Delphi forms, PL/SQL, Tools), with the shortcut of each and the last actions used first.
+- **Code Explorer submenu** in the right-click menu of the editor: one entry instead of ten loose ones, with the commands grouped (quick actions, structure and navigation, edit, review, Delphi, PL/SQL).
+- **Structure tab keyboard**: Up / Down move along the members, Enter goes to one, F2 renames, E edits, Delete deletes; the member under the cursor is shown when the list opens.
+- **Tab bar** of the sidebar on one line (it scrolls sideways when narrow) with an icon per tab, and **each language comes back to the tab you last used for it**.
+- **One status bar item** instead of three (language, encoding, designer): it says the language CE reads the file as, turns to a warning when the accents look wrong, and its menu offers quick actions, the form designer, the structure, the navigation mode, the language, the encoding, the memo and the guide.
+- **Quick navigation mode** (vi-like): turn it on from the status bar menu, the right-click submenu or *CE: Quick navigation mode*; a block cursor shows that letters are not typed. `h j k l w b 0 $ gg G` move (a number first repeats: `5j`, `12G`), `}` / `{` (or `]]` / `[[`) go to the next / previous member, `gd gr gi H L` go to definition, references, implementation, back, forward, `/ n N *` search, `s` quick actions, `m` structure, `e` edit member, `r` rename, `d` designer <-> code, `c` review, `t` template, `za zo zc zR zM` fold, `?` lists them all; `i a A I o O` or Esc go back to typing. The keys are in the Shortcuts tab. If another extension (a vi emulator) already reads the editor keys, the mode says so and does not start.
+
 ## 0.1.35 — 2026-10-27
 - Designer: **go to a component** — the `/` key (or *Go to a component...* in the View menu) opens a box that finds a component by name, class or caption; arrows and Enter select it and bring it into view.
 - Designer: **copy appearance** — right-click a component > *Copy appearance* (size, anchors, align, colours, shown, enabled), then *Paste appearance* on one or several others.

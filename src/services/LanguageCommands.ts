@@ -13,25 +13,10 @@ const STORAGE_KEY = 'ce.languageOverrides';
 export function registerLanguageCommands(context: vscode.ExtensionContext, registry: ProviderRegistry, onChanged: () => void): void {
     languageOverrides.load(context.workspaceState.get(STORAGE_KEY));
 
-    const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 80);
-    item.command = 'ce.setLanguage';
     const nameOf = (id: string): string => registry.getByLanguageId(id)?.displayName ?? id;
 
-    const update = (editor: vscode.TextEditor | undefined): void => {
-        const doc = editor?.document;
-        if (!doc || doc.uri.scheme !== 'file') { item.hide(); return; }
-        const chosen = languageOverrides.resolve(doc.uri.fsPath);
-        if (chosen) {
-            const via = languageOverrides.source(doc.uri.fsPath) === 'extension' ? 'every ' + extensionOf(doc.uri.fsPath) + ' file' : 'this file';
-            item.text = `$(symbol-class) CE: ${nameOf(chosen)}`;
-            item.tooltip = `CE reads ${via} as ${nameOf(chosen)}. Click to change it or to remove it.`;
-            item.show();
-        } else if (!registry.getByDocument(doc) && doc.languageId === 'plaintext') {
-            item.text = '$(question) CE: language';
-            item.tooltip = 'CE does not know this file. Click to tell it which language it is written in: the members, the tools and the review then work on it.';
-            item.show();
-        } else { item.hide(); }
-    };
+    /** The status bar item of the extension says which language a file is read as: it is told to look again. */
+    const update = (_editor?: vscode.TextEditor): void => { void vscode.commands.executeCommand('ce.refreshStatus'); };
 
     const save = async (): Promise<void> => {
         await context.workspaceState.update(STORAGE_KEY, languageOverrides.toJSON());
@@ -41,7 +26,6 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
     };
 
     context.subscriptions.push(
-        item,
         // from the Tools tab: '' goes back to what the extension detects
         vscode.commands.registerCommand('ce.setLanguageTo', async (id: unknown, scope: unknown) => {
             const doc = currentDocument();

@@ -99,6 +99,7 @@ export function manageCss(): string {
 .mfilter .mclear { position: absolute; right: 2px; top: 1px; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; display: none; }
 .mfilter .mclear.on { display: block; }
 .mgroup { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 8px 0 2px 2px; list-style: none; }
+.mrow.kcur { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: -1px; }
 .mrow .vis { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, monospace); width: 10px; flex: none; text-align: center; }
 .mnested { list-style: none; display: flex; gap: 4px; align-items: center; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-size: 12px; color: var(--vscode-descriptionForeground); }
 .mnested:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
@@ -195,7 +196,7 @@ export function manageListHtml(v: ManageView): string {
     if (total === 0) {
         html += `<p class="empty-section">Nothing here yet, use the buttons above.</p>`;
     } else {
-        html += `<ul class="mlist" id="mList">`;
+        html += `<ul class="mlist" id="mList" title="Up / Down move along the members, Enter goes to one, F2 renames it, E edits it, Delete deletes it">`;
         let lastHeading = '';
         for (const { row: m, heading } of orderRows(v.rows, v.group)) {
             if (heading && heading !== lastHeading) { html += `<li class="mgroup" data-group="1">${esc(heading)}</li>`; }
@@ -279,6 +280,40 @@ function initManage(api) {
     if ($('mRefresh')) { $('mRefresh').addEventListener('click', function () { api.postMessage({ command: 'manageRefresh' }); }); }
     if ($('mType')) { $('mType').addEventListener('change', function () { api.postMessage({ command: 'manageClass', id: $('mType').value }); }); }
     if ($('mGroup')) { $('mGroup').addEventListener('change', function () { api.postMessage({ command: 'manageGroup', mode: $('mGroup').value }); }); }
+    /* The keyboard: arrows move along the members, Enter goes to one, F2 renames it, E edits it, Delete deletes it; the member under the cursor is shown. */
+    (function () {
+      function shown() { return Array.prototype.filter.call(document.querySelectorAll('#mList .mrow'), function (r) { return r.style.display !== 'none'; }); }
+      function mark(row) {
+        document.querySelectorAll('#mList .mrow.kcur').forEach(function (r) { r.classList.remove('kcur'); });
+        if (row) { row.classList.add('kcur'); if (row.scrollIntoView) { row.scrollIntoView({ block: 'nearest' }); } }
+      }
+      var cursorRow = document.querySelector('#mList .mrow.sel');
+      if (cursorRow && cursorRow.scrollIntoView) { cursorRow.scrollIntoView({ block: 'center' }); }
+      function act(row, what) { var b = row && row.querySelector('[data-m-act="' + what + '"]'); if (b) { b.click(); } }
+      document.addEventListener('keydown', function (ev) {
+        var t = ev.target, tag = t && t.tagName;
+        var inField = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+        if (inField && t.id !== 'mFilter' && t.id !== 'mSearch') { return; }
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
+        var rows = shown();
+        if (!rows.length) { return; }
+        var at = -1;
+        rows.forEach(function (r, i) { if (r.classList.contains('kcur')) { at = i; } });
+        if (at < 0) { rows.forEach(function (r, i) { if (r.classList.contains('sel')) { at = i; } }); }
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          var next = at < 0 ? (ev.key === 'ArrowDown' ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, at + (ev.key === 'ArrowDown' ? 1 : -1)));
+          mark(rows[next]); ev.preventDefault(); return;
+        }
+        if (inField) { if (ev.key === 'Enter' && t.id === 'mFilter') { var go = rows[at >= 0 ? at : 0]; act(go, 'go'); ev.preventDefault(); } return; }
+        if (ev.key === 'Home') { mark(rows[0]); ev.preventDefault(); }
+        else if (ev.key === 'End') { mark(rows[rows.length - 1]); ev.preventDefault(); }
+        else if (at < 0) { return; }
+        else if (ev.key === 'Enter') { act(rows[at], 'go'); ev.preventDefault(); }
+        else if (ev.key === 'F2') { act(rows[at], 'rename'); ev.preventDefault(); }
+        else if (ev.key === 'e' || ev.key === 'E') { act(rows[at], 'edit'); ev.preventDefault(); }
+        else if (ev.key === 'Delete') { act(rows[at], 'delete'); ev.preventDefault(); }
+      });
+    })();
     var f = $('mFilter');
     if (!f) { return; }
     function apply(save) {

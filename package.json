@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -381,58 +381,139 @@
       {
         "command": "ce.openGuide",
         "title": "CE: Open the User Guide (pictures and animations)"
+      },
+      {
+        "command": "ce.nav.toggle",
+        "title": "CE: Quick navigation mode (vi-like keys in the code)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "ce.editorMenu",
+        "label": "Code Explorer"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "ce.showActions",
+          "submenu": "ce.editorMenu",
           "group": "ce@0"
+        }
+      ],
+      "ce.editorMenu": [
+        {
+          "command": "ce.showActions",
+          "group": "0_quick@1"
         },
         {
           "command": "ce.manageMembers",
           "when": "editorTextFocus",
-          "group": "ce@0"
+          "group": "1_navigate@1"
+        },
+        {
+          "command": "ce.goToMember",
+          "when": "editorTextFocus",
+          "group": "1_navigate@2"
+        },
+        {
+          "command": "ce.goToWorkspaceMember",
+          "when": "editorTextFocus",
+          "group": "1_navigate@3"
         },
         {
           "command": "ce.editMember",
           "when": "editorTextFocus",
-          "group": "ce@1"
+          "group": "2_edit@1"
         },
         {
           "command": "ce.renameVariable",
           "when": "editorTextFocus",
-          "group": "ce@2"
+          "group": "2_edit@2"
         },
         {
           "command": "ce.changeVariableType",
           "when": "editorTextFocus",
-          "group": "ce@3"
+          "group": "2_edit@3"
         },
         {
           "command": "ce.deleteVariable",
           "when": "editorTextFocus",
-          "group": "ce@4"
+          "group": "2_edit@4"
         },
         {
           "command": "ce.extractMethod",
           "when": "editorTextFocus",
-          "group": "ce@5"
+          "group": "2_edit@5"
         },
         {
           "command": "ce.implementInterface",
           "when": "editorTextFocus",
-          "group": "ce@6"
+          "group": "2_edit@6"
+        },
+        {
+          "command": "ce.insertTemplate",
+          "when": "editorTextFocus",
+          "group": "2_edit@7"
         },
         {
           "command": "ce.alignSelection",
           "when": "editorHasSelection",
-          "group": "ce@7"
+          "group": "2_edit@8"
+        },
+        {
+          "command": "ce.codeReview",
+          "when": "editorTextFocus",
+          "group": "3_review@1"
+        },
+        {
+          "command": "ce.detectDeadCode",
+          "when": "editorTextFocus",
+          "group": "3_review@2"
         },
         {
           "command": "ce.delphi.designer",
-          "when": "resourceExtname =~ /^.(pas|dfm)$/i",
-          "group": "ce@8"
+          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
+          "group": "4_delphi@1"
+        },
+        {
+          "command": "ce.delphi.check",
+          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
+          "group": "4_delphi@2"
+        },
+        {
+          "command": "ce.delphi.cleanHandlers",
+          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
+          "group": "4_delphi@3"
+        },
+        {
+          "command": "ce.delphi.diffForm",
+          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
+          "group": "4_delphi@4"
+        },
+        {
+          "command": "ce.plsql.syncPackage",
+          "when": "resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb)$/i",
+          "group": "5_plsql@1"
+        },
+        {
+          "command": "ce.plsql.extractProcedure",
+          "when": "resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb)$/i",
+          "group": "5_plsql@2"
+        },
+        {
+          "command": "ce.plsql.docHeader",
+          "when": "resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb)$/i",
+          "group": "5_plsql@3"
+        },
+        {
+          "command": "ce.plsql.findCallers",
+          "when": "resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb)$/i",
+          "group": "5_plsql@4"
+        },
+        {
+          "command": "ce.nav.toggle",
+          "when": "editorTextFocus",
+          "group": "6_nav@1"
         }
       ],
       "commandPalette": [
@@ -653,6 +734,11 @@
         "command": "ce.delphi.toggleDesigner",
         "key": "ctrl+k ctrl+b",
         "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'ceFormDesigner'"
+      },
+      {
+        "command": "ce.nav.exit",
+        "key": "escape",
+        "when": "ce.navMode && editorTextFocus && !findWidgetVisible && !suggestWidgetVisible && !inSnippetMode && !parameterHintsVisible && !renameInputVisible"
       },
       {
         "command": "ce.delphi.designerFullScreen",

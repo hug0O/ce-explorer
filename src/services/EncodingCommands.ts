@@ -14,8 +14,6 @@ import { EncodingReport, analyseEncoding, looksWrong, repairMojibake } from '../
 const MAX_SCAN = 2_000_000;
 
 export function registerEncodingCommands(context: vscode.ExtensionContext): void {
-    const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 79);
-    item.command = 'ce.fixEncoding';
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const scan = (doc: vscode.TextDocument | undefined): EncodingReport | undefined => {
@@ -28,18 +26,10 @@ export function registerEncodingCommands(context: vscode.ExtensionContext): void
         const r = scan(doc);
         const bad = !!r && looksWrong(r);
         void vscode.commands.executeCommand('setContext', 'ce:encodingSuspect', bad);
-        if (bad && r) {
-            item.text = '$(warning) Encoding';
-            item.tooltip = r.replaced
-                ? `${r.replaced} character(s) could not be read (shown as �): the file is probably not UTF-8 (Delphi writes Windows-1252). Click to fix.`
-                : `${r.mojibake} accented letter(s) look like Ã©: UTF-8 read as Windows-1252. Click to repair.`;
-            item.show();
-        } else { item.hide(); }
     };
-    const later = (): void => { if (timer) { clearTimeout(timer); } timer = setTimeout(refresh, 400); };
+    const later =(): void => { if (timer) { clearTimeout(timer); } timer = setTimeout(refresh, 400); };
 
     context.subscriptions.push(
-        item,
         vscode.window.onDidChangeActiveTextEditor(later),
         vscode.workspace.onDidChangeTextDocument(e => { if (e.document === vscode.window.activeTextEditor?.document) { later(); } }),
         vscode.workspace.onDidOpenTextDocument(later),

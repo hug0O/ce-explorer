@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.35.vsix
+code --install-extension ce-code-explorer-0.1.36.vsix
 ```
 
 ## Supported Languages
@@ -347,6 +347,12 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **A handler that opens a form**: the 🗗 button of a wired event reads the handler, follows the methods it calls (two levels) and opens the designer of the form it creates or shows (`TfrmX.Create`, `Application.CreateForm`, `frmX.ShowModal`…) or names in a text (`fAfficheListe('TfrmTIERSFiche', …)`: the name is looked up among the forms of the `.dpr`). The units of the workspace are read once and again after a save.
 - **A panel that holds a form**: `fAddFormInto(oForm, pnl)` (add your own helpers to `ce.delphi.hostCalls`) and `oForm.Parent := pnl` link the panel to the form it hosts: a 🔗 badge on the panel and a *Hosted form* section in the inspector that opens its designer.
 - **Captions** run on several lines (Enter, written `#13#10`) with a *Word wrap* check box for the classes that have one; **Ctrl+K Ctrl+F** toggles the full screen.
+
+#### Quick actions, status bar menu and quick navigation mode
+
+- **Quick actions** (`Ctrl+K Ctrl+A`, or the *Code Explorer* submenu of the right-click menu): every command that suits the file, grouped, with its shortcut. **One status bar item** (language, accents warning) opens the same kind of menu: designer, structure, language, encoding, memo, guide.
+- **Quick navigation mode** (*CE: Quick navigation mode*, status bar menu): vi-like keys in the code, adapted to the extension. `h j k l`, `w b`, `gg G`, numbers (`5j`) move; `}` / `{` next / previous **member**; `gd gr gi` definition / references / implementation; `/ n N` search; `s` quick actions, `m` structure, `e` edit member, `d` designer, `c` review; `za zc zo` fold; `?` lists the keys; `i` or Esc types again. The keys are read only while the mode is on.
+- **Structure tab**: Up / Down, Enter, F2, E, Delete on the members; the tab bar stays on one line and each language comes back to its last tab.
 
 #### Designer: right-click, rename and keyboard
 

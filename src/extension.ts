@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ProviderRegistry } from './providers/ProviderRegistry';
 import { CodeExplorerService, CodeExplorerTreeItem } from './services/CodeExplorerService';
 import { CodeGeneratorService } from './services/CodeGeneratorService';
@@ -28,6 +29,9 @@ import { setFormStorage } from './services/FormLibrary';
 import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
+import { registerStatusMenu } from './services/StatusMenu';
+import { NavMode } from './services/NavMode';
+import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions } from './services/QuickActions';
 import { GuidePanel } from './webview/GuidePanel';
 import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
@@ -125,21 +129,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         vscode.commands.executeCommand('setContext', 'ce:isActive', true);
 
-        // A button that is always in sight while a Delphi unit or form is being edited: it opens the designer of that unit.
-        const designerStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
-        designerStatus.command = 'ce.delphi.designer';
-        designerStatus.text = '$(symbol-misc) Form Designer';
-        designerStatus.tooltip = 'Open the visual form designer of this unit (Ctrl+K D). Ctrl+K Ctrl+B switches between the designer and the code.';
-        const showDesignerStatus = (editor: vscode.TextEditor | undefined): void => {
-            if (editor && /.(pas|dfm)$/i.test(editor.document.uri.fsPath)) { designerStatus.show(); } else { designerStatus.hide(); }
-        };
-        context.subscriptions.push(designerStatus, vscode.window.onDidChangeActiveTextEditor(showDesignerStatus));
-        showDesignerStatus(vscode.window.activeTextEditor);
         // a file that is not recognised can be given a language by hand
         trackLastEditor(context);
         setDesignerStores(context.workspaceState, context.globalState);
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
+        const navMode = new NavMode(context, providerRegistry, codeExplorer);
+        registerStatusMenu(context, providerRegistry, () => navMode.active);
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];
@@ -561,68 +557,30 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('ce.showActions', async () => {
-            // Filter provider-unsupported actions out of the quick pick.
-            const activeDoc = vscode.window.activeTextEditor?.document;
-            const activeProv = activeDoc ? providerRegistry.getByDocument(activeDoc) : undefined;
-            const stubsSupported = activeProv ? activeProv.supportsMissingStubs() : true;
-            const actions = [
-                { label: '$(symbol-method) Add Method', description: '', cmd: 'ce.addMethod' },
-                { label: '$(symbol-field) Add Field', description: '', cmd: 'ce.addField' },
-                { label: '$(symbol-property) Add Property', description: '', cmd: 'ce.addProperty' },
-                { label: '$(symbol-constructor) Add Constructor', description: '', cmd: 'ce.addConstructor' },
-                { label: '$(edit) Edit Member', description: '', cmd: 'ce.editMember' },
-                { label: '$(edit) Rename Variable', description: 'local / field / property', cmd: 'ce.renameVariable' },
-                { label: '$(symbol-type-parameter) Change Variable Type', description: '', cmd: 'ce.changeVariableType' },
-                { label: '$(trash) Delete Variable', description: '', cmd: 'ce.deleteVariable' },
-                { label: '$(fold) Extract Method', description: '', cmd: 'ce.extractMethod' },
-                { label: '$(code) Insert Template', description: '', cmd: 'ce.insertTemplate' },
-                { label: '$(sync) Synchronize Decl/Impl', description: '', cmd: 'ce.synchronizeDeclImpl' },
-                ...(stubsSupported ? [{ label: '$(symbol-interface) Implement Interface', description: '', cmd: 'ce.implementInterface' }] : []),
-                { label: '$(symbol-property) Generate Getters/Setters', description: '', cmd: 'ce.generateGettersSetters' },
-                { label: '$(filter) Filter Members', description: '', cmd: 'ce.filterTree' },
-                { label: '$(go-to-file) Go to Member', description: '', cmd: 'ce.goToMember' },
-                ...(/\.(pas|dfm)$/i.test(activeDoc?.uri.fsPath ?? '') ? [
-                    { label: '$(symbol-misc) Delphi: Open Form Designer', description: 'visual', cmd: 'ce.delphi.designer' },
-                    { label: '$(layout) Delphi: Align Components…', description: '', cmd: 'ce.delphi.align' },
-                    { label: '$(pin) Delphi: Anchors / Docking…', description: '', cmd: 'ce.delphi.anchors' },
-                    { label: '$(list-ordered) Delphi: TabOrder by Position…', description: '', cmd: 'ce.delphi.tabOrder' },
-                    { label: '$(checklist) Delphi: Check Form', description: '', cmd: 'ce.delphi.check' },
-                    { label: '$(trash) Delphi: Clean Handlers', description: '', cmd: 'ce.delphi.cleanHandlers' },
-                    { label: '$(copy) Delphi: Copy Components…', description: '', cmd: 'ce.delphi.copy' },
-                    { label: '$(clippy) Delphi: Paste Components…', description: '', cmd: 'ce.delphi.paste' },
-                    { label: '$(files) Delphi: Duplicate Components…', description: '', cmd: 'ce.delphi.duplicate' },
-                    { label: '$(symbol-field) Delphi: Form from Fields…', description: '', cmd: 'ce.delphi.formFromFields' },
-                    { label: '$(symbol-class) Delphi: Form from a Class…', description: '', cmd: 'ce.delphi.formFromClass' },
-                    { label: '$(replace) Delphi: Change Component Class…', description: '', cmd: 'ce.delphi.changeClass' },
-                    { label: '$(diff) Delphi: Compare the Form with Git…', description: '', cmd: 'ce.delphi.diffForm' },
-                    { label: '$(database) Delphi: Project - SQL, Unused Code, Form Checks', description: 'read on demand', cmd: 'ce.delphi.project' },
-                ] : []),
-                ...(activeProv?.languageId === 'plsql' ? [
-                    { label: '$(sync) PL/SQL: Synchronize Spec / Body', description: '.pks ⇄ .pkb', cmd: 'ce.plsql.syncPackage' },
-                    { label: '$(package) PL/SQL: New Package…', description: '', cmd: 'ce.plsql.newPackage' },
-                    { label: '$(table) PL/SQL: SQL from Table (SELECT / INSERT / UPDATE / MERGE…)', description: 'CREATE TABLE', cmd: 'ce.plsql.sqlFromTable' },
-                    { label: '$(fold) PL/SQL: Extract Procedure', description: 'selection', cmd: 'ce.plsql.extractProcedure' },
-                    { label: '$(warning) PL/SQL: Insert Exception Block', description: '', cmd: 'ce.plsql.exceptionBlock' },
-                    { label: '$(book) PL/SQL: PLDoc Header (insert / refresh)', description: '', cmd: 'ce.plsql.docHeader' },
-                    { label: '$(beaker) PL/SQL: utPLSQL Tests from Spec', description: '', cmd: 'ce.plsql.utplsql' },
-                ] : []),
-                { label: '$(list-flat) Align Selection on Text', description: 'any language', cmd: 'ce.alignSelection' },
-                { label: '$(symbol-event) Add Event Handler (Delphi)', description: 'existing component', cmd: 'ce.addEventHandler' },
-                { label: '$(symbol-misc) Add Delphi Component', description: '.pas + .dfm', cmd: 'ce.addComponent' },
-                { label: '$(search) Go to Member in Workspace', description: '', cmd: 'ce.goToWorkspaceMember' },
-                { label: '$(list-tree) Structure (members of the file)', description: 'Ctrl+K Ctrl+M', cmd: 'ce.manageMembers' },
-                { label: '$(note) Memo (Markdown notes per language)', description: 'Ctrl+K Ctrl+N', cmd: 'ce.memo.open' },
-                { label: '$(group-by-ref-type) Toggle Grouping', description: '', cmd: 'ce.toggleGroupBy' },
-                { label: '$(warning) Fix Encoding (accents)…', description: 'letters shown as � or Ã©', cmd: 'ce.fixEncoding' },
-                { label: '$(symbol-class) Use a Language for this File…', description: 'a file CE does not recognise', cmd: 'ce.setLanguage' },
-                { label: '$(refresh) Refresh Explorer', description: '', cmd: 'ce.refreshExplorer' },
-            ];
-            const picked = await vscode.window.showQuickPick(actions, {
-                placeHolder: 'CE Actions — select an action',
-            });
-            if (picked) {
-                await vscode.commands.executeCommand(picked.cmd);
+            // Every command of the extension that makes sense for this file, from its package.json, grouped, with its shortcut.
+            const doc = vscode.window.activeTextEditor?.document;
+            const prov = doc ? providerRegistry.getByDocument(doc) : undefined;
+            const ext = doc ? path.extname(doc.uri.fsPath).toLowerCase() : '';
+            let list = quickActions(context.extension.packageJSON as PackageLike, { ext, languageId: prov?.languageId ?? doc?.languageId ?? '' });
+            if (prov && !prov.supportsMissingStubs()) { list = list.filter(x => x.command !== 'ce.implementInterface'); }
+            const recent = context.globalState.get<string[]>('ce.recentActions', []).filter(c => list.some(x => x.command === c)).slice(0, 4);
+            type Item = vscode.QuickPickItem & { command?: string };
+            const items: Item[] = [];
+            const item = (x: QuickAction, icon: string): Item => ({ label: `$(${icon}) ${x.label}`, description: x.keys, command: x.command });
+            if (recent.length) {
+                items.push({ label: 'Recent', kind: vscode.QuickPickItemKind.Separator });
+                for (const c of recent) { const x = list.find(y => y.command === c)!; items.push(item(x, 'history')); }
             }
+            for (const g of QUICK_GROUPS) {
+                const rows = list.filter(x => x.group === g.id);
+                if (!rows.length) { continue; }
+                items.push({ label: g.title, kind: vscode.QuickPickItemKind.Separator });
+                for (const x of rows) { items.push(item(x, g.icon)); }
+            }
+            const picked = await vscode.window.showQuickPick(items, { placeHolder: 'CE quick actions: type to filter', matchOnDescription: true });
+            if (!picked?.command) { return; }
+            await context.globalState.update('ce.recentActions', [picked.command, ...recent.filter(c => c !== picked.command)].slice(0, 8));
+            await vscode.commands.executeCommand(picked.command);
         }),
 
         vscode.commands.registerCommand('ce.insertTemplate', async () => {

@@ -59,6 +59,8 @@ function extensionsOf(when: string): Set<string> | undefined {
     return m ? new Set(m[1].split('|').map(e => e.trim().toLowerCase())) : undefined;
 }
 
+import { NAV_GROUPS, NAV_KEYS } from '../services/NavKeys';
+
 const subsetOf = (a: Set<string>, b: Set<string>): boolean => [...a].every(x => b.has(x));
 
 /** Keys that work inside the form designer tab, which VS Code does not know: the webview reads them. */
@@ -108,6 +110,8 @@ export function buildShortcutGroups(pkg: PackageShortcuts): ShortcutGroup[] {
     for (const k of pkg.contributes?.keybindings ?? []) {
         const item: ShortcutItem = { keys: formatKeys(k.key), label: shortLabel(titles.get(k.command) ?? k.command), command: k.command };
         const when = k.when ?? '';
+        // the keys of the quick navigation mode are listed with the mode, not here
+        if (/ce\.navMode/.test(when)) { continue; }
         const exts = extensionsOf(when);
         if (/ceFormDesigner/.test(when)) { designer.push(item); }
         if (exts && subsetOf(exts, DELPHI_EXT)) { delphi.push(item); }
@@ -121,6 +125,10 @@ export function buildShortcutGroups(pkg: PackageShortcuts): ShortcutGroup[] {
         { id: 'delphi', title: 'Delphi units and forms', hint: '.pas  .dfm  .dpr — the same letters mean other things in PL/SQL files', items: delphi },
         { id: 'plsql', title: 'PL/SQL sources', hint: '.pks  .pkb  .sql  .pls  .plb  .txt', items: plsql },
         { id: 'designer', title: 'Form designer', hint: 'in the designer tab', items: [...designer, ...DESIGNER_SHORTCUTS] },
+        {
+            id: 'nav', title: 'Quick navigation mode', hint: 'vi-like: turn it on with the status bar menu or CE: Quick navigation mode, i or Esc to type again',
+            items: NAV_KEYS.map(k => ({ keys: k.keys.split('').join(' '), label: NAV_GROUPS.find(g => g.id === k.group)!.title + ': ' + k.label })),
+        },
         { id: 'sidebar', title: 'Sidebar', hint: 'this view', items: SIDEBAR_SHORTCUTS },
     ];
     return groups.filter(g => g.items.length > 0);

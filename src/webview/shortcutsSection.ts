@@ -68,6 +68,11 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: 'Ctrl+Z / Ctrl+Y', label: 'Undo / redo (Ctrl+Shift+Z also redoes)' },
     { keys: 'Ctrl+A', label: 'Select every component of the container of the selection (of the form when nothing is selected)' },
     { keys: 'Delete', label: 'Delete the selected components' },
+    { keys: 'F2', label: 'Rename the selected component in place (Enter applies, Esc cancels)' },
+    { keys: 'Tab / Shift+Tab', label: 'Select the next / previous component (form order, siblings by TabOrder)' },
+    { keys: 'Enter', label: 'Create or open the default handler of the selected component' },
+    { keys: '0 / 9', label: 'Zoom 100% / Fit window' },
+    { keys: 'Ctrl+D', label: 'Duplicate the selected components next to the originals' },
     { keys: 'Arrows', label: 'Move the selection by 1 pixel (Shift: by a grid step)' },
     { keys: 'Ctrl+Arrows', label: 'Resize the selection by 1 pixel (Shift: by a grid step)' },
     { keys: 'Esc', label: 'Cancel the armed tool or a cut; else select the parent of the selection' },
@@ -79,6 +84,7 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: 'Drag on the form', label: 'Draw a rectangle to select every component it touches', mouse: true },
     { keys: 'Drag a component', label: 'Move it; drop it on a container to change its parent (Alt: no grid snapping)', mouse: true },
     { keys: 'Double-click', label: 'Create or open the default handler of the component', mouse: true },
+    { keys: 'Right-click', label: 'Menu of the component: cut, copy, paste, duplicate, rename, handler, lock, hide, delete', mouse: true },
     { keys: 'Drag a bar', label: 'Resize the palette or the inspector (double-click: default width)', mouse: true },
 ];
 

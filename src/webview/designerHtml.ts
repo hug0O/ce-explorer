@@ -6,6 +6,7 @@
 import { snapScript } from './designerSnap';
 import { viewButton, viewCss, viewHtml, viewScript } from './designerView';
 import { toolsButton, toolsCss, toolsScript } from './designerTools';
+import { ergoCss, ergoHtml, ergoScript } from './designerErgo';
 import { marksCss, marksScript } from './designerMarks';
 import { compareCss, compareScript } from './designerCompare';
 import { layoutsCss, layoutsScript } from './designerLayouts';
@@ -263,6 +264,7 @@ textarea.capbox { width: 100%; min-height: 36px; resize: vertical; font: inherit
 .k-sheet > .chrome { background: #fff; }
 ${viewCss()}
 ${toolsCss()}
+${ergoCss()}
 ${marksCss()}
 ${compareCss()}
 ${layoutsCss()}
@@ -382,6 +384,7 @@ body.full #toolbar { padding: 3px 8px; }
 </style></head>
 <body>
 ${viewHtml()}
+${ergoHtml()}
 <div id="toolbar">
   <div class="tg" title="File">
     <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button><button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
@@ -2010,6 +2013,7 @@ ${viewHtml()}
 ${snapScript()}
 ${viewScript()}
 ${toolsScript()}
+${ergoScript()}
 ${marksScript()}
 ${compareScript()}
 ${layoutsScript()}
@@ -2302,6 +2306,8 @@ ${layoutsScript()}
     }
     // The keys are left to bubble: VS Code reads its own shortcuts (Ctrl+K Ctrl+B…) from them, whatever has the focus.
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { return; }
+    if (ev.key === 'Escape' && ergoCloseMenus()) { ev.preventDefault(); return; }
+    if (ergoKey(ev)) { return; }
     if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       var k0 = ev.key.toLowerCase();
       if (k0 === 'p') { toggleLeft(); ev.preventDefault(); return; }
@@ -2528,6 +2534,7 @@ ${layoutsScript()}
   document.addEventListener('mousedown', function (ev) { if (!$('snapmenu').hidden && !$('snapmenu').contains(ev.target) && ev.target !== $('snapopt')) { $('snapmenu').hidden = true; } });
   viewInit();
   toolsInit();
+  ergoInit();
   $('dup').addEventListener('click', duplicateSelection);
   marksInit();
   compareInit();

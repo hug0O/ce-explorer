@@ -12,7 +12,7 @@ import { PNG } from 'pngjs';
 import { applyTextEdits, normalizeEdits } from '../../src/services/DelphiForm';
 import { alignComponents, ALIGN_OPS, AlignOp, planTabOrder } from '../../src/services/DelphiAlign';
 import { findNode, parseDfmTree } from '../../src/services/DelphiLayout';
-import { DesignResult, addEdits, buildDesignModel, deleteEdits, rectEdits, setPropertyEdits } from '../../src/services/DesignerModel';
+import { DesignResult, addEdits, buildDesignModel, deleteEdits, rectEdits, renameEdits, setPropertyEdits } from '../../src/services/DesignerModel';
 import { compareItems, ghostsOf } from '../../src/services/DesignerCompare';
 import { resizeForm } from '../../src/services/DesignerResponsive';
 import { diffDfm } from '../../src/services/DfmDiff';
@@ -130,6 +130,7 @@ export class Studio {
                 const r = addEdits(this.pas, this.dfm, { className: str(m.className), parentName: str(m.parent) || undefined, left: num(m.left) ?? 16, top: num(m.top) ?? 16, width: num(m.width), height: num(m.height), caption: typeof m.caption === 'string' ? m.caption : undefined });
                 await this.commit(r, 'name' in r && r.name ? [r.name] : undefined); return;
             }
+            case 'rename': await this.commit(renameEdits(this.pas, this.dfm, str(m.from), str(m.to)), [str(m.to)]); return;
             case 'delete': await this.commit(deleteEdits(this.pas, this.dfm, names(m.names))); return;
             case 'align': {
                 if (!root) { return; }

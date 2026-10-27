@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.34 — 2026-10-27
+- Designer: **right-click menu** on a component (on the form or in the list): cut, copy, paste, duplicate, rename, open the default handler, select the parent, lock, hide, delete, each with its key; on the form itself: paste, select all, zoom 100% / Fit window.
+- Designer: **rename in place** — `F2` (or *Rename...* in the menu) puts a box over the component; Enter renames it (field and handlers follow, as in the inspector), Esc cancels.
+- Designer: **keyboard walk** — `Tab` / `Shift+Tab` select the next / previous component (form order, siblings by TabOrder), `Enter` creates or opens the default handler, `0` zooms to 100%, `9` to Fit window. All are in the Shortcuts tab.
+
 ## 0.1.33 — 2026-10-26
 - Designer: the full screen shortcut is now **Ctrl+K Ctrl+F** (it was Ctrl+K F, which VS Code uses to close a folder), while the designer is the active tab; it is shown on the Full screen button, in the Shortcuts tab and in the guide. The key `F` alone still works in the designer.
 

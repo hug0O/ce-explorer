@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.36.vsix
+code --install-extension ce-code-explorer-0.1.37.vsix
 ```
 
 ## Supported Languages
@@ -348,10 +348,10 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **A panel that holds a form**: `fAddFormInto(oForm, pnl)` (add your own helpers to `ce.delphi.hostCalls`) and `oForm.Parent := pnl` link the panel to the form it hosts: a 🔗 badge on the panel and a *Hosted form* section in the inspector that opens its designer.
 - **Captions** run on several lines (Enter, written `#13#10`) with a *Word wrap* check box for the classes that have one; **Ctrl+K Ctrl+F** toggles the full screen.
 
-#### Quick actions, status bar menu and quick navigation mode
+#### Quick actions, status bar menu and moving between members
 
 - **Quick actions** (`Ctrl+K Ctrl+A`, or the *Code Explorer* submenu of the right-click menu): every command that suits the file, grouped, with its shortcut. **One status bar item** (language, accents warning) opens the same kind of menu: designer, structure, language, encoding, memo, guide.
-- **Quick navigation mode** (*CE: Quick navigation mode*, status bar menu): vi-like keys in the code, adapted to the extension. `h j k l`, `w b`, `gg G`, numbers (`5j`) move; `}` / `{` next / previous **member**; `gd gr gi` definition / references / implementation; `/ n N` search; `s` quick actions, `m` structure, `e` edit member, `d` designer, `c` review; `za zc zo` fold; `?` lists the keys; `i` or Esc types again. The keys are read only while the mode is on.
+- **Moving between members** without a mode: `Ctrl+Shift+Down` / `Ctrl+Shift+Up` next / previous member, `Alt+Enter` declaration <-> implementation, `Alt+G` pick a member by typing a few letters (the code scrolls to each one, Esc goes back).
 - **Structure tab**: Up / Down, Enter, F2, E, Delete on the members; the tab bar stays on one line and each language comes back to its last tab.
 
 #### Designer: right-click, rename and keyboard

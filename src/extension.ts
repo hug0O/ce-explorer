@@ -30,7 +30,7 @@ import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { registerStatusMenu } from './services/StatusMenu';
-import { NavMode } from './services/NavMode';
+import { registerNavCommands } from './services/NavCommands';
 import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions } from './services/QuickActions';
 import { GuidePanel } from './webview/GuidePanel';
 import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
@@ -134,8 +134,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         setDesignerStores(context.workspaceState, context.globalState);
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
-        const navMode = new NavMode(context, providerRegistry, codeExplorer);
-        registerStatusMenu(context, providerRegistry, () => navMode.active);
+        registerNavCommands(context, codeExplorer);
+        registerStatusMenu(context, providerRegistry);
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);
         const codeLensSelectors: vscode.DocumentFilter[] = [];

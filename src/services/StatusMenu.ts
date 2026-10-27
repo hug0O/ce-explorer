@@ -8,11 +8,11 @@ import { describeStatus } from './StatusText';
 /**
  * One item in the status bar for the extension, where there used to be three (the language, the encoding, the form designer): it says
  * which language the extension reads the file as, turns to a warning when the accents look wrong, and opens a small menu with what
- * is useful on this file: quick actions, the designer, the language, the encoding, the structure, the memo, the navigation mode.
+ * is useful on this file: quick actions, the designer, the language, the encoding, the structure, a member, the memo.
  */
 const MAX_SCAN = 2_000_000;
 
-export function registerStatusMenu(context: vscode.ExtensionContext, registry: ProviderRegistry, navActive: () => boolean): void {
+export function registerStatusMenu(context: vscode.ExtensionContext, registry: ProviderRegistry): void {
     const item = vscode.window.createStatusBarItem('ce.status', vscode.StatusBarAlignment.Left, 90);
     item.name = 'Code Explorer';
     item.command = 'ce.statusMenu';
@@ -35,9 +35,9 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
             fsPath: doc.uri.fsPath, languageId: prov?.languageId, displayName: prov?.displayName,
             chosenName: chosen ? registry.getByLanguageId(chosen)?.displayName ?? chosen : undefined, via, encodingWrong: bad,
         });
-        item.text = s.text + (navActive() ? '  NAV' : '');
+        item.text = s.text;
         item.tooltip = s.tooltip;
-        item.backgroundColor = s.warning || navActive() ? new vscode.ThemeColor(s.warning ? 'statusBarItem.warningBackground' : 'statusBarItem.prominentBackground') : undefined;
+        item.backgroundColor = s.warning ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
         item.show();
     };
     const later = (): void => { if (timer) { clearTimeout(timer); } timer = setTimeout(refresh, 400); };
@@ -57,7 +57,7 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
                 { label: '$(zap) Quick actions...', description: 'Ctrl+K Ctrl+A', command: 'ce.showActions' },
                 ...(delphi ? [{ label: '$(symbol-misc) Open the form designer', description: 'Ctrl+K D', command: 'ce.delphi.designer' }] : []),
                 { label: '$(list-tree) Structure of the file', description: 'Ctrl+K Ctrl+M', command: 'ce.manageMembers' },
-                { label: '$(arrow-both) Quick navigation mode', description: navActive() ? 'on: Esc leaves it' : 'vi-like keys in the code', command: 'ce.nav.toggle' },
+                { label: '$(symbol-method) Go to a member...', description: 'Alt+G', command: 'ce.nav.pickMember' },
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(symbol-class) Language of this file...', description: 'which parser CE uses', command: 'ce.setLanguage' },
                 { label: (bad ? '$(warning) ' : '$(file-code) ') + 'Accents and encoding...', description: bad ? 'some letters look wrong' : 'repair or reopen with another encoding', command: 'ce.fixEncoding' },

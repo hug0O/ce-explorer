@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.37 — 2026-10-28
+- **The vi-like quick navigation mode is removed**, replaced by shortcuts that need no mode, each in the Shortcuts tab, the *Code Explorer* right-click submenu and the quick actions: `Ctrl+Shift+Down` / `Ctrl+Shift+Up` next / previous member, `Alt+Enter` from a declaration to its implementation and back (the interface / implementation jump of Delphi, for every language whose members have both), `Alt+G` a box to pick a member by typing a few letters, the code scrolling to each one as you move (Esc brings you back). The keys avoid what VS Code binds in the editor (`Alt+Up/Down` move a line, `Alt+PageUp/PageDown` scroll, `Ctrl+Alt+Up/Down` add a cursor…) and need no AltGr on an AZERTY keyboard; a test checks that no key of the extension is one VS Code uses, and that two commands share a key only for different kinds of file. `Alt+Left` / `Alt+Right` (back / forward) are VS Code's own.
+
 ## 0.1.36 — 2026-10-28
 - **Quick actions** (`Ctrl+K Ctrl+A`): the menu is now built from the commands of the extension that suit the file (Delphi ones in Delphi files, PL/SQL ones in PL/SQL files, nothing that needs a tree), grouped (Navigate, Members, Variables and refactoring, Review, Delphi forms, PL/SQL, Tools), with the shortcut of each and the last actions used first.
 - **Code Explorer submenu** in the right-click menu of the editor: one entry instead of ten loose ones, with the commands grouped (quick actions, structure and navigation, edit, review, Delphi, PL/SQL).

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
 import { GROUPS, NOT_FOR_MENUS, PackageLike, appliesTo, groupOf, quickActions } from '../services/QuickActions';
-import { NAV_GROUPS, NAV_KEYS, NAV_PREFIXES, NavKeyParser } from '../services/NavKeys';
+import { declImplTarget, memberLines, stepMember } from '../services/MemberNav';
 import { describeStatus } from '../services/StatusText';
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')) as PackageLike & {
@@ -52,35 +52,10 @@ test('the Code Explorer submenu of the editor holds the commands, grouped, the D
     const top = pkg.contributes.menus['editor/context'];
     assert.deepEqual(top.map(m => m.submenu), ['ce.editorMenu'], 'one entry in the context menu of the editor');
     const sub = pkg.contributes.menus['ce.editorMenu'];
-    assert.ok(sub.some(m => m.command === 'ce.showActions') && sub.some(m => m.command === 'ce.nav.toggle'));
+    assert.ok(sub.some(m => m.command === 'ce.showActions') && ['ce.nav.pickMember', 'ce.nav.nextMember', 'ce.nav.prevMember', 'ce.nav.toggleDeclImpl'].every(c => sub.some(m => m.command === c)));
     for (const m of sub.filter(x => x.command?.startsWith('ce.delphi.'))) { assert.match(m.when ?? '', /pas\|dfm/, m.command); }
     for (const m of sub.filter(x => x.command?.startsWith('ce.plsql.'))) { assert.match(m.when ?? '', /pks\|pkb/, m.command); }
     assert.ok(sub.every(m => !m.command || pkg.contributes!.commands!.some(c => c.command === m.command)), 'every command of the menu is declared');
-});
-
-test('the keys of the navigation mode: one table, no key twice, no key that is also the start of a sequence', () => {
-    const keys = NAV_KEYS.map(k => k.keys);
-    assert.equal(new Set(keys).size, keys.length);
-    for (const k of NAV_KEYS) { assert.ok(NAV_GROUPS.some(g => g.id === k.group), k.keys + ' has a group'); }
-    for (const k of NAV_KEYS.filter(x => x.keys.length === 1)) { assert.ok(!NAV_PREFIXES.has(k.keys), k.keys + ' is not also a prefix'); }
-    assert.ok(['gg', 'gd', 'gr', 'za'].every(k => keys.includes(k)));
-});
-
-test('the parser reads numbers, two-key sequences and ignores what means nothing', () => {
-    const p = new NavKeyParser();
-    const run = (s: string) => [...s].map(c => p.feed(c)).flatMap(r => (r.action ? [r.action] : []));
-    assert.deepEqual(run('j'), [{ id: 'down', count: 0 }]);
-    assert.deepEqual(run('5j'), [{ id: 'down', count: 5 }]);
-    assert.deepEqual(run('12G'), [{ id: 'bottom', count: 12 }]);
-    assert.deepEqual(run('gd'), [{ id: 'definition', count: 0 }]);
-    assert.deepEqual(run('3]]'), [{ id: 'nextMember', count: 3 }]);
-    assert.deepEqual(run('0'), [{ id: 'lineStart', count: 0 }], '0 alone is the start of the line');
-    assert.deepEqual(run('10j'), [{ id: 'down', count: 10 }], '0 after a number is part of it');
-    assert.deepEqual(run('gx'), [], 'an unknown sequence does nothing');
-    assert.deepEqual(run('Q'), [], 'an unknown key does nothing');
-    p.reset();
-    assert.equal(p.feed('4').pending, '4');
-    assert.equal(p.feed('g').pending, '4g', 'what is waiting is shown');
 });
 
 test('the status item says the language, the accents warning and where to click', () => {
@@ -93,18 +68,6 @@ test('the status item says the language, the accents warning and where to click'
     assert.match(describeStatus({ ...base, chosenName: 'PL/SQL', via: 'every .txt file' }).tooltip, /PL\/SQL \(every \.txt file\)/);
 });
 
-test('the entry points are wired: command, Escape, status menu and the one status item', () => {
-    const ext = fs.readFileSync(path.join(__dirname, '..', 'extension.ts'), 'utf8');
-    assert.match(ext, /new NavMode\(context, providerRegistry, codeExplorer\)/);
-    assert.match(ext, /registerStatusMenu\(context, providerRegistry, \(\) => navMode\.active\)/);
-    assert.ok(!/designerStatus/.test(ext), 'the designer button of the status bar became a row of the menu');
-    const esc = pkg.contributes.keybindings.find(k => k.command === 'ce.nav.exit')!;
-    assert.match(esc.when ?? '', /ce\.navMode/);
-    for (const f of ['LanguageCommands.ts', 'EncodingCommands.ts']) {
-        assert.ok(!/createStatusBarItem/.test(fs.readFileSync(path.join(__dirname, '..', 'services', f), 'utf8')), f + ' has no item of its own any more');
-    }
-});
-
 test('the Structure list has its keys, the tab bar stays on one line with icons, and each language comes back to its tab', () => {
     const manage = fs.readFileSync(path.join(__dirname, '..', 'webview', 'manageSection.ts'), 'utf8');
     for (const k of ['ArrowDown', 'ArrowUp', "'F2'", "'Delete'", "'Enter'", 'kcur']) { assert.ok(manage.includes(k), k); }
@@ -115,4 +78,74 @@ test('the Structure list has its keys, the tab bar stays on one line with icons,
     assert.match(panel, /case 'setTab': this\.rememberTab\(msg\.tab\);/);
     assert.match(panel, /globalState\?\.update\('ce\.tabByLanguage'/);
     assert.match(panel, /const saved = this\._tabByLanguage\[lang\];/);
+});
+
+test('the status bar has one item and no mode: the old ones and the vi-like mode are gone', () => {
+    const ext = fs.readFileSync(path.join(__dirname, '..', 'extension.ts'), 'utf8');
+    assert.match(ext, /registerNavCommands\(context, codeExplorer\)/);
+    assert.match(ext, /registerStatusMenu\(context, providerRegistry\)/);
+    assert.ok(!/designerStatus/.test(ext), 'the designer button of the status bar became a row of the menu');
+    for (const f of ['LanguageCommands.ts', 'EncodingCommands.ts']) {
+        assert.ok(!/createStatusBarItem/.test(fs.readFileSync(path.join(__dirname, '..', 'services', f), 'utf8')), f + ' has no item of its own any more');
+    }
+    for (const gone of ['NavMode.ts', 'NavKeys.ts']) { assert.ok(!fs.existsSync(path.join(__dirname, '..', 'services', gone)), gone + ' is removed'); }
+    const text = JSON.stringify(pkg.contributes);
+    assert.ok(!/ce\.nav\.toggle"|ce\.nav\.exit|navMode/.test(text), 'nothing of the vi-like mode is left in the manifest');
+});
+
+test('the lines of the members, the next and the previous one, and the end of the file', () => {
+    const lines = memberLines([{ line: 40, character: 2 }, { line: 10, character: 0 }, { line: 10, character: 8 }, { line: 25, character: 0 }]);
+    assert.deepEqual(lines, [10, 25, 40]);
+    assert.equal(stepMember(lines, 12, 1), 25);
+    assert.equal(stepMember(lines, 25, 1), 40, 'on a member, the next one');
+    assert.equal(stepMember(lines, 25, -1), 10);
+    assert.equal(stepMember(lines, 12, -1), 10, 'between two members, the one above');
+    assert.equal(stepMember(lines, 40, 1), 40, 'at the last one it stays');
+    assert.equal(stepMember(lines, 3, -1), 3, 'before the first one it stays');
+    assert.equal(stepMember(lines, 0, 1, 2), 25, 'two steps');
+    assert.equal(stepMember([], 5, 1), undefined, 'a file with no member');
+});
+
+test('a declaration leads to its implementation and back, the innermost member wins', () => {
+    const r = (a: number, b: number) => ({ start: { line: a, character: 0 }, end: { line: b, character: 0 } });
+    const members = [
+        { name: 'Save', range: r(10, 10), implementationRange: r(50, 60) },
+        { name: 'Load', range: r(11, 11), implementationRange: r(62, 70) },
+        { name: 'Field', range: r(12, 12) },
+        { name: 'Outer', range: r(100, 140), implementationRange: r(200, 260) },
+        { name: 'Inner', range: r(110, 112), implementationRange: r(210, 220) },
+    ];
+    assert.deepEqual(declImplTarget(members, 10), { position: { line: 50, character: 0 }, kind: 'implementation', name: 'Save' });
+    assert.deepEqual(declImplTarget(members, 55), { position: { line: 10, character: 0 }, kind: 'declaration', name: 'Save' });
+    assert.equal(declImplTarget(members, 12), undefined, 'a field has no implementation');
+    assert.equal(declImplTarget(members, 300), undefined, 'outside every member');
+    assert.equal(declImplTarget(members, 215)?.name, 'Inner', 'a routine declared inside another: the inner one');
+});
+
+test('the member keys are declared, and none of them is a key VS Code already uses in the editor', () => {
+    const keys = pkg.contributes.keybindings;
+    const nav = keys.filter(k => k.command.startsWith('ce.nav.'));
+    assert.deepEqual(nav.map(k => k.key).sort(), ['alt+enter', 'alt+g', 'ctrl+shift+down', 'ctrl+shift+up']);
+    for (const k of nav) { assert.match(k.when ?? '', /editorTextFocus/, k.command + ' works in the editor only'); }
+    // what VS Code (Windows, Linux) binds in the text editor by default, and the extension must leave alone
+    const taken = new Set([
+        'alt+up', 'alt+down', 'alt+left', 'alt+right', 'alt+pageup', 'alt+pagedown', 'shift+alt+up', 'shift+alt+down', 'ctrl+alt+up', 'ctrl+alt+down',
+        'ctrl+g', 'ctrl+p', 'ctrl+t', 'ctrl+shift+o', 'ctrl+shift+p', 'ctrl+shift+f', 'ctrl+shift+l', 'ctrl+d', 'ctrl+f', 'ctrl+h', 'ctrl+l', 'ctrl+k ctrl+f', 'ctrl+k ctrl+c', 'ctrl+k ctrl+u',
+        'ctrl+/', 'ctrl+up', 'ctrl+down', 'ctrl+home', 'ctrl+end', 'f2', 'f12', 'shift+f12', 'ctrl+f12', 'ctrl+.', 'ctrl+space', 'ctrl+z', 'ctrl+y', 'ctrl+s', 'ctrl+w', 'ctrl+b',
+    ]);
+    for (const k of keys) {
+        if (/ceFormDesigner/.test(k.when ?? '')) { continue; }   // inside the designer tab only
+        assert.ok(!taken.has(k.key), k.command + ' takes ' + k.key + ', which VS Code uses');
+    }
+});
+
+test('two commands never share a key unless their files differ (Delphi, PL/SQL, any other)', () => {
+    const by = new Map<string, { command: string; when?: string }[]>();
+    for (const k of pkg.contributes.keybindings) { by.set(k.key, [...(by.get(k.key) ?? []), k]); }
+    for (const [key, list] of by) {
+        if (list.length < 2) { continue; }
+        for (const k of list) { assert.match(k.when ?? '', /resourceExtname/, key + ': ' + k.command + ' shares its key, so it must name its files'); }
+        const sets = list.map(k => /\(([^)]*)\)\$\//.exec(k.when ?? '')?.[1] ?? '');
+        assert.equal(new Set(sets).size, sets.length, key + ': two commands for the same files');
+    }
 });

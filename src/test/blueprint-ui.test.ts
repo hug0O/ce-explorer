@@ -114,3 +114,16 @@ test('"hide others" removes every routine not linked to the selection, as far as
     assert.match(js, /ev\.key === 'h'\) \{ setIsolate\(!isolate\)/);
     assert.match(js, /if \(isolate\) \{ fit\(\); \} else if \(center\)/);
 });
+
+test('what a filter or "hide others" leaves is laid out again as if it were alone, centred, and the saved positions come back afterwards', () => {
+    const js = blueprintScript();
+    assert.match(js, /post\(\{ type: 'subsetLayout', ids: ids, key: key \}\)/);
+    assert.match(js, /m\.type === 'subset'/);
+    assert.match(js, /if \(m\.key !== subsetKey\) \{ return; \}/, 'an answer for an older selection is ignored');
+    assert.match(js, /n\.x = n\.ox; n\.y = n\.oy/, 'the real positions are put back');
+    assert.match(js, /d\.moved && !swapped/, 'a node moved while the others are hidden does not overwrite its saved position');
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
+    assert.match(panel, /case 'subsetLayout': this\.subsetLayout\(m\.ids, m\.key\)/);
+    assert.match(panel, /type: 'subset', key, positions/);
+    assert.ok(!/positions\(\)[^;]*subset/.test(panel), 'the subset layout is not saved');
+});

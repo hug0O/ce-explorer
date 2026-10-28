@@ -86,6 +86,8 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var swapped = false;                  // the nodes shown are laid out again among themselves (the saved positions are kept aside)
+  var subsetKey = '';
   var isolate = false;                  // hide everything that is not linked to the selected routine
   var withLinked = false;               // the filter also keeps the routines next to the ones it finds
   var compact = false;                  // no data pins: one line per node
@@ -158,6 +160,24 @@ export function blueprintScript(): string {
       if (r) { model.nodes.forEach(function (n) { keep[n.id] = keep[n.id] && (n.id === sel.id || !!r.up[n.id] || !!r.down[n.id]); }); }
     }
     return keep;
+  }
+  /* When a filter or "hide others" leaves only some nodes, they are laid out again as if they were alone and centred;
+     the extension does the layout (the same as for the whole file) and the real positions come back when everything is shown. */
+  function syncSubset() {
+    var keep = visibleSet();
+    var ids = model.nodes.filter(function (n) { return keep[n.id]; }).map(function (n) { return n.id; });
+    var active = ids.length > 0 && ids.length < model.nodes.length && (!!filter || (isolate && sel && sel.type === 'node'));
+    if (active) {
+      var key = ids.join('|');
+      if (key !== subsetKey) { subsetKey = key; post({ type: 'subsetLayout', ids: ids, key: key }); }
+      return;
+    }
+    subsetKey = '';
+    if (swapped) {
+      model.nodes.forEach(function (n) { if (n.ox !== undefined) { n.x = n.ox; n.y = n.oy; } delete n.ox; delete n.oy; });
+      swapped = false;
+      render(); fit();
+    }
   }
   function matches(n) {
     if (!filter) { return true; }
@@ -248,6 +268,7 @@ export function blueprintScript(): string {
     sel = { type: 'node', id: id };
     render();
     if (isolate) { fit(); } else if (center) { centerOn(n); }
+    syncSubset();
   }
   function h(tag, cls, text, parent) {
     var e = document.createElement(tag);
@@ -406,12 +427,14 @@ export function blueprintScript(): string {
       sel = { type: 'node', id: n.id };
       drag = { mode: 'move', node: n, sx: ev.clientX, sy: ev.clientY, ox: n.x, oy: n.y, moved: false };
       render();
+      syncSubset();
       return;
     }
     sel = null;
     drag = { mode: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y, moved: false };
     cv.classList.add('panning');
     render();
+    syncSubset();
   });
   window.addEventListener('mousemove', function (ev) {
     if (!drag) { return; }
@@ -436,7 +459,7 @@ export function blueprintScript(): string {
     if (!drag) { return; }
     var d = drag; drag = null;
     cv.classList.remove('panning');
-    if (d.mode === 'move' && d.moved) { var pos = {}; pos[d.node.id] = { x: d.node.x, y: d.node.y }; post({ type: 'positions', positions: pos }); }
+    if (d.mode === 'move' && d.moved && !swapped) { var pos = {}; pos[d.node.id] = { x: d.node.x, y: d.node.y }; post({ type: 'positions', positions: pos }); }
     if (d.mode === 'wire') {
       if (d.temp.parentNode) { d.temp.parentNode.removeChild(d.temp); }
       var target = nodeAt(ev);
@@ -507,6 +530,7 @@ export function blueprintScript(): string {
     var found = model.nodes.filter(function (n) { return filter && matches(n) && keep[n.id]; });
     if (found.length === 1 && !(sel && sel.type === 'node' && sel.id === found[0].id)) { sel = { type: 'node', id: found[0].id }; render(); }
     fit();
+    syncSubset();
     say(filter ? (found.length ? found.length + (found.length > 1 ? ' routines match' : ' routine matches') + ' - Enter selects the first, Esc clears the filter' : 'no routine matches') : '');
   }
   document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); applyFilter(); });
@@ -514,7 +538,7 @@ export function blueprintScript(): string {
     if (ev.key === 'Enter') {
       var keep = visibleSet();
       var first = model.nodes.filter(function (n) { return matches(n) && keep[n.id]; })[0];
-      if (first) { sel = { type: 'node', id: first.id }; render(); fit(); }
+      if (first) { sel = { type: 'node', id: first.id }; render(); fit(); syncSubset(); }
     } else if (ev.key === 'Escape') {
       ev.target.value = ''; filter = ''; ev.target.blur(); applyFilter();
     }
@@ -525,10 +549,11 @@ export function blueprintScript(): string {
     document.getElementById('isolate').checked = on;
     render();
     if (sel && sel.type === 'node') { fit(); }
+    syncSubset();
     say(on ? (sel ? '' : 'Select a routine: everything not linked to it is hidden') : '');
   }
   document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
-  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); if (isolate && sel && sel.type === 'node') { fit(); } });
+  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); if (isolate && sel && sel.type === 'node') { fit(); } syncSubset(); });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
@@ -553,11 +578,24 @@ export function blueprintScript(): string {
       modelVer++;
       if (first) { compact = model.nodes.length > 25; document.getElementById('pins').checked = !compact; }
       if (sel && sel.type === 'node' && !byId(sel.id)) { sel = null; }
+      swapped = false; subsetKey = '';
       render();
       if (first || m.fit) { fit(); }
+      syncSubset();
       document.getElementById('count').textContent = model.nodes.length + ' routines, ' + model.edges.length + ' calls';
     } else if (m.type === 'notice') { say(m.text); }
     else if (m.type === 'toggleFull') { setFull(!full); }
+    else if (m.type === 'subset') {
+      if (m.key !== subsetKey) { return; }
+      model.nodes.forEach(function (n) {
+        var q = m.positions[n.id];
+        if (!q) { return; }
+        if (n.ox === undefined) { n.ox = n.x; n.oy = n.y; }
+        n.x = q.x; n.y = q.y;
+      });
+      swapped = true;
+      render(); fit();
+    }
     else if (m.type === 'select') { sel = { type: 'node', id: m.id }; render(); }
   });
   post({ type: 'ready' });

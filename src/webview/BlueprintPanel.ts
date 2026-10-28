@@ -7,6 +7,7 @@ import * as ops from '../services/MemberOperations';
 import { generateFromSpec, memberFormToSpec } from '../services/memberForm';
 import { addCallEdit, familyOf, removeCallEdit, LineEdit } from '../utils/callGraph';
 import { BpMember, BpModel, SavedPositions, buildBlueprint, nodeIds } from '../utils/blueprintModel';
+import { layout } from '../utils/blueprintLayout';
 import { blueprintHtml } from './blueprintHtml';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -173,6 +174,7 @@ export class BlueprintPanel {
             }
             case 'resetLayout': await this.deps.state.update(this.stateKey, {}); this.send(true); break;
             case 'fullscreen': await this.setZen(m.on === true); break;
+            case 'subsetLayout': this.subsetLayout(m.ids, m.key); break;
             case 'openCode': await this.openCode(this.entry(m.id)); break;
             case 'addCall': await this.addCall(this.entry(m.from), this.entry(m.to)); break;
             case 'removeCall': await this.removeCall(this.entry(m.from), this.entry(m.to)); break;
@@ -180,6 +182,21 @@ export class BlueprintPanel {
             case 'deleteNode': await this.deleteNode(this.entry(m.id)); break;
             case 'addNode': await this.addNode(this.entry(m.caller), typeof m.x === 'number' ? m.x : undefined, typeof m.y === 'number' ? m.y : undefined); break;
         }
+    }
+
+    /** The nodes left by a filter laid out as if they were the whole graph (the saved positions are not touched). */
+    private subsetLayout(ids: unknown, key: unknown): void {
+        const m = this.model();
+        if (!m || !Array.isArray(ids) || typeof key !== 'string') { return; }
+        const set = new Set(ids.filter((i): i is string => typeof i === 'string'));
+        const nodes = m.nodes.filter(n => set.has(n.id));
+        const boxes = layout(
+            nodes.map(n => ({ id: n.id, title: n.name, subtitle: n.owner, inputs: 1 + n.params.length, outputs: 1 + (n.ret ? 1 : 0) })),
+            m.edges.filter(e => set.has(e.from) && set.has(e.to)).map(e => ({ from: e.from, to: e.to })),
+        );
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const [id, b] of boxes) { positions[id] = { x: b.x, y: b.y }; }
+        void this.panel.webview.postMessage({ type: 'subset', key, positions });
     }
 
     private async openCode(e: Entry | undefined): Promise<void> {

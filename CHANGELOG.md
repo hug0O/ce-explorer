@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.47 — 2026-10-28
+- **Blueprint: what is left is laid out again.** When the filter or *hide others* leaves only some routines, they are placed as if the others did not exist (columns by call depth, wires kept short) and centred in the window, instead of staying where they were in the full graph. When everything is shown again, each routine goes back to its own place; the positions you saved are never touched by this.
+
 ## 0.1.46 — 2026-10-28
 - **Blueprint: hide what is not linked to the selection.** The *hide others* box (or the `H` key) removes from the picture every routine that is not linked to the selected one, with its wires, instead of just fading it; the *Focus* box says how far the link may go (direct, 2 levels, all levels). The view is fitted to what is left, a routine picked in the details panel shows its neighbourhood, and clicking the background (nothing selected) brings everything back.
 

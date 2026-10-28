@@ -15,6 +15,8 @@ export interface UnitInfo {
     uses: UnitUse[];
     /** Where the file is (path or uri string), to open it. */
     file: string;
+    /** What it offers (interface names) and every word of its code, from the project scan: to see what a unit takes from the units it uses. */
+    symbols?: { exported: Set<string>; words: Set<string> };
 }
 
 const PASCAL = familyOf('pascal')!;
@@ -46,6 +48,8 @@ export function readUnit(text: string, file: string): UnitInfo | undefined {
 export interface UnitGraph {
     nodes: BpNode[];
     edges: (BpEdge & { section: 'interface' | 'implementation' })[];
+    /** The `uses` of a unit that takes nothing from the unit it names. */
+    unneeded: { from: string; to: string; section: 'interface' | 'implementation' }[];
     /** Units a unit lists that are not in the project (System, Vcl.Forms, other libraries). */
     external: Map<string, string[]>;
 }
@@ -65,10 +69,11 @@ export function buildUnitGraph(units: UnitInfo[], saved: SavedPositions = {}): U
             if (seen.has(key) || key === u.name.toLowerCase()) { continue; }
             seen.add(key);
             const target = byName.get(key);
-            if (target) { edges.push({ from: u.name, to: target.name, lines: [use.line], section: use.section }); } else { ext.push(use.name); }
+            if (target) { edges.push({ from: u.name, to: target.name, lines: [use.line], section: use.section, taken: takenFrom(u, target) }); } else { ext.push(use.name); }
         }
         external.set(u.name, ext);
     }
+    const unneeded = edges.filter(e => e.taken && e.taken.length === 0).map(e => ({ from: e.from, to: e.to, section: e.section }));
     const boxes = layout(known.map(u => ({ id: u.name, title: u.name, inputs: 1, outputs: 1 })), edges);
     const nodes: BpNode[] = known.map(u => {
         const b = boxes.get(u.name)!;
@@ -78,7 +83,16 @@ export function buildUnitGraph(units: UnitInfo[], saved: SavedPositions = {}): U
             x: p ? p.x : b.x, y: p ? p.y : b.y, w: b.w, h: b.h, file: u.file, external: external.get(u.name) ?? [],
         };
     });
-    return { nodes, edges, external };
+    return { nodes, edges, external, unneeded };
+}
+
+/** The names that `from` takes from `to`: what `to` offers that the code of `from` mentions. Undefined when either side was not read. */
+export function takenFrom(from: UnitInfo, to: UnitInfo): string[] | undefined {
+    if (!from.symbols || !to.symbols) { return undefined; }
+    const own = to.name.toLowerCase();
+    const out: string[] = [];
+    for (const n of to.symbols.exported) { if (n !== own && from.symbols.words.has(n)) { out.push(n); } }
+    return out.sort().slice(0, 40);
 }
 
 // --- writing a unit into / out of a uses clause ---------------------------------------------------------------------------

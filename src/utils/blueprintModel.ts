@@ -40,7 +40,12 @@ export interface BpNode {
     h: number;
 }
 
-export interface BpEdge { from: string; to: string; lines: number[] }
+export interface BpEdge {
+    from: string; to: string; lines: number[];
+    /** Project view: the names of the target that the source uses (empty: the `uses` may be unnecessary); undefined when unknown. */
+    taken?: string[];
+    label?: string; back?: boolean;
+}
 export interface BpModel { nodes: BpNode[]; edges: BpEdge[] }
 
 export type SavedPositions = Record<string, { x: number; y: number }>;

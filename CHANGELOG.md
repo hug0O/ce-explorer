@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.55 — 2026-10-28
+- **Blueprint: a view per file and a view per project, one click apart.** A **File | Project** switch at the left of the bar, in both views: *File* shows the routines of the file (the last one drawn, else the one being edited), *Project* shows the units and their `uses`. Each opens in the same editor group; a unit chosen in the project view opens its file view with *Its blueprint*. (The *Show the project* entry of the More menu is replaced by the switch.)
+- **Project view: what each wire carries.** Every `uses` now says which names of the unit it names are used by the other one (*Data: 2 names*, with the list as a tooltip and in the details of the wire). A `uses` that takes nothing is drawn dashed orange and listed under *Uses that take nothing* — a candidate to remove, with a reminder that a unit can be there only for its initialization section; click the wire, then *Remove from the uses*.
+
 ## 0.1.54 — 2026-10-28
 - **Project insights: a progress bar and a way to stop.** While the project is read, a bar shows how far the scan is (units read out of the total) and a **Cancel** button stops it; the page is told when it stopped, instead of staying on *Scanning…*.
 - **Project insights: one filter for every list.** A *Filter this list…* box (with *n of m*) appears above the tabs that had none of their own — Dead code, Size, Unused, Form checks, Names, Forms, Hotspots: the rows that do not contain all the words are hidden, and so are the headings left with nothing under them; `Esc` clears it and the text is remembered. SQL and Texts keep their own, richer filters.

@@ -42,7 +42,10 @@ export class BlueprintPanel {
         BlueprintPanel.deps = { registry, explorer, generator, state };
     }
 
-    static show(doc: vscode.TextDocument | undefined): void {
+    /** The last file drawn: where the File button of the project view goes back to. */
+    static lastDoc: vscode.TextDocument | undefined;
+
+    static show(doc: vscode.TextDocument | undefined, column?: vscode.ViewColumn): void {
         const deps = BlueprintPanel.deps;
         if (!deps) { return; }
         const target = doc ?? vscode.window.activeTextEditor?.document;
@@ -52,10 +55,11 @@ export class BlueprintPanel {
             vscode.window.showWarningMessage('CE: The blueprint draws the routines of a source file; this file has none to draw.');
             return;
         }
+        BlueprintPanel.lastDoc = target;
         const key = target.uri.toString();
         const existing = BlueprintPanel.open.get(key);
         if (existing) { existing.panel.reveal(); return; }
-        const panel = vscode.window.createWebviewPanel('ceBlueprint', 'Blueprint: ' + (target.uri.fsPath.split(/[\\/]/).pop() ?? ''), vscode.ViewColumn.Beside, {
+        const panel = vscode.window.createWebviewPanel('ceBlueprint', 'Blueprint: ' + (target.uri.fsPath.split(/[\\/]/).pop() ?? ''), column ?? vscode.ViewColumn.Beside, {
             enableScripts: true, retainContextWhenHidden: true,
         });
         BlueprintPanel.open.set(key, new BlueprintPanel(panel, target, deps));
@@ -220,7 +224,7 @@ export class BlueprintPanel {
                 await vscode.commands.executeCommand('ce.delphi.designer');
                 break;
             }
-            case 'openProject': await vscode.commands.executeCommand('ce.blueprint.project'); break;
+            case 'switchView': if (m.to === 'project') { await vscode.commands.executeCommand('ce.blueprint.project', this.panel.viewColumn); } break;
             case 'undo': await this.undo(); break;
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;

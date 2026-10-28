@@ -16,6 +16,9 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 body.project .fileonly, body.project #addNode { display: none; }
 body.flow #addNode, body.flow #undo, body.flow #redo { display: none; }
 .wlabel { fill: var(--vscode-descriptionForeground); font-size: 10px; pointer-events: none; }
+.seg { display: inline-flex; border: 1px solid var(--vscode-button-background, #0e639c); border-radius: 4px; overflow: hidden; margin-right: 4px; }
+.bar .seg button { border-radius: 0; background: transparent; color: var(--vscode-foreground); padding: 3px 12px; }
+.bar .seg button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
 .dd { position: relative; display: inline-block; }
 .bar button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30; min-width: 270px; padding: 6px 4px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128,128,128,0.5))); border-radius: 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
@@ -80,6 +83,7 @@ svg#cv.panning { cursor: grabbing; }
 .node.alone.dim { opacity: 0.12; }
 .node.unused .body { stroke: #d19a66; stroke-width: 2; stroke-dasharray: 5 3; }
 .node.cyc .body { stroke: #e05561; stroke-width: 2.5; }
+.wire.nouse { stroke: #d19a66; stroke-dasharray: 6 4; opacity: 1; }
 .wire.cyc { stroke: #e05561; opacity: 1; stroke-width: 3; }
 .node.in .body { stroke: #4aa3ff; stroke-width: 2; }
 .node.out .body { stroke: #ffb347; stroke-width: 2; }
@@ -112,7 +116,7 @@ export function blueprintScript(): string {
   var filter = '';
   var hideAlone = false;
   var analysis = { unused: [], cycles: [] };
-  var unusedSet = {}, cycleSet = {}, cycleEdges = {};
+  var unusedSet = {}, cycleSet = {}, cycleEdges = {}, unneededEdges = {};
   var showAnalysis = true;              // mark the unused routines and the cycles on the picture
   var flowMode = false;                 // the statements of one routine
   var locked = false;                   // flow and project views: no editing of routines
@@ -172,7 +176,8 @@ export function blueprintScript(): string {
   }
   function setAnalysis(a) {
     analysis = a || { unused: [], cycles: [] };
-    unusedSet = {}; cycleSet = {}; cycleEdges = {};
+    unusedSet = {}; cycleSet = {}; cycleEdges = {}; unneededEdges = {};
+    (analysis.unneeded || []).forEach(function (u) { unneededEdges[u.from + '>' + u.to] = true; });
     analysis.unused.forEach(function (id) { unusedSet[id] = true; });
     analysis.cycles.forEach(function (c) {
       c.forEach(function (id) { cycleSet[id] = true; });
@@ -255,11 +260,14 @@ export function blueprintScript(): string {
         var inE = (e.to === sel.id || rc.up[e.to]) && rc.up[e.from];
         cls += outE ? ' out' : inE ? ' in' : ' dim';
       } else if (showAnalysis && cycleEdges[id]) { cls += ' cyc'; }
+      else if (showAnalysis && unneededEdges[id]) { cls += ' nouse'; }
       var p = el('path', { d: d, 'class': cls, stroke: edgeColor(e.from) }, wires);
       if (e.label) { var lab = el('text', { 'class': 'wlabel', x: a.x + a.w + 10, y: pinY(a, 0) - 6 }, wires); lab.textContent = e.label; }
       p.setAttribute('data-edge', id);
       var hit = el('path', { d: d, 'class': 'hit' }, wires);
-      var tip = el('title', {}, hit); tip.textContent = a.name + ' calls ' + b.name + ' (' + e.lines.length + 'x) - click, then Delete to remove the call';
+      var tip = el('title', {}, hit); tip.textContent = projectMode
+        ? a.name + ' uses ' + b.name + (e.taken ? (e.taken.length ? ': ' + e.taken.slice(0, 12).join(', ') + (e.taken.length > 12 ? '...' : '') : ' but takes nothing from it: it may not be needed') : '') + ' - click, then Delete to remove it from the uses'
+        : a.name + ' calls ' + b.name + ' (' + e.lines.length + 'x) - click, then Delete to remove the call';
       hit.addEventListener('mousedown', function (ev) { ev.stopPropagation(); sel = { type: 'edge', id: id }; render(); });
     });
     model.nodes.forEach(function (n) {
@@ -334,18 +342,19 @@ export function blueprintScript(): string {
     if (parent) { parent.appendChild(e); }
     return e;
   }
-  function listItem(parent, n, count, onclick) {
+  function listItem(parent, n, count, onclick, taken) {
     var b = h('button', 'li', undefined, parent);
     var dot = h('span', 'dot', undefined, b); dot.style.background = headColor(n);
     h('span', 'nm', n.flow ? n.title + ' ' + n.text : (n.owner ? n.owner + '.' : '') + n.name, b);
     if (count > 1) { h('span', 'ct', count + 'x', b); }
+    if (taken) { var tk = h('span', 'ct', taken.length ? taken.length + (taken.length > 1 ? ' names' : ' name') : 'nothing used', b); b.title = taken.length ? taken.slice(0, 30).join(', ') : 'No name of this unit is used here: the uses may be unnecessary'; if (!taken.length) { tk.style.color = '#d19a66'; } }
     b.addEventListener('click', onclick || function () { select(n.id, true); });
     return b;
   }
   function section(side, title, edges, field) {
     h('h4', '', title + ' (' + edges.length + ')', side);
     if (!edges.length) { h('div', 'none', field === 'from' ? 'nobody in this file' : 'no call', side); return; }
-    edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length); } });
+    edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length, undefined, projectMode && field === 'to' ? e.taken : undefined); } });
   }
   function startEdit(id) {
     var n = byId(id);
@@ -401,7 +410,7 @@ export function blueprintScript(): string {
   }
   function renderSide() {
     if (editing && !(sel && sel.type === 'node' && sel.id === editing)) { editing = null; editForm = null; }
-    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode + '|' + analysis.unused.length + '|' + analysis.cycles.length;
+    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode + '|' + analysis.unused.length + '|' + analysis.cycles.length + '|' + (analysis.unneeded ? analysis.unneeded.length : 0);
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
@@ -456,10 +465,14 @@ export function blueprintScript(): string {
         h('h3', '', a.name + ' calls ' + b2.name, side);
         h('div', 'kind', ed.lines.length + (ed.lines.length > 1 ? ' call sites' : ' call site') + ', line ' + ed.lines.map(function (l) { return l + 1; }).join(', '), side);
         var acts2 = h('div', 'acts', undefined, side);
-        var rm = h('button', 'act danger', 'Remove the call (Delete)', acts2);
+        var rm = h('button', 'act danger', projectMode ? 'Remove from the uses (Delete)' : 'Remove the call (Delete)', acts2);
         rm.addEventListener('click', function () { post({ type: 'removeCall', from: p2[0], to: p2[1] }); });
         var op = h('button', 'act', 'Open ' + a.name, acts2);
         op.addEventListener('click', function () { post({ type: 'openCode', id: a.id }); });
+        if (projectMode && ed.taken) {
+          h('h4', '', ed.taken.length ? 'What ' + a.name + ' takes from ' + b2.name + ' (' + ed.taken.length + ')' : 'Nothing found', side);
+          h('div', ed.taken.length ? 'sig' : 'none', ed.taken.length ? ed.taken.join(', ') : 'No name of ' + b2.name + ' appears in the code of ' + a.name + ': the uses may not be needed (unless it is there for its initialization).', side);
+        }
         listItem(side, a, 0); listItem(side, b2, 0);
         return;
       }
@@ -485,6 +498,19 @@ export function blueprintScript(): string {
       h('h4', '', (projectMode ? 'Used by no unit (' : 'Not called in this file (') + unusedShown.length + ')', side);
       unusedShown.forEach(function (n) { listItem(side, n, 0); });
       h('div', 'none', projectMode ? 'Not listed in any uses clause of the project (a form created by the project file counts).' : 'They may still be called from another unit or by an event.', side);
+    }
+    var unneeded = (analysis.unneeded || []).filter(function (u) { return keepSide[u.from] && keepSide[u.to]; });
+    if (unneeded.length) {
+      h('h4', '', 'Uses that take nothing (' + unneeded.length + ')', side);
+      unneeded.forEach(function (u) {
+        var a = byId(u.from), b = byId(u.to);
+        if (!a || !b) { return; }
+        var it = h('button', 'li', undefined, side);
+        h('span', 'nm', a.name + ' > ' + b.name + (u.section === 'implementation' ? '' : ' (interface)'), it);
+        it.title = 'Nothing that ' + b.name + ' offers is mentioned in ' + a.name + ': click to select the wire, then remove it if it is not needed';
+        it.addEventListener('click', function () { sel = { type: 'edge', id: u.from + '>' + u.to }; render(); });
+      });
+      h('div', 'none', 'A unit may be used only for its initialization section: check before removing.', side);
     }
     analysis.cycles.forEach(function (c, i) {
       h('h4', '', (projectMode ? 'Circular uses ' : 'Calls in a loop ') + (i + 1) + ' (' + c.length + ')', side);
@@ -720,7 +746,8 @@ export function blueprintScript(): string {
   }
   document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
   document.getElementById('back').addEventListener('click', function () { post({ type: 'ready' }); });
-  document.getElementById('openProject').addEventListener('click', function () { post({ type: 'openProject' }); });
+  document.getElementById('vfile').addEventListener('click', function () { if (flowMode) { post({ type: 'ready' }); } else if (projectMode) { post({ type: 'switchView', to: 'file' }); } });
+  document.getElementById('vproject').addEventListener('click', function () { if (!projectMode) { post({ type: 'switchView', to: 'project' }); } });
   document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
   document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
   document.getElementById('analysis').addEventListener('change', function (ev) { showAnalysis = ev.target.checked; render(); });
@@ -752,6 +779,8 @@ export function blueprintScript(): string {
       document.body.classList.toggle('project', projectMode || flowMode);
       document.body.classList.toggle('flow', flowMode);
       document.getElementById('back').hidden = !flowMode;
+      document.getElementById('vfile').classList.toggle('on', !projectMode);
+      document.getElementById('vproject').classList.toggle('on', projectMode);
       if (m.title) { document.getElementById('ttl').textContent = m.title; }
       setAnalysis(m.analysis);
       modelVer++;
@@ -797,7 +826,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <style nonce="${o.nonce}">${blueprintCss()}</style></head>
 <body>
 <div class="bar">
-<span class="title" id="ttl">${esc(o.title)}</span><button id="back" hidden title="Back to the calls of the file">&#x2190; Calls</button>
+<span class="seg" title="The routines of one file, or the units of the whole project"><button id="vfile" class="on">File</button><button id="vproject">Project</button></span><span class="title" id="ttl">${esc(o.title)}</span><button id="back" hidden title="Back to the calls of the file">&#x2190; Calls</button>
 <button id="addNode" class="primary" title="Add a routine to the code (double-click on the canvas does the same where you click)">+ Node</button>
 <label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
@@ -814,8 +843,6 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <label class="mi" title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus reaches <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
 <label class="mi" title="With a search, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> Search keeps linked routines</label>
 <label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
-<div class="mh fileonly">Scope</div>
-<button class="mi btn fileonly" id="openProject" title="Draw the units of the project and the uses between them (Delphi)">Show the project (units and uses)</button>
 <div class="mh">Export</div>
 <button class="mi btn" id="exportMermaid" title="Copy a Mermaid flowchart of the calls, to paste in a README or a wiki">Copy as Mermaid</button>
 <button class="mi btn" id="exportSvg" title="Save the whole graph as an SVG picture">Save as SVG picture...</button>

@@ -77,9 +77,43 @@ test('the project view: its command, its menu entry, its page mode and the panel
     assert.match(js, /\['Its blueprint', 'openUnit', ''\]/);
     assert.match(js, /if \(locked\) \{ return; \}/, 'no new routine by double-click in the project view');
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
-    assert.ok(html.includes('id="openProject"'));
+    assert.ok(html.includes('id="vfile"') && html.includes('id="vproject"'), 'a File | Project switch');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'ProjectBlueprintPanel.ts'), 'utf8');
     assert.match(panel, /addUses\(before, to\.name\) : removeUses\(before, to\.name\)/);
-    assert.match(panel, /BlueprintPanel\.show\(doc\)/, 'a unit opens the blueprint of its routines');
+    assert.match(panel, /BlueprintPanel\.show\(doc, this\.panel\.viewColumn\)/, 'a unit opens the blueprint of its routines, in the same group');
     assert.match(panel, /e\.section === 'interface'/, 'only the interface uses make a loop Delphi refuses');
+});
+
+import { takenFrom } from '../utils/unitGraph';
+
+test('what a unit takes from the units it uses, and the uses that take nothing', () => {
+    const sym = (exported: string[], words: string[]) => ({ exported: new Set(exported), words: new Set(words) });
+    const data = { ...readUnit('unit Data;\ninterface\nimplementation\nend.', 'Data.pas')!, symbols: sym(['data', 'connect', 'query', 'tdata'], ['data']) };
+    const logs = { ...readUnit('unit Logs;\ninterface\nimplementation\nend.', 'Logs.pas')!, symbols: sym(['logs', 'writelog'], ['logs']) };
+    const main = { ...readUnit('unit Main;\ninterface\nuses Data, Logs;\nimplementation\nend.', 'Main.pas')!, symbols: sym(['main'], ['main', 'connect', 'query', 'other']) };
+    assert.deepEqual(takenFrom(main, data), ['connect', 'query'], 'the names of Data that the code of Main mentions, not the unit name itself');
+    assert.deepEqual(takenFrom(main, logs), [], 'nothing of Logs is used');
+    assert.equal(takenFrom({ ...main, symbols: undefined }, data), undefined, 'unknown when a side was not read');
+    const g = buildUnitGraph([main, data, logs]);
+    assert.deepEqual(g.edges.find(e => e.to === 'Data')!.taken, ['connect', 'query']);
+    assert.deepEqual(g.unneeded, [{ from: 'Main', to: 'Logs', section: 'interface' }]);
+    const plain = buildUnitGraph([readUnit('unit A;\ninterface\nuses B;\nimplementation\nend.', 'A.pas')!, readUnit('unit B;\ninterface\nimplementation\nend.', 'B.pas')!]);
+    assert.deepEqual(plain.unneeded, [], 'without the symbols nothing is claimed');
+});
+
+test('the File | Project switch goes both ways, and the project view shows what each wire carries', () => {
+    const root = path.join(__dirname, '..', '..');
+    const js = blueprintScript();
+    assert.match(js, /post\(\{ type: 'switchView', to: 'file' \}\)/);
+    assert.match(js, /post\(\{ type: 'switchView', to: 'project' \}\)/);
+    assert.match(js, /document\.getElementById\('vproject'\)\.classList\.toggle\('on', projectMode\)/);
+    assert.match(js, /'Uses that take nothing \('/);
+    assert.match(js, /wire\.nouse|' nouse'/);
+    const file = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
+    assert.match(file, /case 'switchView': if \(m\.to === 'project'\) \{ await vscode\.commands\.executeCommand\('ce\.blueprint\.project', this\.panel\.viewColumn\)/);
+    assert.match(file, /static lastDoc/);
+    const project = fs.readFileSync(path.join(root, 'src', 'webview', 'ProjectBlueprintPanel.ts'), 'utf8');
+    assert.match(project, /case 'switchView': if \(m\.to === 'file'\) \{ this\.showFile\(\); \}/);
+    assert.match(project, /BlueprintPanel\.lastDoc \?\?/, 'the File button goes back to the last file drawn');
+    assert.match(project, /unitFacts\(text\)/);
 });

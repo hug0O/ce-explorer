@@ -6,6 +6,7 @@ import { layout } from '../utils/blueprintLayout';
 import { analyze } from '../utils/blueprintAnalysis';
 import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { UnitGraph, UnitInfo, addUses, buildUnitGraph, readUnit, removeUses } from '../utils/unitGraph';
+import { unitFacts } from '../services/ProjectUnused';
 
 const SOURCE_GLOB = '**/*.{pas,dpr,dpk}';
 const EXCLUDE = '**/{node_modules,__history,__recovery,.git,Win32,Win64,Debug,Release}/**';
@@ -36,14 +37,15 @@ export class ProjectBlueprintPanel {
         };
     }
 
-    static show(): void {
+    static show(column?: vscode.ViewColumn): void {
         if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showWarningMessage('CE: Open a folder with Delphi sources to draw its units.'); return; }
         if (ProjectBlueprintPanel.current) { ProjectBlueprintPanel.current.panel.reveal(); return; }
-        const panel = vscode.window.createWebviewPanel('ceBlueprint', 'Blueprint: project', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
+        const panel = vscode.window.createWebviewPanel('ceBlueprint', 'Blueprint: project', column ?? vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
         ProjectBlueprintPanel.current = new ProjectBlueprintPanel(panel);
     }
 
-    private graph: UnitGraph = { nodes: [], edges: [], external: new Map() };
+    private graph: UnitGraph = { nodes: [], edges: [], external: new Map(), unneeded: [] };
+    private symbols = new Map<string, UnitInfo['symbols']>();
     private timer: NodeJS.Timeout | undefined;
     private zen = false;
     private readonly subs: vscode.Disposable[] = [];
@@ -78,8 +80,13 @@ export class ProjectBlueprintPanel {
         for (const f of files) {
             try {
                 const bytes = await vscode.workspace.fs.readFile(f);
-                const u = readUnit(Buffer.from(bytes).toString('latin1'), f.toString());
-                if (u) { units.push(u); }
+                const text = Buffer.from(bytes).toString('latin1');
+                const u = readUnit(text, f.toString());
+                if (u) {
+                    const facts = u.kind === 'unit' ? unitFacts(text) : undefined;
+                    if (facts) { u.symbols = { exported: facts.exported, words: facts.words }; this.symbols.set(u.name, u.symbols); }
+                    units.push(u);
+                }
             } catch { /* a file that cannot be read is left out */ }
         }
         this.graph = buildUnitGraph(units, this.positions());
@@ -91,7 +98,7 @@ export class ProjectBlueprintPanel {
         // a unit that nobody uses is "unused"; only the `interface` uses make a loop that Delphi refuses
         const ids = this.graph.nodes.map(n => n.id);
         const interfaceEdges = this.graph.edges.filter(e => e.section === 'interface');
-        const analysis = analyze(ids, interfaceEdges, this.graph.nodes.filter(n => n.kind === 'program').map(n => n.id));
+        const analysis = { ...analyze(ids, interfaceEdges, this.graph.nodes.filter(n => n.kind === 'program').map(n => n.id)), unneeded: this.graph.unneeded };
         void this.panel.webview.postMessage({
             type: 'model', mode: 'project', nodes: this.graph.nodes, edges: this.graph.edges, analysis, fit,
         });
@@ -113,9 +120,17 @@ export class ProjectBlueprintPanel {
             case 'subsetLayout': this.subsetLayout(m.ids, m.key); break;
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'fullscreen': await this.setZen(m.on === true); break;
-            case 'openProject': break;
+            case 'switchView': if (m.to === 'file') { this.showFile(); } break;
             default: break;
         }
+    }
+
+    /** The File button: the blueprint of the last file drawn, else of the file being edited. */
+    private showFile(): void {
+        const supported = (d: vscode.TextDocument | undefined): d is vscode.TextDocument => !!d && d.uri.scheme === 'file' && /\.(pas|dpr|dpk|cpp|h|hpp|cc|cs|java|go|rs|py|ts|tsx|js|jsx|ps1|psm1|sh|bash|bat|cmd|pks|pkb|sql)$/i.test(d.uri.fsPath);
+        const doc = BlueprintPanel.lastDoc ?? [vscode.window.activeTextEditor?.document, ...vscode.window.visibleTextEditors.map(e => e.document)].find(supported);
+        if (!doc) { this.notice('Open a source file, or double-click a unit, to see the blueprint of its routines.'); return; }
+        BlueprintPanel.show(doc, this.panel.viewColumn);
     }
 
     private async openUnit(n: UnitGraph['nodes'][number] | undefined, asBlueprint: boolean): Promise<void> {
@@ -123,7 +138,7 @@ export class ProjectBlueprintPanel {
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(n.file));
         if (asBlueprint) {
             if (n.kind !== 'unit') { this.notice(n.name + ' is a program file: it has no routines of its own to draw.'); return; }
-            BlueprintPanel.show(doc);
+            BlueprintPanel.show(doc, this.panel.viewColumn);
             return;
         }
         await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One });
@@ -142,7 +157,7 @@ export class ProjectBlueprintPanel {
             this.notice(add ? from.name + ' now uses ' + to.name + ' (implementation section). Save to see the graph updated; Ctrl+Z in the unit undoes it.' : from.name + ' no longer uses ' + to.name + '. Save to see the graph updated.');
             // the unit is changed in memory: draw it from there without waiting for the save
             const u = readUnit(after, from.file);
-            if (u) { await this.redraw(u); }
+            if (u) { u.symbols = this.symbols.get(u.name); await this.redraw(u); }
         }
     }
 
@@ -153,7 +168,7 @@ export class ProjectBlueprintPanel {
             // the other units keep what was read: rebuild their uses from the current edges
             const uses = this.graph.edges.filter(e => e.from === n.id).map(e => ({ name: e.to, section: e.section, line: e.lines[0] ?? 0 }))
                 .concat((n.external ?? []).map(name => ({ name, section: 'interface' as const, line: 0 })));
-            infos.push({ name: n.name, kind: n.kind === 'program' ? 'program' : 'unit', uses, file: n.file ?? '' });
+            infos.push({ name: n.name, kind: n.kind === 'program' ? 'program' : 'unit', uses, file: n.file ?? '', symbols: this.symbols.get(n.name) });
         }
         this.graph = buildUnitGraph(infos, this.positions());
         await this.send(false);

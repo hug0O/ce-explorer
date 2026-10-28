@@ -75,7 +75,7 @@ test('the project view: its command, its menu entry, its page mode and the panel
     assert.match(js, /projectMode = m\.mode === 'project'/);
     assert.match(js, /projectMode \? 'Used by' : 'Called by'/);
     assert.match(js, /\['Its blueprint', 'openUnit', ''\]/);
-    assert.match(js, /if \(projectMode\) \{ return; \}/, 'no new routine by double-click in the project view');
+    assert.match(js, /if \(locked\) \{ return; \}/, 'no new routine by double-click in the project view');
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
     assert.ok(html.includes('id="openProject"'));
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'ProjectBlueprintPanel.ts'), 'utf8');

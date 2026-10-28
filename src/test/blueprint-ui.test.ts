@@ -123,7 +123,7 @@ test('what a filter or "hide others" leaves is laid out again as if it were alon
     assert.match(js, /n\.x = n\.ox; n\.y = n\.oy/, 'the real positions are put back');
     assert.match(js, /d\.moved && !swapped/, 'a node moved while the others are hidden does not overwrite its saved position');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
-    assert.match(panel, /case 'subsetLayout': this\.subsetLayout\(m\.ids, m\.key\)/);
+    assert.match(panel, /case 'subsetLayout': if \(!this\.flowOf\) \{ this\.subsetLayout\(m\.ids, m\.key\); \} break;/);
     assert.match(panel, /type: 'subset', key, positions/);
     assert.ok(!/positions\(\)[^;]*subset/.test(panel), 'the subset layout is not saved');
 });

@@ -86,6 +86,7 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var isolate = false;                  // hide everything that is not linked to the selected routine
   var withLinked = false;               // the filter also keeps the routines next to the ones it finds
   var compact = false;                  // no data pins: one line per node
   var depthMode = 1;                    // how far the focus on the selected node reaches
@@ -151,6 +152,10 @@ export function blueprintScript(): string {
         if (keep[e.to] && !keep[e.from]) { extra[e.from] = true; }
       });
       model.nodes.forEach(function (n) { if (extra[n.id] && !(hideAlone && !linked[n.id])) { keep[n.id] = true; } });
+    }
+    if (isolate) {
+      var r = reach();
+      if (r) { model.nodes.forEach(function (n) { keep[n.id] = keep[n.id] && (n.id === sel.id || !!r.up[n.id] || !!r.down[n.id]); }); }
     }
     return keep;
   }
@@ -241,8 +246,8 @@ export function blueprintScript(): string {
     var n = byId(id);
     if (!n) { return; }
     sel = { type: 'node', id: id };
-    if (center) { centerOn(n); }
     render();
+    if (isolate) { fit(); } else if (center) { centerOn(n); }
   }
   function h(tag, cls, text, parent) {
     var e = document.createElement(tag);
@@ -265,7 +270,7 @@ export function blueprintScript(): string {
     edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length); } });
   }
   function renderSide() {
-    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked;
+    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode;
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
@@ -463,6 +468,7 @@ export function blueprintScript(): string {
     if (inField) { return; }
     if (ev.key === '/') { ev.preventDefault(); document.getElementById('filter').focus(); return; }
     if (ev.key === 'f' || ev.key === '9') { fit(); return; }
+    if (ev.key === 'h') { setIsolate(!isolate); return; }
     if (ev.key === '0') { setZoom(1); return; }
     if (ev.key === '+' || ev.key === '=') { setZoom(view.k * 1.25); return; }
     if (ev.key === '-') { setZoom(view.k / 1.25); return; }
@@ -514,7 +520,15 @@ export function blueprintScript(): string {
     }
   });
   document.getElementById('linked').addEventListener('change', function (ev) { withLinked = ev.target.checked; applyFilter(); });
-  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); });
+  function setIsolate(on) {
+    isolate = on;
+    document.getElementById('isolate').checked = on;
+    render();
+    if (sel && sel.type === 'node') { fit(); }
+    say(on ? (sel ? '' : 'Select a routine: everything not linked to it is hidden') : '');
+  }
+  document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
+  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); if (isolate && sel && sel.type === 'node') { fit(); } });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
@@ -571,6 +585,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <label title="With a filter, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> + linked</label>
 <label title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
 <label title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> pins</label>
+<label title="Hide every routine that is not linked to the selected one (H). The Focus box says how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
 <label title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> hide isolated</label>
 <button id="details" title="Show or hide the details panel">Details</button>
 <span class="grow"></span><span class="msg" id="msg"></span><span class="msg" id="count"></span>

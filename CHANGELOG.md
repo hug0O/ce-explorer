@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.46 — 2026-10-28
+- **Blueprint: hide what is not linked to the selection.** The *hide others* box (or the `H` key) removes from the picture every routine that is not linked to the selected one, with its wires, instead of just fading it; the *Focus* box says how far the link may go (direct, 2 levels, all levels). The view is fitted to what is left, a routine picked in the details panel shows its neighbourhood, and clicking the background (nothing selected) brings everything back.
+
 ## 0.1.45 — 2026-10-28
 - **Blueprint: find a routine.** The filter box now shows only the routines whose name matches and hides all the others, with their wires; the view is centred on what is left, and a single match is selected (its callers and callees in the details panel). `Enter` selects the first match, `Esc` clears the filter and shows everything again. The *+ linked* box keeps the routines that call the ones found or are called by them (the found ones are outlined in yellow). The colour legend moved to the top left so it no longer overlaps the help line.
 

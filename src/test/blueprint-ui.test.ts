@@ -104,3 +104,13 @@ test('the filter shows only the routine searched for (and, if asked, its neighbo
     assert.match(js, /ev\.target\.value = ''; filter = ''/, 'Esc clears the filter');
     assert.match(js, /var keep = visibleSet\(\);\s*var list = model\.nodes\.filter/, 'fit looks at the nodes that are drawn');
 });
+
+test('"hide others" removes every routine not linked to the selection, as far as the Focus box says', () => {
+    const js = blueprintScript();
+    const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
+    assert.ok(html.includes('id="isolate"') && html.includes('hide others'));
+    assert.match(js, /keep\[n\.id\] = keep\[n\.id\] && \(n\.id === sel\.id \|\| !!r\.up\[n\.id\] \|\| !!r\.down\[n\.id\]\)/);
+    assert.match(js, /function setIsolate\(on\)/);
+    assert.match(js, /ev\.key === 'h'\) \{ setIsolate\(!isolate\)/);
+    assert.match(js, /if \(isolate\) \{ fit\(\); \} else if \(center\)/);
+});

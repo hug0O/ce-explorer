@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.59 — 2026-10-28
+- **The sidebar has three tabs instead of five**: *Structure*, *Tools* and *Memo*. The details of the member and the shortcuts are one click away in a **⋯** menu at the end of the bar, which shows the name of the one that is open (*Shortcuts ⋯*).
+- **A simpler empty page.** With no member under the cursor, the panel proposes three things — *Structure of the file*, *Go to a member*, *Quick actions* — and folds the long list of other actions under *More actions*.
+
 ## 0.1.58 — 2026-10-28
 - **A simpler right-click menu.** *Code Explorer* in the editor menu now has five entries — *Quick actions*, *Structure*, *Go to a member*, *Blueprint* (file), *Blueprint of the project* (Delphi) — and a **More commands** submenu with the rest (edit, review, member keys, Delphi, PL/SQL), grouped as before.
 - **A cleaner command palette.** The commands that only make sense from an element of a list or with the arguments of another command (*Open member editor*, *Batch move*, *Move member*, *Set language to…*, the full screen key…) are no longer offered there.

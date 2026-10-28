@@ -1492,9 +1492,10 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
                 ? this.getShortcutsHtml()
                 : `<div class="empty">
 <div class="icon">🔍</div>
-<p>Place cursor on a class member to view &amp; edit it.</p>
+<p>Place the cursor on a class member to view &amp; edit it, or start with one of these.</p>
 </div>
-${groupsHtml}`;
+<div class="qa-grid qa-main">${quick('☰ Structure of the file', 'ce.manageMembers')}${quick('🔎 Go to a member', 'ce.nav.pickMember')}${quick('⚡ Quick actions', 'ce.showActions')}</div>
+<details class="qa-more"><summary>More actions</summary>${groupsHtml}</details>`;
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -1511,6 +1512,8 @@ body { font-family: var(--vscode-font-family, -apple-system, sans-serif); font-s
 .qa-group { margin-bottom: 12px; }
 .qa-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 0 2px 5px; }
 .qa-grid { display: flex; flex-direction: column; gap: 3px; }
+.qa-main { margin: 6px 0 10px; }
+.qa-more > summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 11px; margin: 6px 0; }
 .qa { display: block; width: 100%; text-align: left; padding: 6px 10px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit; background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.12)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .qa:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.2)); }
 .ana { display: block; width: 100%; text-align: left; padding: 5px 8px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.12)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
@@ -1542,6 +1545,15 @@ ${shortcutsScript()}
     document.querySelectorAll('.tab').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'setTab', tab: b.getAttribute('data-tab') }); });
     });
+    var tm = document.getElementById('tabMore'), tmenu = document.getElementById('tabMenu');
+    if (tm && tmenu) {
+        tm.addEventListener('click', function() {
+            var open = tmenu.hidden;
+            tmenu.hidden = !open;
+            if (open) { var r = tm.getBoundingClientRect(); tmenu.style.left = Math.max(2, Math.min(r.left, window.innerWidth - 150)) + 'px'; tmenu.style.top = r.bottom + 'px'; }
+        });
+        document.addEventListener('mousedown', function(e) { if (!tmenu.hidden && !tmenu.contains(e.target) && e.target !== tm) { tmenu.hidden = true; } });
+    }
     document.querySelectorAll('[data-m-act]').forEach(function(b) {
         b.addEventListener('click', function() {
             api.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });
@@ -1562,7 +1574,12 @@ ${shortcutsScript()}
     private tabsHtml(firstLabel: string): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
             `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''} data-ico="${TAB_ICONS[id] ?? ''}">${label}</button>`;
-        return `<div class="tabs">\n${tab('detail', firstLabel)}\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
+        // Structure, Tools and Memo are always there; the details of the member and the shortcuts are one click away in the "..." menu, which
+        // shows the name of the one that is open
+        const inMenu = this._tab === 'detail' || this._tab === 'shortcuts';
+        const menuLabel = this._tab === 'shortcuts' ? 'Shortcuts' : firstLabel;
+        const more = `<span class="tabdd"><button class="tabmore${inMenu ? ' active' : ''}" id="tabMore" title="The details of the member, the shortcuts">${inMenu ? menuLabel + ' ' : ''}⋯</button><div class="tabmenu" id="tabMenu" hidden>${tab('detail', firstLabel)}${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}</div></span>`;
+        return `<div class="tabs">\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${more}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
     }
 
     /** Rows of the local variables and parameters of a member; the buttons only where they can act on it. */
@@ -1707,6 +1724,14 @@ ${toolsCss()}
 .tab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .tab.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
 .tab:hover { color: var(--vscode-foreground); }
+.tabdd { flex: none; display: inline-block; }
+.tabmore { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--vscode-descriptionForeground); padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: inherit; white-space: nowrap; }
+.tabmore:hover { color: var(--vscode-foreground); }
+.tabmore.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, #007fd4); font-weight: 600; }
+.tabmenu { position: fixed; z-index: 50; min-width: 140px; display: flex; flex-direction: column; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128,128,128,0.5))); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); padding: 3px; }
+.tabmenu[hidden] { display: none; }
+.tabmenu .tab { text-align: left; border-bottom: none; border-radius: 3px; padding: 5px 10px; }
+.tabmenu .tab.active { background: var(--vscode-list-activeSelectionBackground, rgba(0,127,212,0.25)); }
 .mlist { list-style: none; padding: 0; }
 .mrow { display: flex; align-items: center; gap: 5px; padding: 3px 4px; border-radius: 3px; font-size: 12px; }
 .mrow:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15)); }
@@ -1860,6 +1885,15 @@ ${shortcutsScript()}
     document.querySelectorAll('.tab').forEach(function(b) {
         b.addEventListener('click', function() { vscodeApi.postMessage({ command: 'setTab', tab: b.getAttribute('data-tab') }); });
     });
+    var tm = document.getElementById('tabMore'), tmenu = document.getElementById('tabMenu');
+    if (tm && tmenu) {
+        tm.addEventListener('click', function() {
+            var open = tmenu.hidden;
+            tmenu.hidden = !open;
+            if (open) { var r = tm.getBoundingClientRect(); tmenu.style.left = Math.max(2, Math.min(r.left, window.innerWidth - 150)) + 'px'; tmenu.style.top = r.bottom + 'px'; }
+        });
+        document.addEventListener('mousedown', function(e) { if (!tmenu.hidden && !tmenu.contains(e.target) && e.target !== tm) { tmenu.hidden = true; } });
+    }
     document.querySelectorAll('[data-m-act]').forEach(function(b) {
         b.addEventListener('click', function() {
             vscodeApi.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });

@@ -564,3 +564,30 @@ test('Structure: the filter is emptied when another file comes to the front', ()
         assert.deepEqual([panel._manageFilter, panel._manageKind], ['', ''], 'another file starts clean');
     } finally { w.onDidChangeActiveTextEditor = before; w.activeTextEditor = undefined; }
 });
+
+test('the tab bar shows Structure, Tools and Memo; the details of the member and the shortcuts are in a ... menu that names the open one', () => {
+    const panel = makePanel();
+    panel._tab = 'manage';
+    let html: string = panel.getHtml();
+    const bar = html.slice(html.indexOf('<div class="tabs">'), html.indexOf('</div></span>') + 13);
+    const visible = bar.slice(0, bar.indexOf('<span class="tabdd">'));
+    assert.deepEqual([...visible.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]), ['manage', 'tools', 'memo']);
+    const menu = bar.slice(bar.indexOf('id="tabMenu"'));
+    assert.deepEqual([...menu.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]), ['detail', 'shortcuts']);
+    assert.match(bar, /<button class="tabmore" id="tabMore"[^>]*>⋯<\/button>/, 'no name while a visible tab is open');
+    panel._tab = 'shortcuts';
+    html = panel.getHtml();
+    assert.match(html, /<button class="tabmore active" id="tabMore"[^>]*>Shortcuts ⋯<\/button>/, 'the menu button says which one is open');
+    assert.match(html, /class="tab active" data-tab="shortcuts"/);
+    assert.match(html, /var tm = document\.getElementById\('tabMore'\)/, 'the menu opens and closes');
+});
+
+test('the empty page proposes three things and keeps the other actions folded', () => {
+    const panel = makePanel();
+    panel._tab = 'detail';
+    const html: string = panel.getEmptyHtml();
+    const main = html.slice(html.indexOf('qa-main'), html.indexOf('<details'));
+    assert.deepEqual([...main.matchAll(/data-cmd="([\w.]+)"/g)].map(m => m[1]), ['ce.manageMembers', 'ce.nav.pickMember', 'ce.showActions']);
+    assert.match(html, /<details class="qa-more"><summary>More actions<\/summary>/);
+    assert.ok(html.indexOf('ce.addMethod') > html.indexOf('<details'), 'the long list is inside the fold');
+});

@@ -13,6 +13,15 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 .bar .title { font-weight: 600; margin-right: 6px; }
 .bar button { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, inherit); border: 1px solid transparent; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .bar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.3)); }
+.dd { position: relative; display: inline-block; }
+.bar button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.menu { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30; min-width: 270px; padding: 6px 4px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128,128,128,0.5))); border-radius: 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+.menu[hidden] { display: none; }
+.menu .mh { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--vscode-descriptionForeground); padding: 6px 8px 2px; }
+.menu .mi { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 3px; cursor: pointer; color: inherit; white-space: nowrap; }
+.menu .mi:hover { background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, rgba(128,128,128,0.2))); }
+.bar .menu button.mi.btn { width: 100%; text-align: left; background: transparent; border: none; border-radius: 3px; padding: 4px 8px; }
+.menu select { margin-left: auto; background: var(--vscode-dropdown-background, var(--vscode-input-background)); color: var(--vscode-dropdown-foreground, inherit); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; font-size: 12px; }
 .bar button:disabled { opacity: 0.4; cursor: default; }
 .bar button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
@@ -66,6 +75,9 @@ svg#cv.panning { cursor: grabbing; }
 .node.alone { opacity: 0.6; }
 .node.hit .body { stroke: #ffd54a; stroke-width: 2.5; }
 .node.alone.dim { opacity: 0.12; }
+.node.unused .body { stroke: #d19a66; stroke-width: 2; stroke-dasharray: 5 3; }
+.node.cyc .body { stroke: #e05561; stroke-width: 2.5; }
+.wire.cyc { stroke: #e05561; opacity: 1; stroke-width: 3; }
 .node.in .body { stroke: #4aa3ff; stroke-width: 2; }
 .node.out .body { stroke: #ffb347; stroke-width: 2; }
 svg.lod .lbl, svg.lod .sub { display: none; }
@@ -96,6 +108,9 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var analysis = { unused: [], cycles: [] };
+  var unusedSet = {}, cycleSet = {}, cycleEdges = {};
+  var showAnalysis = true;              // mark the unused routines and the cycles on the picture
   var editing = null;                   // id of the routine whose signature is being edited in the details panel
   var editForm = null;
   var swapped = false;                  // the nodes shown are laid out again among themselves (the saved positions are kept aside)
@@ -146,6 +161,15 @@ export function blueprintScript(): string {
     walk(sel.id, 'to', 'from', up);
     walk(sel.id, 'from', 'to', down);
     return { up: up, down: down };
+  }
+  function setAnalysis(a) {
+    analysis = a || { unused: [], cycles: [] };
+    unusedSet = {}; cycleSet = {}; cycleEdges = {};
+    analysis.unused.forEach(function (id) { unusedSet[id] = true; });
+    analysis.cycles.forEach(function (c) {
+      c.forEach(function (id) { cycleSet[id] = true; });
+      model.edges.forEach(function (e) { if (c.indexOf(e.from) >= 0 && c.indexOf(e.to) >= 0) { cycleEdges[e.from + '>' + e.to] = true; } });
+    });
   }
   function callersOf(id) { return model.edges.filter(function (e) { return e.to === id; }); }
   function calleesOf(id) { return model.edges.filter(function (e) { return e.from === id; }); }
@@ -220,7 +244,7 @@ export function blueprintScript(): string {
         var outE = (e.from === sel.id || rc.down[e.from]) && rc.down[e.to];
         var inE = (e.to === sel.id || rc.up[e.to]) && rc.up[e.from];
         cls += outE ? ' out' : inE ? ' in' : ' dim';
-      }
+      } else if (showAnalysis && cycleEdges[id]) { cls += ' cyc'; }
       var p = el('path', { d: d, 'class': cls, stroke: edgeColor(e.from) }, wires);
       p.setAttribute('data-edge', id);
       var hit = el('path', { d: d, 'class': 'hit' }, wires);
@@ -230,7 +254,7 @@ export function blueprintScript(): string {
     model.nodes.forEach(function (n) {
       if (!visible[n.id]) { return; }
       var inFocus = !rc || sel.id === n.id || rc.up[n.id] || rc.down[n.id];
-      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + (inFocus ? '' : ' dim') + (n.hasBody ? '' : ' nobody') + (linked[n.id] ? '' : ' alone') + (filter && withLinked && matches(n) ? ' hit' : '')
+      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + (inFocus ? '' : ' dim') + (n.hasBody ? '' : ' nobody') + (linked[n.id] ? '' : ' alone') + (filter && withLinked && matches(n) ? ' hit' : '') + (showAnalysis && unusedSet[n.id] ? ' unused' : '') + (showAnalysis && cycleSet[n.id] ? ' cyc' : '')
         + (rc && rc.up[n.id] ? ' in' : '') + (rc && rc.down[n.id] ? ' out' : '');
       var nh = heightOf(n);
       var g = el('g', { 'class': cls, transform: 'translate(' + n.x + ',' + n.y + ')', 'data-id': n.id }, world);
@@ -356,7 +380,7 @@ export function blueprintScript(): string {
   }
   function renderSide() {
     if (editing && !(sel && sel.type === 'node' && sel.id === editing)) { editing = null; editForm = null; }
-    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode;
+    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode + '|' + analysis.unused.length + '|' + analysis.cycles.length;
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
@@ -409,6 +433,16 @@ export function blueprintScript(): string {
       if (!g[1].length) { return; }
       h('h4', '', g[0] + ' (' + g[1].length + ')', side);
       g[1].forEach(function (n) { listItem(side, n, 0); });
+    });
+    var unusedShown = analysis.unused.map(byId).filter(function (n) { return n && keepSide[n.id]; });
+    if (unusedShown.length) {
+      h('h4', '', 'Not called in this file (' + unusedShown.length + ')', side);
+      unusedShown.forEach(function (n) { listItem(side, n, 0); });
+      h('div', 'none', 'They may still be called from another unit or by an event.', side);
+    }
+    analysis.cycles.forEach(function (c, i) {
+      h('h4', '', 'Calls in a loop ' + (i + 1) + ' (' + c.length + ')', side);
+      c.forEach(function (id) { var n = byId(id); if (n) { listItem(side, n, 0); } });
     });
     if (!shown.length) { h('div', 'none', 'No routine matches the filter.', side); }
     h('div', 'tip', 'Click a routine to select it and see who calls it and what it calls. Everything else fades.', side);
@@ -554,6 +588,7 @@ export function blueprintScript(): string {
 
   window.addEventListener('keydown', function (ev) {
     var inField = ev.target && ev.target.tagName === 'INPUT';
+    if (ev.key === 'Escape' && !moreMenu.hidden) { closeMenus(); return; }
     if (ev.key === 'Escape') { if (inField) { return; } else if (!sel && full) { setFull(false); } sel = null; render(); return; }
     if (inField) { return; }
     if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {
@@ -579,6 +614,12 @@ export function blueprintScript(): string {
     else if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); }
   });
 
+  /* the More menu: opens under its button, closes on a click elsewhere, on Esc, or after a command */
+  var moreBtn = document.getElementById('more'), moreMenu = document.getElementById('moremenu');
+  function closeMenus() { moreMenu.hidden = true; moreBtn.classList.remove('on'); }
+  moreBtn.addEventListener('click', function () { var open = moreMenu.hidden; closeMenus(); if (open) { moreMenu.hidden = false; moreBtn.classList.add('on'); } });
+  window.addEventListener('mousedown', function (ev) { if (!moreMenu.hidden && !moreMenu.contains(ev.target) && ev.target !== moreBtn) { closeMenus(); } });
+  moreMenu.addEventListener('click', function (ev) { if (ev.target.tagName === 'BUTTON') { closeMenus(); } });
   document.getElementById('undo').addEventListener('click', function () { post({ type: 'undo' }); });
   document.getElementById('redo').addEventListener('click', function () { post({ type: 'redo' }); });
   document.getElementById('addNode').addEventListener('click', function () { post({ type: 'addNode' }); });
@@ -587,7 +628,8 @@ export function blueprintScript(): string {
     if (on === full) { return; }
     full = on;
     document.body.classList.toggle('full', on);
-    document.getElementById('full').innerHTML = on ? '&#x26F6; Exit full screen' : '&#x26F6; Full screen';
+    document.getElementById('full').title = on ? 'Exit full screen (Ctrl+K Ctrl+F or Esc)' : 'Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)';
+    document.getElementById('full').classList.toggle('on', on);
     post({ type: 'fullscreen', on: on });
   }
   document.getElementById('full').addEventListener('click', function () { setFull(!full); });
@@ -629,6 +671,9 @@ export function blueprintScript(): string {
     say(on ? (sel ? '' : 'Select a routine: everything not linked to it is hidden') : '');
   }
   document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
+  document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
+  document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
+  document.getElementById('analysis').addEventListener('change', function (ev) { showAnalysis = ev.target.checked; render(); });
   document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); if (isolate && sel && sel.type === 'node') { fit(); } syncSubset(); });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
@@ -651,6 +696,7 @@ export function blueprintScript(): string {
     if (m.type === 'model') {
       var first = model.nodes.length === 0;
       model = { nodes: m.nodes || [], edges: m.edges || [] };
+      setAnalysis(m.analysis);
       modelVer++;
       if (first) { compact = model.nodes.length > 25; document.getElementById('pins').checked = !compact; }
       if (sel && sel.type === 'node' && !byId(sel.id)) { sel = null; }
@@ -697,17 +743,26 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="addNode" class="primary" title="Add a routine to the code (double-click on the canvas does the same where you click)">+ Node</button>
 <label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
-<button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6; Full screen</button>
-<button id="undo" disabled title="Nothing to undo">&#x21B6; Undo</button><button id="redo" disabled title="Nothing to redo">&#x21B7; Redo</button>
-<button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
-<button id="refresh" title="Read the file again">Refresh</button>
+<button id="undo" disabled title="Nothing to undo">&#x21B6;</button><button id="redo" disabled title="Nothing to redo">&#x21B7;</button>
 <input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">
-<label title="With a filter, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> + linked</label>
-<label title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
-<label title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> pins</label>
-<label title="Hide every routine that is not linked to the selected one (H). The Focus box says how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
-<label title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> hide isolated</label>
+<label title="Hide every routine that is not linked to the selected one (H). The Focus box in the More menu says how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
 <button id="details" title="Show or hide the details panel">Details</button>
+<button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6;</button>
+<span class="dd"><button id="more" title="View options, analysis, export">More &#x25BE;</button>
+<div id="moremenu" class="menu" hidden>
+<div class="mh">View</div>
+<label class="mi" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
+<label class="mi" title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> Hide isolated routines</label>
+<label class="mi" title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus reaches <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
+<label class="mi" title="With a search, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> Search keeps linked routines</label>
+<label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
+<div class="mh">Export</div>
+<button class="mi btn" id="exportMermaid" title="Copy a Mermaid flowchart of the calls, to paste in a README or a wiki">Copy as Mermaid</button>
+<button class="mi btn" id="exportSvg" title="Save the whole graph as an SVG picture">Save as SVG picture...</button>
+<div class="mh">Layout</div>
+<button class="mi btn" id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
+<button class="mi btn" id="refresh" title="Read the file again">Refresh from the file</button>
+</div></span>
 <span class="grow"></span><span class="msg" id="msg"></span><span class="msg" id="count"></span>
 </div>
 <div id="main">

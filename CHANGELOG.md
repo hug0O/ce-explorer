@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.49 — 2026-10-28
+- **Blueprint: a simpler bar.** Only the everyday controls stay on it: *+ Node*, zoom, undo / redo, the search box, *hide others*, *Details* and full screen (an icon now). The rest moved into a **More** menu: parameter pins, hide isolated routines, how far the focus reaches, search keeping linked routines, export, auto layout and refresh.
+- **Unused routines and loops.** The details panel lists the routines that nobody calls in the file (*Not called in this file*) and the groups of routines that call each other in a loop (*Calls in a loop*); on the picture the unused ones have a dashed orange outline and the loops are drawn in red (box *Mark unused routines and loops* in the More menu).
+- **Export**: *More > Copy as Mermaid* puts a flowchart of the calls on the clipboard (README, wiki, pull request); *Save as SVG picture…* saves the whole graph as an image.
+
 ## 0.1.48 — 2026-10-28
 - **Blueprint: undo and redo.** *Undo* / *Redo* buttons and `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) undo the actions made from the picture — add or remove a call, rename, delete, add or edit a routine — each with its name in the tooltip. If the file was changed by hand since, the undo is refused instead of overwriting your work (`Ctrl+Z` in the editor still works on the same edits).
 - **Blueprint: edit a node.** *Edit…* in the details panel (or `E` on the selected node) opens a form for the name, the return type and the parameters (name, type, and how it is passed: in, var, const, out; add and remove rows). The body of the routine is kept; a new name goes through the rename so every call follows. Adding or removing a parameter does not touch the calls, a message says so.

@@ -8,6 +8,8 @@ import { generateFromSpec, memberFormToSpec } from '../services/memberForm';
 import { addCallEdit, familyOf, removeCallEdit, LineEdit } from '../utils/callGraph';
 import { BpMember, BpModel, SavedPositions, buildBlueprint, nodeIds } from '../utils/blueprintModel';
 import { layout } from '../utils/blueprintLayout';
+import { analyze } from '../utils/blueprintAnalysis';
+import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { blueprintHtml } from './blueprintHtml';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -139,8 +141,14 @@ export class BlueprintPanel {
 
     private send(fit = false): void {
         const m = this.model();
-        if (m) { void this.panel.webview.postMessage({ type: 'model', nodes: m.nodes, edges: m.edges, fit }); }
+        if (m) {
+            const analysis = analyze(m.nodes.map(n => n.id), m.edges, this.entryPoints(), id => !!m.nodes.find(n => n.id === id)?.hasBody);
+            void this.panel.webview.postMessage({ type: 'model', nodes: m.nodes, edges: m.edges, analysis, fit });
+        }
     }
+
+    /** Routines that are called from outside the file (event handlers…): not reported as unused. */
+    private entryPoints(): string[] { return []; }
 
     private notice(text: string): void { void this.panel.webview.postMessage({ type: 'notice', text }); }
 
@@ -171,6 +179,7 @@ export class BlueprintPanel {
         switch (m.type) {
             case 'ready': this.send(true); this.sendHistory(); break;
             case 'undo': await this.undo(); break;
+            case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;
             case 'positions': {
                 const next = { ...this.positions(), ...((m.positions ?? {}) as SavedPositions) };
@@ -203,6 +212,22 @@ export class BlueprintPanel {
         const positions: Record<string, { x: number; y: number }> = {};
         for (const [id, b] of boxes) { positions[id] = { x: b.x, y: b.y }; }
         void this.panel.webview.postMessage({ type: 'subset', key, positions });
+    }
+
+    /** The graph as a Mermaid flowchart (copied) or an SVG picture (saved). */
+    private async exportGraph(format: 'svg' | 'mermaid'): Promise<void> {
+        const m = this.model();
+        if (!m || !m.nodes.length) { this.notice('Nothing to export.'); return; }
+        if (format === 'mermaid') {
+            await vscode.env.clipboard.writeText(toMermaid(m.nodes, m.edges));
+            this.notice('Mermaid flowchart copied: paste it in a README or a wiki.');
+            return;
+        }
+        const base = vscode.Uri.file(this.doc.uri.fsPath.replace(/\.[^.\\/]+$/, '') + '-blueprint.svg');
+        const target = await vscode.window.showSaveDialog({ defaultUri: base, filters: { 'SVG picture': ['svg'] }, title: 'Save the blueprint as a picture' });
+        if (!target) { return; }
+        await vscode.workspace.fs.writeFile(target, Buffer.from(toSvg(m.nodes, m.edges), 'utf8'));
+        this.notice('Saved ' + target.fsPath.split(/[\\/]/).pop());
     }
 
     // --- undo / redo -------------------------------------------------------------------------------------------------------

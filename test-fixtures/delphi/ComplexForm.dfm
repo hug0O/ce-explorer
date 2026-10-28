@@ -43,7 +43,7 @@ object ComplexForm: TComplexForm
       TabOrder = 0
       OnClick = btnNouveauClick
     end
-    object btnImporter: TcxButton
+    object btnImporters: TcxButton
       Left = 243
       Top = 12
       Width = 90
@@ -52,7 +52,6 @@ object ComplexForm: TComplexForm
       LookAndFeel.Kind = lfFlat
       OptionsImage.Margin = 4
       TabOrder = 1
-      OnClick = btnImporterClick
     end
     object edtRecherche: TEdit
       Left = 560
@@ -62,7 +61,6 @@ object ComplexForm: TComplexForm
       Anchors = [akTop, akRight]
       TabOrder = 2
       TextHint = 'Rechercher'
-      OnChange = edtRechercheChange
     end
   end
   object pnlGauche: TPanel
@@ -80,7 +78,6 @@ object ComplexForm: TComplexForm
       Align = alClient
       ItemHeight = 15
       TabOrder = 0
-      OnClick = lbxCategoriesClick
     end
     object pnlGaucheBas: TPanel
       Left = 1
@@ -97,16 +94,14 @@ object ComplexForm: TComplexForm
         Height = 25
         Caption = 'Ajouter'
         TabOrder = 0
-        OnClick = btnAjouterClick
       end
       object btnSupprimer: TButton
-        Left = 91
+        Left = 88
         Top = 4
-        Width = 75
+        Width = 77
         Height = 25
         Caption = 'Supprimer'
         TabOrder = 1
-        OnClick = btnSupprimerClick
       end
     end
   end
@@ -159,7 +154,7 @@ object ComplexForm: TComplexForm
           end
           object lblPrenom: TLabel
             Left = 16
-            Top = 61
+            Top = 63
             Width = 43
             Height = 15
             Caption = 'Prenom'
@@ -172,13 +167,20 @@ object ComplexForm: TComplexForm
             TabOrder = 1
           end
           object chkActif: TCheckBox
-            Left = 96
-            Top = 95
+            Left = 156
+            Top = 107
             Width = 97
             Height = 17
             Caption = 'Actif'
             TabOrder = 2
             OnClick = chkActifClick
+          end
+          object Label1: TLabel
+            Left = 16
+            Top = 108
+            Width = 68
+            Height = 20
+            Caption = 'Label1'
           end
         end
         object grpAdresse: TGroupBox
@@ -199,22 +201,12 @@ object ComplexForm: TComplexForm
             TabOrder = 0
           end
         end
-        object lvwContacts: TListView
-          Left = 16
-          Top = 160
-          Width = 536
-          Height = 190
-          Columns = <
-            item
-              Caption = 'Nom'
-              Width = 150
-            end
-            item
-              Caption = 'Telephone'
-              Width = 120
-            end>
+        object cxGrid2: TcxGrid
+          Left = 12
+          Top = 156
+          Width = 544
+          Height = 180
           TabOrder = 2
-          ViewStyle = vsReport
         end
       end
       object tsHistorique: TTabSheet
@@ -279,7 +271,6 @@ object ComplexForm: TComplexForm
   end
   object tmrStatut: TTimer
     Interval = 5000
-    OnTimer = tmrStatutTimer
     Left = 640
     Top = 8
   end

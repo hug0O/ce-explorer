@@ -122,6 +122,9 @@ export class ProjectPanel {
             this.data = data;
             this.known.clear();
             data.sql.forEach(e => this.known.add(e.file));
+            data.commonSql.forEach(e => this.known.add(e.file));
+            data.common.forEach(u => this.known.add(u.path));
+            data.deadCode.forEach(d => this.known.add(d.file));
             data.sqlIssues.forEach(i => this.known.add(i.path));
             data.unusedUnits.forEach(u => this.known.add(u.path));
             data.unusedComponents.forEach(c => this.known.add(c.path));

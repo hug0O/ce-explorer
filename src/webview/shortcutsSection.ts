@@ -74,6 +74,8 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: '0 / 9', label: 'Zoom 100% / Fit window' },
     { keys: '/', label: 'Go to a component: a box to find it by name, class or caption (arrows and Enter)' },
     { keys: 'Ctrl+D', label: 'Duplicate the selected components next to the originals' },
+    { keys: 'Ctrl+F', label: 'Find a component of the form by name, class or caption' },
+    { keys: 'Ctrl+L / Ctrl+H', label: 'Lock / hide the selected components (only in the designer, the .dfm is not touched)' },
     { keys: 'Arrows', label: 'Move the selection by 1 pixel (Shift: by a grid step)' },
     { keys: 'Ctrl+Arrows', label: 'Resize the selection by 1 pixel (Shift: by a grid step)' },
     { keys: 'Esc', label: 'Cancel the armed tool or a cut; else select the parent of the selection' },
@@ -90,7 +92,33 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
 ];
 
 /** What the sidebar itself reads. */
+/** The Blueprint view: what its page really answers to. */
+export const BLUEPRINT_SHORTCUTS: ShortcutItem[] = [
+    { keys: 'Ctrl+Z / Ctrl+Y', label: 'Undo / redo the last action made from the picture (Ctrl+Shift+Z also redoes)' },
+    { keys: 'F2', label: 'Rename the selected routine; every call follows' },
+    { keys: 'E', label: 'Edit the selected routine: name, parameters, return type (details panel)' },
+    { keys: 'Delete', label: 'Remove the selected wire (the call) or routine' },
+    { keys: 'Enter', label: 'Open the code of the selected routine, unit or step' },
+    { keys: 'H', label: 'Hide everything that is not linked to the selection' },
+    { keys: '/', label: 'Find a routine: only the matches are shown (Enter selects the first, Esc clears)' },
+    { keys: 'F / 9', label: 'Fit everything in the window' },
+    { keys: '0', label: 'Zoom 100%' },
+    { keys: '+ / -', label: 'Zoom in / out' },
+    { keys: 'L', label: 'Forget the positions and lay the nodes out again' },
+    { keys: 'Esc', label: 'Close the More menu; else deselect; with nothing selected, leave full screen' },
+    { keys: 'Wheel', label: 'Zoom around the pointer', mouse: true },
+    { keys: 'Middle button + drag', label: 'Move the view', mouse: true },
+    { keys: 'Drag a node by its title', label: 'Move it (the position is remembered for the file)', mouse: true },
+    { keys: 'Drag from a white arrow', label: 'To another node: add the call (the uses, in the project view); to empty space: a new routine called by this one', mouse: true },
+    { keys: 'Click a wire', label: 'Select it, then Delete removes the call', mouse: true },
+    { keys: 'Double-click a node', label: 'Open its code', mouse: true },
+    { keys: 'Double-click the background', label: 'Add a routine there', mouse: true },
+];
+
 export const SIDEBAR_SHORTCUTS: ShortcutItem[] = [
+    { keys: 'Up / Down', label: 'Structure: move along the members' },
+    { keys: 'Enter', label: 'Structure: go to the member under the cursor' },
+    { keys: 'F2 / E / Delete', label: 'Structure: rename / edit / delete the member under the cursor' },
     { keys: 'Click a member', label: 'Structure: go to it, and show where it is used in the file', mouse: true },
     { keys: 'Click a line of a list', label: 'Structure usages and search, Code review: go to that line', mouse: true },
     { keys: 'Enter / Space', label: 'On a finding of the review: go to its line' },
@@ -105,11 +133,13 @@ export function buildShortcutGroups(pkg: PackageShortcuts): ShortcutGroup[] {
     const delphi: ShortcutItem[] = [];
     const plsql: ShortcutItem[] = [];
     const designer: ShortcutItem[] = [];
+    const blueprint: ShortcutItem[] = [];
     for (const k of pkg.contributes?.keybindings ?? []) {
         const item: ShortcutItem = { keys: formatKeys(k.key), label: shortLabel(titles.get(k.command) ?? k.command), command: k.command };
         const when = k.when ?? '';
         const exts = extensionsOf(when);
         if (/ceFormDesigner/.test(when)) { designer.push(item); }
+        if (/ceBlueprint/.test(when)) { blueprint.push(item); }
         if (exts && subsetOf(exts, DELPHI_EXT)) { delphi.push(item); }
         else if (exts && subsetOf(exts, PLSQL_EXT)) { plsql.push(item); }
         else if (exts) { code.push(item); }
@@ -121,6 +151,7 @@ export function buildShortcutGroups(pkg: PackageShortcuts): ShortcutGroup[] {
         { id: 'delphi', title: 'Delphi units and forms', hint: '.pas  .dfm  .dpr — the same letters mean other things in PL/SQL files', items: delphi },
         { id: 'plsql', title: 'PL/SQL sources', hint: '.pks  .pkb  .sql  .pls  .plb  .txt', items: plsql },
         { id: 'designer', title: 'Form designer', hint: 'in the designer tab', items: [...designer, ...DESIGNER_SHORTCUTS] },
+        { id: 'blueprint', title: 'Blueprint', hint: 'in the Blueprint tab (calls of a file, units of a project, flow of a routine)', items: [...blueprint, ...BLUEPRINT_SHORTCUTS] },
         { id: 'sidebar', title: 'Sidebar', hint: 'this view', items: SIDEBAR_SHORTCUTS },
     ];
     return groups.filter(g => g.items.length > 0);

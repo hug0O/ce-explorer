@@ -37,13 +37,14 @@ export const TOOL_SHORTCUTS: Record<ShortcutFamily, Record<string, string>> = {
         'ce.delphi.designer': 'd', 'ce.delphi.align': 'l', 'ce.delphi.anchors': 'n', 'ce.delphi.tabOrder': 't',
         'ce.delphi.check': 'c', 'ce.delphi.cleanHandlers': 'h', 'ce.delphi.copy': 'y', 'ce.delphi.paste': 'a',
         'ce.delphi.duplicate': 'k', 'ce.delphi.formFromFields': 'g', 'ce.delphi.formFromClass': 'q', 'ce.delphi.changeClass': 'e',
-        'ce.delphi.project': 'i', 'ce.delphi.diffForm': 'b',
+        'ce.delphi.diffForm': 'b',
     },
     plsql: {
-        'ce.plsql.syncPackage': 'y', 'ce.plsql.newPackage': 'n', 'ce.plsql.crudFromTable': 'c', 'ce.plsql.extractProcedure': 'x',
+        'ce.plsql.syncPackage': 'y', 'ce.plsql.newPackage': 'n', 'ce.plsql.extractProcedure': 'x',
         'ce.plsql.exceptionBlock': 'e', 'ce.plsql.docHeader': 'd', 'ce.plsql.utplsql': 't', 'ce.plsql.findCallers': 'l',
+        'ce.plsql.sqlFromTable': 'g',
     },
-    global: { 'ce.alignSelection': 'j' },
+    global: { 'ce.alignSelection': 'j', 'ce.delphi.project': 'i' },
 };
 
 /** Shortcuts that are not "Ctrl+K letter", shown as they are (Structure, Memo). */
@@ -126,7 +127,7 @@ export function toolsCss(): string {
 }
 
 export const PLSQL_COMMANDS = [
-    'ce.plsql.syncPackage', 'ce.plsql.newPackage', 'ce.plsql.crudFromTable', 'ce.plsql.utplsql',
+    'ce.plsql.syncPackage', 'ce.plsql.newPackage', 'ce.plsql.sqlFromTable', 'ce.plsql.utplsql',
     'ce.plsql.exceptionBlock', 'ce.plsql.extractProcedure', 'ce.plsql.docHeader', 'ce.plsql.findCallers',
 ];
 export const DELPHI_COMMANDS = [
@@ -142,9 +143,10 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.formFromFields',
     'ce.delphi.formFromClass',
     'ce.delphi.changeClass',
-    'ce.delphi.project',
     'ce.delphi.diffForm',
 ];
+/** Commands that work on any language: they are offered on every page of the Tools tab that needs them. */
+export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project'];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -156,7 +158,7 @@ function plsqlBlock(): string {
 <div class="analyze-grid">
 ${btn('ce.plsql.syncPackage', '🔄 Sync spec ⇄ body', 'Declare / stub / fix signatures between the .pks and the .pkb')}
 ${btn('ce.plsql.newPackage', '📦 New package…', 'Spec + body skeleton')}
-${btn('ce.plsql.crudFromTable', '🗄️ CRUD from table', 'Select or copy a CREATE TABLE')}
+${btn('ce.plsql.sqlFromTable', '🧾 SQL from table', 'SELECT / INSERT / UPDATE / DELETE / MERGE, values replaceable by parameters')}
 ${btn('ce.plsql.extractProcedure', '✂️ Extract procedure', 'Selection → procedure with detected IN / OUT parameters')}
 ${btn('ce.plsql.exceptionBlock', '⚠️ Exception block', 'NO_DATA_FOUND / TOO_MANY_ROWS / OTHERS')}
 ${btn('ce.plsql.docHeader', '📘 PLDoc header', 'Insert or refresh the /** … */ block from the signature')}
@@ -177,7 +179,6 @@ function delphiBlock(): string {
     return `
 <div class="tools-block" id="dlBlock">
 <div class="section-title">Delphi form</div>
-<button class="ana has-kbd tool-lead" data-dl="ce.delphi.designer" title="The .dfm drawn as a form: select, drag, resize, drop components">🎨 Open the visual form designer${kbdHtml('delphi', 'ce.delphi.designer')}</button>
 <div class="analyze-grid">
 ${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, units and components nothing uses, the checks of every form (read on demand)')}
 </div>
@@ -186,9 +187,34 @@ ${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, 
 `;
 }
 
-export type ToolsSub = 'form' | 'plsql' | 'align';
+export type ToolsSub = 'form' | 'plsql' | 'align' | 'analyze';
 
-export const TOOLS_SUBS: ToolsSub[] = ['form', 'plsql', 'align'];
+export const TOOLS_SUBS: ToolsSub[] = ['form', 'plsql', 'align', 'analyze'];
+
+/** Analyze buttons of the member: they run on the whole active file, so they are always offered. */
+function analyzeBlock(): string {
+    return `
+<div class="tools-block">
+<div class="section-title">Analyze the file</div>
+<div class="analyze-grid">
+<button class="ana" data-ak="review">✅ Review</button>
+<button class="ana" data-ak="documentation">📖 Doc</button>
+<button class="ana" data-ak="export">📋 Export</button>
+<button class="ana" data-ak="deadcode">💀 Dead Code</button>
+</div>
+</div>
+<div class="tools-block">
+<div class="section-title">Blueprint</div>
+<div class="analyze-grid">
+<button class="ana" data-common="ce.blueprint.open" title="The routines of this file as nodes, the calls as wires: drag to add a call, F2 to rename, flow of a routine">🗺️ File</button>
+<button class="ana" data-common="ce.blueprint.project" title="The units of the project and the uses between them (Delphi): drag to add a uses, see what each one takes">🗺️ Project</button>
+</div>
+</div>
+<div class="tools-block">
+<div class="section-title">Project</div>
+<button class="ana has-kbd tool-lead" data-common="ce.delphi.project" title="SQL, dead code, size and hotspots of every language, and the Delphi checks when the project has Delphi forms (read on demand)">🗂️ Project insights${kbdHtml('global', 'ce.delphi.project')}</button>
+</div>`;
+}
 
 /** The sub-tabs relevant to the active file: Delphi tools only for a Delphi unit, PL/SQL tools only for PL/SQL. */
 export function availableSubs(plsql: boolean, delphi: boolean): { id: ToolsSub; label: string }[] {
@@ -198,6 +224,7 @@ export function availableSubs(plsql: boolean, delphi: boolean): { id: ToolsSub; 
     }
     if (plsql) { subs.push({ id: 'plsql', label: 'PL/SQL' }); }
     subs.push({ id: 'align', label: 'Align' });
+    subs.push({ id: 'analyze', label: 'Analyze' });
     return subs;
 }
 
@@ -249,6 +276,7 @@ export function toolsHtml(alignToken: string, chipList: string[] = DEFAULT_ALIGN
         form: delphi ? delphiBlock() : '',
         plsql: plsql ? plsqlBlock() : '',
         align: alignBlock(alignToken, chipsJson),
+        analyze: analyzeBlock(),
     };
     const bar = subs.length > 1
         ? `<div class="subtabs">${subs.map(s => `<button class="subtab${s.id === active ? ' active' : ''}" data-sub-tab="${s.id}">${s.label}</button>`).join('')}</div>`
@@ -284,6 +312,9 @@ function initTools(api) {
     });
     document.querySelectorAll('[data-review]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'runAnalytics', kind: 'review' }); });
+    });
+    document.querySelectorAll('[data-common]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'commonCmd', cmd: b.getAttribute('data-common') }); });
     });
     var langSel = $('langSel');
     if (langSel) {

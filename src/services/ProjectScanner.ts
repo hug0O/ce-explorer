@@ -11,12 +11,30 @@ import { SqlEntry, SqlIssue, sqlParamIssues, unitSql } from './ProjectSql';
 import { UnitFacts, UnusedComponent, UnusedUnit, unitFacts, unusedComponents, unusedUnits } from './ProjectUnused';
 import { GridIssue, NameRow, NamingIssue, TextGroup, TextRow, componentNames, formTexts, gridFieldIssues, groupTexts, namingIssuesOf } from './ProjectChecks';
 import { Family, FormInfo, UnitMetrics, families, formInfo, unitMetrics } from './ProjectForms';
+import { CommonMetrics, commonMetrics, commonSql } from './ProjectCommon';
+import { DeadCodeItem, collectDeadCode } from './DeadCodeDetector';
+import type { ILanguageProvider } from '../providers/ILanguageProvider';
 
 const EXCLUDE = '**/{node_modules,.git,dist,out,build,bin,obj,target,Win32,Win64,__history,__recovery,.vscode-test}/**';
 const MAX_FILES = 6000;
 const MAX_FILE_BYTES = 3_000_000;
 /** How long a batch may keep the thread before it gives it back. */
 const SLICE_MS = 12;
+
+/** What the scanner needs of the provider registry: the language of a file, and its parser. */
+export interface ProjectRegistryLike {
+    getByFileExtension(filePath: string): ILanguageProvider | undefined;
+    getByDocument(doc: vscode.TextDocument): ILanguageProvider | undefined;
+    getSupportedExtensions(): string[];
+}
+
+export interface CommonUnit {
+    /** Language of the file (its provider's display name). */
+    language: string;
+    name: string;
+    path: string;
+    metrics: CommonMetrics;
+}
 
 export interface SqlRow extends SqlEntry { file: string }
 export interface FormRow { unit: string; file: string; issues: { severity: FormIssue['severity']; category: string; message: string; line: number; file: 'dfm' | 'pas' }[] }
@@ -25,6 +43,12 @@ export interface ProjectData {
     root: string;
     units: number;
     forms: number;
+    /** Every source file of a supported language that is not Delphi: size and routines. */
+    common: CommonUnit[];
+    /** SQL written in the code of the other languages (string literals that start with a statement). */
+    commonSql: (SqlEntry & { file: string })[];
+    /** Methods and classes that nothing refers to, across every supported language. */
+    deadCode: (DeadCodeItem & { language: string })[];
     sql: SqlRow[];
     sqlIssues: (SqlIssue & { path: string })[];
     unusedUnits: (UnusedUnit & { path: string })[];
@@ -77,9 +101,25 @@ interface Cached { signature: string; result: UnitResult }
 const decoder = new TextDecoder('utf-8');
 const tick = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
 
+/**
+ * A read-only view of a file as a text document, for the parsers of the providers: they read the text,
+ * the lines and the path. Nothing is opened in the editor.
+ */
+function fakeDocument(uri: vscode.Uri, text: string, lineCount: number, languageId: string): vscode.TextDocument {
+    const lines = text.split(/\r?\n/);
+    return {
+        uri, fileName: uri.fsPath, languageId, lineCount, version: 0, isUntitled: false, isDirty: false,
+        getText: () => text,
+        lineAt: (line: number) => ({ text: lines[line] ?? '', lineNumber: line }),
+    } as unknown as vscode.TextDocument;
+}
+
 export class ProjectScanner {
     private readonly cache = new Map<string, Cached>();
     private running: Promise<ProjectData> | undefined;
+
+    /** `providers` gives the language of the other source files (their size, SQL and dead code). */
+    constructor(private readonly providers?: () => ProjectRegistryLike | undefined) {}
 
     /** Forgets what was learned (after the options change, or on demand). */
     clear(): void { this.cache.clear(); }
@@ -92,8 +132,48 @@ export class ProjectScanner {
         return this.running;
     }
 
+    /**
+     * The source files of the other languages: their size, their SQL and their unused methods and classes.
+     * Delphi files are left to the Delphi analysis. Read in small batches, so the page stays responsive.
+     */
+    private async scanOthers(registry: ProjectRegistryLike | undefined, token?: vscode.CancellationToken): Promise<{ common: CommonUnit[]; commonSql: (SqlEntry & { file: string })[]; deadCode: (DeadCodeItem & { language: string })[] }> {
+        const empty = { common: [], commonSql: [], deadCode: [] };
+        if (!registry) { return empty; }
+        const exts = registry.getSupportedExtensions().map(e => e.replace(/^\./, '').toLowerCase()).filter(e => e !== 'pas' && e !== 'dfm');
+        if (exts.length === 0) { return empty; }
+        const files = (await vscode.workspace.findFiles(`**/*.{${exts.join(',')}}`, EXCLUDE, MAX_FILES))
+            .filter(u => !/\.(pas|dfm)$/i.test(u.fsPath));
+        const common: CommonUnit[] = [];
+        const sqlRows: (SqlEntry & { file: string })[] = [];
+        let sliceStart = Date.now();
+        for (const uri of files) {
+            if (token?.isCancellationRequested) { break; }
+            try {
+                const provider = registry.getByFileExtension(uri.fsPath);
+                if (!provider) { continue; }
+                const bytes = await vscode.workspace.fs.readFile(uri);
+                if (bytes.byteLength > MAX_FILE_BYTES) { continue; }
+                const text = decoder.decode(bytes).replace(/^\uFEFF/, '');
+                const lines = text.split(/\r?\n/);
+                const parsed = provider.parseDocument(fakeDocument(uri, text, lines.length, provider.languageId));
+                const starts = [...parsed.classes.flatMap(c => c.members.map(m => m.range.start.line)), ...parsed.standaloneProcedures.map(p => p.range.start.line)];
+                const name = uri.fsPath.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '');
+                common.push({ language: provider.displayName, name, path: uri.fsPath, metrics: commonMetrics(lines, starts) });
+                sqlRows.push(...commonSql(name, lines).map(e => ({ ...e, file: uri.fsPath })));
+            } catch { /* an unreadable file is left out */ }
+            if (Date.now() - sliceStart > SLICE_MS) { await tick(); sliceStart = Date.now(); }
+        }
+        const deadCode = files.length
+            ? (await collectDeadCode({ getByDocument: doc => registry.getByDocument(doc) }, exts))
+                .map(d => ({ ...d, language: registry.getByFileExtension(d.file)?.displayName ?? '' }))
+            : [];
+        return { common, commonSql: sqlRows, deadCode };
+    }
+
     private async run(token?: vscode.CancellationToken, progress?: (done: number, total: number) => void): Promise<ProjectData> {
         const started = Date.now();
+        const registry = this.providers?.();
+        const others = await this.scanOthers(registry, token);
         const found = await vscode.workspace.findFiles('**/*.{pas,dfm}', EXCLUDE, MAX_FILES + 1);
         const truncated = found.length > MAX_FILES;
         const pas = found.slice(0, MAX_FILES).filter(u => /\.pas$/i.test(u.fsPath));
@@ -142,6 +222,9 @@ export class ProjectScanner {
             root,
             units: results.length,
             forms: results.filter(r => r.dfmPath).length,
+            common: others.common,
+            commonSql: others.commonSql,
+            deadCode: others.deadCode,
             sql: results.flatMap(r => r.result.sql.map(e => ({ ...e, file: e.source === 'dfm' ? r.dfmPath ?? r.path : r.path }))),
             sqlIssues: results.flatMap(r => r.result.sqlIssues.map(i => ({ ...i, path: i.file === 'dfm' ? r.dfmPath ?? r.path : r.path }))),
             unusedUnits: unusedUnits(withFacts).map(u => ({ ...u, path: pathOf.get(u.unit) ?? '' })),

@@ -3,7 +3,7 @@ import { CodeExplorerService } from './CodeExplorerService';
 import { MemberRanges, declImplTarget, memberLines, stepMember } from './MemberNav';
 
 /**
- * Moving through the members of a file from the keyboard, without a mode: Alt+PageDown / Alt+PageUp to the next / previous member,
+ * Moving through the members of a file from the keyboard, without a mode: Ctrl+Shift+Down / Ctrl+Shift+Up to the next / previous member,
  * Alt+Enter from a declaration to its implementation and back, Alt+G to pick a member by typing a few letters, the code scrolling to each
  * one as the list moves (Esc brings you back where you were).
  */

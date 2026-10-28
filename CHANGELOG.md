@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.56 — 2026-10-28
+- **Tools tab: the Blueprint buttons, no designer button.** A *Blueprint* block with **🗺️ File** (the routines of the file) and **🗺️ Project** (the units and their `uses`) is on the *Analyze* page, for every language; the *Open the visual form designer* button of the *Form* page is gone (the designer opens with `Ctrl+K D`, the title bar icon, the right-click menu, and the *🎨 Designer* button of the tab bar).
+- **Shortcuts shown in the help, corrected.** The Markdown entry of 0.1.38 and the README named the Alt+Page keys (which VS Code uses to scroll) for the next / previous member or heading: the real keys are `Ctrl+Shift+Down` / `Ctrl+Shift+Up`. The *Shortcuts* tab now lists the keys the pages really answer to and that it was missing: the designer's `Ctrl+F` (find a component), `Ctrl+L` / `Ctrl+H` (lock / hide); the keys of the Structure list (arrows, `Enter`, `F2`, `E`, `Delete`); and a new **Blueprint** group (undo / redo, `F2`, `E`, `Delete`, `H`, `/`, `F`, `0`, `+` / `-`, `L`, wheel, middle button, drags and double-clicks). `Ctrl+K Ctrl+F` is now listed for the designer and the Blueprint, which share it. A test checks that the keys the Blueprint help names are really in its page.
+
 ## 0.1.55 — 2026-10-28
 - **Blueprint: a view per file and a view per project, one click apart.** A **File | Project** switch at the left of the bar, in both views: *File* shows the routines of the file (the last one drawn, else the one being edited), *Project* shows the units and their `uses`. Each opens in the same editor group; a unit chosen in the project view opens its file view with *Its blueprint*. (The *Show the project* entry of the More menu is replaced by the switch.)
 - **Project view: what each wire carries.** Every `uses` now says which names of the unit it names are used by the other one (*Data: 2 names*, with the list as a tooltip and in the details of the wire). A `uses` that takes nothing is drawn dashed orange and listed under *Uses that take nothing* — a candidate to remove, with a reminder that a unit can be there only for its initialization section; click the wire, then *Remove from the uses*.
@@ -73,7 +77,7 @@ Every release of Code Explorer, newest first. The sidebar shows the same list, f
 
 ## 0.1.38 — 2026-10-28
 - **Four new languages**: Windows **batch** (`.bat` `.cmd`: labels are the routines, `set` the variables), **PowerShell** (`.ps1` `.psm1`: functions with their parameters, classes with methods and properties, variables), Unix **shell** (`.sh` `.bash` `.zsh`: functions, variables) and **Markdown** (`.md`).
-- **Markdown by title**: the headings (ATX and Setext, with their level, ignoring code blocks, comments and front matter) are the members: the Structure tab lists them, `Alt+G` finds a title by a few letters, `Alt+PageDown` / `Alt+PageUp` jump to the next / previous title, and *Add method* appends a new section.
+- **Markdown by title**: the headings (ATX and Setext, with their level, ignoring code blocks, comments and front matter) are the members: the Structure tab lists them, `Alt+G` finds a title by a few letters, `Ctrl+Shift+Down` / `Ctrl+Shift+Up` jump to the next / previous title, and *Add method* appends a new section.
 - These files get the same Structure tab, member keys, quick actions and code lens as the other languages; generating a routine or a variable writes it in the syntax of the language.
 
 ## 0.1.37 — 2026-10-28

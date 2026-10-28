@@ -35,7 +35,7 @@ test('every keybinding of package.json is listed, in the mode its when clause na
     assert.ok(commands('code').includes('ce.manageMembers') && commands('code').includes('ce.editMember'), 'the Structure tab key works in any code file');
     assert.ok(commands('any').includes('ce.alignSelection') && commands('any').includes('ce.memo.open'), 'keys with no file restriction');
     assert.ok(commands('designer').includes('ce.delphi.toggleDesigner'), 'Ctrl+K Ctrl+B also works from inside the designer');
-    assert.deepEqual(groups.map(g => g.id), ['code', 'any', 'delphi', 'plsql', 'designer', 'sidebar']);
+    assert.deepEqual(groups.map(g => g.id), ['code', 'any', 'delphi', 'plsql', 'designer', 'blueprint', 'sidebar']);
 
     const align = by('delphi').items.find(i => i.command === 'ce.delphi.align')!;
     const callers = by('plsql').items.find(i => i.command === 'ce.plsql.findCallers')!;
@@ -69,7 +69,7 @@ test('the designer keys listed here are the ones the designer webview reads', ()
 test('the tab shows the groups, a filter, mouse gestures apart, and escapes what it prints', () => {
     const groups = buildShortcutGroups(pkg);
     const html = shortcutsHtml([...groups, { id: 'x', title: '<b>', hint: '"q"', items: [{ keys: 'Ctrl+<', label: '<script>x</script>' }] }], 'a "filter"', 'ce.ce-code-explorer');
-    for (const id of ['code', 'any', 'delphi', 'plsql', 'designer', 'sidebar']) { assert.ok(html.includes(`data-group="${id}"`), id); }
+    for (const id of ['code', 'any', 'delphi', 'plsql', 'designer', 'blueprint', 'sidebar']) { assert.ok(html.includes(`data-group="${id}"`), id); }
     assert.ok(/id="kFilter"[^>]*value="a &quot;filter&quot;"/.test(html), 'the filter is kept');
     assert.ok(/class="krow mouse"/.test(html) && /class="krow"/.test(html));
     assert.ok(/<span class="key">Ctrl\+K<\/span> <span class="key">Ctrl\+M<\/span>/.test(html), 'one keycap per chord');
@@ -158,4 +158,25 @@ test('the designer can be opened from the title bar, the editor and Explorer men
     assert.ok(/command: 'ce\.delphi\.designer'/.test(status), 'the status bar menu offers the designer on a Delphi file');
     const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'FormDesignerPanel.ts'), 'utf8');
     assert.ok(/From the designer tab itself there is no text editor: the designer that is open is shown again/.test(panel), 'the command works from the designer tab');
+});
+
+test('the Blueprint has its group, the help lists what the pages really answer to, and no key mentioned in the texts is one that does nothing', () => {
+    const groups = buildShortcutGroups(pkg);
+    const bp = groups.find(g => g.id === 'blueprint')!;
+    assert.ok(bp.items.some(i => i.command === 'ce.delphi.designerFullScreen'), 'the full screen key is shared with the designer');
+    const keys = bp.items.map(i => i.keys);
+    for (const k of ['Ctrl+Z / Ctrl+Y', 'F2', 'E', 'Delete', 'H', '/', 'F / 9', '0', '+ / -', 'L']) { assert.ok(keys.includes(k), k); }
+    const page = fs.readFileSync(path.join(__dirname, '..', 'webview', 'blueprintHtml.ts'), 'utf8');
+    for (const probe of ["ev.key === 'h'", "ev.key === 'e'", "ev.key === 'l'", "ev.key === 'F2'", "ev.key === '0'", "ev.key === '/'", "kk === 'z'", "kk === 'y'"]) { assert.ok(page.includes(probe), 'the page really answers to ' + probe); }
+    const designer = by_('designer');
+    assert.ok(designer.items.some(i => i.keys === 'Ctrl+F') && designer.items.some(i => i.keys === 'Ctrl+L / Ctrl+H'));
+    assert.ok(by_('sidebar').items.some(i => i.keys === 'F2 / E / Delete'), 'the keys of the Structure list');
+    // the keys of the members are Ctrl+Shift+Up / Down: a text that says Alt+PageUp / Alt+PageDown is wrong
+    for (const f of ['README.md', 'CHANGELOG.md', path.join('src', 'services', 'NavCommands.ts')]) {
+        // Alt+PageUp / Alt+PageDown may only be named as what VS Code itself binds (scrolling)
+        for (const line of fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8').split('\n')) {
+            if (/Alt\+Page(Up|Down)/.test(line)) { assert.ok(/scroll/.test(line), f + ' names the right keys: ' + line.slice(0, 80)); }
+        }
+    }
+    function by_(id: string) { return groups.find(g => g.id === id)!; }
 });

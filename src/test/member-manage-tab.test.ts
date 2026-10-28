@@ -336,11 +336,14 @@ test('tools show their keyboard shortcut next to the button', () => {
     panel._tab = 'tools';
     panel.isDelphi = () => true;
     let html: string = panel.getHtml();
-    assert.match(html, /data-dl="ce.delphi.designer"[^>]*>🎨 Open the visual form designer<span class="kbd"[^>]*>Ctrl\+K D<\/span>/);
+    const toolsPage = html.slice(html.indexOf('id="dlBlock"'));
+    assert.doesNotMatch(toolsPage, /data-dl="ce.delphi.designer"/, 'no designer button in the Tools page (the one of the tab bar, Ctrl+K D and the title bar open it)');
+    assert.match(html, /data-common="ce.blueprint.open"[^>]*>🗺️ File<\/button>/);
+    assert.match(html, /data-common="ce.blueprint.project"[^>]*>🗺️ Project<\/button>/);
     assert.match(html, /data-dl="ce.delphi.project"[^>]*>🗂️ Project insights/);
     assert.doesNotMatch(html, /data-dl="ce.delphi.(check|align|anchors|tabOrder|duplicate|changeClass|formFromFields)"/, 'the layout and check tools moved to the designer');
     assert.match(html, /id="alignGo"[^>]*>Align<span class="kbd"[^>]*>Ctrl\+K J<\/span>/);
-    assert.equal((html.match(/class="kbd"/g) ?? []).length, 2 + 1, 'the designer and the project insights, and the align button');
+    assert.equal((html.match(/class="kbd"/g) ?? []).length, 2, 'the project insights and the align button');
 
     panel.isDelphi = () => false;
     panel.isPlSql = () => true;

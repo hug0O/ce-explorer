@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parsePlSqlUnits } from '../utils/plsqlParse';
 import { addStubToBody, addToSpec, applyChanges, compareUnits, findPair, updateBodyFromSpec, updateSpecFromBody } from '../utils/plsqlSync';
-import { crudPackage, exceptionBlock, generatePackage, parseParamInput, plDocHeader, updatePlDoc, utplsqlTests } from '../utils/plsqlGen';
+import { exceptionBlock, generatePackage, parseParamInput, parseSubstitutions, plDocHeader, sqlStatements, updatePlDoc, utplsqlTests } from '../utils/plsqlGen';
 import { accessMode, declType, inferVariableType, paramType, planExtractProcedure } from '../utils/plsqlExtract';
 import { reviewPlSqlText } from '../utils/plsqlReview';
 import { alignDeclarations, alignPlSqlParams, applyAlignPreset } from '../utils/plsqlAlign';
@@ -73,18 +73,33 @@ test('generate a package skeleton: spec and body agree with each other', () => {
     assert.deepEqual(parseParamInput('a IN OUT t.c%TYPE, b').map(p => `${p.name}:${p.mode}:${p.type}`), ['a:IN OUT:t.c%TYPE', 'b:IN:VARCHAR2']);
 });
 
-test('CRUD package from a CREATE TABLE', () => {
+test('SQL statements from a CREATE TABLE: select, insert, update, delete, merge', () => {
     const table = parsePlSqlUnits(read('script.txt')).find(u => u.name === 'orders')!;
     const cols = table.members.map(c => ({ name: c.name, type: c.type!, nullable: c.column!.nullable, primaryKey: c.column!.primaryKey }));
-    const r = crudPackage('orders', cols, table.primaryKey!);
-    assert.ok(!('error' in r));
-    const { spec, body } = r as { spec: string; body: string };
-    const pair = findPair(spec, body);
-    assert.deepEqual(compareUnits(pair.specUnit!, pair.bodyUnit!), [], 'the generated spec and body match');
-    assert.deepEqual(pair.specUnit!.members.map(m => m.name), ['insert_row', 'update_row', 'delete_row', 'get_row', 'row_exists']);
-    assert.match(body, /UPDATE orders\s+SET customer_id = p_customer_id,\s+total = p_total,\s+status = p_status\s+WHERE order_id = p_order_id;/);
-    assert.match(body, /RETURN l_row;/);
-    assert.match((crudPackage('t', [{ name: 'a', type: 'NUMBER', nullable: true, primaryKey: false }], []) as { error: string }).error, /PRIMARY KEY/);
+    const r = sqlStatements('orders', cols, table.primaryKey!, ['select', 'insert', 'update', 'delete', 'merge']);
+    const { sql } = r as { sql: string };
+    assert.match(sql, /INSERT INTO orders \(order_id, customer_id, total, status\)\nVALUES \(:order_id, :customer_id, :total, :status\);/);
+    assert.match(sql, /UPDATE orders\n {3}SET customer_id = :customer_id,\n {7}total = :total,\n {7}status = :status\n WHERE order_id = :order_id;/);
+    assert.match(sql, /DELETE FROM orders\n WHERE order_id = :order_id;/);
+    assert.match(sql, /MERGE INTO orders t\b[\s\S]*ON \(t\.order_id = s\.order_id\)\n WHEN MATCHED THEN\n {3}UPDATE SET t\.customer_id = s\.customer_id/);
+    assert.match(sql, /WHEN NOT MATCHED THEN\n {3}INSERT \(order_id, customer_id, total, status\)\n {3}VALUES \(s\.order_id, s\.customer_id, s\.total, s\.status\);/);
+});
+
+test('SQL substitutions replace the binds by values or parameters', () => {
+    const cols = [
+        { name: 'id', type: 'NUMBER', nullable: false, primaryKey: true },
+        { name: 'status', type: 'VARCHAR2(10)', nullable: true, primaryKey: false },
+        { name: 'updated_at', type: 'DATE', nullable: true, primaryKey: false },
+    ];
+    const subs = parseSubstitutions('updated_at=SYSDATE; STATUS=:p_status', ['id', 'status', 'updated_at']);
+    assert.deepEqual(subs, { values: { updated_at: 'SYSDATE', status: ':p_status' } });
+    const { sql } = sqlStatements('t', cols, ['id'], ['update', 'insert'], (subs as { values: Record<string, string> }).values) as { sql: string };
+    assert.match(sql, /SET status = :p_status,\n {7}updated_at = SYSDATE\n WHERE id = :id;/);
+    assert.match(sql, /VALUES \(:id, :p_status, SYSDATE\);/);
+    assert.match((parseSubstitutions('nope=1', ['id']) as { error: string }).error, /not a column/);
+    assert.match((parseSubstitutions('id', ['id']) as { error: string }).error, /column=value/);
+    assert.match((sqlStatements('t', cols, [], ['select']) as { error: string }).error, /PRIMARY KEY/);
+    assert.deepEqual(sqlStatements('t', cols, [], ['insert']).sql.split('\n')[0], '-- INSERT a row', 'insert needs no key');
 });
 
 test('exception block, PLDoc header and its refresh', () => {

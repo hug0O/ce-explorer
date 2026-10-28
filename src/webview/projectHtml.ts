@@ -4,8 +4,13 @@
  * with the DOM (text only, never markup built from the data).
  */
 
-export const PROJECT_TABS = ['sql', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'] as const;
+export const PROJECT_TABS = ['sql', 'dead', 'size', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'] as const;
 export type ProjectTab = typeof PROJECT_TABS[number];
+
+/** Tabs for every language: they read the source files of any supported language. */
+export const COMMON_TABS: readonly ProjectTab[] = ['sql', 'dead', 'size', 'hotspots'];
+/** Tabs that need Delphi files (a .pas, a .dfm): offered only when the project has some. */
+export const DELPHI_TABS: readonly ProjectTab[] = ['unused', 'checks', 'texts', 'names', 'forms', 'changes'];
 
 const CSS = `
 * { box-sizing: border-box; }
@@ -62,8 +67,9 @@ code { font-family: var(--vscode-editor-font-family); font-size: 12px; }
 const SCRIPT = `
 (function () {
   var vscode = acquireVsCodeApi();
-  var TABS = ['sql', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'];
-  var LABEL = { sql: 'SQL', unused: 'Unused', checks: 'Form checks', texts: 'Texts', names: 'Names', forms: 'Forms', hotspots: 'Hotspots', changes: 'Changes' };
+  var TABS = ['sql', 'dead', 'size', 'unused', 'checks', 'texts', 'names', 'forms', 'hotspots', 'changes'];
+  var COMMON = ['sql', 'dead', 'size', 'hotspots'];
+  var LABEL = { sql: 'SQL', dead: 'Dead code', size: 'Size', unused: 'Unused', checks: 'Form checks', texts: 'Texts', names: 'Names', forms: 'Forms', hotspots: 'Hotspots', changes: 'Changes' };
   var NL = String.fromCharCode(10);
   var saved = vscode.getState() || {};
   var state = { tab: saved.tab || 'sql', data: null, scanning: false, progress: null, filter: saved.filter || '', src: saved.src || { dfm: true, code: true, rq: true }, diff: null, hot: null, hotAsked: false, textFilter: '', ref: saved.ref || 'HEAD', layout: false, nested: false, limit: 200 };
@@ -73,12 +79,16 @@ const SCRIPT = `
   function open(file, line) { vscode.postMessage({ type: 'open', file: file, line: line || 0 }); }
   function base(p) { var s = String(p).split('/'); s = s[s.length - 1].split(String.fromCharCode(92)); return s[s.length - 1]; }
 
+  /** The Delphi tabs need Delphi units: a .pas of the project (the scan lists them in metrics, not the other languages). */
+  function delphiProject() { return !!state.data && state.data.units > 0; }
+
   function tabs() {
     var bar = $('tabs');
     bar.textContent = '';
     var d = state.data;
-    var counts = d ? { sql: d.sql.length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length + d.gridIssues.length, texts: d.texts.length, names: d.naming.length, forms: d.families.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
-    TABS.forEach(function (t) {
+    var counts = d ? { sql: d.sql.length + (d.commonSql || []).length, dead: (d.deadCode || []).length, size: (d.common || []).length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length + d.gridIssues.length, texts: d.texts.length, names: d.naming.length, forms: d.families.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
+    var shown = TABS.filter(function (t) { return COMMON.indexOf(t) >= 0 || delphiProject(); });
+    shown.forEach(function (t) {
       var b = h('button', 'tab' + (t === state.tab ? ' on' : ''), LABEL[t]);
       if (counts[t]) { b.appendChild(h('span', 'n', String(counts[t]))); }
       b.addEventListener('click', function () { state.tab = t; save(); render(); });
@@ -115,7 +125,7 @@ const SCRIPT = `
     });
     root.appendChild(bar);
     var counts = {};
-    d.sql.forEach(function (e) { e.tables.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+    d.sql.concat(d.commonSql || []).forEach(function (e) { e.tables.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
     var top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a] || (a < b ? -1 : 1); }).slice(0, 30);
     if (top.length) {
       var chips = h('div', 'chips');
@@ -136,14 +146,15 @@ const SCRIPT = `
     if (!box) { return; }
     box.textContent = '';
     var words = state.filter.toLowerCase().split(' ').filter(Boolean);
-    var rows = state.data.sql.filter(function (e) {
+    var all = state.data.sql.concat(state.data.commonSql || []);
+    var rows = all.filter(function (e) {
       if (!state.src[e.source]) { return false; }
       if (!words.length) { return true; }
       var hay = (e.unit + ' ' + e.owner + ' ' + e.text + ' ' + e.tables.join(' ') + ' ' + e.params.join(' ') + ' ' + (e.rq || '')).toLowerCase();
       return words.every(function (w) { return hay.indexOf(w) >= 0; });
     });
     box.appendChild(h('div', 'note', rows.length + ' statement' + (rows.length === 1 ? '' : 's')));
-    if (!rows.length) { box.appendChild(h('div', 'empty', state.data.sql.length ? 'No statement matches.' : 'No SQL found in the project.')); return; }
+    if (!rows.length) { box.appendChild(h('div', 'empty', all.length ? 'No statement matches.' : 'No SQL found in the project.')); return; }
     rows.slice(0, state.limit).forEach(function (e) {
       var row = h('div', 'row');
       var head = h('div', 'head');
@@ -178,6 +189,39 @@ const SCRIPT = `
     if (loc) { l.appendChild(h('span', 'loc', loc)); }
     l.addEventListener('click', function () { open(file, line); });
     parent.appendChild(l);
+  }
+
+  function renderDead(root) {
+    var d = state.data;
+    root.appendChild(h('div', 'note', 'Methods and classes that nothing refers to, in every language of the project. Advice: a method called by a name built at run time, or by a framework, looks unused. Check before removing.'));
+    if (!d.deadCode.length) { root.appendChild(h('div', 'empty', 'Nothing unused.')); return; }
+    var byLang = {}; var order = [];
+    d.deadCode.forEach(function (x) { var k = x.language || 'Other'; if (!byLang[k]) { byLang[k] = []; order.push(k); } byLang[k].push(x); });
+    order.forEach(function (lang) {
+      root.appendChild(h('h2', '', lang + ' (' + byLang[lang].length + ')'));
+      byLang[lang].forEach(function (x) {
+        var text = (x.kind === 'class' ? 'class ' : x.kind === 'import' ? 'import ' : '') + (x.className ? x.className + '.' : '') + x.name;
+        lineItem(root, x.kind, 'badge', text, base(x.file) + ':' + (x.line + 1), x.file, x.line);
+      });
+    });
+  }
+
+  function renderSize(root) {
+    var d = state.data;
+    root.appendChild(h('div', 'note', 'Size of the source files that are not Delphi: lines of code, routines, and the longest routine (a routine of more than 60 lines is counted as long).'));
+    var rows = (d.common || []).slice().sort(function (a, b) { return b.metrics.lines - a.metrics.lines; });
+    if (!rows.length) { root.appendChild(h('div', 'empty', 'No source file of another language in the project.')); return; }
+    rows.slice(0, 300).forEach(function (u) {
+      var l = h('div', 'line');
+      l.appendChild(h('span', 'badge', u.language));
+      l.appendChild(h('span', 'where', u.name));
+      l.appendChild(h('span', 'tag', u.metrics.lines + ' lines'));
+      l.appendChild(h('span', 'tag', u.metrics.routines + ' routines'));
+      l.appendChild(h('span', 'tag', u.metrics.long + ' long, the longest ' + u.metrics.longest + ' lines'));
+      l.addEventListener('click', function () { open(u.path, 0); });
+      root.appendChild(l);
+    });
+    if (rows.length > 300) { root.appendChild(h('div', 'note', 'The 300 largest of ' + rows.length + ' files are shown.')); }
   }
 
   function renderUnused(root) {
@@ -397,11 +441,13 @@ const SCRIPT = `
     $('scan').disabled = state.scanning;
     $('scan').textContent = state.data ? 'Scan again' : 'Scan the project';
     if (state.tab === 'changes') { renderChanges(root); return; }
-    if (!state.data) { root.appendChild(h('div', 'empty', state.scanning ? 'Reading the units...' : 'Press "Scan the project" to read the .pas and .dfm files. It is done in small steps, can be cancelled, and the next scan only reads what changed.')); return; }
+    if (!state.data) { root.appendChild(h('div', 'empty', state.scanning ? 'Reading the units...' : 'Press "Scan the project" to read the source files of every language. It is done in small steps, can be cancelled, and the next scan only reads what changed.')); return; }
     $('gfilter').hidden = !state.data || state.tab === 'sql' || state.tab === 'texts' || state.tab === 'changes';
     $('gcount').hidden = $('gfilter').hidden;
     if (state.tab === 'hotspots' && !state.hotAsked) { state.hotAsked = true; vscode.postMessage({ type: 'churn' }); }
     if (state.tab === 'sql') { renderSql(root); }
+    else if (state.tab === 'dead') { renderDead(root); }
+    else if (state.tab === 'size') { renderSize(root); }
     else if (state.tab === 'unused') { renderUnused(root); }
     else if (state.tab === 'texts') { renderTexts(root); }
     else if (state.tab === 'names') { renderNames(root); }

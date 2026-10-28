@@ -5,14 +5,15 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, Vcl.Controls, Vcl.Forms,
   Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, cxButtons, cxGrid, cxGridLevel,
-  cxGridDBTableView;
+  cxGridDBTableView, cxGraphics, cxControls, cxLookAndFeels, cxLookAndFeelPainters, cxStyles, cxCustomData, cxFilter, cxData, cxDataStorage, cxEdit, cxNavigator, cxGridCustomTableView, cxGridTableView, cxGridCustomView, cxClasses;
 
 type
   TComplexForm = class(TForm)
     pnlHaut: TPanel;
     lblTitre: TLabel;
     btnNouveau: TButton;
-    btnImporter: TcxButton;
+
+    btnImporters: TcxButton;
     edtRecherche: TEdit;
     pnlGauche: TPanel;
     lbxCategories: TListBox;
@@ -31,7 +32,6 @@ type
     chkActif: TCheckBox;
     grpAdresse: TGroupBox;
     memAdresse: TMemo;
-    lvwContacts: TListView;
     tsHistorique: TTabSheet;
     cxGrid1: TcxGrid;
     cxGrid1DBTableView1: TcxGridDBTableView;
@@ -41,19 +41,16 @@ type
     btnEnregistrer: TButton;
     btnFermer: TButton;
     tmrStatut: TTimer;
+    Button1: TButton;
+    cxGrid2: TcxGrid;
+    Label1: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure btnNouveauClick(Sender: TObject);
-    procedure btnImporterClick(Sender: TObject);
-    procedure edtRechercheChange(Sender: TObject);
-    procedure lbxCategoriesClick(Sender: TObject);
-    procedure btnAjouterClick(Sender: TObject);
-    procedure btnSupprimerClick(Sender: TObject);
     procedure edtNomChange(Sender: TObject);
     procedure chkActifClick(Sender: TObject);
     procedure btnEnregistrerClick(Sender: TObject);
     procedure btnFermerClick(Sender: TObject);
-    procedure tmrStatutTimer(Sender: TObject);
   private
     { Private declarations }
   public
@@ -83,26 +80,6 @@ begin
   edtPrenom.Clear;
 end;
 
-procedure TComplexForm.btnImporterClick(Sender: TObject);
-begin
-end;
-
-procedure TComplexForm.edtRechercheChange(Sender: TObject);
-begin
-end;
-
-procedure TComplexForm.lbxCategoriesClick(Sender: TObject);
-begin
-end;
-
-procedure TComplexForm.btnAjouterClick(Sender: TObject);
-begin
-end;
-
-procedure TComplexForm.btnSupprimerClick(Sender: TObject);
-begin
-end;
-
 procedure TComplexForm.edtNomChange(Sender: TObject);
 begin
   btnEnregistrer.Enabled := edtNom.Text <> '';
@@ -121,10 +98,6 @@ end;
 procedure TComplexForm.btnFermerClick(Sender: TObject);
 begin
   Close;
-end;
-
-procedure TComplexForm.tmrStatutTimer(Sender: TObject);
-begin
 end;
 
 end.

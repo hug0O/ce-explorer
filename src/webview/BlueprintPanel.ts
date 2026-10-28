@@ -48,7 +48,7 @@ export class BlueprintPanel {
     static show(doc: vscode.TextDocument | undefined, column?: vscode.ViewColumn): void {
         const deps = BlueprintPanel.deps;
         if (!deps) { return; }
-        const target = doc ?? vscode.window.activeTextEditor?.document;
+        const target = doc ?? vscode.window.activeTextEditor?.document ?? BlueprintPanel.lastDoc;
         if (!target) { vscode.window.showWarningMessage('CE: Open a source file to draw its blueprint.'); return; }
         const provider = deps.registry.getByDocument(target);
         if (!provider || !familyOf(provider.languageId)) {

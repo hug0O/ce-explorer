@@ -3,12 +3,14 @@ import type { ProviderRegistry } from '../providers/ProviderRegistry';
 import { EditPipeline } from './EditPipeline';
 import type { WorkspaceIndex } from './WorkspaceIndex';
 import { PlMember, PlUnit, parsePlSqlUnits } from '../utils/plsqlParse';
-import { cleanPlSql, lineStartsOf } from '../utils/plsqlScan';
+import { lineStartsOf } from '../utils/plsqlScan';
+import { findNameHits } from '../utils/plsqlReferences';
 import {
     TextChange, addStubToBody, addToSpec, compareUnits, findPair, updateBodyFromSpec, updateSpecFromBody, SyncDiff,
 } from '../utils/plsqlSync';
 import {
-    ProcSpec, crudPackage, exceptionBlock, generatePackage, parseParamInput, plDocHeader, updatePlDoc, utplsqlTests,
+    ColumnDef, ProcSpec, SQL_KINDS, SqlKind, exceptionBlock, generatePackage, parseParamInput, parseSubstitutions,
+    plDocHeader, sqlStatements, updatePlDoc, utplsqlTests,
 } from '../utils/plsqlGen';
 import { planExtractProcedure } from '../utils/plsqlExtract';
 import { applyAlignPreset } from '../utils/plsqlAlign';
@@ -180,7 +182,8 @@ export async function newPackage(): Promise<void> {
     await openGenerated(spec + '\n' + body);
 }
 
-export async function crudFromTable(): Promise<void> {
+/** The CREATE TABLE of the selection, of the table under the cursor, of the file, or of the clipboard. */
+async function tableFromContext(): Promise<PlUnit | undefined> {
     const editor = vscode.window.activeTextEditor;
     let ddl = editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : '';
     if (!ddl && editor) {
@@ -189,20 +192,45 @@ export async function crudFromTable(): Promise<void> {
         const at = tables.find(t => line >= t.startLine && line <= t.endLine) ?? (tables.length === 1 ? tables[0] : undefined);
         if (at) { ddl = editor.document.getText().slice(at.startOffset, at.endOffset); }
         else if (tables.length > 1) {
-            const pick = await vscode.window.showQuickPick(tables.map(t => ({ label: t.name, t })), { title: 'CE: CRUD package for which table?' });
-            if (!pick) { return; }
+            const pick = await vscode.window.showQuickPick(tables.map(t => ({ label: t.name, t })), { title: 'CE: Which table?' });
+            if (!pick) { return undefined; }
             ddl = editor.document.getText().slice(pick.t.startOffset, pick.t.endOffset);
         }
     }
     if (!ddl) { ddl = await vscode.env.clipboard.readText(); }
     const table = parsePlSqlUnits(ddl).find(u => u.kind === 'table');
-    if (!table) {
-        vscode.window.showWarningMessage('CE: Select a CREATE TABLE statement (or copy it to the clipboard) first.');
-        return;
-    }
-    const result = crudPackage(table.name, table.members.map(c => ({ name: c.name, type: c.type ?? 'VARCHAR2', nullable: c.column?.nullable ?? true, primaryKey: c.column?.primaryKey ?? false })), table.primaryKey ?? [], undefined, headerOptions());
+    if (!table) { vscode.window.showWarningMessage('CE: Select a CREATE TABLE statement (or copy it to the clipboard) first.'); }
+    return table;
+}
+
+function columnsOf(table: PlUnit): ColumnDef[] {
+    return table.members.map(c => ({ name: c.name, type: c.type ?? 'VARCHAR2', nullable: c.column?.nullable ?? true, primaryKey: c.column?.primaryKey ?? false }));
+}
+
+interface SqlKindItem extends vscode.QuickPickItem { sqlKind: SqlKind }
+
+/** SELECT / INSERT / UPDATE (default) / DELETE / MERGE statements for a table, with values replaced by parameters. */
+export async function sqlFromTable(): Promise<void> {
+    const table = await tableFromContext();
+    if (!table) { return; }
+    const kinds = await vscode.window.showQuickPick<SqlKindItem>(
+        SQL_KINDS.map(k => ({ label: k.toUpperCase(), sqlKind: k, picked: k === 'select' || k === 'insert' || k === 'update' })),
+        { canPickMany: true, title: `CE: SQL for ${table.name}`, placeHolder: 'Statements to generate' },
+    );
+    if (!kinds || kinds.length === 0) { return; }
+    const columns = columnsOf(table);
+    const input = await vscode.window.showInputBox({
+        title: `CE: Replace values in ${table.name} (optional)`,
+        prompt: 'column=value separated by ;  e.g.  updated_at=SYSDATE; status=:p_status; total=:p_total * 1.2',
+        placeHolder: 'empty: every value is a :column bind variable',
+    });
+    if (input === undefined) { return; }
+    const subs = parseSubstitutions(input, columns.map(c => c.name));
+    if ('error' in subs) { vscode.window.showWarningMessage('CE: ' + subs.error); return; }
+    const result = sqlStatements(table.name, columns, table.primaryKey ?? [], kinds.map(k => k.sqlKind), subs.values);
     if ('error' in result) { vscode.window.showWarningMessage('CE: ' + result.error); return; }
-    await openGenerated(result.spec + '\n' + result.body);
+    const doc = await vscode.workspace.openTextDocument({ content: result.sql, language: 'sql' });
+    await vscode.window.showTextDocument(doc, { preview: false });
 }
 
 export async function utplsqlFromSpec(): Promise<void> {
@@ -355,26 +383,37 @@ export class PlSqlDefinitionProvider implements vscode.DefinitionProvider {
     }
 }
 
+/** Files read at once when searching the workspace: enough to keep the disk busy, few enough to keep memory small. */
+const REFERENCE_BATCH = 16;
+
 export class PlSqlReferenceProvider implements vscode.ReferenceProvider {
     async provideReferences(doc: vscode.TextDocument, pos: vscode.Position): Promise<vscode.Location[]> {
-        if (!index || !registry || registry.getByDocument(doc)?.languageId !== 'plsql') { return []; }
+        if (!registry || registry.getByDocument(doc)?.languageId !== 'plsql') { return []; }
         const w = wordWithQualifier(doc, pos);
         if (!w) { return []; }
         const provider = registry.getByDocument(doc)!;
-        const files = [doc.uri, ...await index.filesMentioning(w.name, provider.fileExtensions, [doc.uri])];
         const out: vscode.Location[] = [];
-        const re = new RegExp('(?<![\\w$#.])(?:[A-Za-z_][\\w$#]*\\.)?' + w.name.replace(/[$#]/g, '\\$&') + '(?![\\w$#])', 'gi');
-        for (const uri of files) {
-            const text = uri.toString() === doc.uri.toString() ? doc.getText() : (await vscode.workspace.openTextDocument(uri)).getText();
-            const clean = cleanPlSql(text);
-            const starts = lineStartsOf(text);
-            for (let m = re.exec(clean); m; m = re.exec(clean)) {
-                const qual = m[0].includes('.') ? m[0].split('.')[0] : undefined;
-                if (w.qualifier && qual && qual.toLowerCase() !== w.qualifier.toLowerCase()) { continue; }
-                let line = 0;
-                while (line + 1 < starts.length && starts[line + 1] <= m.index) { line++; }
-                const col = m.index - starts[line] + (m[0].length - w.name.length);
-                out.push(new vscode.Location(uri, new vscode.Range(line, col, line, col + w.name.length)));
+        const here = doc.uri.toString();
+        const collect = (uri: vscode.Uri, text: string): void => {
+            for (const h of findNameHits(text, w.name, w.qualifier)) {
+                out.push(new vscode.Location(uri, new vscode.Range(h.line, h.col, h.line, h.col + w.name.length)));
+            }
+        };
+        // The current document first, as it is in the editor (unsaved changes included).
+        collect(doc.uri, doc.getText());
+
+        const exts = provider.fileExtensions.map(e => e.replace(/^\./, '').toLowerCase());
+        const pattern = `**/*.{${exts.join(',')}}`;
+        const uris = (await vscode.workspace.findFiles(pattern, '**/{node_modules,.git,dist,out,build,bin,obj,target,.vscode-test}/**', 5000))
+            .filter(u => u.toString() !== here);
+        for (let i = 0; i < uris.length; i += REFERENCE_BATCH) {
+            const batch = uris.slice(i, i + REFERENCE_BATCH);
+            const texts = await Promise.all(batch.map(async uri => {
+                try { return { uri, text: new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri)) }; } catch { return undefined; }
+            }));
+            for (const t of texts) {
+                if (!t || !registry.acceptsText(t.uri.fsPath, t.text)) { continue; }
+                collect(t.uri, t.text);
             }
         }
         return out;

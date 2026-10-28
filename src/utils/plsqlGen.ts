@@ -1,5 +1,5 @@
 /**
- * PL/SQL code generators: package skeletons, CRUD packages from a table,
+ * PL/SQL code generators: package skeletons, SQL statements from a table,
  * exception blocks, PLDoc headers (and their refresh) and utPLSQL test packages.
  */
 import { PlMember, PlParam, PlUnit } from './plsqlParse';
@@ -75,49 +75,61 @@ export function parseParamInput(input: string): ProcSpec['params'] {
 
 export interface ColumnDef { name: string; type: string; nullable: boolean; primaryKey: boolean }
 
-export function crudPackage(table: string, columns: ColumnDef[], primaryKey: string[], packageName?: string, opts: HeaderOptions = {}): { spec: string; body: string } | { error: string } {
+export type SqlKind = 'select' | 'insert' | 'update' | 'delete' | 'merge';
+export const SQL_KINDS: SqlKind[] = ['select', 'insert', 'update', 'delete', 'merge'];
+
+/**
+ * "column=value; column=value": the value replaces the bind variable `:column` in every
+ * statement it appears in (`updated_at=SYSDATE`, `status=:p_status`, `total=:p_total * 1.2`).
+ */
+export function parseSubstitutions(input: string, columns: string[]): { values: Record<string, string> } | { error: string } {
+    const known = new Map(columns.map(c => [c.toLowerCase(), c]));
+    const values: Record<string, string> = {};
+    for (const seg of input.split(';').map(s => s.trim()).filter(Boolean)) {
+        const eq = seg.indexOf('=');
+        if (eq < 1) { return { error: `"${seg}": write column=value` }; }
+        const column = known.get(seg.slice(0, eq).trim().toLowerCase());
+        if (!column) { return { error: `${seg.slice(0, eq).trim()} is not a column of the table` }; }
+        const value = seg.slice(eq + 1).trim();
+        if (!value) { return { error: `${column} has no value` }; }
+        values[column] = value;
+    }
+    return { values };
+}
+
+/** Plain SQL (not PL/SQL) for the chosen statements, with `:column` binds unless a substitution replaces them. */
+export function sqlStatements(table: string, columns: ColumnDef[], primaryKey: string[], kinds: SqlKind[], substitutions: Record<string, string> = {}): { sql: string } | { error: string } {
+    if (columns.length === 0) { return { error: 'The table has no column.' }; }
     const pkNames = new Set(primaryKey.map(c => c.toLowerCase()));
     const pk = columns.filter(c => pkNames.has(c.name.toLowerCase()));
-    if (columns.length === 0) { return { error: 'The table has no column.' }; }
-    if (pk.length === 0) { return { error: `${table} has no PRIMARY KEY: update / delete / get need one.` }; }
+    if (pk.length === 0 && kinds.some(k => k !== 'insert')) { return { error: `${table} has no PRIMARY KEY: select, update, delete and merge need one.` }; }
     const rest = columns.filter(c => !pkNames.has(c.name.toLowerCase()));
-    const t = table.toLowerCase();
-    const pName = packageName || `pkg_${t.split('.').pop()}`;
-    const par = (c: ColumnDef, mode: 'IN' | 'OUT' = 'IN') => ({ name: 'p_' + c.name.toLowerCase(), mode, type: `${table}.${c.name}%TYPE` });
-    const where = pk.map(c => `${c.name} = p_${c.name.toLowerCase()}`).join('\n       AND ');
-
-    const procs: ProcSpec[] = [
-        { kind: 'procedure', name: 'insert_row', params: columns.map(c => par(c)), doc: `Inserts a row into ${table}.` },
-        { kind: 'procedure', name: 'update_row', params: [...pk, ...rest].map(c => par(c)), doc: `Updates the row of ${table} identified by its primary key.` },
-        { kind: 'procedure', name: 'delete_row', params: pk.map(c => par(c)), doc: `Deletes the row of ${table} identified by its primary key.` },
-        { kind: 'function', name: 'get_row', params: pk.map(c => par(c)), returns: `${table}%ROWTYPE`, doc: `Returns the row of ${table} (NO_DATA_FOUND when absent).` },
-        { kind: 'function', name: 'row_exists', params: pk.map(c => par(c)), returns: 'BOOLEAN', doc: `TRUE when the row exists in ${table}.` },
-    ];
-    const { spec } = generatePackage(pName, procs, opts);
-    const sig = (p: ProcSpec) => subprogramSignature(p);
-    const colList = columns.map(c => c.name).join(', ');
-    const valList = columns.map(c => 'p_' + c.name.toLowerCase()).join(', ');
-    const setList = rest.map(c => `${c.name} = p_${c.name.toLowerCase()}`).join(',\n           ');
-    const body = [
-        `CREATE OR REPLACE PACKAGE BODY ${pName} AS`,
-        '',
-        `${sig(procs[0])} IS\n  BEGIN\n    INSERT INTO ${table} (${colList})\n    VALUES (${valList});\n  END insert_row;`,
-        '',
-        rest.length
-            ? `${sig(procs[1])} IS\n  BEGIN\n    UPDATE ${table}\n       SET ${setList}\n     WHERE ${where};\n  END update_row;`
-            : `${sig(procs[1])} IS\n  BEGIN\n    NULL; -- every column is part of the primary key: nothing to update\n  END update_row;`,
-        '',
-        `${sig(procs[2])} IS\n  BEGIN\n    DELETE FROM ${table}\n     WHERE ${where};\n  END delete_row;`,
-        '',
-        `${sig(procs[3])} IS\n    l_row ${table}%ROWTYPE;\n  BEGIN\n    SELECT *\n      INTO l_row\n      FROM ${table}\n     WHERE ${where};\n    RETURN l_row;\n  END get_row;`,
-        '',
-        `${sig(procs[4])} IS\n    l_count PLS_INTEGER;\n  BEGIN\n    SELECT COUNT(*)\n      INTO l_count\n      FROM ${table}\n     WHERE ${where};\n    RETURN l_count > 0;\n  END row_exists;`,
-        '',
-        `END ${pName};`,
-        '/',
-        '',
-    ].join('\n');
-    return { spec, body };
+    const val = (c: ColumnDef): string => substitutions[c.name] ?? `:${c.name}`;
+    const where = pk.map(c => `${c.name} = ${val(c)}`).join('\n   AND ');
+    const out: string[] = [];
+    for (const kind of kinds) {
+        if (kind === 'select') {
+            out.push(`-- SELECT the row by primary key\nSELECT ${columns.map(c => c.name).join(',\n       ')}\n  FROM ${table}\n WHERE ${where};`);
+        } else if (kind === 'insert') {
+            out.push(`-- INSERT a row\nINSERT INTO ${table} (${columns.map(c => c.name).join(', ')})\nVALUES (${columns.map(val).join(', ')});`);
+        } else if (kind === 'update') {
+            out.push(rest.length
+                ? `-- UPDATE the row by primary key\nUPDATE ${table}\n   SET ${rest.map(c => `${c.name} = ${val(c)}`).join(',\n       ')}\n WHERE ${where};`
+                : '-- UPDATE: every column is part of the primary key, nothing to update');
+        } else if (kind === 'delete') {
+            out.push(`-- DELETE the row by primary key\nDELETE FROM ${table}\n WHERE ${where};`);
+        } else {
+            const on = pk.map(c => `t.${c.name} = s.${c.name}`).join(' AND ');
+            const matched = rest.length
+                ? `\n WHEN MATCHED THEN\n   UPDATE SET ${rest.map(c => `t.${c.name} = s.${c.name}`).join(',\n       ')}`
+                : '';
+            out.push('-- MERGE: update the row when its primary key exists, insert it otherwise\n' +
+                `MERGE INTO ${table} t\nUSING (SELECT ${columns.map(c => `${val(c)} AS ${c.name}`).join(',\n              ')} FROM dual) s\n   ON (${on})${matched}\n` +
+                ` WHEN NOT MATCHED THEN\n   INSERT (${columns.map(c => c.name).join(', ')})\n   VALUES (${columns.map(c => 's.' + c.name).join(', ')});`);
+        }
+    }
+    if (out.length === 0) { return { error: 'Nothing to generate.' }; }
+    return { sql: out.join('\n\n') + '\n' };
 }
 
 export function exceptionBlock(indent = '', style: 'reraise' | 'log' = 'reraise'): string {

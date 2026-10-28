@@ -54,3 +54,22 @@ test('the tip of the day: the same all day, another tomorrow, and every tip name
     assert.match(menu, /tipOfTheDay\(\)\.command/);
     assert.match(menu, /command: 'ce\.openWalkthrough'/);
 });
+
+test('the commands are named the same way: the CE prefix, a verb first, sentence case, and one word for one thing', () => {
+    const allowed = new Set(['Delphi', 'Git', 'Markdown', 'TabOrder', 'PLDoc', 'Blueprint', 'PL/SQL', 'SQL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'TABLE', 'F12', 'DFM']);
+    const titles = (pkg.contributes.commands as unknown as { command: string; title: string }[]);
+    for (const c of titles) {
+        const m = /^CE(?: PL\/SQL| Delphi)?: (.+)$/.exec(c.title);
+        assert.ok(m, c.command + ' starts with CE: ' + c.title);
+        const words = m![1].split(' ').slice(1);
+        for (const w of words) {
+            const core = w.replace(/[.,()/]+$/, '').replace(/^[(]/, '');
+            if (!core || allowed.has(core) || /^[A-Z]{2,}/.test(core) || core.startsWith('.') || /\.\w+$/.test(core)) { continue; }
+            assert.ok(core[0] !== core[0].toUpperCase() || core[0] === core[0].toLowerCase(), c.command + ': "' + core + '" is not sentence case in "' + c.title + '"');
+        }
+    }
+    // one word for one thing: the member keys and the lists all say "member"
+    const by = (cmd: string): string => titles.find(t => t.command === cmd)!.title;
+    for (const cmd of ['ce.goToMember', 'ce.goToWorkspaceMember', 'ce.nav.pickMember', 'ce.navigateToMember']) { assert.match(by(cmd), /^CE: Go to member/, cmd); }
+    assert.ok(!titles.some(t => /Navigate to/.test(t.title)), 'no "Navigate to": it is "Go to"');
+});

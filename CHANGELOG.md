@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.63 — 2026-10-28
+- **The commands are named the same way.** All the titles of the palette follow one style — `CE:` (or `CE Delphi:` / `CE PL/SQL:`), a verb first, sentence case — and one word for one thing: the four ways to move to a member all say *Go to member* (*pick from a list*, *type a few letters*, *in the workspace*, *from a code lens*); *Navigate to* is gone. A test keeps the titles consistent.
+
 ## 0.1.62 — 2026-10-28
 - **The preview says what it will do**: *Apply 4 changes in 2 files: Main.pas, Main.dfm?* instead of a bare *Apply these changes?*.
 

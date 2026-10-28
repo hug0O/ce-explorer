@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.62",
+  "version": "0.1.63",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -82,198 +82,198 @@
     "commands": [
       {
         "command": "ce.addMethod",
-        "title": "CE: Add Method...",
+        "title": "CE: Add method...",
         "icon": "$(add)"
       },
       {
         "command": "ce.addField",
-        "title": "CE: Add Field...",
+        "title": "CE: Add field...",
         "icon": "$(symbol-field)"
       },
       {
         "command": "ce.addProperty",
-        "title": "CE: Add Property...",
+        "title": "CE: Add property...",
         "icon": "$(symbol-property)"
       },
       {
         "command": "ce.addConstructor",
-        "title": "CE: Add Constructor...",
+        "title": "CE: Add constructor...",
         "icon": "$(symbol-constructor)"
       },
       {
         "command": "ce.refreshExplorer",
-        "title": "CE: Refresh Explorer",
+        "title": "CE: Refresh explorer",
         "icon": "$(refresh)"
       },
       {
         "command": "ce.navigateToMember",
-        "title": "CE: Navigate to Member"
+        "title": "CE: Go to member (from a code lens)"
       },
       {
         "command": "ce.synchronizeDeclImpl",
-        "title": "CE: Synchronize Declaration/Implementation"
+        "title": "CE: Synchronize declaration / implementation"
       },
       {
         "command": "ce.editMember",
-        "title": "CE: Edit Member...",
+        "title": "CE: Edit member...",
         "icon": "$(edit)"
       },
       {
         "command": "ce.deleteMember",
-        "title": "CE: Delete Member",
+        "title": "CE: Delete member",
         "icon": "$(trash)"
       },
       {
         "command": "ce.moveMember",
-        "title": "CE: Move Member to..."
+        "title": "CE: Move member to..."
       },
       {
         "command": "ce.extractMethod",
-        "title": "CE: Extract Method"
+        "title": "CE: Extract method"
       },
       {
         "command": "ce.renameMember",
-        "title": "CE: Rename Member",
+        "title": "CE: Rename member",
         "icon": "$(symbol-variable)"
       },
       {
         "command": "ce.createLocalVariable",
-        "title": "CE: Create Local Variable"
+        "title": "CE: Create local variable"
       },
       {
         "command": "ce.renameLocalVariable",
-        "title": "CE: Rename Local Variable"
+        "title": "CE: Rename local variable"
       },
       {
         "command": "ce.changeLocalType",
-        "title": "CE: Change Local Type"
+        "title": "CE: Change local type"
       },
       {
         "command": "ce.declareLocalVariable",
-        "title": "CE: Declare Local Variable"
+        "title": "CE: Declare local variable"
       },
       {
         "command": "ce.renameVariable",
-        "title": "CE: Rename Variable",
+        "title": "CE: Rename variable",
         "icon": "$(edit)"
       },
       {
         "command": "ce.changeVariableType",
-        "title": "CE: Change Variable Type"
+        "title": "CE: Change variable type"
       },
       {
         "command": "ce.deleteVariable",
-        "title": "CE: Delete Variable",
+        "title": "CE: Delete variable",
         "icon": "$(trash)"
       },
       {
         "command": "ce.openMemberEditor",
-        "title": "CE: Open Member Editor",
+        "title": "CE: Open member editor",
         "icon": "$(edit)"
       },
       {
         "command": "ce.showActions",
-        "title": "CE: Show Actions"
+        "title": "CE: Show actions"
       },
       {
         "command": "ce.insertTemplate",
-        "title": "CE: Insert Template..."
+        "title": "CE: Insert template..."
       },
       {
         "command": "ce.manageTemplates",
-        "title": "CE: Manage Templates...",
+        "title": "CE: Manage templates...",
         "icon": "$(symbol-snippet)"
       },
       {
         "command": "ce.implementInterface",
-        "title": "CE: Implement Interface / Override Methods...",
+        "title": "CE: Implement interface / override methods...",
         "icon": "$(symbol-interface)"
       },
       {
         "command": "ce.filterTree",
-        "title": "CE: Filter Members...",
+        "title": "CE: Filter members...",
         "icon": "$(filter)"
       },
       {
         "command": "ce.clearFilter",
-        "title": "CE: Clear Member Filter",
+        "title": "CE: Clear member filter",
         "icon": "$(clear-all)"
       },
       {
         "command": "ce.toggleGroupBy",
-        "title": "CE: Toggle Member Grouping",
+        "title": "CE: Toggle member grouping",
         "icon": "$(group-by-ref-type)"
       },
       {
         "command": "ce.goToMember",
-        "title": "CE: Go to Member..."
+        "title": "CE: Go to member (pick from a list)..."
       },
       {
         "command": "ce.generateGettersSetters",
-        "title": "Code Explorer: Generate Getters/Setters...",
+        "title": "CE: Generate getters / setters...",
         "icon": "$(symbol-property)"
       },
       {
         "command": "ce.insertDocHeader",
-        "title": "CE: Insert Doc Header",
+        "title": "CE: Insert doc header",
         "icon": "$(symbol-string)"
       },
       {
         "command": "ce.exportStructure",
-        "title": "CE: Export Structure"
+        "title": "CE: Export structure"
       },
       {
         "command": "ce.generateDocumentation",
-        "title": "CE: Generate Documentation"
+        "title": "CE: Generate documentation"
       },
       {
         "command": "ce.codeReview",
-        "title": "CE: Code Review"
+        "title": "CE: Code review"
       },
       {
         "command": "ce.detectDeadCode",
-        "title": "CE: Detect Dead Code"
+        "title": "CE: Detect dead code"
       },
       {
         "command": "ce.batchMove",
-        "title": "CE: Batch Move Members..."
+        "title": "CE: Batch move members..."
       },
       {
         "command": "ce.batchGenerateGettersSetters",
-        "title": "CE: Batch Generate Getters/Setters..."
+        "title": "CE: Batch generate getters / setters..."
       },
       {
         "command": "ce.manageMembers",
-        "title": "CE: Open Structure (add, filter, edit, move, delete members)",
+        "title": "CE: Open structure (add, filter, edit, move, delete members)",
         "icon": "$(list-tree)"
       },
       {
         "command": "ce.lensRun",
-        "title": "CE: Run on Code Lens target"
+        "title": "CE: Run on code lens target"
       },
       {
         "command": "ce.goToWorkspaceMember",
-        "title": "CE: Go to Member in Workspace..."
+        "title": "CE: Go to member in the workspace..."
       },
       {
         "command": "ce.alignSelection",
-        "title": "CE: Align Selection on Text..."
+        "title": "CE: Align selection on text..."
       },
       {
         "command": "ce.addComponent",
-        "title": "CE: Add Delphi Component (.pas + .dfm)..."
+        "title": "CE: Add Delphi component (.pas + .dfm)..."
       },
       {
         "command": "ce.addEventHandler",
-        "title": "CE: Add Event Handler to Delphi Component..."
+        "title": "CE: Add event handler to Delphi component..."
       },
       {
         "command": "ce.plsql.syncPackage",
-        "title": "CE PL/SQL: Synchronize Package Spec / Body"
+        "title": "CE PL/SQL: Synchronize package spec / body"
       },
       {
         "command": "ce.plsql.newPackage",
-        "title": "CE PL/SQL: New Package..."
+        "title": "CE PL/SQL: New package..."
       },
       {
         "command": "ce.plsql.sqlFromTable",
@@ -281,102 +281,102 @@
       },
       {
         "command": "ce.plsql.utplsql",
-        "title": "CE PL/SQL: Generate utPLSQL Tests from Spec"
+        "title": "CE PL/SQL: Generate utPLSQL tests from spec"
       },
       {
         "command": "ce.plsql.exceptionBlock",
-        "title": "CE PL/SQL: Insert Exception Block"
+        "title": "CE PL/SQL: Insert exception block"
       },
       {
         "command": "ce.plsql.extractProcedure",
-        "title": "CE PL/SQL: Extract Procedure from Selection"
+        "title": "CE PL/SQL: Extract procedure from selection"
       },
       {
         "command": "ce.plsql.docHeader",
-        "title": "CE PL/SQL: Insert / Refresh PLDoc Header"
+        "title": "CE PL/SQL: Insert / refresh PLDoc header"
       },
       {
         "command": "ce.plsql.findCallers",
-        "title": "CE PL/SQL: Find Callers"
+        "title": "CE PL/SQL: Find callers"
       },
       {
         "command": "ce.plsql.alignPreset",
-        "title": "CE PL/SQL: Align Selection (preset)"
+        "title": "CE PL/SQL: Align selection (preset)"
       },
       {
         "command": "ce.delphi.align",
-        "title": "CE Delphi: Align / Size / Space Components..."
+        "title": "CE Delphi: Align / size / space components..."
       },
       {
         "command": "ce.delphi.anchors",
-        "title": "CE Delphi: Anchors / Docking..."
+        "title": "CE Delphi: Anchors / docking..."
       },
       {
         "command": "ce.delphi.tabOrder",
-        "title": "CE Delphi: TabOrder by Screen Position..."
+        "title": "CE Delphi: TabOrder by screen position..."
       },
       {
         "command": "ce.delphi.check",
-        "title": "CE Delphi: Check Form (.dfm vs .pas)"
+        "title": "CE Delphi: Check form (.dfm vs .pas)"
       },
       {
         "command": "ce.delphi.cleanHandlers",
-        "title": "CE Delphi: Clean Event Handlers"
+        "title": "CE Delphi: Clean event handlers"
       },
       {
         "command": "ce.delphi.copy",
-        "title": "CE Delphi: Copy Components..."
+        "title": "CE Delphi: Copy components..."
       },
       {
         "command": "ce.delphi.paste",
-        "title": "CE Delphi: Paste Components..."
+        "title": "CE Delphi: Paste components..."
       },
       {
         "command": "ce.delphi.duplicate",
-        "title": "CE Delphi: Duplicate Components..."
+        "title": "CE Delphi: Duplicate components..."
       },
       {
         "command": "ce.delphi.formFromFields",
-        "title": "CE Delphi: Form from Fields..."
+        "title": "CE Delphi: Form from fields..."
       },
       {
         "command": "ce.delphi.formFromClass",
-        "title": "CE Delphi: Form from a Class..."
+        "title": "CE Delphi: Form from a class..."
       },
       {
         "command": "ce.delphi.changeClass",
-        "title": "CE Delphi: Change Component Class..."
+        "title": "CE Delphi: Change component class..."
       },
       {
         "command": "ce.setLanguage",
-        "title": "CE: Use a Language for this File..."
+        "title": "CE: Use a language for this file..."
       },
       {
         "command": "ce.fixEncoding",
-        "title": "CE: Fix Encoding (accents)...",
+        "title": "CE: Fix encoding (accents)...",
         "icon": "$(warning)"
       },
       {
         "command": "ce.delphi.project",
-        "title": "CE: Project Insights (SQL, dead code, size, hotspots, Delphi forms)"
+        "title": "CE: Project insights (SQL, dead code, size, hotspots, Delphi forms)"
       },
       {
         "command": "ce.delphi.diffForm",
-        "title": "CE Delphi: Compare the Form with a Git Version"
+        "title": "CE Delphi: Compare the form with a Git version"
       },
       {
         "command": "ce.delphi.designer",
-        "title": "CE Delphi: Open Form Designer / Back to the Designer",
+        "title": "CE Delphi: Open form designer / back to the designer",
         "icon": "$(symbol-misc)"
       },
       {
         "command": "ce.delphi.toggleDesigner",
-        "title": "CE Delphi: Toggle Form Designer / Code (like F12 in Delphi)",
+        "title": "CE Delphi: Toggle form designer / code (like F12 in Delphi)",
         "icon": "$(symbol-misc)"
       },
       {
         "command": "ce.memo.open",
-        "title": "CE: Open Memo (Markdown notes per language)"
+        "title": "CE: Open memo (Markdown notes per language)"
       },
       {
         "command": "ce.delphi.designerFullScreen",
@@ -384,11 +384,11 @@
       },
       {
         "command": "ce.openGuide",
-        "title": "CE: Open the User Guide (pictures and animations)"
+        "title": "CE: Open the user guide (pictures and animations)"
       },
       {
         "command": "ce.blueprint.open",
-        "title": "CE: Blueprint (the calls of this file as a graph you can edit)"
+        "title": "CE: Blueprint of this file (the calls as a graph you can edit)"
       },
       {
         "command": "ce.blueprint.project",
@@ -412,7 +412,7 @@
       },
       {
         "command": "ce.nav.pickMember",
-        "title": "CE: Go to a member (type a few letters)"
+        "title": "CE: Go to member (type a few letters)"
       },
       {
         "command": "ce.openSettings",

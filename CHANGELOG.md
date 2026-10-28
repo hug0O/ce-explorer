@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.39 — 2026-10-28
+- **Structure: the filter stays visible** — the filter box and the kind / grouping selectors stay at the top of the tab while a long list of members scrolls under them.
+- **Labels no longer overflow**: in the Structure tab a long member name or type is cut with an ellipsis, and the icons, visibility letter and action buttons keep their size instead of being clipped; the selectors and the member title fit the width of the sidebar.
+
 ## 0.1.38 — 2026-10-28
 - **Four new languages**: Windows **batch** (`.bat` `.cmd`: labels are the routines, `set` the variables), **PowerShell** (`.ps1` `.psm1`: functions with their parameters, classes with methods and properties, variables), Unix **shell** (`.sh` `.bash` `.zsh`: functions, variables) and **Markdown** (`.md`).
 - **Markdown by title**: the headings (ATX and Setext, with their level, ignoring code blocks, comments and front matter) are the members: the Structure tab lists them, `Alt+G` finds a title by a few letters, `Alt+PageDown` / `Alt+PageUp` jump to the next / previous title, and *Add method* appends a new section.

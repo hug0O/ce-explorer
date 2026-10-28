@@ -94,7 +94,27 @@ export function manageCss(): string {
 .mhead { display: flex; gap: 4px; align-items: center; margin-bottom: 8px; }
 .mhead .tool-select { flex: 1; }
 .mhead .mtypelabel { font-weight: 600; }
-.mfilter { position: relative; }
+/* the filter stays on screen while a long list scrolls under it */
+.mstick { position: sticky; top: 0; z-index: 5; background: var(--vscode-editor-background); padding: 3px 0 2px; margin: 0 -2px; }
+.mstick .tool-row { margin-bottom: 3px; padding: 0 2px; }
+/* nothing is wider than the sidebar: long names are cut with an ellipsis, buttons and icons keep their size */
+.tool-row .tool-select, .tool-row .inp { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+.mrow { min-width: 0; }
+.mrow > span { flex: none; }
+.mrow > .mname { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow > .mtype { flex: 0 3 auto; min-width: 0; }
+.mrow > .var-actions { flex: none; margin-left: auto; }
+.mnested { min-width: 0; }
+.mnested > span { flex: none; }
+.mnested > .mnname { flex: 0 1 auto; min-width: 0; }
+.mdetail .var-row { min-width: 0; }
+.mdetail .var-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdetail .var-row > .var-actions { flex: none; }
+.member-header { flex-wrap: wrap; min-width: 0; }
+.member-header .name { min-width: 0; overflow-wrap: anywhere; }
+.mbtns .ana { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mhead { min-width: 0; }
+.mhead .tool-select { min-width: 0; }
 .mfilter .inp { padding-right: 22px; }
 .mfilter .mclear { position: absolute; right: 2px; top: 1px; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 14px; display: none; }
 .mfilter .mclear.on { display: block; }
@@ -184,14 +204,14 @@ export function manageListHtml(v: ManageView): string {
 
     const total = v.rows.length;
     html += `<div class="section"><div class="section-title">${v.isFile ? 'Routines' : 'Members'} (<span id="mCount">${total}</span>)</div>`;
-    html += `<div class="tool-row mfilter"><input id="mFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: name, type, kind… (regex ok)" value="${esc(v.filter)}"${v.focusFilter ? ' data-focus="1"' : ''}>`
+    html += `<div class="mstick"><div class="tool-row mfilter"><input id="mFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: name, type, kind… (regex ok)" value="${esc(v.filter)}"${v.focusFilter ? ' data-focus="1"' : ''}>`
         + `<button class="mclear" id="mClear" title="Clear the filter">×</button></div>`;
     html += `<div class="tool-row"><select id="mKind" class="tool-select" title="Only this kind of member">`
         + `<option value="">All kinds</option>`
         + (['method', 'field', 'property', 'constructor'] as const).map(k => `<option value="${k}"${v.kindFilter === k ? ' selected' : ''}>${KIND_LABELS[k]}</option>`).join('')
         + `</select><select id="mGroup" class="tool-select" title="Order and grouping">`
         + MANAGE_GROUPS.map(g => `<option value="${g}"${v.group === g ? ' selected' : ''}>${MANAGE_GROUP_LABELS[g]}</option>`).join('')
-        + `</select></div>`;
+        + `</select></div></div>`;
 
     if (total === 0) {
         html += `<p class="empty-section">Nothing here yet, use the buttons above.</p>`;

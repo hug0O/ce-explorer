@@ -48,6 +48,7 @@ const projectScanner = new ProjectScanner(() => providerRegistry);
 import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
+import { notify } from './services/Notify';
 
 let providerRegistry: ProviderRegistry;
 let codeExplorer: CodeExplorerService;
@@ -137,6 +138,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);
         context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.project', () => ProjectBlueprintPanel.show()));
@@ -168,6 +170,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             templateStore,
             templateService,
             providerRegistry.getAllProviders().map(p => p.languageId),
+            context.globalState,
         );
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(TemplateSidebarPanel.viewType, templateSidebar)
@@ -186,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         console.error('[CE] FATAL:', msg, stack);
         outputChannel.appendLine('FATAL: ' + msg);
         outputChannel.appendLine(stack);
-        vscode.window.showErrorMessage('Code Explorer failed: ' + msg);
+        void notify.failed('Code Explorer failed: ' + msg, [{ label: 'Reload the window', command: 'workbench.action.reloadWindow' }]);
     }
 }
 
@@ -227,7 +230,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.editMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                vscode.window.showWarningMessage('Place cursor on a class member first.');
+                void notify.noMember();
                 return;
             }
             const result = await memberViewer.beginSession({
@@ -241,7 +244,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.deleteMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                vscode.window.showWarningMessage('Place cursor on a class member first.');
+                void notify.noMember();
                 return;
             }
             await ops.deleteMember(resolved.doc, resolved.cls, resolved.member, codeGenerator, codeExplorer);
@@ -261,7 +264,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
-                vscode.window.showWarningMessage('No active editor.');
+                void notify.noEditor();
                 return;
             }
             const doc = editor.document;
@@ -300,7 +303,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             const destClass = parsed.classes.find(c => c.name === destName);
             if (!destClass) {
-                vscode.window.showErrorMessage('CE: Destination class not found.');
+                void notify.failed('CE: Destination class not found.', [{ label: 'Show the structure', command: 'ce.manageMembers' }]);
                 return;
             }
             const gen = buildMoveTargetCode(provider, member, destClass);
@@ -322,14 +325,14 @@ function registerCommands(context: vscode.ExtensionContext): void {
             if (applied) {
                 vscode.window.showInformationMessage(`Moved "${member.name}" from ${sourceClass.name} to ${destClass.name}`);
             } else {
-                vscode.window.showErrorMessage(`CE: Move of "${member.name}" cancelled or failed — nothing changed.`);
+                void notify.failed(`CE: Move of "${member.name}" cancelled or failed — nothing changed.`);
             }
         }),
 
         vscode.commands.registerCommand('ce.renameMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                vscode.window.showWarningMessage('Place cursor on a class member first.');
+                void notify.noMember();
                 return;
             }
             const result = await memberViewer.beginSession({
@@ -343,7 +346,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
-                vscode.window.showWarningMessage('Open a file and place the cursor where the local should be inserted.');
+                void notify.noEditor();
                 return;
             }
             const resolved = resolveFromItemOrCursor(item);
@@ -592,7 +595,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.insertTemplate', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
-                vscode.window.showWarningMessage('No active editor.');
+                void notify.noEditor();
                 return;
             }
             const languageId = providerRegistry.getByDocument(editor.document)?.languageId ?? editor.document.languageId;
@@ -633,7 +636,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             if (!cls || !doc || !prov) {
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) {
-                    vscode.window.showWarningMessage('No active editor.');
+                    void notify.noEditor();
                     return;
                 }
                 doc = editor.document;
@@ -665,7 +668,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
-                vscode.window.showWarningMessage('No active editor.');
+                void notify.noEditor();
                 return;
             }
             const doc = editor.document;
@@ -871,7 +874,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
-                vscode.window.showWarningMessage('Place cursor on a class member first.');
+                void notify.noMember();
                 return;
             }
             await ops.insertDocHeader(resolved.doc, resolved.provider, resolved.cls, resolved.member);
@@ -885,7 +888,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('ce.batchMove', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+            if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
             if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
@@ -920,7 +923,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('ce.batchGenerateGettersSetters', async () => {
             const editor = vscode.window.activeTextEditor;
-            if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+            if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
             if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
@@ -977,7 +980,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promise<void> {
 
     const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+    if (!editor) { void notify.noEditor(); return; }
 
     const doc = editor.document;
     const provider = providerRegistry.getByDocument(doc);
@@ -1059,7 +1062,7 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
             await offerDfmForNewField(doc, result.name, result.type || result.returnType);
         }
     } else {
-        vscode.window.showErrorMessage('CE: Failed to add "' + result.name + '"');
+        void notify.failed('CE: Failed to add "' + result.name + '"');
     }
 }
 

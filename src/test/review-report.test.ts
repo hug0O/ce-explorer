@@ -154,3 +154,31 @@ test('the report shows the code the compiler or the linter gives a finding, and 
     assert.ok(/<span class="cat">Compiler \(ts\)<\/span> · <span class="fcode">TS6133<\/span> · line 4/.test(html), 'what a language server said is marked with its name');
     assert.ok(/<span class="cat">TODO<\/span> · line 6/.test(html), 'no code, no empty slot');
 });
+
+import { ignoreKey } from '../webview/reviewSection';
+import * as fs from 'fs';
+import * as path from 'path';
+
+test('a finding can be grouped by category, and a kind of finding can be ignored and taken back', () => {
+    const grouped = reviewHtml(FINDINGS, { sev: DEFAULT_REVIEW_OPTIONS.sev, sort: 'group' });
+    for (const cat of ['Build (1)', 'Correctness (1)', 'TODO (1)', 'Unused (1)']) { assert.ok(grouped.includes(cat), cat); }
+    assert.equal((grouped.match(/class="rgroup"/g) ?? []).length, 4, 'one heading per category');
+    const many = [...FINDINGS, finding({ category: 'Unused', message: 'Variable B is unused', line: 7 })];
+    assert.ok(reviewHtml(many, { sev: DEFAULT_REVIEW_OPTIONS.sev, sort: 'group' }).includes('Unused (2)'));
+
+    assert.equal(ignoreKey(finding({ code: 'H2164', category: 'Unused' })), 'code:H2164', 'a compiler or linter code names the kind');
+    assert.equal(ignoreKey(finding({ category: 'TODO' })), 'cat:TODO', 'else the category does');
+    const opts = { sev: DEFAULT_REVIEW_OPTIONS.sev, sort: 'line' as const, ignored: ['cat:TODO'] };
+    const hidden = reviewHtml(FINDINGS, opts);
+    assert.ok(!hidden.includes('TODO: later'), 'an ignored kind is not listed');
+    assert.ok(/1 ignored finding\(s\)/.test(hidden) && hidden.includes('id="rShowIgnored"'), 'but it is counted, with a way to see it');
+    assert.ok(hidden.includes('data-ignore="cat:Unused" data-on="1"'), 'every row has its ignore button');
+    const shown = reviewHtml(FINDINGS, { ...opts, showIgnored: true });
+    assert.ok(shown.includes('TODO: later') && shown.includes('data-ignore="cat:TODO" data-on="0"'), 'shown again, with a button to take it back');
+    assert.ok(/class="finding sev-info ignored"/.test(shown));
+
+    const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'MemberViewerPanel.ts'), 'utf8');
+    assert.match(panel, /case 'reviewIgnore'/);
+    assert.match(panel, /workspaceState\.update\('ce\.review\.ignored'/);
+    assert.match(panel, /closest\('\[data-ignore\]'\)/, 'the ignore button does not also go to the line');
+});

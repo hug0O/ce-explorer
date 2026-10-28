@@ -8,6 +8,7 @@ import { EditPipeline } from './EditPipeline';
 import { loadComponentDef, rememberClassUnit } from './FormLibrary';
 import { eventsForClass, planAddEvent, wiredEvents } from './DelphiEvents';
 import type { DfmNode } from './DelphiLayout';
+import { notify } from './Notify';
 
 let lastAlignToken = ':=';
 
@@ -176,7 +177,7 @@ export async function addComponentToForm(doc: vscode.TextDocument | undefined, r
     const def = req.def ?? await loadComponentDef(req.className, req.unit);
     const plan = planAddComponent(pasDoc.getText(), dfmDoc.getText(), { ...req, def });
     if ('error' in plan) {
-        vscode.window.showErrorMessage('CE: ' + plan.error);
+        void notify.failed('CE: ' + plan.error, [{ label: 'Check the form', command: 'ce.delphi.check' }]);
         return false;
     }
 
@@ -286,7 +287,7 @@ export async function addEventToComponent(doc: vscode.TextDocument | undefined, 
     ]);
     const plan = planAddEvent(pasDoc.getText(), dfmDoc.getText(), { componentName, eventName });
     if ('error' in plan) {
-        vscode.window.showErrorMessage('CE: ' + plan.error);
+        void notify.failed('CE: ' + plan.error, [{ label: 'Check the form', command: 'ce.delphi.check' }]);
         return false;
     }
     if (!plan.alreadyWired) {

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
+import { notify } from './Notify';
 
 /**
  * Pure generator: produces a Markdown documentation string from a parsed
@@ -79,7 +80,7 @@ export function generateMarkdown(parsed: import('../models/types').ParsedDocumen
 
 export async function generateDocumentation(registry: ProviderRegistry): Promise<void> {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+    if (!editor) { void notify.noEditor(); return; }
 
     const provider = registry.getByDocument(editor.document);
     if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }

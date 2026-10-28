@@ -25,6 +25,7 @@ import { languageOverrides, extensionOf } from '../services/LanguageOverrides';
 import { currentDocument } from '../services/LastEditor';
 import { COMMON_COMMANDS, DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
+import { notify } from '../services/Notify';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -132,6 +133,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _analyticsUri?: vscode.Uri;
     private _reviewSev: Record<ReviewSeverity, boolean> = { ...DEFAULT_REVIEW_OPTIONS.sev };
     private _reviewSort: ReviewSort = DEFAULT_REVIEW_OPTIONS.sort;
+    /** Kinds of finding the user ignores in this workspace, and whether the ignored ones are listed. */
+    private _reviewShowIgnored = false;
+    private reviewIgnored(): string[] { return this._extensionContext.workspaceState?.get<string[]>('ce.review.ignored', []) ?? []; }
     private _reviewDiag?: vscode.DiagnosticCollection;
 
     constructor(
@@ -276,6 +280,16 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'reviewFilter':
                     if (msg.sev === 'error' || msg.sev === 'warning' || msg.sev === 'info') { this._reviewSev[msg.sev as ReviewSeverity] = msg.on === true; this.updateView(); }
                     break;
+                case 'reviewIgnore': {
+                    const key = typeof msg.key === 'string' ? msg.key : '';
+                    if (!/^(code|cat):/.test(key)) { break; }
+                    const now = new Set(this.reviewIgnored());
+                    if (msg.on === true) { now.add(key); } else { now.delete(key); }
+                    await this._extensionContext.workspaceState.update('ce.review.ignored', [...now]);
+                    this.updateView();
+                    break;
+                }
+                case 'reviewShowIgnored': this._reviewShowIgnored = !this._reviewShowIgnored; this.updateView(); break;
                 case 'reviewSort': if ((REVIEW_SORTS as string[]).includes(msg.mode)) { this._reviewSort = msg.mode as ReviewSort; this.updateView(); } break;
                 case '__diag': console.error('[CE] webview script error:', msg.error); break;
             }
@@ -450,7 +464,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     public async handleRunAnalytics(kind: AnalyticsKind): Promise<void> {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            vscode.window.showWarningMessage('Open a source file to analyze.');
+            void notify.noEditor();
             return;
         }
         const provider = this._providerRegistry.getByDocument(editor.document);
@@ -494,7 +508,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             this._mode = 'analytics';
             this.updateView();
         } catch (e) {
-            vscode.window.showErrorMessage('Analytics failed: ' + (e instanceof Error ? e.message : String(e)));
+            void notify.failed('Analytics failed: ' + (e instanceof Error ? e.message : String(e)));
         }
     }
 
@@ -671,7 +685,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (before === text) { return; }
         this._memoWrites = this._memoWrites
             .then(() => store.write(id, text))
-            .catch(e => { vscode.window.showErrorMessage('CE: The memo was not saved: ' + (e instanceof Error ? e.message : String(e))); });
+            .catch(e => { void notify.failed('CE: The memo was not saved: ' + (e instanceof Error ? e.message : String(e))); });
     }
 
     /** Ticks / unticks a task box of the preview: the memo changes, the page keeps its scroll (the box already flipped). */
@@ -1286,7 +1300,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
         let body = '';
         if (kind === 'review') {
-            body = reviewHtml((data as ReviewFinding[]) || [], { sev: this._reviewSev, sort: this._reviewSort });
+            body = reviewHtml((data as ReviewFinding[]) || [], { sev: this._reviewSev, sort: this._reviewSort, ignored: this.reviewIgnored(), showIgnored: this._reviewShowIgnored });
         } else if (kind === 'deadcode') {
             const items = (data as DeadCodeItem[]) || [];
             body = items.length === 0
@@ -1339,10 +1353,15 @@ ${body}
     var api = acquireVsCodeApi();
     document.getElementById('btnClose').addEventListener('click', function () { api.postMessage({ command: 'closeAnalytics' }); });
     document.querySelectorAll('[data-idx]').forEach(function (r) {
-        function go() { api.postMessage({ command: 'goTo', idx: Number(r.getAttribute('data-idx')) }); }
+        function go(e) { if (e && e.target && e.target.closest && e.target.closest('[data-ignore]')) { return; } api.postMessage({ command: 'goTo', idx: Number(r.getAttribute('data-idx')) }); }
         r.addEventListener('click', go);
         r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
     });
+    document.querySelectorAll('[data-ignore]').forEach(function (b) {
+        b.addEventListener('click', function () { api.postMessage({ command: 'reviewIgnore', key: b.getAttribute('data-ignore'), on: b.getAttribute('data-on') === '1' }); });
+    });
+    var showIgn = document.getElementById('rShowIgnored');
+    if (showIgn) { showIgn.addEventListener('click', function () { api.postMessage({ command: 'reviewShowIgnored' }); }); }
     document.querySelectorAll('[data-sev]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'reviewFilter', sev: b.getAttribute('data-sev'), on: !b.classList.contains('on') }); });
     });

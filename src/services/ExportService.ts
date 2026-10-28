@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ParsedDocument, ClassInfo, ClassMember } from '../models/types';
+import { notify } from './Notify';
 
 export interface ExportData {
     exportedAt: string;
@@ -74,7 +75,7 @@ export function buildExportData(parsed: ParsedDocument, fileName: string, langua
 
 export async function exportStructure(registry: ProviderRegistry): Promise<void> {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+    if (!editor) { void notify.noEditor(); return; }
 
     const provider = registry.getByDocument(editor.document);
     if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }

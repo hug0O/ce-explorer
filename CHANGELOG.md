@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.53 — 2026-10-28
+- **Code review: grouped, and a kind of finding can be ignored.** A new order, *Grouped by category*, puts a heading with a count over each category. Each finding has a **✕** (shown when you point at it): *ignore this kind of finding in this workspace* — by its compiler or linter code (`H2164`…), else by its category. The ignored ones disappear from the list and the counts; a line *N ignored finding(s)* has a *show them* button, and **↩** on a shown one takes it back.
+- **Templates: search and favorites.** A search box at the top of the Templates view hides what does not match (name, prefix, description, languages) as you type, with its headings, and remembers the text; `Esc` clears it. The **☆ / ★** of each template puts it in a *Favorites* section at the top, for every file, whatever the language filter says.
+- **Messages with a next step.** The plain messages become ones with buttons: *No active editor* offers *Open a file…* and *Go to file…*; *Place the cursor on a class member first* offers *Pick a member…* and *Show the structure*; failures (move, add, analytics, memo, form checks, start-up) offer **Show the log** — a new command *CE: Show the log* — and, where it helps, *Check the form*, *Show the structure* or *Reload the window*.
+
 ## 0.1.52 — 2026-10-28
 - **Blueprint: the flow of a routine** (Delphi / Pascal). Select a routine, then *Show its flow* in the details panel: its statements become nodes in the order they run — calls, assignments, `if` (with *yes* / *no*), loops that come back to their start and leave by *done*, `case` with its labels, `try … except / finally`, `Exit` / `Break` / `raise` — from a green *start* to the *end*. The nested routines, the comments and the strings are not mistaken for code.
 - It is a view to read: double-click a step (or *Open the code here*) to go to its line; change the code and the flow is drawn again; *← Calls* goes back to the graph of the file. The search, *hide others* and the zoom work on it too.

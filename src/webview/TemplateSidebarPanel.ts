@@ -27,8 +27,13 @@ export class TemplateSidebarPanel implements vscode.WebviewViewProvider {
         private readonly _extensionUri: vscode.Uri,
         private readonly _store: TemplateStore,
         private readonly _service: TemplateService,
-        private readonly _supportedLanguages: string[]
+        private readonly _supportedLanguages: string[],
+        private readonly _state?: vscode.Memento,
     ) {}
+
+    /** Templates marked with a star: listed first, for every file. */
+    private favorites(): string[] { return this._state?.get<string[]>('ce.templates.favorites', []) ?? []; }
+    private _search = '';
 
     resolveWebviewView(webviewView: vscode.WebviewView): void {
         this._view = webviewView;
@@ -64,6 +69,15 @@ export class TemplateSidebarPanel implements vscode.WebviewViewProvider {
                 case 'delete': await this.handleDelete(msg.name as string, msg.scope as TemplateScope); break;
                 case 'save': await this.handleSave(msg.data as FormPayload); break;
                 case 'cancel': await this.showList(); break;
+                case 'favorite': {
+                    const name = typeof msg.name === 'string' ? msg.name : '';
+                    const now = new Set(this.favorites());
+                    if (now.has(name)) { now.delete(name); } else if (name) { now.add(name); }
+                    await this._state?.update('ce.templates.favorites', [...now]);
+                    await this.showList();
+                    break;
+                }
+                case 'search': this._search = typeof msg.text === 'string' ? msg.text.slice(0, 80) : ''; break;
                 case 'toggleShowAll': this._showAll = !this._showAll; await this.showList(); break;
             }
         });
@@ -193,10 +207,14 @@ ${hiddenCount > 0 || this._showAll
             : ''}
 </div>`;
 
+        const favs = new Set(this.favorites());
         const row = (t: Template, scopeLabel: string, scopeClass: string, editable: boolean, scope?: TemplateScope) => {
             const langs = t.languages && t.languages.length > 0 ? t.languages.join(', ') : 'all languages';
             const escName = escapeHtml(t.name).replace(/"/g, '&quot;');
-            return `<div class="tpl-row">
+            const text = escapeHtml((t.name + ' ' + (t.prefix ?? '') + ' ' + (t.description ?? '') + ' ' + langs).toLowerCase());
+            const star = favs.has(t.name);
+            return `<div class="tpl-row" data-text="${text}">
+<button class="act star${star ? ' on' : ''}" data-fav="${escName}" title="${star ? 'Remove from the favorites' : 'Add to the favorites: listed first, for every file'}">${star ? '★' : '☆'}</button>
 <div class="tpl-main" data-insert="${escName}" title="Click to insert at cursor">
 <div class="tpl-name">${escapeHtml(t.name)} <span class="badge ${scopeClass}">${scopeLabel}</span></div>
 <div class="tpl-desc">${escapeHtml(t.description || (t.prefix ? '(' + t.prefix + ')' : ''))}</div>
@@ -210,11 +228,19 @@ ${editable ? `<button class="act" data-edit="${escName}" data-scope="${scope}" t
 </div>`;
         };
 
+        // the favorites come first, wherever they apply: they are the ones used every day
+        const favUser = user.filter(t => favs.has(t.name));
+        const favBuiltin = builtins.filter(t => favs.has(t.name));
+        const favRows = [
+            ...favUser.sort((a, b) => a.name.localeCompare(b.name)).map(t => row(t, t.scope, t.scope === 'workspace' ? 'badge-ws' : 'badge-global', true, t.scope)),
+            ...favBuiltin.map(t => row(t, 'built-in', 'badge-builtin', false)),
+        ].join('');
         const userRows = filteredUser
+            .filter(t => !favs.has(t.name))
             .sort((a, b) => a.name.localeCompare(b.name))
             .map(t => row(t, t.scope, t.scope === 'workspace' ? 'badge-ws' : 'badge-global', true, t.scope))
             .join('');
-        const builtinRows = filteredBuiltins.map(t => row(t, 'built-in', 'badge-builtin', false)).join('');
+        const builtinRows = filteredBuiltins.filter(t => !favs.has(t.name)).map(t => row(t, 'built-in', 'badge-builtin', false)).join('');
 
         const emptyHint = (filteredUser.length + filteredBuiltins.length) === 0
             ? (user.length + builtins.length) === 0
@@ -230,7 +256,11 @@ ${editable ? `<button class="act" data-edit="${escName}" data-scope="${scope}" t
 <style nonce="${nonce}">
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--vscode-font-family, sans-serif); font-size: var(--vscode-font-size, 13px); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 10px; overflow-y: auto; }
-.top { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.top { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; }
+.search { flex: 1; min-width: 0; padding: 3px 6px; font-size: 12px; font-family: inherit; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; }
+.star { font-size: 14px; color: var(--vscode-descriptionForeground); }
+.star.on { color: #e2b93d; }
+.tpl-row[hidden], .section-title[hidden] { display: none; }
 .btn-new { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 12px; }
 .filterbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
 .filter-label { font-size: 11px; color: var(--vscode-descriptionForeground); }
@@ -253,15 +283,37 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: var(--vsco
 </style>
 </head>
 <body>
-<div class="top"><button class="btn-new" id="btnNew">＋ New template</button></div>
+<div class="top"><input type="text" id="tplSearch" class="search" placeholder="Search templates…" value="${escapeHtml(this._search)}" spellcheck="false"><button class="btn-new" id="btnNew">＋ New template</button></div>
 ${filterHeader}
 ${emptyHint}
+${favRows ? '<div class="section-title">★ Favorites</div>' + favRows : ''}
+<p class="empty" id="noMatch" hidden>No template matches the search.</p>
 ${userRows ? '<div class="section-title">My templates</div>' + userRows : ''}
 ${builtinRows ? '<div class="section-title">Built-in</div>' + builtinRows : ''}
 <script nonce="${nonce}">
 (function() {
     var api = acquireVsCodeApi();
     document.getElementById('btnNew').addEventListener('click', function() { api.postMessage({ command: 'new' }); });
+    // the search hides the templates that do not match (name, prefix, description, languages) and the headings left empty
+    var search = document.getElementById('tplSearch');
+    function applySearch() {
+        var q = search.value.toLowerCase().trim();
+        var any = false;
+        document.querySelectorAll('.tpl-row').forEach(function(r) { var hit = !q || (r.getAttribute('data-text') || '').indexOf(q) >= 0; r.hidden = !hit; if (hit) { any = true; } });
+        document.querySelectorAll('.section-title').forEach(function(h) {
+            var n = h.nextElementSibling, live = false;
+            while (n && !n.classList.contains('section-title')) { if (n.classList.contains('tpl-row') && !n.hidden) { live = true; } n = n.nextElementSibling; }
+            h.hidden = !live;
+        });
+        var nm = document.getElementById('noMatch');
+        if (nm) { nm.hidden = any || !q; }
+    }
+    search.addEventListener('input', function() { applySearch(); api.postMessage({ command: 'search', text: search.value }); });
+    search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { search.value = ''; applySearch(); api.postMessage({ command: 'search', text: '' }); } });
+    applySearch();
+    document.querySelectorAll('[data-fav]').forEach(function(el) {
+        el.addEventListener('click', function(e) { e.stopPropagation(); api.postMessage({ command: 'favorite', name: el.getAttribute('data-fav') }); });
+    });
     var bs = document.getElementById('btnShowAll');
     if (bs) { bs.addEventListener('click', function() { api.postMessage({ command: 'toggleShowAll' }); }); }
     document.querySelectorAll('[data-insert]').forEach(function(el) {

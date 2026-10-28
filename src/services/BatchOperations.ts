@@ -6,6 +6,7 @@ import { EditPipeline } from './EditPipeline';
 import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { ClassMember, ClassInfo, MemberKind, MemberSpec, FieldSpec, PropertySpec, Visibility, GeneratedCode } from '../models/types';
 import { applyGeneratedCode, queueGeneratedCode } from './MemberOperations';
+import { notify } from './Notify';
 
 /**
  * Build the generated code that re-creates `member` inside `destClass`.
@@ -61,7 +62,7 @@ export async function batchMove(
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-        vscode.window.showWarningMessage('No active editor.');
+        void notify.noEditor();
         return;
     }
     const doc = editor.document;
@@ -102,7 +103,7 @@ export async function batchMove(
 
     const destClass = parsed.classes.find(c => c.name === destName);
     if (!destClass) {
-        vscode.window.showErrorMessage('CE: Destination class not found.');
+        void notify.failed('CE: Destination class not found.', [{ label: 'Show the structure', command: 'ce.manageMembers' }]);
         return;
     }
 
@@ -127,7 +128,7 @@ export async function batchMove(
     );
 
     if (planned === 0) {
-        vscode.window.showErrorMessage('Batch move: failed to plan any member move.');
+        void notify.failed('Batch move: failed to plan any member move.');
         return;
     }
 
@@ -136,7 +137,7 @@ export async function batchMove(
     if (applied) {
         vscode.window.showInformationMessage(`Batch move: ${planned} member(s) moved to ${destName}.`);
     } else {
-        vscode.window.showErrorMessage('Batch move: cancelled or failed — nothing changed.');
+        void notify.failed('Batch move: cancelled or failed — nothing changed.');
     }
 }
 
@@ -159,7 +160,7 @@ export async function batchGenerateGettersSetters(
 
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-        vscode.window.showWarningMessage('No active editor.');
+        void notify.noEditor();
         return;
     }
     const doc = editor.document;

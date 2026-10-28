@@ -9,6 +9,7 @@ import { reviewText } from '../utils/textReview';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { ClassInfo, ClassMember, MemberKind } from '../models/types';
 import { ReviewClassInfo, ReviewFinding, SEVERITY_LABEL, SEVERITY_ORDER } from '../utils/reviewTypes';
+import { notify } from './Notify';
 
 export type { ReviewFinding } from '../utils/reviewTypes';
 
@@ -133,7 +134,7 @@ export function reviewDocument(document: vscode.TextDocument, provider: import('
 
 export async function runCodeReview(registry: ProviderRegistry): Promise<void> {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) { vscode.window.showWarningMessage('No active editor.'); return; }
+    if (!editor) { void notify.noEditor(); return; }
 
     const provider = registry.getByDocument(editor.document);
     if (!provider) { vscode.window.showWarningMessage('No provider for this file.'); return; }

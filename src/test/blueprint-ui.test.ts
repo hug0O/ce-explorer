@@ -91,3 +91,16 @@ test('readability: focus on the selection, a details panel, compact nodes, wires
     assert.match(js, /classList\.toggle\('lod'/);
     assert.ok(!/var rc = el\(/.test(js), 'the focus variable is not shadowed inside the node loop');
 });
+
+test('the filter shows only the routine searched for (and, if asked, its neighbours) and centres the view on it', () => {
+    const js = blueprintScript();
+    const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
+    assert.ok(html.includes('id="linked"') && html.includes('Find a routine'));
+    assert.match(js, /function visibleSet\(\)/);
+    assert.match(js, /var visible = visibleSet\(\);/);
+    assert.match(js, /function applyFilter\(\)/);
+    assert.match(js, /found\.length === 1/, 'a single match is selected');
+    assert.match(js, /ev\.key === 'Enter'/);
+    assert.match(js, /ev\.target\.value = ''; filter = ''/, 'Esc clears the filter');
+    assert.match(js, /var keep = visibleSet\(\);\s*var list = model\.nodes\.filter/, 'fit looks at the nodes that are drawn');
+});

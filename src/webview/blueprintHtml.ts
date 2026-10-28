@@ -54,6 +54,7 @@ svg#cv.panning { cursor: grabbing; }
 .node .exec:hover { fill: #ffd54a; }
 .node.dim { opacity: 0.12; }
 .node.alone { opacity: 0.6; }
+.node.hit .body { stroke: #ffd54a; stroke-width: 2.5; }
 .node.alone.dim { opacity: 0.12; }
 .node.in .body { stroke: #4aa3ff; stroke-width: 2; }
 .node.out .body { stroke: #ffb347; stroke-width: 2; }
@@ -67,7 +68,7 @@ svg.lod .ttl { font-size: 17px; }
 .wire.sel { stroke: var(--vscode-focusBorder, #007fd4); stroke-width: 3.5; opacity: 1; }
 .wire.temp { stroke: #ffd54a; stroke-dasharray: 5 4; }
 .hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
-.legend { position: absolute; left: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; background: var(--vscode-editor-background); opacity: 0.9; padding: 3px 6px; border-radius: 3px; pointer-events: none; }
+.legend { position: absolute; left: 10px; top: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; background: var(--vscode-editor-background); opacity: 0.9; padding: 3px 6px; border-radius: 3px; pointer-events: none; }
 .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin: 0 3px 0 8px; }
 body.full .legend { display: none; }
 .help { position: absolute; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; background: var(--vscode-editor-background); opacity: 0.85; padding: 3px 6px; border-radius: 3px; pointer-events: none; }
@@ -85,6 +86,7 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var withLinked = false;               // the filter also keeps the routines next to the ones it finds
   var compact = false;                  // no data pins: one line per node
   var depthMode = 1;                    // how far the focus on the selected node reaches
   var modelVer = 0, sideKey = '';
@@ -137,6 +139,21 @@ export function blueprintScript(): string {
     model.edges.forEach(function (e) { linked[e.from] = true; linked[e.to] = true; });
     return linked;
   }
+  /* the nodes drawn: the ones that pass the filter (and, if asked, their direct neighbours), without the isolated ones if hidden */
+  function visibleSet() {
+    var linked = aloneSet();
+    var keep = {};
+    model.nodes.forEach(function (n) { keep[n.id] = matches(n) && !(hideAlone && !linked[n.id]); });
+    if (filter && withLinked) {
+      var extra = {};
+      model.edges.forEach(function (e) {
+        if (keep[e.from] && !keep[e.to]) { extra[e.to] = true; }
+        if (keep[e.to] && !keep[e.from]) { extra[e.from] = true; }
+      });
+      model.nodes.forEach(function (n) { if (extra[n.id] && !(hideAlone && !linked[n.id])) { keep[n.id] = true; } });
+    }
+    return keep;
+  }
   function matches(n) {
     if (!filter) { return true; }
     var t = (n.name + ' ' + (n.owner || '')).toLowerCase();
@@ -152,8 +169,7 @@ export function blueprintScript(): string {
   function render() {
     while (world.firstChild) { world.removeChild(world.firstChild); }
     var linked = aloneSet();
-    var visible = {};
-    model.nodes.forEach(function (n) { visible[n.id] = !(hideAlone && !linked[n.id]); });
+    var visible = visibleSet();
     var rc = reach();
     var wires = el('g', {}, world);
     model.edges.forEach(function (e) {
@@ -177,7 +193,7 @@ export function blueprintScript(): string {
     model.nodes.forEach(function (n) {
       if (!visible[n.id]) { return; }
       var inFocus = !rc || sel.id === n.id || rc.up[n.id] || rc.down[n.id];
-      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + ((matches(n) && inFocus) ? '' : ' dim') + (n.hasBody ? '' : ' nobody') + (linked[n.id] ? '' : ' alone')
+      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + (inFocus ? '' : ' dim') + (n.hasBody ? '' : ' nobody') + (linked[n.id] ? '' : ' alone') + (filter && withLinked && matches(n) ? ' hit' : '')
         + (rc && rc.up[n.id] ? ' in' : '') + (rc && rc.down[n.id] ? ' out' : '');
       var nh = heightOf(n);
       var g = el('g', { 'class': cls, transform: 'translate(' + n.x + ',' + n.y + ')', 'data-id': n.id }, world);
@@ -249,7 +265,7 @@ export function blueprintScript(): string {
     edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length); } });
   }
   function renderSide() {
-    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone;
+    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked;
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
@@ -288,7 +304,8 @@ export function blueprintScript(): string {
     }
     // nothing selected: the routines, the ones nobody calls first
     var linked = aloneSet();
-    var shown = model.nodes.filter(function (n) { return matches(n) && !(hideAlone && !linked[n.id]); });
+    var keepSide = visibleSet();
+    var shown = model.nodes.filter(function (n) { return keepSide[n.id]; });
     h('h3', '', 'Routines', side);
     h('div', 'kind', model.nodes.length + ' routines, ' + model.edges.length + ' calls', side);
     var groups = [
@@ -340,7 +357,8 @@ export function blueprintScript(): string {
   }
   function fit() {
     fitMode = true;
-    var list = model.nodes;
+    var keep = visibleSet();
+    var list = model.nodes.filter(function (n) { return keep[n.id]; });
     if (!list.length) { view = { x: 40, y: 40, k: 1 }; applyView(); return; }
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     list.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + heightOf(n)); });
@@ -441,7 +459,7 @@ export function blueprintScript(): string {
 
   window.addEventListener('keydown', function (ev) {
     var inField = ev.target && ev.target.tagName === 'INPUT';
-    if (ev.key === 'Escape') { if (inField) { ev.target.blur(); } else if (!sel && full) { setFull(false); } sel = null; render(); return; }
+    if (ev.key === 'Escape') { if (inField) { return; } else if (!sel && full) { setFull(false); } sel = null; render(); return; }
     if (inField) { return; }
     if (ev.key === '/') { ev.preventDefault(); document.getElementById('filter').focus(); return; }
     if (ev.key === 'f' || ev.key === '9') { fit(); return; }
@@ -477,11 +495,29 @@ export function blueprintScript(): string {
   document.getElementById('zoomOut').addEventListener('click', function () { setZoom(view.k / 1.25); });
   document.getElementById('relayout').addEventListener('click', function () { post({ type: 'resetLayout' }); });
   document.getElementById('refresh').addEventListener('click', function () { post({ type: 'ready' }); });
-  document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); render(); });
+  function applyFilter() {
+    render();
+    var keep = visibleSet();
+    var found = model.nodes.filter(function (n) { return filter && matches(n) && keep[n.id]; });
+    if (found.length === 1 && !(sel && sel.type === 'node' && sel.id === found[0].id)) { sel = { type: 'node', id: found[0].id }; render(); }
+    fit();
+    say(filter ? (found.length ? found.length + (found.length > 1 ? ' routines match' : ' routine matches') + ' - Enter selects the first, Esc clears the filter' : 'no routine matches') : '');
+  }
+  document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); applyFilter(); });
+  document.getElementById('filter').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') {
+      var keep = visibleSet();
+      var first = model.nodes.filter(function (n) { return matches(n) && keep[n.id]; })[0];
+      if (first) { sel = { type: 'node', id: first.id }; render(); fit(); }
+    } else if (ev.key === 'Escape') {
+      ev.target.value = ''; filter = ''; ev.target.blur(); applyFilter();
+    }
+  });
+  document.getElementById('linked').addEventListener('change', function (ev) { withLinked = ev.target.checked; applyFilter(); });
   document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
-  document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); });
+  document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
   /* the graph follows the size of its window: in Fit window mode it is fitted again, otherwise the zoom and the point of view stay */
   var lastW = 0, lastH = 0;
   function resized() {
@@ -531,7 +567,8 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6; Full screen</button>
 <button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
 <button id="refresh" title="Read the file again">Refresh</button>
-<input id="filter" type="text" placeholder="Filter nodes (/)" spellcheck="false">
+<input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">
+<label title="With a filter, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> + linked</label>
 <label title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
 <label title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> pins</label>
 <label title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> hide isolated</label>

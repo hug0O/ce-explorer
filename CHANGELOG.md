@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.45 — 2026-10-28
+- **Blueprint: find a routine.** The filter box now shows only the routines whose name matches and hides all the others, with their wires; the view is centred on what is left, and a single match is selected (its callers and callees in the details panel). `Enter` selects the first match, `Esc` clears the filter and shows everything again. The *+ linked* box keeps the routines that call the ones found or are called by them (the found ones are outlined in yellow). The colour legend moved to the top left so it no longer overlaps the help line.
+
 ## 0.1.44 — 2026-10-28
 - **Blueprint: easier to read and to use.**
 - **Focus on the selection**: click a routine and everything unrelated fades; the routines that call it are lit in blue and those it calls in orange, with their wires. The *Focus* box chooses how far it reaches: direct, 2 levels or all levels.

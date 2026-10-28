@@ -31,6 +31,7 @@ import * as delphi from './services/DelphiCommands';
 import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { registerStatusMenu } from './services/StatusMenu';
 import { registerNavCommands } from './services/NavCommands';
+import { BlueprintPanel } from './webview/BlueprintPanel';
 import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions } from './services/QuickActions';
 import { GuidePanel } from './webview/GuidePanel';
 import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
@@ -135,6 +136,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
+        BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.open', () => BlueprintPanel.show(vscode.window.activeTextEditor?.document)));
         registerStatusMenu(context, providerRegistry);
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);

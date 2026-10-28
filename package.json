@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -387,6 +387,10 @@
         "title": "CE: Open the User Guide (pictures and animations)"
       },
       {
+        "command": "ce.blueprint.open",
+        "title": "CE: Blueprint (the calls of this file as a graph you can edit)"
+      },
+      {
         "command": "ce.nav.nextMember",
         "title": "CE: Next member"
       },
@@ -525,6 +529,11 @@
           "command": "ce.plsql.findCallers",
           "when": "resourceExtname =~ /^\\.(pks|pkb|sql|pls|plb)$/i",
           "group": "5_plsql@4"
+        },
+        {
+          "command": "ce.blueprint.open",
+          "when": "editorTextFocus",
+          "group": "1_navigate@8"
         },
         {
           "command": "ce.nav.pickMember",

@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.39.vsix
+code --install-extension ce-code-explorer-0.1.40.vsix
 ```
 
 ## Supported Languages
@@ -152,6 +152,7 @@ All commands are prefixed with `CE:`:
 | `CE: Detect Dead Code` | Find unused code |
 | `CE: Generate Documentation` | Generate Markdown API docs |
 | `CE: Export Structure` | Export structure as JSON |
+| `CE: Blueprint (the calls of this file as a graph you can edit)` | The routines of the file as nodes (parameters on the left, return value on the right) and the calls between them as wires, in the manner of a game-engine blueprint. **Drag a node** by its title; **drag from a white arrow to another node** to write the call in the code; **click a wire and press Delete** to remove the call; **F2** renames a routine (every call follows), **Delete** removes it, **double-click** a node opens its code, **double-click the canvas** (or *+ Node*) adds a routine. The picture is read again from the text, so editing the code redraws it. Right-click menu of the editor > Code Explorer; works in every language of the extension that has routines (not Markdown) |
 | `CE: Use a Language for this File...` | Tell CE which language a file it does not recognise is written in (this file, or every file with its extension): the members, tools and review then work on it. A status bar item offers it on a file VS Code leaves as plain text. The same choice is a **Language of this file** drop-down at the top of the Tools tab (Auto, or one language, for this file or every file with its extension): the tools of the language, such as the Delphi or PL/SQL ones, appear once it is chosen. It does not change the language VS Code gives the file, so OmniPascal and the others are not affected |
 
 ## Configuration

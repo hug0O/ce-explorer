@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.40 — 2026-10-28
+- **Blueprint mode** (*CE: Blueprint*, in the *Code Explorer* right-click submenu and the quick actions): the routines of the file drawn as nodes, in the manner of Unreal Engine blueprints: a title bar, a white exec arrow in and out, one pin per parameter on the left and the return value on the right, and a wire for every call, laid out in columns from the callers to what they call.
+- **It edits the code**: drag from the arrow of a node to another node and the call is written at the end of the routine; click a wire and press Delete to remove the call (every call site); **F2** renames a routine with all its calls; **Delete** removes a routine; **double-click** a node opens its code; **double-click the canvas** or drag a wire to empty space adds a new routine (called by the one you dragged from). Everything is an ordinary edit of the file, so Ctrl+Z undoes it, and the picture is redrawn when the code changes.
+- Pan with the mouse, zoom with the wheel, `F` fits everything, `L` lays out again, `/` filters the nodes by name, *hide isolated* keeps only the routines that are linked; the position of each node is remembered for the file. Works for Delphi, C++, Java, C#, Go, Rust, TypeScript / JavaScript, Python, PL/SQL, PowerShell, shell and batch.
+
 ## 0.1.39 — 2026-10-28
 - **Structure: the filter stays visible** — the filter box and the kind / grouping selectors stay at the top of the tab while a long list of members scrolls under them.
 - **Labels no longer overflow**: in the Structure tab a long member name or type is cut with an ellipsis, and the icons, visibility letter and action buttons keep their size instead of being clipped; the selectors and the member title fit the width of the sidebar.

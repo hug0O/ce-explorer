@@ -17,6 +17,8 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
 .bar label { display: flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); cursor: pointer; }
 .bar .grow { flex: 1; }
+body.full .bar { padding: 3px 8px; }
+body.full .help { display: none; }
 .bar .msg { color: var(--vscode-descriptionForeground); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #stage { flex: 1; min-height: 0; position: relative; }
 svg#cv { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
@@ -285,7 +287,7 @@ export function blueprintScript(): string {
 
   window.addEventListener('keydown', function (ev) {
     var inField = ev.target && ev.target.tagName === 'INPUT';
-    if (ev.key === 'Escape') { if (inField) { ev.target.blur(); } sel = null; render(); return; }
+    if (ev.key === 'Escape') { if (inField) { ev.target.blur(); } else if (!sel && full) { setFull(false); } sel = null; render(); return; }
     if (inField) { return; }
     if (ev.key === '/') { ev.preventDefault(); document.getElementById('filter').focus(); return; }
     if (ev.key === 'f' || ev.key === '9') { fit(); return; }
@@ -303,6 +305,16 @@ export function blueprintScript(): string {
   });
 
   document.getElementById('addNode').addEventListener('click', function () { post({ type: 'addNode' }); });
+  var full = false;
+  function setFull(on) {
+    if (on === full) { return; }
+    full = on;
+    document.body.classList.toggle('full', on);
+    document.getElementById('full').innerHTML = on ? '&#x26F6; Exit full screen' : '&#x26F6; Full screen';
+    post({ type: 'fullscreen', on: on });
+    setTimeout(function () { if (fitMode) { fit(); } else { applyView(); } }, 250);
+  }
+  document.getElementById('full').addEventListener('click', function () { setFull(!full); });
   document.getElementById('zoom').addEventListener('change', function (ev) {
     var v = ev.target.value;
     if (v === 'custom') { return; }
@@ -326,6 +338,7 @@ export function blueprintScript(): string {
       if (first || m.fit) { fit(); }
       document.getElementById('count').textContent = model.nodes.length + ' routines, ' + model.edges.length + ' calls';
     } else if (m.type === 'notice') { say(m.text); }
+    else if (m.type === 'toggleFull') { setFull(!full); }
     else if (m.type === 'select') { sel = { type: 'node', id: m.id }; render(); }
   });
   post({ type: 'ready' });
@@ -346,6 +359,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="addNode" class="primary" title="Add a routine to the code (double-click on the canvas does the same where you click)">+ Node</button>
 <label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
+<button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6; Full screen</button>
 <button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
 <button id="refresh" title="Read the file again">Refresh</button>
 <input id="filter" type="text" placeholder="Filter nodes (/)" spellcheck="false">

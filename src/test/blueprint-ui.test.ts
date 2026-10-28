@@ -55,3 +55,18 @@ test('zoom works as in the designer: a select with presets and Fit window, butto
     assert.match(js, /ev\.button === 1/);
     assert.match(js, /'Fit window \(' \+ pct/);
 });
+
+test('the blueprint has a full screen: its button, Ctrl+K Ctrl+F, Esc to leave, and the Zen mode of the editor behind it', () => {
+    const js = blueprintScript();
+    assert.match(js, /post\(\{ type: 'fullscreen', on: on \}\)/);
+    assert.match(js, /m\.type === 'toggleFull'/);
+    assert.match(js, /!sel && full\) \{ setFull\(false\)/);
+    assert.ok(blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' }).includes('id="full"'));
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { keybindings: { key: string; command: string; when?: string }[] } };
+    const k = pkg.contributes.keybindings.find(b => b.command === 'ce.delphi.designerFullScreen')!;
+    assert.match(k.when ?? '', /ceFormDesigner/);
+    assert.match(k.when ?? '', /ceBlueprint/);
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
+    assert.match(panel, /case 'fullscreen': await this\.setZen/);
+    assert.match(panel, /workbench\.action\.toggleZenMode/);
+});

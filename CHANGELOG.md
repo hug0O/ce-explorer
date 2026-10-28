@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.42 — 2026-10-28
+- **Blueprint: full screen** — the *Full screen* button or `Ctrl+K Ctrl+F` (the same key as the designer, while the blueprint tab is active) hides the side bar and the panels so the graph gets the whole window; `Esc` (with nothing selected) or the same key leaves it, and the view is refitted.
+
 ## 0.1.41 — 2026-10-28
 - **Blueprint: zoom as in the designer** — a *Zoom* box (Fit window with its percentage, 25% to 200%), `−` / `+` buttons, the wheel zooming around the pointer, `0` for 100%, `9` or `F` to fit, `+` / `-`, and the middle button to pan.
 

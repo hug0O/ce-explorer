@@ -53,6 +53,14 @@ export class BlueprintPanel {
         BlueprintPanel.open.set(key, new BlueprintPanel(panel, target, deps));
     }
 
+    /** Ctrl+K Ctrl+F in the blueprint tab: the same as its full screen button. */
+    static toggleFullScreen(): void {
+        for (const b of BlueprintPanel.open.values()) {
+            if (b.panel.active) { void b.panel.webview.postMessage({ type: 'toggleFull' }); return; }
+        }
+    }
+
+    private zen = false;
     private entries: Entry[] = [];
     private timer: NodeJS.Timeout | undefined;
     private readonly subs: vscode.Disposable[] = [];
@@ -74,6 +82,7 @@ export class BlueprintPanel {
                 this.timer = setTimeout(() => this.send(), 350);
             }),
             panel.onDidDispose(() => {
+                if (this.zen) { void this.setZen(false); }
                 if (this.timer) { clearTimeout(this.timer); }
                 BlueprintPanel.open.delete(doc.uri.toString());
                 this.subs.forEach(s => s.dispose());
@@ -131,6 +140,25 @@ export class BlueprintPanel {
 
     private notice(text: string): void { void this.panel.webview.postMessage({ type: 'notice', text }); }
 
+    /** The full screen of the editor area (Zen mode), without the narrow centred column Zen mode gives by default. */
+    private async setZen(on: boolean): Promise<void> {
+        if (on === this.zen) { return; }
+        this.zen = on;
+        const cfg = vscode.workspace.getConfiguration('zenMode');
+        const was = cfg.inspect<boolean>('centerLayout')?.globalValue;
+        try {
+            if (on && cfg.get<boolean>('centerLayout') !== false) { BlueprintPanel.savedCentre = { value: was }; await cfg.update('centerLayout', false, vscode.ConfigurationTarget.Global); }
+            await vscode.commands.executeCommand('workbench.action.toggleZenMode');
+        } catch { this.zen = !on; }
+        if (!on && BlueprintPanel.savedCentre) {
+            const v = BlueprintPanel.savedCentre.value;
+            BlueprintPanel.savedCentre = undefined;
+            try { await cfg.update('centerLayout', v, vscode.ConfigurationTarget.Global); } catch { /* the setting stays as it is */ }
+        }
+    }
+
+    private static savedCentre: { value: boolean | undefined } | undefined;
+
     // --- the gestures ------------------------------------------------------------------------------------------------------
 
     private entry(id: unknown): Entry | undefined { return typeof id === 'string' ? this.entries.find(e => e.id === id) : undefined; }
@@ -144,6 +172,7 @@ export class BlueprintPanel {
                 break;
             }
             case 'resetLayout': await this.deps.state.update(this.stateKey, {}); this.send(true); break;
+            case 'fullscreen': await this.setZen(m.on === true); break;
             case 'openCode': await this.openCode(this.entry(m.id)); break;
             case 'addCall': await this.addCall(this.entry(m.from), this.entry(m.to)); break;
             case 'removeCall': await this.removeCall(this.entry(m.from), this.entry(m.to)); break;

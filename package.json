@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.41",
+  "version": "0.1.42",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -380,7 +380,7 @@
       },
       {
         "command": "ce.delphi.designerFullScreen",
-        "title": "CE Delphi: Toggle form designer full screen"
+        "title": "CE Delphi: Toggle form designer / blueprint full screen"
       },
       {
         "command": "ce.openGuide",
@@ -798,7 +798,7 @@
       {
         "command": "ce.delphi.designerFullScreen",
         "key": "ctrl+k ctrl+f",
-        "when": "activeWebviewPanelId == 'ceFormDesigner'"
+        "when": "activeWebviewPanelId == 'ceFormDesigner' || activeWebviewPanelId == 'ceBlueprint'"
       },
       {
         "command": "ce.delphi.designer",

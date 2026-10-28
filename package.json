@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.59",
+  "version": "0.1.60",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -417,6 +417,10 @@
       {
         "command": "ce.openSettings",
         "title": "CE: Settings"
+      },
+      {
+        "command": "ce.openWalkthrough",
+        "title": "CE: Quick start (walkthrough)"
       }
     ],
     "submenus": [
@@ -1001,6 +1005,73 @@
         "command": "ce.memo.open",
         "key": "ctrl+k ctrl+n",
         "when": "editorTextFocus || sideBarFocus"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "ce.start",
+        "title": "Get started with Code Explorer",
+        "description": "Five short steps to move around your code, draw it, and find every command.",
+        "steps": [
+          {
+            "id": "structure",
+            "title": "See the structure of the file",
+            "description": "The classes, methods and fields of the file you edit, one click away.\n[Show the structure](command:ce.manageMembers)",
+            "media": {
+              "markdown": "media/walkthrough/structure.md"
+            },
+            "completionEvents": [
+              "onCommand:ce.manageMembers"
+            ]
+          },
+          {
+            "id": "jump",
+            "title": "Move between members",
+            "description": "Pick a member by typing a few letters, or walk through them with the keyboard.\n[Go to a member](command:ce.nav.pickMember)",
+            "media": {
+              "markdown": "media/walkthrough/jump.md"
+            },
+            "completionEvents": [
+              "onCommand:ce.nav.pickMember",
+              "onCommand:ce.nav.nextMember"
+            ]
+          },
+          {
+            "id": "blueprint",
+            "title": "See your code as a graph",
+            "description": "The calls of a file, or the units of a project, drawn as nodes you can edit.\n[Open the Blueprint](command:ce.blueprint.open)",
+            "media": {
+              "markdown": "media/walkthrough/blueprint.md"
+            },
+            "completionEvents": [
+              "onCommand:ce.blueprint.open",
+              "onCommand:ce.blueprint.project"
+            ]
+          },
+          {
+            "id": "actions",
+            "title": "Everything in one menu",
+            "description": "Every command that suits the file, with its shortcut.\n[Quick actions](command:ce.showActions)",
+            "media": {
+              "markdown": "media/walkthrough/actions.md"
+            },
+            "completionEvents": [
+              "onCommand:ce.showActions"
+            ]
+          },
+          {
+            "id": "settings",
+            "title": "Settings and guide",
+            "description": "A few options, and a guide with pictures.\n[Open the settings](command:ce.openSettings)  [Open the guide](command:ce.openGuide)",
+            "media": {
+              "markdown": "media/walkthrough/settings.md"
+            },
+            "completionEvents": [
+              "onCommand:ce.openSettings",
+              "onCommand:ce.openGuide"
+            ]
+          }
+        ]
       }
     ]
   },

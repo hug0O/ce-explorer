@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.60 — 2026-10-28
+- **Quick start.** A VS Code *Get Started* walkthrough with five short steps — the structure of the file, moving between members, the Blueprint, the quick actions menu, the settings and the guide — each with its page and a link that runs the command (**CE: Quick start**). The first time the extension runs, a short message offers the tour once and never again.
+- **A tip a day.** The menu of the status bar item starts with a tip (*Alt+G picks a member by typing a few letters*…) that runs the command it talks about when chosen; ten tips, the same all day. The menu also has *Quick start* and *Settings*.
+
 ## 0.1.59 — 2026-10-28
 - **The sidebar has three tabs instead of five**: *Structure*, *Tools* and *Memo*. The details of the member and the shortcuts are one click away in a **⋯** menu at the end of the bar, which shows the name of the one that is open (*Shortcuts ⋯*).
 - **A simpler empty page.** With no member under the cursor, the panel proposes three things — *Structure of the file*, *Go to a member*, *Quick actions* — and folds the long list of other actions under *More actions*.

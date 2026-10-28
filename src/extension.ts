@@ -138,6 +138,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.openWalkthrough', () => vscode.commands.executeCommand('workbench.action.openWalkthrough', 'ce.ce-code-explorer#ce.start', false)));
+        // the first time only: a short offer to see how to start, never again (and never in the way of the work)
+        if (!context.globalState.get<boolean>('ce.welcomed')) {
+            void context.globalState.update('ce.welcomed', true);
+            void vscode.window.showInformationMessage('Code Explorer is ready. Want a 1-minute tour?', 'Quick start', 'Not now')
+                .then(pick => { if (pick === 'Quick start') { void vscode.commands.executeCommand('ce.openWalkthrough'); } });
+        }
         context.subscriptions.push(vscode.commands.registerCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
         context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);

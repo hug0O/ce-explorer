@@ -4,6 +4,7 @@ import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { analyseEncoding, looksWrong } from '../utils/encodingRepair';
 import { extensionOf, languageOverrides } from './LanguageOverrides';
 import { describeStatus } from './StatusText';
+import { tipOfTheDay } from './Tips';
 
 /**
  * One item in the status bar for the extension, where there used to be three (the language, the encoding, the form designer): it says
@@ -54,6 +55,8 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
             const bad = !!doc && suspect(doc);
             type Row = vscode.QuickPickItem & { command?: string };
             const rows: Row[] = [
+                { label: '$(lightbulb) ' + tipOfTheDay().text, description: 'tip of the day', command: tipOfTheDay().command },
+                { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(zap) Quick actions...', description: 'Ctrl+K Ctrl+A', command: 'ce.showActions' },
                 ...(delphi ? [{ label: '$(symbol-misc) Open the form designer', description: 'Ctrl+K D', command: 'ce.delphi.designer' }] : []),
                 { label: '$(list-tree) Structure of the file', description: 'Ctrl+K Ctrl+M', command: 'ce.manageMembers' },
@@ -64,6 +67,7 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(note) Memo', description: 'Ctrl+K Ctrl+N', command: 'ce.memo.open' },
                 { label: '$(book) User guide', description: 'pictures and animations', command: 'ce.openGuide' },
+                { label: '$(rocket) Quick start', description: 'a 1-minute tour', command: 'ce.openWalkthrough' },
                 { label: '$(gear) Settings', description: 'the few options of the extension', command: 'ce.openSettings' },
             ];
             const picked = await vscode.window.showQuickPick(rows, { placeHolder: doc ? path.basename(doc.uri.fsPath) + ': what do you want to do?' : 'Code Explorer' });

@@ -98,3 +98,17 @@ test('layout: callers on the left, what they call on the right, a cycle does not
     for (let i = 0; i < all.length; i++) { for (let j = i + 1; j < all.length; j++) { assert.ok(!overlap(all[i], all[j]), 'no two nodes overlap'); } }
     assert.ok(nodeSize({ id: 'x', title: 'a'.repeat(80), inputs: 5, outputs: 1 }).w <= 340, 'a long title does not make a huge node');
 });
+
+test('layout: rows are ordered to keep wires short and the columns are centred on each other', () => {
+    // two callers, each with its own callee, declared in crossing order: the sweep puts them in matching rows
+    const nodes = ['a', 'b', 'y', 'x'].map(id => ({ id, title: id, inputs: 1, outputs: 1 }));
+    const edges = [{ from: 'a', to: 'x' }, { from: 'b', to: 'y' }];
+    const boxes = layout(nodes, edges);
+    const order = (ids: string[]): string[] => [...ids].sort((p, q) => boxes.get(p)!.y - boxes.get(q)!.y);
+    assert.deepEqual(order(['x', 'y']), order(['a', 'b']).map(id => (id === 'a' ? 'x' : 'y')), 'no crossing');
+    // a column of one node is centred against a column of three
+    const n2 = ['r', 'c1', 'c2', 'c3'].map(id => ({ id, title: id, inputs: 1, outputs: 1 }));
+    const b2 = layout(n2, [{ from: 'r', to: 'c1' }, { from: 'r', to: 'c2' }, { from: 'r', to: 'c3' }]);
+    const mid = (id: string): number => b2.get(id)!.y + b2.get(id)!.h / 2;
+    assert.ok(Math.abs(mid('r') - mid('c2')) < 1, 'the caller is level with the middle callee');
+});

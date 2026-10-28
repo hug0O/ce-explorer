@@ -20,7 +20,25 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 body.full .bar { padding: 3px 8px; }
 body.full .help { display: none; }
 .bar .msg { color: var(--vscode-descriptionForeground); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#stage { flex: 1; min-height: 0; position: relative; }
+#main { flex: 1; min-height: 0; display: flex; }
+#stage { flex: 1; min-width: 0; position: relative; }
+#side { width: 280px; flex: none; border-left: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35)); overflow-y: auto; padding: 10px; box-sizing: border-box; }
+body.noside #side { display: none; }
+#side h3 { margin: 0 0 2px; font-size: 14px; word-break: break-all; }
+#side .kind { color: var(--vscode-descriptionForeground); margin-bottom: 8px; }
+#side h4 { margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vscode-descriptionForeground); }
+#side .sig { font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; line-height: 1.5; }
+#side .sig .t { color: var(--vscode-symbolIcon-typeParameterForeground, #4ec9b0); }
+#side .acts { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 2px; }
+#side button.act { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, inherit); border: 1px solid transparent; border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 11px; font-family: inherit; }
+#side button.act.danger:hover { background: #a33b3b; color: #fff; }
+#side .li { display: flex; gap: 6px; align-items: center; width: 100%; text-align: left; background: transparent; color: inherit; border: none; padding: 3px 4px; border-radius: 3px; cursor: pointer; font-family: inherit; font-size: 12px; }
+#side .li:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.18)); }
+#side .li .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#side .li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#side .li .ct { color: var(--vscode-descriptionForeground); font-size: 10px; }
+#side .none { color: var(--vscode-descriptionForeground); font-size: 11px; padding: 2px 4px; }
+#side .tip { color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.5; margin-top: 12px; }
 svg#cv { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
 svg#cv.panning { cursor: grabbing; }
 .grid-line { stroke: var(--vscode-editorIndentGuide-background, rgba(128,128,128,0.18)); stroke-width: 1; }
@@ -34,14 +52,24 @@ svg#cv.panning { cursor: grabbing; }
 .node .pin { stroke: rgba(0,0,0,0.5); stroke-width: 1; }
 .node .exec { fill: #f2f2f2; cursor: crosshair; }
 .node .exec:hover { fill: #ffd54a; }
-.node.dim { opacity: 0.22; }
+.node.dim { opacity: 0.12; }
+.node.alone { opacity: 0.6; }
+.node.alone.dim { opacity: 0.12; }
+.node.in .body { stroke: #4aa3ff; stroke-width: 2; }
+.node.out .body { stroke: #ffb347; stroke-width: 2; }
+svg.lod .lbl, svg.lod .sub { display: none; }
+svg.lod .ttl { font-size: 17px; }
 .node.nobody .head { filter: saturate(0.2); }
-.wire { fill: none; stroke: var(--vscode-foreground); stroke-width: 2.2; opacity: 0.85; pointer-events: none; }
-.wire.dim { opacity: 0.15; }
-.wire.on { stroke: #ffd54a; opacity: 1; stroke-width: 3; }
+.wire { fill: none; stroke-width: 2.2; opacity: 0.8; pointer-events: none; }
+.wire.dim { opacity: 0.07; }
+.wire.in { stroke: #4aa3ff; opacity: 1; stroke-width: 3; }
+.wire.out { stroke: #ffb347; opacity: 1; stroke-width: 3; }
 .wire.sel { stroke: var(--vscode-focusBorder, #007fd4); stroke-width: 3.5; opacity: 1; }
 .wire.temp { stroke: #ffd54a; stroke-dasharray: 5 4; }
 .hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.legend { position: absolute; left: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; background: var(--vscode-editor-background); opacity: 0.9; padding: 3px 6px; border-radius: 3px; pointer-events: none; }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin: 0 3px 0 8px; }
+body.full .legend { display: none; }
 .help { position: absolute; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; background: var(--vscode-editor-background); opacity: 0.85; padding: 3px 6px; border-radius: 3px; pointer-events: none; }
 .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--vscode-descriptionForeground); pointer-events: none; text-align: center; padding: 30px; }
 `;
@@ -57,6 +85,9 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var compact = false;                  // no data pins: one line per node
+  var depthMode = 1;                    // how far the focus on the selected node reaches
+  var modelVer = 0, sideKey = '';
   var cv = document.getElementById('cv');
   var world = document.getElementById('world');
   var gridG = document.getElementById('grid');
@@ -77,6 +108,30 @@ export function blueprintScript(): string {
   function post(m) { vscode.postMessage(m); }
   function say(t) { document.getElementById('msg').textContent = t || ''; }
 
+  function edgeColor(id) { return 'hsl(' + hue(id) + ',55%,64%)'; }
+  function heightOf(n) { return compact ? HEAD + 26 : n.h; }
+  /* the routines that call n (up) and those n calls (down), each with its distance, as far as the focus reaches */
+  function reach() {
+    var up = {}, down = {};
+    if (!sel || sel.type !== 'node') { return null; }
+    function walk(start, field, other, into) {
+      var queue = [[start, 0]];
+      var seen = {}; seen[start] = true;
+      while (queue.length) {
+        var cur = queue.shift();
+        if (cur[1] >= depthMode) { continue; }
+        model.edges.forEach(function (e) {
+          if (e[field] !== cur[0] || seen[e[other]]) { return; }
+          seen[e[other]] = true; into[e[other]] = cur[1] + 1; queue.push([e[other], cur[1] + 1]);
+        });
+      }
+    }
+    walk(sel.id, 'to', 'from', up);
+    walk(sel.id, 'from', 'to', down);
+    return { up: up, down: down };
+  }
+  function callersOf(id) { return model.edges.filter(function (e) { return e.to === id; }); }
+  function calleesOf(id) { return model.edges.filter(function (e) { return e.from === id; }); }
   function aloneSet() {
     var linked = {};
     model.edges.forEach(function (e) { linked[e.from] = true; linked[e.to] = true; });
@@ -99,7 +154,7 @@ export function blueprintScript(): string {
     var linked = aloneSet();
     var visible = {};
     model.nodes.forEach(function (n) { visible[n.id] = !(hideAlone && !linked[n.id]); });
-    var focus = sel && sel.type === 'node' ? sel.id : null;
+    var rc = reach();
     var wires = el('g', {}, world);
     model.edges.forEach(function (e) {
       var a = byId(e.from), b = byId(e.to);
@@ -108,8 +163,12 @@ export function blueprintScript(): string {
       var id = e.from + '>' + e.to;
       var cls = 'wire';
       if (sel && sel.type === 'edge' && sel.id === id) { cls += ' sel'; }
-      else if (focus) { cls += (e.from === focus || e.to === focus) ? ' on' : ' dim'; }
-      var p = el('path', { d: d, 'class': cls }, wires);
+      else if (rc) {
+        var outE = (e.from === sel.id || rc.down[e.from]) && rc.down[e.to];
+        var inE = (e.to === sel.id || rc.up[e.to]) && rc.up[e.from];
+        cls += outE ? ' out' : inE ? ' in' : ' dim';
+      }
+      var p = el('path', { d: d, 'class': cls, stroke: edgeColor(e.from) }, wires);
       p.setAttribute('data-edge', id);
       var hit = el('path', { d: d, 'class': 'hit' }, wires);
       var tip = el('title', {}, hit); tip.textContent = a.name + ' calls ' + b.name + ' (' + e.lines.length + 'x) - click, then Delete to remove the call';
@@ -117,9 +176,12 @@ export function blueprintScript(): string {
     });
     model.nodes.forEach(function (n) {
       if (!visible[n.id]) { return; }
-      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + (matches(n) ? '' : ' dim') + (n.hasBody ? '' : ' nobody');
+      var inFocus = !rc || sel.id === n.id || rc.up[n.id] || rc.down[n.id];
+      var cls = 'node' + (sel && sel.type === 'node' && sel.id === n.id ? ' sel' : '') + ((matches(n) && inFocus) ? '' : ' dim') + (n.hasBody ? '' : ' nobody') + (linked[n.id] ? '' : ' alone')
+        + (rc && rc.up[n.id] ? ' in' : '') + (rc && rc.down[n.id] ? ' out' : '');
+      var nh = heightOf(n);
       var g = el('g', { 'class': cls, transform: 'translate(' + n.x + ',' + n.y + ')', 'data-id': n.id }, world);
-      el('rect', { 'class': 'body', x: 0, y: 0, width: n.w, height: n.h, rx: 6 }, g);
+      el('rect', { 'class': 'body', x: 0, y: 0, width: n.w, height: nh, rx: 6 }, g);
       var head = el('path', { 'class': 'head', d: 'M0,6 a6,6 0 0 1 6,-6 h' + (n.w - 12) + ' a6,6 0 0 1 6,6 v' + (HEAD - 6) + ' h-' + n.w + ' z', fill: HEADS[n.kind] || '#2a6fb0' }, g);
       var kindWord = n.kind === 'constructor' ? 'Create ' : n.kind === 'destructor' ? 'Destroy ' : '';
       var ttl = el('text', { 'class': 'ttl', x: 10, y: n.owner ? 15 : 21 }, g);
@@ -134,26 +196,118 @@ export function blueprintScript(): string {
       var tout = el('title', {}, pout); tout.textContent = 'Drag to another node: ' + n.name + ' will call it';
       var inl = el('text', { 'class': 'lbl', x: 12, y: HEAD + 16 }, g); inl.textContent = 'call';
       var outl = el('text', { 'class': 'lbl out', x: n.w - 12, y: HEAD + 16 }, g); outl.textContent = 'then';
-      n.params.forEach(function (p, i) {
+      if (!compact) { n.params.forEach(function (p, i) {
         var y = HEAD + 12 + (i + 1) * ROWH;
         var c = el('circle', { 'class': 'pin', cx: 0, cy: y, r: 5, fill: pinColor(p.type) }, g);
         var t = el('title', {}, c); t.textContent = (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' + p.type : '');
         var l = el('text', { 'class': 'lbl', x: 12, y: y + 4 }, g);
         l.textContent = trunc(p.name + (p.type ? ': ' + p.type : ''), Math.floor((n.w - 24) / 6.5));
-      });
-      if (n.ret) {
+      }); }
+      if (!compact && n.ret) {
         var yr = HEAD + 12 + ROWH;
-        var rc = el('circle', { 'class': 'pin', cx: n.w, cy: yr, r: 5, fill: pinColor(n.ret) }, g);
-        var rt = el('title', {}, rc); rt.textContent = 'returns ' + n.ret;
+        var retc = el('circle', { 'class': 'pin', cx: n.w, cy: yr, r: 5, fill: pinColor(n.ret) }, g);
+        var rt = el('title', {}, retc); rt.textContent = 'returns ' + n.ret;
         var rl = el('text', { 'class': 'lbl out', x: n.w - 12, y: yr + 4 }, g); rl.textContent = trunc(n.ret, Math.floor((n.w - 24) / 6.5));
       }
     });
     applyView();
+    renderSide();
     document.getElementById('empty').style.display = model.nodes.length ? 'none' : 'flex';
+  }
+
+  function centerOn(n) {
+    fitMode = false;
+    view.x = cv.clientWidth / 2 - (n.x + n.w / 2) * view.k;
+    view.y = cv.clientHeight / 2 - (n.y + heightOf(n) / 2) * view.k;
+    applyView();
+  }
+  function select(id, center) {
+    var n = byId(id);
+    if (!n) { return; }
+    sel = { type: 'node', id: id };
+    if (center) { centerOn(n); }
+    render();
+  }
+  function h(tag, cls, text, parent) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined) { e.textContent = text; }
+    if (parent) { parent.appendChild(e); }
+    return e;
+  }
+  function listItem(parent, n, count, onclick) {
+    var b = h('button', 'li', undefined, parent);
+    var dot = h('span', 'dot', undefined, b); dot.style.background = HEADS[n.kind] || '#2a6fb0';
+    h('span', 'nm', (n.owner ? n.owner + '.' : '') + n.name, b);
+    if (count > 1) { h('span', 'ct', count + 'x', b); }
+    b.addEventListener('click', onclick || function () { select(n.id, true); });
+    return b;
+  }
+  function section(side, title, edges, field) {
+    h('h4', '', title + ' (' + edges.length + ')', side);
+    if (!edges.length) { h('div', 'none', field === 'from' ? 'nobody in this file' : 'no call', side); return; }
+    edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length); } });
+  }
+  function renderSide() {
+    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone;
+    if (key === sideKey) { return; }
+    sideKey = key;
+    var side = document.getElementById('side');
+    while (side.firstChild) { side.removeChild(side.firstChild); }
+    if (sel && sel.type === 'node' && byId(sel.id)) {
+      var n = byId(sel.id);
+      h('h3', '', n.name, side);
+      h('div', 'kind', (n.owner ? n.owner + ' - ' : '') + n.kind + (n.hasBody ? '' : ' (declaration only)') + (n.recursive ? ' - recursive' : '') + ' - line ' + (n.line + 1), side);
+      var sig = h('div', 'sig', undefined, side);
+      n.params.forEach(function (p) { h('div', '', (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' : ''), sig).appendChild(h('span', 't', p.type || '')); });
+      if (n.ret) { var r = h('div', '', 'returns ', sig); r.appendChild(h('span', 't', n.ret)); }
+      var acts = h('div', 'acts', undefined, side);
+      [['Open code', 'openCode', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']].forEach(function (a) {
+        var b = h('button', 'act' + a[2], a[0], acts);
+        b.addEventListener('click', function () { post({ type: a[1], id: n.id }); });
+      });
+      section(side, 'Called by', callersOf(n.id), 'from');
+      section(side, 'Calls', calleesOf(n.id), 'to');
+      h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Focus box widens or narrows what is lit.', side);
+      return;
+    }
+    if (sel && sel.type === 'edge') {
+      var p2 = sel.id.split('>'), a = byId(p2[0]), b2 = byId(p2[1]);
+      var ed = model.edges.filter(function (e) { return e.from === p2[0] && e.to === p2[1]; })[0];
+      if (a && b2 && ed) {
+        h('h3', '', a.name + ' calls ' + b2.name, side);
+        h('div', 'kind', ed.lines.length + (ed.lines.length > 1 ? ' call sites' : ' call site') + ', line ' + ed.lines.map(function (l) { return l + 1; }).join(', '), side);
+        var acts2 = h('div', 'acts', undefined, side);
+        var rm = h('button', 'act danger', 'Remove the call (Delete)', acts2);
+        rm.addEventListener('click', function () { post({ type: 'removeCall', from: p2[0], to: p2[1] }); });
+        var op = h('button', 'act', 'Open ' + a.name, acts2);
+        op.addEventListener('click', function () { post({ type: 'openCode', id: a.id }); });
+        listItem(side, a, 0); listItem(side, b2, 0);
+        return;
+      }
+    }
+    // nothing selected: the routines, the ones nobody calls first
+    var linked = aloneSet();
+    var shown = model.nodes.filter(function (n) { return matches(n) && !(hideAlone && !linked[n.id]); });
+    h('h3', '', 'Routines', side);
+    h('div', 'kind', model.nodes.length + ' routines, ' + model.edges.length + ' calls', side);
+    var groups = [
+      ['Entry points (nobody calls them here)', shown.filter(function (n) { return linked[n.id] && !callersOf(n.id).length; })],
+      ['Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0; })],
+      ['Isolated (no call in or out)', shown.filter(function (n) { return !linked[n.id]; })]
+    ];
+    groups.forEach(function (g) {
+      if (!g[1].length) { return; }
+      h('h4', '', g[0] + ' (' + g[1].length + ')', side);
+      g[1].forEach(function (n) { listItem(side, n, 0); });
+    });
+    if (!shown.length) { h('div', 'none', 'No routine matches the filter.', side); }
+    h('div', 'tip', 'Click a routine to select it and see who calls it and what it calls. Everything else fades.', side);
   }
 
   function applyView() {
     showZoom();
+    cv.classList.toggle('lod', view.k < 0.7);
     world.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')');
     // the grid follows the view
     var gs = 40 * view.k;
@@ -189,7 +343,7 @@ export function blueprintScript(): string {
     var list = model.nodes;
     if (!list.length) { view = { x: 40, y: 40, k: 1 }; applyView(); return; }
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    list.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h); });
+    list.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + heightOf(n)); });
     var w = cv.clientWidth - 60, h = cv.clientHeight - 60;
     var k = Math.min(1.2, Math.max(0.15, Math.min(w / (x1 - x0), h / (y1 - y0))));
     view = { k: k, x: 30 - x0 * k + (w - (x1 - x0) * k) / 2, y: 30 - y0 * k + (h - (y1 - y0) * k) / 2 };
@@ -324,6 +478,9 @@ export function blueprintScript(): string {
   document.getElementById('relayout').addEventListener('click', function () { post({ type: 'resetLayout' }); });
   document.getElementById('refresh').addEventListener('click', function () { post({ type: 'ready' }); });
   document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); render(); });
+  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); });
+  document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
+  document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); });
   /* the graph follows the size of its window: in Fit window mode it is fitted again, otherwise the zoom and the point of view stay */
   var lastW = 0, lastH = 0;
@@ -343,6 +500,8 @@ export function blueprintScript(): string {
     if (m.type === 'model') {
       var first = model.nodes.length === 0;
       model = { nodes: m.nodes || [], edges: m.edges || [] };
+      modelVer++;
+      if (first) { compact = model.nodes.length > 25; document.getElementById('pins').checked = !compact; }
       if (sel && sel.type === 'node' && !byId(sel.id)) { sel = null; }
       render();
       if (first || m.fit) { fit(); }
@@ -373,13 +532,20 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
 <button id="refresh" title="Read the file again">Refresh</button>
 <input id="filter" type="text" placeholder="Filter nodes (/)" spellcheck="false">
+<label title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
+<label title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> pins</label>
 <label title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> hide isolated</label>
+<button id="details" title="Show or hide the details panel">Details</button>
 <span class="grow"></span><span class="msg" id="msg"></span><span class="msg" id="count"></span>
 </div>
+<div id="main">
 <div id="stage">
 <svg id="cv"><g id="grid"></g><g id="world"></g></svg>
 <div class="empty" id="empty">No routine to draw in this file.</div>
+<div class="legend">Wire colour = the caller<i style="background:#4aa3ff"></i>calls the selected<i style="background:#ffb347"></i>called by the selected</div>
 <div class="help">Wheel zooms, middle button pans &middot; Drag a node by its title &middot; drag from a white arrow to another node to add a call &middot; click a wire + Delete removes the call &middot; F2 rename &middot; Delete removes the routine &middot; double-click opens the code</div>
+</div>
+<div id="side"></div>
 </div>
 <script nonce="${o.nonce}">${blueprintScript()}</script>
 </body></html>`;

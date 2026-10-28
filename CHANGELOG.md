@@ -2,6 +2,13 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.44 — 2026-10-28
+- **Blueprint: easier to read and to use.**
+- **Focus on the selection**: click a routine and everything unrelated fades; the routines that call it are lit in blue and those it calls in orange, with their wires. The *Focus* box chooses how far it reaches: direct, 2 levels or all levels.
+- **Details panel** on the right (button *Details*): the selected routine with its signature, *Open code / Rename / Delete*, the list of who calls it and what it calls (click a name to go there and centre on it); for a wire, the call sites and *Remove the call*; with nothing selected, all the routines grouped as entry points, called, and isolated, following the filter.
+- **Tidier layout**: rows are reordered to cross fewer wires, columns are centred on each other and further apart; each wire has the colour of its caller so crossing wires can be told apart; routines with no link are paler.
+- **Compact nodes** (*pins* box): one line per node without the parameter and return pins, chosen automatically above 25 routines; when zoomed out, the small labels are hidden and the titles drawn larger.
+
 ## 0.1.43 — 2026-10-28
 - **Blueprint follows the size of its window**: when the tab is resized, split, shown again or put in full screen, the graph is fitted again to the room it has (in *Fit window* mode); with a zoom you chose, the zoom and the point of view are kept.
 

@@ -76,3 +76,18 @@ test('the graph follows the size of its window: refitted in Fit window mode, kep
     assert.match(js, /new ResizeObserver\(resized\)\.observe\(document\.getElementById\('stage'\)\)/);
     assert.match(js, /if \(fitMode \|\| firstSize\) \{ fit\(\); \} else \{ applyView\(\); \}/);
 });
+
+test('readability: focus on the selection, a details panel, compact nodes, wires coloured by caller, less detail when zoomed out', () => {
+    const js = blueprintScript();
+    const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
+    for (const id of ['focus', 'pins', 'details', 'side']) { assert.ok(html.includes('id="' + id + '"'), id); }
+    for (const v of ['1', '2', '99']) { assert.ok(html.includes('<option value="' + v + '">'), 'focus ' + v); }
+    assert.match(js, /function reach\(\)/);
+    assert.match(js, /cls \+= outE \? ' out' : inE \? ' in' : ' dim'/);
+    assert.match(js, /stroke: edgeColor\(e\.from\)/);
+    assert.match(js, /function renderSide\(\)/);
+    for (const g of ['Entry points', 'Called by others', 'Isolated']) { assert.ok(js.includes(g), g); }
+    assert.match(js, /compact = model\.nodes\.length > 25/);
+    assert.match(js, /classList\.toggle\('lod'/);
+    assert.ok(!/var rc = el\(/.test(js), 'the focus variable is not shadowed inside the node loop');
+});

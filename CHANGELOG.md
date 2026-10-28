@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.52 — 2026-10-28
+- **Blueprint: the flow of a routine** (Delphi / Pascal). Select a routine, then *Show its flow* in the details panel: its statements become nodes in the order they run — calls, assignments, `if` (with *yes* / *no*), loops that come back to their start and leave by *done*, `case` with its labels, `try … except / finally`, `Exit` / `Break` / `raise` — from a green *start* to the *end*. The nested routines, the comments and the strings are not mistaken for code.
+- It is a view to read: double-click a step (or *Open the code here*) to go to its line; change the code and the flow is drawn again; *← Calls* goes back to the graph of the file. The search, *hide others* and the zoom work on it too.
+
 ## 0.1.51 — 2026-10-28
 - **Blueprint of the project** (*CE: Blueprint of the project (units and uses)*, in the *Code Explorer* right-click submenu of Delphi files, the quick actions, and *More > Show the project* of a file's blueprint): a node per unit (teal) and per program file (purple), a wire per `uses`; the units that are not in the project (`Vcl.Forms`, `System.SysUtils`…) are listed in the details of each unit instead of cluttering the picture.
 - It works like the file view: search, hide others, focus, zoom, full screen, export. The details panel lists *Uses* and *Used by*, *Open the unit* and **Its blueprint** (the routines of that unit). *Used by no unit* and *Circular uses* replace the unused routines and the loops (only the `interface` section makes a circular reference that Delphi refuses).

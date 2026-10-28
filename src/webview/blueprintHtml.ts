@@ -14,6 +14,8 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 .bar button { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, inherit); border: 1px solid transparent; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .bar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.3)); }
 body.project .fileonly, body.project #addNode { display: none; }
+body.flow #addNode, body.flow #undo, body.flow #redo { display: none; }
+.wlabel { fill: var(--vscode-descriptionForeground); font-size: 10px; pointer-events: none; }
 .dd { position: relative; display: inline-block; }
 .bar button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30; min-width: 270px; padding: 6px 4px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128,128,128,0.5))); border-radius: 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
@@ -112,6 +114,8 @@ export function blueprintScript(): string {
   var analysis = { unused: [], cycles: [] };
   var unusedSet = {}, cycleSet = {}, cycleEdges = {};
   var showAnalysis = true;              // mark the unused routines and the cycles on the picture
+  var flowMode = false;                 // the statements of one routine
+  var locked = false;                   // flow and project views: no editing of routines
   var projectMode = false;              // the units of a project instead of the routines of a file
   var editing = null;                   // id of the routine whose signature is being edited in the details panel
   var editForm = null;
@@ -126,8 +130,9 @@ export function blueprintScript(): string {
   var world = document.getElementById('world');
   var gridG = document.getElementById('grid');
   var HEAD = 34, ROWH = 20;
+  var FLOWC = { start: '#2e8b57', end: '#5a6068', call: '#2a6fb0', assign: '#5b6f8a', exit: '#b5453a', 'if': '#b8742a', loop: '#7a5aa6', 'case': '#b8742a', 'try': '#2a8a8a' };
   var HEADS = { unit: '#2a8a8a', program: '#7a5aa6', method: '#2a6fb0', 'function': '#2a6fb0', constructor: '#2e8b57', destructor: '#a33b3b', event: '#b5453a' };
-  function headColor(n) { return n.events && n.events.length ? HEADS.event : (HEADS[n.kind] || '#2a6fb0'); }
+  function headColor(n) { if (n.flow) { return FLOWC[n.kind] || '#2a6fb0'; } return n.events && n.events.length ? HEADS.event : (HEADS[n.kind] || '#2a6fb0'); }
 
   function el(name, attrs, parent) {
     var e = document.createElementNS(NS, name);
@@ -144,7 +149,7 @@ export function blueprintScript(): string {
   function say(t) { document.getElementById('msg').textContent = t || ''; }
 
   function edgeColor(id) { return 'hsl(' + hue(id) + ',55%,64%)'; }
-  function heightOf(n) { return compact ? HEAD + 26 : n.h; }
+  function heightOf(n) { return compact && !n.flow ? HEAD + 26 : n.h; }
   /* the routines that call n (up) and those n calls (down), each with its distance, as far as the focus reaches */
   function reach() {
     var up = {}, down = {};
@@ -204,6 +209,7 @@ export function blueprintScript(): string {
   /* When a filter or "hide others" leaves only some nodes, they are laid out again as if they were alone and centred;
      the extension does the layout (the same as for the whole file) and the real positions come back when everything is shown. */
   function syncSubset() {
+    if (flowMode) { subsetKey = ''; return; }
     var keep = visibleSet();
     var ids = model.nodes.filter(function (n) { return keep[n.id]; }).map(function (n) { return n.id; });
     var active = ids.length > 0 && ids.length < model.nodes.length && (!!filter || (isolate && sel && sel.type === 'node'));
@@ -250,6 +256,7 @@ export function blueprintScript(): string {
         cls += outE ? ' out' : inE ? ' in' : ' dim';
       } else if (showAnalysis && cycleEdges[id]) { cls += ' cyc'; }
       var p = el('path', { d: d, 'class': cls, stroke: edgeColor(e.from) }, wires);
+      if (e.label) { var lab = el('text', { 'class': 'wlabel', x: a.x + a.w + 10, y: pinY(a, 0) - 6 }, wires); lab.textContent = e.label; }
       p.setAttribute('data-edge', id);
       var hit = el('path', { d: d, 'class': 'hit' }, wires);
       var tip = el('title', {}, hit); tip.textContent = a.name + ' calls ' + b.name + ' (' + e.lines.length + 'x) - click, then Delete to remove the call';
@@ -265,6 +272,14 @@ export function blueprintScript(): string {
       el('rect', { 'class': 'body', x: 0, y: 0, width: n.w, height: nh, rx: 6 }, g);
       var head = el('path', { 'class': 'head', d: 'M0,6 a6,6 0 0 1 6,-6 h' + (n.w - 12) + ' a6,6 0 0 1 6,6 v' + (HEAD - 6) + ' h-' + n.w + ' z', fill: headColor(n) }, g);
       var isEvent = !!(n.events && n.events.length);
+      if (n.flow) {
+        var ft = el('text', { 'class': 'ttl', x: 10, y: 21 }, g); ft.textContent = n.title;
+        el('path', { 'class': 'pin', d: 'M-7,' + (HEAD + 5) + ' l8,7 l-8,7 z', fill: '#f2f2f2' }, g);
+        el('path', { 'class': 'pin', d: 'M' + (n.w - 1) + ',' + (HEAD + 5) + ' l8,7 l-8,7 z', fill: '#f2f2f2' }, g);
+        var fx = el('text', { 'class': 'lbl', x: 12, y: HEAD + 16 }, g); fx.textContent = trunc(n.text, Math.floor((n.w - 24) / 6.3));
+        var fh = el('title', {}, head); fh.textContent = n.title + ' ' + n.text + ' - line ' + (n.line + 1) + ' - double-click opens the code';
+        return;
+      }
       var kindWord = isEvent ? 'Event ' : n.kind === 'constructor' ? 'Create ' : n.kind === 'destructor' ? 'Destroy ' : '';
       var subText = isEvent ? n.events[0] + (n.events.length > 1 ? ' +' + (n.events.length - 1) : '') : n.owner;
       var ttl = el('text', { 'class': 'ttl', x: 10, y: subText ? 15 : 21 }, g);
@@ -322,7 +337,7 @@ export function blueprintScript(): string {
   function listItem(parent, n, count, onclick) {
     var b = h('button', 'li', undefined, parent);
     var dot = h('span', 'dot', undefined, b); dot.style.background = headColor(n);
-    h('span', 'nm', (n.owner ? n.owner + '.' : '') + n.name, b);
+    h('span', 'nm', n.flow ? n.title + ' ' + n.text : (n.owner ? n.owner + '.' : '') + n.name, b);
     if (count > 1) { h('span', 'ct', count + 'x', b); }
     b.addEventListener('click', onclick || function () { select(n.id, true); });
     return b;
@@ -391,6 +406,24 @@ export function blueprintScript(): string {
     sideKey = key;
     var side = document.getElementById('side');
     while (side.firstChild) { side.removeChild(side.firstChild); }
+    if (flowMode) {
+      var fn = sel && sel.type === 'node' ? byId(sel.id) : null;
+      if (fn) {
+        h('h3', '', fn.title, side);
+        h('div', 'kind', 'line ' + (fn.line + 1), side);
+        if (fn.text) { h('div', 'sig', fn.text, side); }
+        var fa = h('div', 'acts', undefined, side);
+        var fo = h('button', 'act', 'Open the code here', fa);
+        fo.addEventListener('click', function () { post({ type: 'openLine', line: fn.line }); });
+        section(side, 'Comes from', model.edges.filter(function (e) { return e.to === fn.id; }).map(function (e) { return { from: e.from, to: e.to, lines: [0] }; }), 'from');
+        section(side, 'Goes to', model.edges.filter(function (e) { return e.from === fn.id; }).map(function (e) { return { from: e.from, to: e.to, lines: [0] }; }), 'to');
+      } else {
+        h('h3', '', 'Flow', side);
+        h('div', 'kind', model.nodes.length + ' steps. This is a view of the code to read: change the code in the editor and the flow is drawn again.', side);
+        h('div', 'tip', 'yes / no leave a condition; each loop comes back to its start and leaves by done. Double-click a step to open the code at that line; Back to the calls with the button at the top.', side);
+      }
+      return;
+    }
     if (editing && sel && sel.type === 'node' && byId(sel.id)) { renderEditor(side, byId(sel.id)); return; }
     if (sel && sel.type === 'node' && byId(sel.id)) {
       var n = byId(sel.id);
@@ -406,7 +439,7 @@ export function blueprintScript(): string {
       n.params.forEach(function (p) { h('div', '', (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' : ''), sig).appendChild(h('span', 't', p.type || '')); });
       if (n.ret) { var r = h('div', '', 'returns ', sig); r.appendChild(h('span', 't', n.ret)); }
       var acts = h('div', 'acts', undefined, side);
-      (projectMode ? [['Open the unit', 'openCode', ''], ['Its blueprint', 'openUnit', '']] : [['Open code', 'openCode', ''], ['Edit... (E)', 'edit', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']]).forEach(function (a) {
+      (projectMode ? [['Open the unit', 'openCode', ''], ['Its blueprint', 'openUnit', '']] : [['Open code', 'openCode', ''], ['Show its flow', 'showFlow', ''], ['Edit... (E)', 'edit', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']]).forEach(function (a) {
         var b = h('button', 'act' + a[2], a[0], acts);
         b.addEventListener('click', function () { if (a[1] === 'edit') { startEdit(n.id); } else { post({ type: a[1], id: n.id }); } });
       });
@@ -579,7 +612,7 @@ export function blueprintScript(): string {
       var target = nodeAt(ev);
       if (target && target.id !== d.node.id) {
         if (d.dir === 'out') { post({ type: 'addCall', from: d.node.id, to: target.id }); } else { post({ type: 'addCall', from: target.id, to: d.node.id }); }
-      } else if (!target && d.dir === 'out' && !projectMode) {
+      } else if (!target && d.dir === 'out' && !locked) {
         var w = toWorld(ev);
         post({ type: 'addNode', caller: d.node.id, x: Math.round(w.x), y: Math.round(w.y) });
       }
@@ -587,8 +620,8 @@ export function blueprintScript(): string {
   });
   cv.addEventListener('dblclick', function (ev) {
     var n = nodeAt(ev);
-    if (n) { post({ type: 'openCode', id: n.id }); return; }
-    if (projectMode) { return; }
+    if (n) { if (n.flow) { post({ type: 'openLine', line: n.line }); } else { post({ type: 'openCode', id: n.id }); } return; }
+    if (locked) { return; }
     var w = toWorld(ev);
     post({ type: 'addNode', x: Math.round(w.x), y: Math.round(w.y) });
   });
@@ -622,8 +655,8 @@ export function blueprintScript(): string {
     if (ev.key === 'Delete' || ev.key === 'Backspace') {
       ev.preventDefault();
       if (sel.type === 'edge') { var p = sel.id.split('>'); post({ type: 'removeCall', from: p[0], to: p[1] }); }
-      else if (!projectMode) { post({ type: 'deleteNode', id: sel.id }); }
-    } else if (projectMode) { if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); } }
+      else if (!locked) { post({ type: 'deleteNode', id: sel.id }); }
+    } else if (locked) { if (ev.key === 'Enter' && sel.type === 'node') { var sn = byId(sel.id); if (sn && sn.flow) { post({ type: 'openLine', line: sn.line }); } else { post({ type: 'openCode', id: sel.id }); } } }
     else if (ev.key === 'e' && sel.type === 'node') { startEdit(sel.id); }
     else if (ev.key === 'F2' && sel.type === 'node') { ev.preventDefault(); post({ type: 'rename', id: sel.id }); }
     else if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); }
@@ -686,6 +719,7 @@ export function blueprintScript(): string {
     say(on ? (sel ? '' : 'Select a routine: everything not linked to it is hidden') : '');
   }
   document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
+  document.getElementById('back').addEventListener('click', function () { post({ type: 'ready' }); });
   document.getElementById('openProject').addEventListener('click', function () { post({ type: 'openProject' }); });
   document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
   document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
@@ -713,7 +747,12 @@ export function blueprintScript(): string {
       var first = model.nodes.length === 0;
       model = { nodes: m.nodes || [], edges: m.edges || [] };
       projectMode = m.mode === 'project';
-      document.body.classList.toggle('project', projectMode);
+      flowMode = m.mode === 'flow';
+      locked = projectMode || flowMode;
+      document.body.classList.toggle('project', projectMode || flowMode);
+      document.body.classList.toggle('flow', flowMode);
+      document.getElementById('back').hidden = !flowMode;
+      if (m.title) { document.getElementById('ttl').textContent = m.title; }
       setAnalysis(m.analysis);
       modelVer++;
       if (first) { compact = model.nodes.length > 25; document.getElementById('pins').checked = !compact; }
@@ -758,7 +797,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <style nonce="${o.nonce}">${blueprintCss()}</style></head>
 <body>
 <div class="bar">
-<span class="title">${esc(o.title)}</span>
+<span class="title" id="ttl">${esc(o.title)}</span><button id="back" hidden title="Back to the calls of the file">&#x2190; Calls</button>
 <button id="addNode" class="primary" title="Add a routine to the code (double-click on the canvas does the same where you click)">+ Node</button>
 <label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>

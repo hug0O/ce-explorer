@@ -11,6 +11,7 @@ import { layout } from '../utils/blueprintLayout';
 import { analyze } from '../utils/blueprintAnalysis';
 import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { eventsByHandler } from '../utils/blueprintEvents';
+import { buildFlow } from '../utils/pascalFlow';
 import { parseDfmTree } from '../services/DelphiLayout';
 import { blueprintHtml } from './blueprintHtml';
 
@@ -75,6 +76,8 @@ export class BlueprintPanel {
     /** The handlers of the form of this unit (Delphi), read from the .dfm next to it. */
     private handlers = new Map<string, string[]>();
     private dfmUri: vscode.Uri | undefined;
+    /** The routine whose flow is on show (Pascal), instead of the calls of the file. */
+    private flowOf: string | undefined;
     private entries: Entry[] = [];
     private timer: NodeJS.Timeout | undefined;
     private readonly subs: vscode.Disposable[] = [];
@@ -165,10 +168,11 @@ export class BlueprintPanel {
     }
 
     private send(fit = false): void {
+        if (this.flowOf) { this.sendFlow(fit); return; }
         const m = this.model();
         if (m) {
             const analysis = analyze(m.nodes.map(n => n.id), m.edges, this.entryPoints(), id => !!m.nodes.find(n => n.id === id)?.hasBody);
-            void this.panel.webview.postMessage({ type: 'model', nodes: m.nodes, edges: m.edges, analysis, fit });
+            void this.panel.webview.postMessage({ type: 'model', mode: 'file', title: this.doc.uri.fsPath.split(/[\\/]/).pop(), nodes: m.nodes, edges: m.edges, analysis, fit });
         }
     }
 
@@ -208,7 +212,9 @@ export class BlueprintPanel {
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
         switch (m.type) {
-            case 'ready': await this.readForm(); this.send(true); this.sendHistory(); break;
+            case 'ready': this.flowOf = undefined; await this.readForm(); this.send(true); this.sendHistory(); break;
+            case 'showFlow': this.showFlow(this.entry(m.id)); break;
+            case 'openLine': await this.openLine(typeof m.line === 'number' ? m.line : 0); break;
             case 'openDesigner': {
                 await vscode.window.showTextDocument(this.doc, { viewColumn: vscode.ViewColumn.One });
                 await vscode.commands.executeCommand('ce.delphi.designer');
@@ -219,13 +225,14 @@ export class BlueprintPanel {
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;
             case 'positions': {
+                if (this.flowOf) { break; }
                 const next = { ...this.positions(), ...((m.positions ?? {}) as SavedPositions) };
                 await this.deps.state.update(this.stateKey, next);
                 break;
             }
             case 'resetLayout': await this.deps.state.update(this.stateKey, {}); this.send(true); break;
             case 'fullscreen': await this.setZen(m.on === true); break;
-            case 'subsetLayout': this.subsetLayout(m.ids, m.key); break;
+            case 'subsetLayout': if (!this.flowOf) { this.subsetLayout(m.ids, m.key); } break;
             case 'openCode': await this.openCode(this.entry(m.id)); break;
             case 'addCall': { const f = this.entry(m.from), t = this.entry(m.to); await this.recorded('add call' + (f && t ? ' ' + f.node.name + ' > ' + t.node.name : ''), () => this.addCall(f, t)); break; }
             case 'removeCall': { const f = this.entry(m.from), t = this.entry(m.to); await this.recorded('remove call' + (f && t ? ' ' + f.node.name + ' > ' + t.node.name : ''), () => this.removeCall(f, t)); break; }
@@ -362,6 +369,34 @@ export class BlueprintPanel {
             this.notice(name + ' updated. Calls are not changed: check them if you added or removed a parameter.');
         }
         this.send();
+    }
+
+    // --- the flow of a routine ---------------------------------------------------------------------------------------------
+
+    private showFlow(e: Entry | undefined): void {
+        if (!e) { return; }
+        if (this.deps.registry.getByDocument(this.doc)?.languageId !== 'pascal') { this.notice('The flow of a routine is read for Delphi / Pascal code only.'); return; }
+        if (!e.node.body) { this.notice(e.node.name + ' has no body in this file: no flow to draw.'); return; }
+        this.flowOf = e.id;
+        this.sendFlow(true);
+    }
+
+    private sendFlow(fit: boolean): void {
+        const e = this.entry(this.flowOf);
+        const body = e?.node.body;
+        if (!e || !body) { this.flowOf = undefined; this.send(true); return; }
+        const flow = buildFlow(this.lines().slice(body.start, body.end + 1), body.start);
+        if (!flow) { this.notice('No statements found in ' + e.node.name + '.'); this.flowOf = undefined; this.send(true); return; }
+        const nodes = flow.nodes.map(n => ({ ...n, name: n.title + ' ' + n.text, params: [], hasBody: true, recursive: false, flow: true }));
+        void this.panel.webview.postMessage({ type: 'model', mode: 'flow', title: 'Flow of ' + (e.node.owner ? e.node.owner + '.' : '') + e.node.name, nodes, edges: flow.edges.map(x => ({ ...x, lines: [] })), analysis: { unused: [], cycles: [] }, fit });
+    }
+
+    private async openLine(line: number): Promise<void> {
+        const shown = vscode.window.visibleTextEditors.find(v => v.document.uri.toString() === this.doc.uri.toString());
+        const editor = await vscode.window.showTextDocument(this.doc, { viewColumn: shown?.viewColumn ?? vscode.ViewColumn.One });
+        const at = new vscode.Position(Math.max(0, Math.min(line, this.doc.lineCount - 1)), 0);
+        editor.selection = new vscode.Selection(at, at);
+        editor.revealRange(new vscode.Range(at, at), vscode.TextEditorRevealType.InCenter);
     }
 
     private async openCode(e: Entry | undefined): Promise<void> {

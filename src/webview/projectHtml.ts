@@ -12,6 +12,10 @@ const CSS = `
 body { margin: 0; padding: 12px 16px 24px; font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); background: var(--vscode-editor-background); }
 h1 { font-size: 15px; margin: 0 0 2px; }
 .sub { color: var(--vscode-descriptionForeground); font-size: 11px; min-height: 15px; margin-bottom: 8px; }
+.pbar { flex: 1; min-width: 80px; max-width: 260px; height: 6px; border-radius: 3px; background: var(--vscode-input-background, rgba(128,128,128,0.25)); overflow: hidden; }
+.pbar > div { height: 100%; width: 0; background: var(--vscode-progressBar-background, #0e70c0); transition: width 0.1s linear; }
+.gfilter { flex: 1; min-width: 140px; max-width: 320px; padding: 3px 6px; font: inherit; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; }
+.gcount { color: var(--vscode-descriptionForeground); font-size: 11px; }
 .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35)); margin-bottom: 10px; }
 .tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--vscode-foreground); opacity: 0.75; padding: 5px 12px; cursor: pointer; font: inherit; }
@@ -63,7 +67,7 @@ const SCRIPT = `
   var NL = String.fromCharCode(10);
   var saved = vscode.getState() || {};
   var state = { tab: saved.tab || 'sql', data: null, scanning: false, progress: null, filter: saved.filter || '', src: saved.src || { dfm: true, code: true, rq: true }, diff: null, hot: null, hotAsked: false, textFilter: '', ref: saved.ref || 'HEAD', layout: false, nested: false, limit: 200 };
-  function save() { vscode.setState({ tab: state.tab, filter: state.filter, src: state.src, ref: state.ref }); }
+  function save() { vscode.setState({ gfilter: state.gfilter, tab: state.tab, filter: state.filter, src: state.src, ref: state.ref }); }
   function $(id) { return document.getElementById(id); }
   function h(tag, cls, text) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (text !== undefined) { e.textContent = text; } return e; }
   function open(file, line) { vscode.postMessage({ type: 'open', file: file, line: line || 0 }); }
@@ -85,7 +89,12 @@ const SCRIPT = `
   function status() {
     var d = state.data;
     var s = $('sub');
-    if (state.scanning) { s.textContent = 'Scanning' + (state.progress ? ' ' + state.progress.done + ' / ' + state.progress.total + ' units' : '') + '...'; return; }
+    $('pbar').hidden = !state.scanning; $('cancelScan').hidden = !state.scanning;
+    if (state.scanning) {
+      $('pfill').style.width = state.progress && state.progress.total ? Math.round(100 * state.progress.done / state.progress.total) + '%' : '3%';
+      s.textContent = 'Scanning' + (state.progress ? ' ' + state.progress.done + ' / ' + state.progress.total + ' units' : '') + '...';
+      return;
+    }
     if (!d) { s.textContent = 'Nothing is read until you scan: the project is not slowed down.'; return; }
     s.textContent = d.units + ' units, ' + d.forms + ' forms, ' + d.sql.length + ' statements - ' + d.ms + ' ms (' + d.read + ' read, ' + d.cached + ' from memory)' + (d.truncated ? ' - too many files: only the first ones were read' : '');
   }
@@ -389,6 +398,8 @@ const SCRIPT = `
     $('scan').textContent = state.data ? 'Scan again' : 'Scan the project';
     if (state.tab === 'changes') { renderChanges(root); return; }
     if (!state.data) { root.appendChild(h('div', 'empty', state.scanning ? 'Reading the units...' : 'Press "Scan the project" to read the .pas and .dfm files. It is done in small steps, can be cancelled, and the next scan only reads what changed.')); return; }
+    $('gfilter').hidden = !state.data || state.tab === 'sql' || state.tab === 'texts' || state.tab === 'changes';
+    $('gcount').hidden = $('gfilter').hidden;
     if (state.tab === 'hotspots' && !state.hotAsked) { state.hotAsked = true; vscode.postMessage({ type: 'churn' }); }
     if (state.tab === 'sql') { renderSql(root); }
     else if (state.tab === 'unused') { renderUnused(root); }
@@ -397,9 +408,35 @@ const SCRIPT = `
     else if (state.tab === 'forms') { renderForms(root); }
     else if (state.tab === 'hotspots') { renderHotspots(root); }
     else { renderChecks(root); }
+    applyGenericFilter();
+  }
+
+  /* One search box for the tabs that have none of their own: the rows that do not contain the words are hidden, and the headings
+     (a language, a unit) left with no row under them. */
+  function applyGenericFilter() {
+    var box = $('gfilter');
+    var words = (box.value || '').toLowerCase().split(' ').filter(Boolean);
+    var rows = $('content').querySelectorAll('.line');
+    var shown = 0;
+    rows.forEach(function (r) {
+      var text = r.textContent.toLowerCase();
+      var hit = words.every(function (w) { return text.indexOf(w) >= 0; });
+      r.hidden = !hit;
+      if (hit) { shown++; }
+    });
+    $('content').querySelectorAll('h2').forEach(function (hd) {
+      var n = hd.nextElementSibling, live = false;
+      while (n && n.tagName !== 'H2') { if (n.classList && n.classList.contains('line') && !n.hidden) { live = true; } n = n.nextElementSibling; }
+      hd.hidden = words.length > 0 && !live;
+    });
+    $('gcount').textContent = words.length ? shown + ' of ' + rows.length : rows.length ? rows.length + ' rows' : '';
   }
 
   $('scan').addEventListener('click', function () { vscode.postMessage({ type: 'scan' }); });
+  $('cancelScan').addEventListener('click', function () { vscode.postMessage({ type: 'cancelScan' }); });
+  $('gfilter').value = saved.gfilter || '';
+  $('gfilter').addEventListener('input', function () { state.gfilter = $('gfilter').value; save(); applyGenericFilter(); });
+  $('gfilter').addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('gfilter').value = ''; state.gfilter = ''; save(); applyGenericFilter(); } });
   window.addEventListener('message', function (ev) {
     var m = ev.data;
     if (m.type === 'data') { state.data = m.data; state.scanning = false; state.progress = null; render(); }
@@ -431,7 +468,7 @@ export function projectHtml(nonce: string): string {
 <body>
 <h1>Project</h1>
 <div class="sub" id="sub"></div>
-<div class="bar"><button class="b" id="scan">Scan the project</button></div>
+<div class="bar"><button class="b" id="scan">Scan the project</button><button class="b" id="cancelScan" hidden title="Stop reading the files">Cancel</button><div class="pbar" id="pbar" hidden><div id="pfill"></div></div><input class="gfilter" id="gfilter" type="text" placeholder="Filter this list…" spellcheck="false" hidden><span class="gcount" id="gcount" hidden></span></div>
 <div class="tabs" id="tabs"></div>
 <div id="content"></div>
 <script nonce="${nonce}">${SCRIPT}</script>

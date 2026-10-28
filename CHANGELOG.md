@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.54 — 2026-10-28
+- **Project insights: a progress bar and a way to stop.** While the project is read, a bar shows how far the scan is (units read out of the total) and a **Cancel** button stops it; the page is told when it stopped, instead of staying on *Scanning…*.
+- **Project insights: one filter for every list.** A *Filter this list…* box (with *n of m*) appears above the tabs that had none of their own — Dead code, Size, Unused, Form checks, Names, Forms, Hotspots: the rows that do not contain all the words are hidden, and so are the headings left with nothing under them; `Esc` clears it and the text is remembered. SQL and Texts keep their own, richer filters.
+
 ## 0.1.53 — 2026-10-28
 - **Code review: grouped, and a kind of finding can be ignored.** A new order, *Grouped by category*, puts a heading with a count over each category. Each finding has a **✕** (shown when you point at it): *ignore this kind of finding in this workspace* — by its compiler or linter code (`H2164`…), else by its category. The ignored ones disappear from the list and the counts; a line *N ignored finding(s)* has a *show them* button, and **↩** on a shown one takes it back.
 - **Templates: search and favorites.** A search box at the top of the Templates view hides what does not match (name, prefix, description, languages) as you type, with its headings, and remembers the text; `Esc` clears it. The **☆ / ★** of each template puts it in a *Favorites* section at the top, for every file, whatever the language filter says.

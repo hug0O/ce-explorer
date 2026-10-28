@@ -91,6 +91,7 @@ export class ProjectPanel {
                 this.then?.(this);
                 break;
             case 'scan': await this.scan(); break;
+            case 'cancelScan': this.cancel?.cancel(); break;
             case 'open': await this.open(m.file, m.line); break;
             case 'diff': await this.compare(typeof m.ref === 'string' && m.ref.trim() ? m.ref.trim() : 'HEAD'); break;
             case 'rename': await this.rename(m.file, [{ from: m.from, to: m.to }]); break;
@@ -131,7 +132,7 @@ export class ProjectPanel {
             const unitPath = new Map(data.metrics.map(m => [m.unit, m.path]));
             data.families.forEach(f => f.forms.forEach(x => { const p = unitPath.get(x.unit); if (p) { this.known.add(p.slice(0, -4) + '.dfm'); } }));
             data.formChecks.forEach(f => { this.known.add(f.file); this.known.add(f.file.slice(0, -4) + '.dfm'); });
-            if (!source.token.isCancellationRequested) { this.post({ type: 'data', data }); }
+            if (!source.token.isCancellationRequested) { this.post({ type: 'data', data }); } else if (this.cancel === source) { this.post({ type: 'scanning', on: false }); }
         } catch (e) {
             this.post({ type: 'scanning', on: false });
             void vscode.window.showErrorMessage('CE: scan failed: ' + (e instanceof Error ? e.message : String(e)));

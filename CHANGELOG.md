@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.51 — 2026-10-28
+- **Blueprint of the project** (*CE: Blueprint of the project (units and uses)*, in the *Code Explorer* right-click submenu of Delphi files, the quick actions, and *More > Show the project* of a file's blueprint): a node per unit (teal) and per program file (purple), a wire per `uses`; the units that are not in the project (`Vcl.Forms`, `System.SysUtils`…) are listed in the details of each unit instead of cluttering the picture.
+- It works like the file view: search, hide others, focus, zoom, full screen, export. The details panel lists *Uses* and *Used by*, *Open the unit* and **Its blueprint** (the routines of that unit). *Used by no unit* and *Circular uses* replace the unused routines and the loops (only the `interface` section makes a circular reference that Delphi refuses).
+- **It edits too**: drag from a unit to another and the unit is added to the `uses` of the implementation section (the clause is made if there is none); click a wire and press Delete to take it out of every `uses`. The unit is changed in the editor (Ctrl+Z undoes it) and the picture follows.
+
 ## 0.1.50 — 2026-10-28
 - **Blueprint: the events of the form.** In a Delphi unit with its `.dfm`, the routines that answer an event (`btnSave.OnClick`, `Form.OnCreate`…) are drawn as **events**: a red title bar, the component and event written under the name. They are the entry points of the graph, so they are no longer reported as unused or isolated; the details panel says what triggers them (*Triggered by*) and has an *Open the form designer* button. The `.dfm` is read again when it is saved.
 

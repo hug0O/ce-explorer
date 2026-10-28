@@ -13,6 +13,7 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 .bar .title { font-weight: 600; margin-right: 6px; }
 .bar button { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, inherit); border: 1px solid transparent; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .bar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.3)); }
+body.project .fileonly, body.project #addNode { display: none; }
 .dd { position: relative; display: inline-block; }
 .bar button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .menu { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30; min-width: 270px; padding: 6px 4px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128,128,128,0.5))); border-radius: 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
@@ -111,6 +112,7 @@ export function blueprintScript(): string {
   var analysis = { unused: [], cycles: [] };
   var unusedSet = {}, cycleSet = {}, cycleEdges = {};
   var showAnalysis = true;              // mark the unused routines and the cycles on the picture
+  var projectMode = false;              // the units of a project instead of the routines of a file
   var editing = null;                   // id of the routine whose signature is being edited in the details panel
   var editForm = null;
   var swapped = false;                  // the nodes shown are laid out again among themselves (the saved positions are kept aside)
@@ -124,7 +126,7 @@ export function blueprintScript(): string {
   var world = document.getElementById('world');
   var gridG = document.getElementById('grid');
   var HEAD = 34, ROWH = 20;
-  var HEADS = { method: '#2a6fb0', 'function': '#2a6fb0', constructor: '#2e8b57', destructor: '#a33b3b', event: '#b5453a' };
+  var HEADS = { unit: '#2a8a8a', program: '#7a5aa6', method: '#2a6fb0', 'function': '#2a6fb0', constructor: '#2e8b57', destructor: '#a33b3b', event: '#b5453a' };
   function headColor(n) { return n.events && n.events.length ? HEADS.event : (HEADS[n.kind] || '#2a6fb0'); }
 
   function el(name, attrs, parent) {
@@ -393,7 +395,7 @@ export function blueprintScript(): string {
     if (sel && sel.type === 'node' && byId(sel.id)) {
       var n = byId(sel.id);
       h('h3', '', n.name, side);
-      h('div', 'kind', (n.owner ? n.owner + ' - ' : '') + n.kind + (n.hasBody ? '' : ' (declaration only)') + (n.recursive ? ' - recursive' : '') + ' - line ' + (n.line + 1), side);
+      h('div', 'kind', projectMode ? (n.kind === 'program' ? 'program file' : 'unit') : (n.owner ? n.owner + ' - ' : '') + n.kind + (n.hasBody ? '' : ' (declaration only)') + (n.recursive ? ' - recursive' : '') + ' - line ' + (n.line + 1), side);
       if (n.events && n.events.length) {
         h('h4', '', 'Triggered by', side);
         n.events.forEach(function (ev) { h('div', 'sig', ev, side); });
@@ -404,12 +406,13 @@ export function blueprintScript(): string {
       n.params.forEach(function (p) { h('div', '', (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' : ''), sig).appendChild(h('span', 't', p.type || '')); });
       if (n.ret) { var r = h('div', '', 'returns ', sig); r.appendChild(h('span', 't', n.ret)); }
       var acts = h('div', 'acts', undefined, side);
-      [['Open code', 'openCode', ''], ['Edit... (E)', 'edit', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']].forEach(function (a) {
+      (projectMode ? [['Open the unit', 'openCode', ''], ['Its blueprint', 'openUnit', '']] : [['Open code', 'openCode', ''], ['Edit... (E)', 'edit', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']]).forEach(function (a) {
         var b = h('button', 'act' + a[2], a[0], acts);
         b.addEventListener('click', function () { if (a[1] === 'edit') { startEdit(n.id); } else { post({ type: a[1], id: n.id }); } });
       });
-      section(side, 'Called by', callersOf(n.id), 'from');
-      section(side, 'Calls', calleesOf(n.id), 'to');
+      section(side, projectMode ? 'Used by' : 'Called by', callersOf(n.id), 'from');
+      section(side, projectMode ? 'Uses' : 'Calls', calleesOf(n.id), 'to');
+      if (projectMode && n.external && n.external.length) { h('h4', '', 'Also uses, outside the project (' + n.external.length + ')', side); h('div', 'sig', n.external.join(', '), side); }
       h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Focus box widens or narrows what is lit.', side);
       return;
     }
@@ -432,11 +435,11 @@ export function blueprintScript(): string {
     var linked = aloneSet();
     var keepSide = visibleSet();
     var shown = model.nodes.filter(function (n) { return keepSide[n.id]; });
-    h('h3', '', 'Routines', side);
-    h('div', 'kind', model.nodes.length + ' routines, ' + model.edges.length + ' calls', side);
+    h('h3', '', projectMode ? 'Units' : 'Routines', side);
+    h('div', 'kind', model.nodes.length + (projectMode ? ' units, ' + model.edges.length + ' uses' : ' routines, ' + model.edges.length + ' calls'), side);
     var groups = [
-      ['Entry points (events, or nobody calls them here)', shown.filter(function (n) { return (linked[n.id] || (n.events && n.events.length)) && !callersOf(n.id).length; })],
-      ['Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0 && !(n.events && n.events.length && !callersOf(n.id).length); })],
+      [projectMode ? 'Not used by others (programs, top of the tree)' : 'Entry points (events, or nobody calls them here)', shown.filter(function (n) { return (linked[n.id] || (n.events && n.events.length)) && !callersOf(n.id).length; })],
+      [projectMode ? 'Used by other units' : 'Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0 && !(n.events && n.events.length && !callersOf(n.id).length); })],
       ['Isolated (no call in or out)', shown.filter(function (n) { return !linked[n.id] && !(n.events && n.events.length); })]
     ];
     groups.forEach(function (g) {
@@ -446,12 +449,12 @@ export function blueprintScript(): string {
     });
     var unusedShown = analysis.unused.map(byId).filter(function (n) { return n && keepSide[n.id]; });
     if (unusedShown.length) {
-      h('h4', '', 'Not called in this file (' + unusedShown.length + ')', side);
+      h('h4', '', (projectMode ? 'Used by no unit (' : 'Not called in this file (') + unusedShown.length + ')', side);
       unusedShown.forEach(function (n) { listItem(side, n, 0); });
-      h('div', 'none', 'They may still be called from another unit or by an event.', side);
+      h('div', 'none', projectMode ? 'Not listed in any uses clause of the project (a form created by the project file counts).' : 'They may still be called from another unit or by an event.', side);
     }
     analysis.cycles.forEach(function (c, i) {
-      h('h4', '', 'Calls in a loop ' + (i + 1) + ' (' + c.length + ')', side);
+      h('h4', '', (projectMode ? 'Circular uses ' : 'Calls in a loop ') + (i + 1) + ' (' + c.length + ')', side);
       c.forEach(function (id) { var n = byId(id); if (n) { listItem(side, n, 0); } });
     });
     if (!shown.length) { h('div', 'none', 'No routine matches the filter.', side); }
@@ -576,7 +579,7 @@ export function blueprintScript(): string {
       var target = nodeAt(ev);
       if (target && target.id !== d.node.id) {
         if (d.dir === 'out') { post({ type: 'addCall', from: d.node.id, to: target.id }); } else { post({ type: 'addCall', from: target.id, to: d.node.id }); }
-      } else if (!target && d.dir === 'out') {
+      } else if (!target && d.dir === 'out' && !projectMode) {
         var w = toWorld(ev);
         post({ type: 'addNode', caller: d.node.id, x: Math.round(w.x), y: Math.round(w.y) });
       }
@@ -585,6 +588,7 @@ export function blueprintScript(): string {
   cv.addEventListener('dblclick', function (ev) {
     var n = nodeAt(ev);
     if (n) { post({ type: 'openCode', id: n.id }); return; }
+    if (projectMode) { return; }
     var w = toWorld(ev);
     post({ type: 'addNode', x: Math.round(w.x), y: Math.round(w.y) });
   });
@@ -618,8 +622,9 @@ export function blueprintScript(): string {
     if (ev.key === 'Delete' || ev.key === 'Backspace') {
       ev.preventDefault();
       if (sel.type === 'edge') { var p = sel.id.split('>'); post({ type: 'removeCall', from: p[0], to: p[1] }); }
-      else { post({ type: 'deleteNode', id: sel.id }); }
-    } else if (ev.key === 'e' && sel.type === 'node') { startEdit(sel.id); }
+      else if (!projectMode) { post({ type: 'deleteNode', id: sel.id }); }
+    } else if (projectMode) { if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); } }
+    else if (ev.key === 'e' && sel.type === 'node') { startEdit(sel.id); }
     else if (ev.key === 'F2' && sel.type === 'node') { ev.preventDefault(); post({ type: 'rename', id: sel.id }); }
     else if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); }
   });
@@ -681,6 +686,7 @@ export function blueprintScript(): string {
     say(on ? (sel ? '' : 'Select a routine: everything not linked to it is hidden') : '');
   }
   document.getElementById('isolate').addEventListener('change', function (ev) { setIsolate(ev.target.checked); });
+  document.getElementById('openProject').addEventListener('click', function () { post({ type: 'openProject' }); });
   document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
   document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
   document.getElementById('analysis').addEventListener('change', function (ev) { showAnalysis = ev.target.checked; render(); });
@@ -706,6 +712,8 @@ export function blueprintScript(): string {
     if (m.type === 'model') {
       var first = model.nodes.length === 0;
       model = { nodes: m.nodes || [], edges: m.edges || [] };
+      projectMode = m.mode === 'project';
+      document.body.classList.toggle('project', projectMode);
       setAnalysis(m.analysis);
       modelVer++;
       if (first) { compact = model.nodes.length > 25; document.getElementById('pins').checked = !compact; }
@@ -714,7 +722,8 @@ export function blueprintScript(): string {
       render();
       if (first || m.fit) { fit(); }
       syncSubset();
-      document.getElementById('count').textContent = model.nodes.length + ' routines, ' + model.edges.length + ' calls';
+      document.getElementById('count').textContent = model.nodes.length + (projectMode ? ' units, ' + model.edges.length + ' uses' : ' routines, ' + model.edges.length + ' calls');
+      document.getElementById('filter').placeholder = projectMode ? 'Find a unit (/)' : 'Find a routine (/)';
     } else if (m.type === 'notice') { say(m.text); }
     else if (m.type === 'toggleFull') { setFull(!full); }
     else if (m.type === 'history') {
@@ -761,11 +770,13 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <span class="dd"><button id="more" title="View options, analysis, export">More &#x25BE;</button>
 <div id="moremenu" class="menu" hidden>
 <div class="mh">View</div>
-<label class="mi" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
+<label class="mi fileonly" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
 <label class="mi" title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> Hide isolated routines</label>
 <label class="mi" title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus reaches <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
 <label class="mi" title="With a search, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> Search keeps linked routines</label>
 <label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
+<div class="mh fileonly">Scope</div>
+<button class="mi btn fileonly" id="openProject" title="Draw the units of the project and the uses between them (Delphi)">Show the project (units and uses)</button>
 <div class="mh">Export</div>
 <button class="mi btn" id="exportMermaid" title="Copy a Mermaid flowchart of the calls, to paste in a README or a wiki">Copy as Mermaid</button>
 <button class="mi btn" id="exportSvg" title="Save the whole graph as an SVG picture">Save as SVG picture...</button>

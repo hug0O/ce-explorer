@@ -23,7 +23,7 @@ export interface BpNode {
     id: string;
     name: string;
     owner?: string;
-    kind: BpMember['kind'];
+    kind: BpMember['kind'] | 'unit' | 'program';
     params: BpParam[];
     ret?: string;
     line: number;
@@ -31,6 +31,9 @@ export interface BpNode {
     recursive: boolean;
     /** The events of the form this routine answers (`btnSave.OnClick`): it is an entry point, called by the form. */
     events?: string[];
+    /** Project view: the file of the unit, and the units it uses that are not in the project. */
+    file?: string;
+    external?: string[];
     x: number;
     y: number;
     w: number;

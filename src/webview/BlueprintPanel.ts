@@ -33,6 +33,8 @@ interface Entry { id: string; cls: ClassInfo; member: ClassMember; node: BpMembe
  */
 export class BlueprintPanel {
     private static readonly open = new Map<string, BlueprintPanel>();
+    /** Set by the project view, which shares the full screen key. */
+    static projectPanelActive: (() => boolean) | undefined;
     private static deps: { registry: ProviderRegistry; explorer: CodeExplorerService; generator: CodeGeneratorService; state: vscode.Memento } | undefined;
 
     static configure(registry: ProviderRegistry, explorer: CodeExplorerService, generator: CodeGeneratorService, state: vscode.Memento): void {
@@ -60,6 +62,7 @@ export class BlueprintPanel {
 
     /** Ctrl+K Ctrl+F in the blueprint tab: the same as its full screen button. */
     static toggleFullScreen(): void {
+        if (BlueprintPanel.projectPanelActive?.()) { return; }
         for (const b of BlueprintPanel.open.values()) {
             if (b.panel.active) { void b.panel.webview.postMessage({ type: 'toggleFull' }); return; }
         }
@@ -178,17 +181,23 @@ export class BlueprintPanel {
     private async setZen(on: boolean): Promise<void> {
         if (on === this.zen) { return; }
         this.zen = on;
+        if (!await BlueprintPanel.applyZen(on)) { this.zen = !on; }
+    }
+
+    /** Turns Zen mode on or off for any Blueprint tab; false when VS Code refused. */
+    static async applyZen(on: boolean): Promise<boolean> {
         const cfg = vscode.workspace.getConfiguration('zenMode');
-        const was = cfg.inspect<boolean>('centerLayout')?.globalValue;
+        let ok = true;
         try {
-            if (on && cfg.get<boolean>('centerLayout') !== false) { BlueprintPanel.savedCentre = { value: was }; await cfg.update('centerLayout', false, vscode.ConfigurationTarget.Global); }
+            if (on && cfg.get<boolean>('centerLayout') !== false) { BlueprintPanel.savedCentre = { value: cfg.inspect<boolean>('centerLayout')?.globalValue }; await cfg.update('centerLayout', false, vscode.ConfigurationTarget.Global); }
             await vscode.commands.executeCommand('workbench.action.toggleZenMode');
-        } catch { this.zen = !on; }
-        if (!on && BlueprintPanel.savedCentre) {
+        } catch { ok = false; }
+        if ((!on || !ok) && BlueprintPanel.savedCentre) {
             const v = BlueprintPanel.savedCentre.value;
             BlueprintPanel.savedCentre = undefined;
             try { await cfg.update('centerLayout', v, vscode.ConfigurationTarget.Global); } catch { /* the setting stays as it is */ }
         }
+        return ok;
     }
 
     private static savedCentre: { value: boolean | undefined } | undefined;
@@ -205,6 +214,7 @@ export class BlueprintPanel {
                 await vscode.commands.executeCommand('ce.delphi.designer');
                 break;
             }
+            case 'openProject': await vscode.commands.executeCommand('ce.blueprint.project'); break;
             case 'undo': await this.undo(); break;
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;

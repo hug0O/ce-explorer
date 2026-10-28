@@ -32,6 +32,7 @@ import { FormDesignerPanel } from './webview/FormDesignerPanel';
 import { registerStatusMenu } from './services/StatusMenu';
 import { registerNavCommands } from './services/NavCommands';
 import { BlueprintPanel } from './webview/BlueprintPanel';
+import { ProjectBlueprintPanel } from './webview/ProjectBlueprintPanel';
 import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions } from './services/QuickActions';
 import { GuidePanel } from './webview/GuidePanel';
 import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
@@ -137,6 +138,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
+        ProjectBlueprintPanel.configure(context.workspaceState);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.project', () => ProjectBlueprintPanel.show()));
         context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.open', () => BlueprintPanel.show(vscode.window.activeTextEditor?.document)));
         registerStatusMenu(context, providerRegistry);
 

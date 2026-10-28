@@ -151,7 +151,7 @@ test('a Designer button sits in the tab bar for a Delphi file, and stays while t
 
 test('the designer can be opened from the title bar, the editor and Explorer menus, and the Delphi status bar button', () => {
     const menus = (pkg as any).contributes.menus;
-    for (const where of ['editor/title', 'ce.editorMenu', 'explorer/context']) {
+    for (const where of ['editor/title', 'ce.editorMore', 'explorer/context']) {
         assert.ok(menus[where].some((m: any) => m.command === 'ce.delphi.designer' && /pas\|dfm/.test(m.when)), where);
     }
     const status = fs.readFileSync(path.join(__dirname, '..', 'services', 'StatusMenu.ts'), 'utf8');

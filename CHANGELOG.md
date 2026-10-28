@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.58 — 2026-10-28
+- **A simpler right-click menu.** *Code Explorer* in the editor menu now has five entries — *Quick actions*, *Structure*, *Go to a member*, *Blueprint* (file), *Blueprint of the project* (Delphi) — and a **More commands** submenu with the rest (edit, review, member keys, Delphi, PL/SQL), grouped as before.
+- **A cleaner command palette.** The commands that only make sense from an element of a list or with the arguments of another command (*Open member editor*, *Batch move*, *Move member*, *Set language to…*, the full screen key…) are no longer offered there.
+- **Settings in sections.** The settings are grouped under *General*, *Delphi*, *PL/SQL* and *Formatting (advanced)* instead of one long list, and **CE: Settings** (also in the status bar menu) opens them filtered to the extension.
+
 ## 0.1.57 — 2026-10-28
 - **Blueprint of the project loads much faster.** The files are read 24 at a time instead of one after the other; a file whose date and size have not changed is not read again (opening the view a second time, or after a save, only reads what changed); and a unit is searched for its header and its `uses` clauses at its start instead of being scanned from end to end (a unit of several MB took most of the time).
 - **The picture comes first.** The units and their wires are drawn as soon as the `uses` are read; what each wire carries (the names taken, the uses that take nothing) is worked out afterwards in small steps that leave the editor free, and the graph is refreshed when it is done. While it works, the canvas and the bar say how far it is (*Reading the units… 320 / 900*, then *Looking at what each unit takes…*), and a newer load stops an older one.

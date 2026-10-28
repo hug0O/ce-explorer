@@ -64,8 +64,9 @@ test('a panel that holds a form, and a handler that opens one, are linked to its
     assert.match(html, /post\(\{ type: 'openHostedForm', cls: h\.className \|\| '', arg: h\.formArg \}\)/);
     assert.match(html, /post\(\{ type: 'handlerForms', name: n\.name, event: e4 \}\)/);
     assert.match(html, /state\.hosts = m\.hosts \|\| \[\]/);
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { configuration: { properties: Record<string, { default: unknown }> } } };
-    assert.deepEqual(pkg.contributes.configuration.properties['ce.delphi.hostCalls'].default, ['fAddFormInto']);
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { contributes: { configuration: { properties: Record<string, { default: unknown }> }[] } };
+    const settings: Record<string, { default: unknown }> = Object.assign({}, ...([] as { properties: Record<string, { default: unknown }> }[]).concat(pkg.contributes.configuration).map(c => c.properties));
+    assert.deepEqual(settings['ce.delphi.hostCalls'].default, ['fAddFormInto']);
 });
 
 test('the 🗗 button is on every wired event, and a form that is only mentioned is never offered; the 🔗 shows whenever the unit puts a form in a container', () => {

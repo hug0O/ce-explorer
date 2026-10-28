@@ -93,7 +93,7 @@ test('components list: filter by name and type, sort, flat / tree; palette: one 
 test('designer ⇄ code navigation and empty-handler clean-up are wired in package.json', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pkg = require('../../package.json');
-    const props = pkg.contributes.configuration.properties;
+    const props = Object.assign({}, ...[].concat(pkg.contributes.configuration).map((c: { properties: object }) => c.properties));
     assert.equal(props['ce.delphi.removeEmptyHandlers'].default, true);
     assert.deepEqual(props['ce.delphi.designerColumn'].enum, ['active', 'beside']);
     assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'ce.delphi.toggleDesigner'));
@@ -243,7 +243,7 @@ test('save: a button and Ctrl+S save the .dfm and the .pas together, the button 
     assert.match(html, /function showDirty/);
     assert.match(html, /state\.dirty = !!m\.dirty/);
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
-    assert.equal(pkg.contributes.configuration.properties['ce.delphi.designerAutoSave'].default, false);
+    assert.equal(Object.assign({}, ...[].concat(pkg.contributes.configuration).map((c: { properties: object }) => c.properties))['ce.delphi.designerAutoSave'].default, false);
 });
 
 test('the form scrolls and zooms: visible scroll bars, Ctrl + wheel between 25% and 300%, middle-button pan, grid scroll bars', () => {

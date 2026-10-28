@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.57",
+  "version": "0.1.58",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -413,12 +413,20 @@
       {
         "command": "ce.nav.pickMember",
         "title": "CE: Go to a member (type a few letters)"
+      },
+      {
+        "command": "ce.openSettings",
+        "title": "CE: Settings"
       }
     ],
     "submenus": [
       {
         "id": "ce.editorMenu",
         "label": "Code Explorer"
+      },
+      {
+        "id": "ce.editorMore",
+        "label": "More commands"
       }
     ],
     "menus": {
@@ -431,13 +439,91 @@
       "ce.editorMenu": [
         {
           "command": "ce.showActions",
-          "group": "0_quick@1"
+          "group": "0_main@1"
         },
         {
           "command": "ce.manageMembers",
           "when": "editorTextFocus",
-          "group": "1_navigate@1"
+          "group": "0_main@2"
         },
+        {
+          "command": "ce.nav.pickMember",
+          "when": "editorTextFocus",
+          "group": "0_main@3"
+        },
+        {
+          "command": "ce.blueprint.open",
+          "when": "editorTextFocus",
+          "group": "0_main@4"
+        },
+        {
+          "command": "ce.blueprint.project",
+          "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr|dpk)$/i",
+          "group": "0_main@5"
+        },
+        {
+          "submenu": "ce.editorMore",
+          "group": "9_more@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ce.navigateToMember",
+          "when": "false"
+        },
+        {
+          "command": "ce.lensRun",
+          "when": "false"
+        },
+        {
+          "command": "ce.plsql.alignPreset",
+          "when": "false"
+        },
+        {
+          "command": "ce.openMemberEditor",
+          "when": "false"
+        },
+        {
+          "command": "ce.batchMove",
+          "when": "false"
+        },
+        {
+          "command": "ce.batchGenerateGettersSetters",
+          "when": "false"
+        },
+        {
+          "command": "ce.setLanguageTo",
+          "when": "false"
+        },
+        {
+          "command": "ce.moveMember",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.designerFullScreen",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "ce.fixEncoding",
+          "when": "ce:encodingSuspect",
+          "group": "navigation@5"
+        },
+        {
+          "command": "ce.delphi.designer",
+          "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "ce.delphi.designer",
+          "when": "resourceExtname =~ /^.(pas|dfm)$/i",
+          "group": "navigation@10"
+        }
+      ],
+      "ce.editorMore": [
         {
           "command": "ce.goToMember",
           "when": "editorTextFocus",
@@ -539,21 +625,6 @@
           "group": "5_plsql@4"
         },
         {
-          "command": "ce.blueprint.open",
-          "when": "editorTextFocus",
-          "group": "1_navigate@8"
-        },
-        {
-          "command": "ce.blueprint.project",
-          "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm|dpr|dpk)$/i",
-          "group": "1_navigate@9"
-        },
-        {
-          "command": "ce.nav.pickMember",
-          "when": "editorTextFocus",
-          "group": "1_navigate@4"
-        },
-        {
           "command": "ce.nav.nextMember",
           "when": "editorTextFocus",
           "group": "1_navigate@5"
@@ -568,205 +639,203 @@
           "when": "editorTextFocus",
           "group": "1_navigate@7"
         }
-      ],
-      "commandPalette": [
-        {
-          "command": "ce.navigateToMember",
-          "when": "false"
-        },
-        {
-          "command": "ce.lensRun",
-          "when": "false"
-        },
-        {
-          "command": "ce.plsql.alignPreset",
-          "when": "false"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "ce.fixEncoding",
-          "when": "ce:encodingSuspect",
-          "group": "navigation@5"
-        },
-        {
-          "command": "ce.delphi.designer",
-          "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
-          "group": "navigation"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "ce.delphi.designer",
-          "when": "resourceExtname =~ /^.(pas|dfm)$/i",
-          "group": "navigation@10"
-        }
       ]
     },
-    "configuration": {
-      "title": "Code Explorer",
-      "properties": {
-        "ce.enableCodeLens": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show Code Lens annotations above classes and methods"
-        },
-        "ce.pascal.indentSize": {
-          "type": "number",
-          "default": 2,
-          "description": "Indentation size for generated Pascal code"
-        },
-        "ce.cpp.indentSize": {
-          "type": "number",
-          "default": 4,
-          "description": "Indentation size for generated C++ code"
-        },
-        "ce.cpp.braceStyle": {
-          "type": "string",
-          "enum": [
-            "sameLine",
-            "newLine"
-          ],
-          "default": "newLine",
-          "description": "Brace placement style for generated C++ code"
-        },
-        "ce.pascal.defaultVisibility": {
-          "type": "string",
-          "enum": [
-            "private",
-            "protected",
-            "public",
-            "published"
-          ],
-          "default": "private",
-          "description": "Default visibility for new Pascal members"
-        },
-        "ce.cpp.defaultVisibility": {
-          "type": "string",
-          "enum": [
-            "private",
-            "protected",
-            "public"
-          ],
-          "default": "private",
-          "description": "Default visibility for new C++ members"
-        },
-        "ce.sorting.scheme": {
-          "type": "string",
-          "enum": [
-            "fieldsFirst",
-            "methodsFirst",
-            "visibilityGrouped"
-          ],
-          "default": "fieldsFirst",
-          "description": "Default sorting scheme for class members"
-        },
-        "ce.autoSync": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically synchronize declaration/implementation on save"
-        },
-        "ce.previewEdits": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
-        },
-        "ce.codeLensMemberActions": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)"
-        },
-        "ce.delphi.customComponents": {
-          "type": "array",
-          "default": [],
-          "description": "Third-party Delphi components (DevExpress, TMS, JVCL, Raize…) the Add Component tool should know: className, unit, width, height, namePrefix, events, props, tabOrder. Classes not listed here are learned from the .dfm files of the workspace.",
-          "items": {
-            "type": "object",
-            "required": [
-              "className"
+    "configuration": [
+      {
+        "id": "ce.general",
+        "title": "Code Explorer: General",
+        "order": 0,
+        "properties": {
+          "ce.enableCodeLens": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show Code Lens annotations above classes and methods"
+          },
+          "ce.codeLensMemberActions": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)"
+          },
+          "ce.sorting.scheme": {
+            "type": "string",
+            "enum": [
+              "fieldsFirst",
+              "methodsFirst",
+              "visibilityGrouped"
             ],
-            "properties": {
-              "className": {
-                "type": "string",
-                "description": "e.g. TcxButton"
-              },
-              "unit": {
-                "type": "string",
-                "description": "Unit added to uses, e.g. cxButtons"
-              },
-              "width": {
-                "type": "number"
-              },
-              "height": {
-                "type": "number"
-              },
-              "namePrefix": {
-                "type": "string",
-                "description": "Default name prefix, e.g. cxButton"
-              },
-              "events": {
-                "type": "array",
-                "items": {
-                  "type": "string"
+            "default": "fieldsFirst",
+            "description": "Default sorting scheme for class members"
+          },
+          "ce.autoSync": {
+            "type": "boolean",
+            "default": true,
+            "description": "Automatically synchronize declaration/implementation on save"
+          },
+          "ce.previewEdits": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
+          },
+          "ce.memo.folder": {
+            "type": "string",
+            "default": "",
+            "description": "Folder holding the Markdown memos, one file per language (typescript.md, pascal.md, plsql.md, general.md…). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
+          }
+        }
+      },
+      {
+        "id": "ce.delphi",
+        "title": "Code Explorer: Delphi",
+        "order": 1,
+        "properties": {
+          "ce.delphi.designerColumn": {
+            "type": "string",
+            "enum": [
+              "active",
+              "beside"
+            ],
+            "default": "active",
+            "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
+          },
+          "ce.delphi.designerAutoSave": {
+            "type": "boolean",
+            "default": false,
+            "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together."
+          },
+          "ce.delphi.removeEmptyHandlers": {
+            "type": "boolean",
+            "default": true,
+            "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty."
+          },
+          "ce.delphi.hostCalls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "fAddFormInto"
+            ],
+            "description": "Names of the helpers of the project that put a form in a container, called as Helper(Form, Container) (they do Form.Parent := Container). The designer reads them, and `Form.Parent := Container`, to link a panel to the form it hosts."
+          },
+          "ce.delphi.customComponents": {
+            "type": "array",
+            "default": [],
+            "description": "Third-party Delphi components (DevExpress, TMS, JVCL, Raize…) the Add Component tool should know: className, unit, width, height, namePrefix, events, props, tabOrder. Classes not listed here are learned from the .dfm files of the workspace.",
+            "items": {
+              "type": "object",
+              "required": [
+                "className"
+              ],
+              "properties": {
+                "className": {
+                  "type": "string",
+                  "description": "e.g. TcxButton"
                 },
-                "description": "Events offered, e.g. [\"OnClick\"]"
-              },
-              "props": {
-                "type": "array",
-                "items": {
-                  "type": "string"
+                "unit": {
+                  "type": "string",
+                  "description": "Unit added to uses, e.g. cxButtons"
                 },
-                "description": "Extra DFM property lines, e.g. [\"Caption = '%NAME%'\"]"
-              },
-              "tabOrder": {
-                "type": "boolean"
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
+                },
+                "namePrefix": {
+                  "type": "string",
+                  "description": "Default name prefix, e.g. cxButton"
+                },
+                "events": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Events offered, e.g. [\"OnClick\"]"
+                },
+                "props": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Extra DFM property lines, e.g. [\"Caption = '%NAME%'\"]"
+                },
+                "tabOrder": {
+                  "type": "boolean"
+                }
               }
             }
+          },
+          "ce.delphi.namingPrefixes": {
+            "type": "object",
+            "default": {},
+            "additionalProperties": {
+              "type": "string"
+            },
+            "markdownDescription": "Prefix of the components of a class, for the *Names* tab of the project panel: `{ \"TButton\": \"btn\", \"TcxGridDBTableView\": \"cxgtv\" }`. A class that is not listed follows what the project already does (the prefix most of its components carry)."
           }
-        },
-        "ce.plsql.author": {
-          "type": "string",
-          "default": "",
-          "description": "Author written in generated PL/SQL headers (default: the OS user name)."
-        },
-        "ce.delphi.removeEmptyHandlers": {
-          "type": "boolean",
-          "default": true,
-          "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty."
-        },
-        "ce.delphi.designerColumn": {
-          "type": "string",
-          "enum": [
-            "active",
-            "beside"
-          ],
-          "default": "active",
-          "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
-        },
-        "ce.delphi.hostCalls": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["fAddFormInto"],
-          "description": "Names of the helpers of the project that put a form in a container, called as Helper(Form, Container) (they do Form.Parent := Container). The designer reads them, and `Form.Parent := Container`, to link a panel to the form it hosts."
-        },
-        "ce.delphi.designerAutoSave": {
-          "type": "boolean",
-          "default": false,
-          "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together."
-        },
-        "ce.delphi.namingPrefixes": {
-          "type": "object",
-          "default": {},
-          "additionalProperties": { "type": "string" },
-          "markdownDescription": "Prefix of the components of a class, for the *Names* tab of the project panel: `{ \"TButton\": \"btn\", \"TcxGridDBTableView\": \"cxgtv\" }`. A class that is not listed follows what the project already does (the prefix most of its components carry)."
-        },
-        "ce.memo.folder": {
-          "type": "string",
-          "default": "",
-          "description": "Folder holding the Markdown memos, one file per language (typescript.md, pascal.md, plsql.md, general.md…). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
+        }
+      },
+      {
+        "id": "ce.plsql",
+        "title": "Code Explorer: PL/SQL",
+        "order": 2,
+        "properties": {
+          "ce.plsql.author": {
+            "type": "string",
+            "default": "",
+            "description": "Author written in generated PL/SQL headers (default: the OS user name)."
+          }
+        }
+      },
+      {
+        "id": "ce.formattingadvanced",
+        "title": "Code Explorer: Formatting (advanced)",
+        "order": 3,
+        "properties": {
+          "ce.pascal.indentSize": {
+            "type": "number",
+            "default": 2,
+            "description": "Indentation size for generated Pascal code"
+          },
+          "ce.pascal.defaultVisibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "protected",
+              "public",
+              "published"
+            ],
+            "default": "private",
+            "description": "Default visibility for new Pascal members"
+          },
+          "ce.cpp.indentSize": {
+            "type": "number",
+            "default": 4,
+            "description": "Indentation size for generated C++ code"
+          },
+          "ce.cpp.braceStyle": {
+            "type": "string",
+            "enum": [
+              "sameLine",
+              "newLine"
+            ],
+            "default": "newLine",
+            "description": "Brace placement style for generated C++ code"
+          },
+          "ce.cpp.defaultVisibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "protected",
+              "public"
+            ],
+            "default": "private",
+            "description": "Default visibility for new C++ members"
+          }
         }
       }
-    },
+    ],
     "keybindings": [
       {
         "command": "ce.manageMembers",

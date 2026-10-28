@@ -64,6 +64,7 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(note) Memo', description: 'Ctrl+K Ctrl+N', command: 'ce.memo.open' },
                 { label: '$(book) User guide', description: 'pictures and animations', command: 'ce.openGuide' },
+                { label: '$(gear) Settings', description: 'the few options of the extension', command: 'ce.openSettings' },
             ];
             const picked = await vscode.window.showQuickPick(rows, { placeHolder: doc ? path.basename(doc.uri.fsPath) + ': what do you want to do?' : 'Code Explorer' });
             if (picked?.command) { await vscode.commands.executeCommand(picked.command); }

@@ -48,14 +48,40 @@ test('the groups come in their order, each command in one of them', () => {
     assert.equal(groupOf('ce.plsql.docHeader'), 'plsql');
 });
 
-test('the Code Explorer submenu of the editor holds the commands, grouped, the Delphi and PL/SQL ones only in their files', () => {
+test('the Code Explorer submenu of the editor has a few entries on top and the rest one level down, the Delphi and PL/SQL ones only in their files', () => {
     const top = pkg.contributes.menus['editor/context'];
     assert.deepEqual(top.map(m => m.submenu), ['ce.editorMenu'], 'one entry in the context menu of the editor');
-    const sub = pkg.contributes.menus['ce.editorMenu'];
-    assert.ok(sub.some(m => m.command === 'ce.showActions') && ['ce.nav.pickMember', 'ce.nav.nextMember', 'ce.nav.prevMember', 'ce.nav.toggleDeclImpl'].every(c => sub.some(m => m.command === c)));
-    for (const m of sub.filter(x => x.command?.startsWith('ce.delphi.'))) { assert.match(m.when ?? '', /pas\|dfm/, m.command); }
-    for (const m of sub.filter(x => x.command?.startsWith('ce.plsql.'))) { assert.match(m.when ?? '', /pks\|pkb/, m.command); }
-    assert.ok(sub.every(m => !m.command || pkg.contributes!.commands!.some(c => c.command === m.command)), 'every command of the menu is declared');
+    const main = pkg.contributes.menus['ce.editorMenu'];
+    const first = main.filter(m => m.command).map(m => m.command);
+    assert.deepEqual(first, ['ce.showActions', 'ce.manageMembers', 'ce.nav.pickMember', 'ce.blueprint.open', 'ce.blueprint.project'], 'the few things everybody uses');
+    assert.ok(main.length <= 6, 'five commands and the submenu of the others');
+    assert.ok(main.some(m => m.submenu === 'ce.editorMore'));
+    const sub = pkg.contributes.menus['ce.editorMore'];
+    assert.ok(['ce.nav.nextMember', 'ce.nav.prevMember', 'ce.nav.toggleDeclImpl', 'ce.codeReview', 'ce.editMember'].every(c => sub.some(m => m.command === c)), 'the others are one level down');
+    for (const m of sub.filter(x => x.command?.startsWith('ce.delphi.'))) { assert.match(m.when ?? '', /pas|dfm/, m.command); }
+    for (const m of sub.filter(x => x.command?.startsWith('ce.plsql.'))) { assert.match(m.when ?? '', /pks|pkb/, m.command); }
+    const declared = (c: string | undefined): boolean => !c || pkg.contributes!.commands!.some(x => x.command === c);
+    assert.ok(main.every(m => declared(m.command)) && sub.every(m => declared(m.command)), 'every command of the menus is declared');
+    const sm = (pkg.contributes as unknown as { submenus: { id: string }[] }).submenus.map(x => x.id);
+    assert.deepEqual(sm.sort(), ['ce.editorMenu', 'ce.editorMore']);
+});
+
+test('the command palette does not offer the commands that need an element of a list or the arguments of another command', () => {
+    const palette = pkg.contributes.menus.commandPalette as unknown as { command: string; when: string }[];
+    for (const c of ['ce.lensRun', 'ce.navigateToMember', 'ce.openMemberEditor', 'ce.batchMove', 'ce.batchGenerateGettersSetters', 'ce.setLanguageTo', 'ce.moveMember', 'ce.delphi.designerFullScreen']) {
+        assert.ok(palette.some(m => m.command === c && m.when === 'false'), c + ' is not in the palette');
+    }
+    assert.ok(!palette.some(m => m.command === 'ce.showActions'), 'the actions menu stays in the palette');
+});
+
+test('the settings are in sections with a title, and one command opens them', () => {
+    const cfg = (pkg.contributes as unknown as { configuration: { title: string; properties: Record<string, unknown> }[] }).configuration;
+    assert.ok(Array.isArray(cfg) && cfg.length >= 3);
+    assert.deepEqual(cfg.map(c => c.title), ['Code Explorer: General', 'Code Explorer: Delphi', 'Code Explorer: PL/SQL', 'Code Explorer: Formatting (advanced)']);
+    const keys = cfg.flatMap(c => Object.keys(c.properties));
+    assert.equal(new Set(keys).size, keys.length, 'a setting is in one section only');
+    assert.ok(keys.includes('ce.previewEdits') && keys.includes('ce.cpp.braceStyle'));
+    assert.ok(pkg.contributes.commands!.some(c => c.command === 'ce.openSettings'));
 });
 
 test('the status item says the language, the accents warning and where to click', () => {

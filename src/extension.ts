@@ -138,6 +138,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
         context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);

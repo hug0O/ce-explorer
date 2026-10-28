@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ClassInfo, ClassMember, MemberFormResult, MemberKind, Visibility } from '../models/types';
+import { ClassInfo, ClassMember, MemberFormResult, MemberKind, Parameter, Visibility } from '../models/types';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
@@ -61,6 +61,9 @@ export class BlueprintPanel {
         }
     }
 
+    /** What each action of the picture changed in the file, to undo and redo it (the whole text before and after). */
+    private undoStack: { label: string; before: string; after: string }[] = [];
+    private redoStack: { label: string; before: string; after: string }[] = [];
     private zen = false;
     private entries: Entry[] = [];
     private timer: NodeJS.Timeout | undefined;
@@ -166,7 +169,9 @@ export class BlueprintPanel {
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
         switch (m.type) {
-            case 'ready': this.send(true); break;
+            case 'ready': this.send(true); this.sendHistory(); break;
+            case 'undo': await this.undo(); break;
+            case 'redo': await this.redo(); break;
             case 'positions': {
                 const next = { ...this.positions(), ...((m.positions ?? {}) as SavedPositions) };
                 await this.deps.state.update(this.stateKey, next);
@@ -176,11 +181,12 @@ export class BlueprintPanel {
             case 'fullscreen': await this.setZen(m.on === true); break;
             case 'subsetLayout': this.subsetLayout(m.ids, m.key); break;
             case 'openCode': await this.openCode(this.entry(m.id)); break;
-            case 'addCall': await this.addCall(this.entry(m.from), this.entry(m.to)); break;
-            case 'removeCall': await this.removeCall(this.entry(m.from), this.entry(m.to)); break;
-            case 'rename': await this.rename(this.entry(m.id)); break;
-            case 'deleteNode': await this.deleteNode(this.entry(m.id)); break;
-            case 'addNode': await this.addNode(this.entry(m.caller), typeof m.x === 'number' ? m.x : undefined, typeof m.y === 'number' ? m.y : undefined); break;
+            case 'addCall': { const f = this.entry(m.from), t = this.entry(m.to); await this.recorded('add call' + (f && t ? ' ' + f.node.name + ' > ' + t.node.name : ''), () => this.addCall(f, t)); break; }
+            case 'removeCall': { const f = this.entry(m.from), t = this.entry(m.to); await this.recorded('remove call' + (f && t ? ' ' + f.node.name + ' > ' + t.node.name : ''), () => this.removeCall(f, t)); break; }
+            case 'rename': { const e = this.entry(m.id); await this.recorded('rename ' + (e?.node.name ?? ''), () => this.rename(e)); break; }
+            case 'deleteNode': { const e = this.entry(m.id); await this.recorded('delete ' + (e?.node.name ?? ''), () => this.deleteNode(e)); break; }
+            case 'addNode': await this.recorded('add routine', () => this.addNode(this.entry(m.caller), typeof m.x === 'number' ? m.x : undefined, typeof m.y === 'number' ? m.y : undefined)); break;
+            case 'editNode': { const e = this.entry(m.id); await this.recorded('edit ' + (e?.node.name ?? ''), () => this.editNode(e, m)); break; }
         }
     }
 
@@ -197,6 +203,103 @@ export class BlueprintPanel {
         const positions: Record<string, { x: number; y: number }> = {};
         for (const [id, b] of boxes) { positions[id] = { x: b.x, y: b.y }; }
         void this.panel.webview.postMessage({ type: 'subset', key, positions });
+    }
+
+    // --- undo / redo -------------------------------------------------------------------------------------------------------
+
+    /** Runs an action of the picture and keeps what it changed in the file, so that it can be undone from the picture. */
+    private async recorded(label: string, action: () => Promise<void>): Promise<void> {
+        const before = this.doc.getText();
+        await action();
+        // an action that goes through a preview or the language server lands a moment later
+        for (let i = 0; i < 8 && this.doc.getText() === before; i++) { await new Promise(r => setTimeout(r, 60)); }
+        const after = this.doc.getText();
+        if (after !== before) {
+            this.undoStack.push({ label, before, after });
+            if (this.undoStack.length > 100) { this.undoStack.shift(); }
+            this.redoStack = [];
+        }
+        this.sendHistory();
+    }
+
+    private sendHistory(): void {
+        const top = (s: { label: string }[]): string | null => (s.length ? s[s.length - 1].label : null);
+        void this.panel.webview.postMessage({ type: 'history', undo: top(this.undoStack), redo: top(this.redoStack) });
+    }
+
+    private async replaceAll(text: string): Promise<boolean> {
+        const we = new vscode.WorkspaceEdit();
+        we.replace(this.doc.uri, new vscode.Range(0, 0, this.doc.lineCount, 0), text);
+        return vscode.workspace.applyEdit(we);
+    }
+
+    private async undo(): Promise<void> {
+        const e = this.undoStack[this.undoStack.length - 1];
+        if (!e) { this.notice('Nothing to undo.'); return; }
+        if (this.doc.getText() !== e.after) { this.notice('The file was changed outside the picture since "' + e.label + '": it cannot be undone from here (Ctrl+Z in the editor can).'); return; }
+        if (await this.replaceAll(e.before)) {
+            this.undoStack.pop(); this.redoStack.push(e);
+            this.notice('Undone: ' + e.label);
+            this.send(); this.sendHistory();
+        }
+    }
+
+    private async redo(): Promise<void> {
+        const e = this.redoStack[this.redoStack.length - 1];
+        if (!e) { this.notice('Nothing to redo.'); return; }
+        if (this.doc.getText() !== e.before) { this.notice('The file was changed since: "' + e.label + '" cannot be redone.'); return; }
+        if (await this.replaceAll(e.after)) {
+            this.redoStack.pop(); this.undoStack.push(e);
+            this.notice('Redone: ' + e.label);
+            this.send(); this.sendHistory();
+        }
+    }
+
+    // --- editing a node ----------------------------------------------------------------------------------------------------
+
+    /** The form of the details panel: a new name, parameters and return type for a routine. The body is kept. */
+    private async editNode(e: Entry | undefined, m: Record<string, unknown>): Promise<void> {
+        if (!e) { return; }
+        const provider = this.deps.registry.getByDocument(this.doc);
+        if (!provider) { return; }
+        const name = typeof m.name === 'string' ? m.name.trim() : '';
+        if (!NAME_RE.test(name)) { this.notice('A routine name is letters, digits and _.'); return; }
+        const raw = Array.isArray(m.params) ? m.params : [];
+        const params: Parameter[] = [];
+        for (const p of raw as Record<string, unknown>[]) {
+            const pn = typeof p.name === 'string' ? p.name.trim() : '';
+            if (!pn) { continue; }
+            if (!NAME_RE.test(pn)) { this.notice('"' + pn + '" is not a valid parameter name.'); return; }
+            const dir = typeof p.dir === 'string' ? p.dir : '';
+            params.push({
+                name: pn, type: typeof p.type === 'string' ? p.type.trim() : '',
+                isVar: dir === 'var', isConst: dir === 'const', isOut: dir === 'out',
+                direction: dir === 'out' ? 'out' : dir === 'var' ? 'inout' : 'in',
+            });
+        }
+        const returnType = typeof m.returnType === 'string' ? m.returnType.trim() : '';
+        let target = e;
+        // the name first, with every call following it, then the signature
+        if (name !== e.node.name) {
+            if (!await ops.renameMember(this.doc, e.cls, e.member, provider, this.deps.explorer, name)) { return; }
+            await new Promise(r => setTimeout(r, 150));
+            this.model();
+            const renamed = this.entries.find(x => x.node.name === name && x.node.owner === e.node.owner);
+            if (!renamed) { this.send(); return; }
+            target = renamed;
+        }
+        const old = target.member;
+        const sameParams = params.length === old.parameters.length && params.every((p, i) => p.name === old.parameters[i].name && p.type === (old.parameters[i].type ?? '')
+            && !!p.isVar === !!old.parameters[i].isVar && !!p.isConst === !!old.parameters[i].isConst && !!p.isOut === !!old.parameters[i].isOut);
+        if (sameParams && returnType === (old.returnType ?? '')) { this.send(); return; }
+        const form: MemberFormResult = {
+            kind: old.kind, name, returnType: returnType || undefined, type: old.type, visibility: old.visibility, parameters: params,
+            isStatic: old.isStatic, isVirtual: old.isVirtual, isAbstract: old.isAbstract, isOverride: old.isOverride, hasGetter: false, hasSetter: false,
+        };
+        if (await ops.editMember(this.doc, provider, target.cls, old, this.deps.generator, this.deps.explorer, form)) {
+            this.notice(name + ' updated. Calls are not changed: check them if you added or removed a parameter.');
+        }
+        this.send();
     }
 
     private async openCode(e: Entry | undefined): Promise<void> {

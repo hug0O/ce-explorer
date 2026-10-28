@@ -127,3 +127,20 @@ test('what a filter or "hide others" leaves is laid out again as if it were alon
     assert.match(panel, /type: 'subset', key, positions/);
     assert.ok(!/positions\(\)[^;]*subset/.test(panel), 'the subset layout is not saved');
 });
+
+test('every action of the picture can be undone and redone, and a routine can be edited from the details panel', () => {
+    const js = blueprintScript();
+    const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
+    assert.ok(html.includes('id="undo"') && html.includes('id="redo"'));
+    assert.match(js, /kk === 'z'\) \{ ev\.preventDefault\(\); post\(\{ type: ev\.shiftKey \? 'redo' : 'undo' \}\)/);
+    assert.match(js, /kk === 'y'/);
+    assert.match(js, /m\.type === 'history'/);
+    assert.match(js, /post\(\{ type: 'editNode', id: n\.id, name: editForm\.name, returnType: editForm\.returnType, params: editForm\.params \}\)/);
+    assert.match(js, /ev\.key === 'e' && sel\.type === 'node'/);
+    assert.match(js, /\['', 'var', 'const', 'out'\]/, 'how a parameter is passed');
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
+    for (const label of ["'add call'", "'remove call'", "'rename '", "'delete '", "'add routine'", "'edit '"]) { assert.ok(panel.includes('recorded(' + label), label + ' is recorded'); }
+    assert.match(panel, /this\.doc\.getText\(\) !== e\.after/, 'an undo is refused when the file changed since');
+    assert.match(panel, /ops\.editMember\(this\.doc, provider, target\.cls, old, this\.deps\.generator, this\.deps\.explorer, form\)/);
+    assert.match(panel, /ops\.renameMember\(this\.doc, e\.cls, e\.member, provider, this\.deps\.explorer, name\)/, 'a new name goes through the rename, so the calls follow');
+});

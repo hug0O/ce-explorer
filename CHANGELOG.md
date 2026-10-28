@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.48 — 2026-10-28
+- **Blueprint: undo and redo.** *Undo* / *Redo* buttons and `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) undo the actions made from the picture — add or remove a call, rename, delete, add or edit a routine — each with its name in the tooltip. If the file was changed by hand since, the undo is refused instead of overwriting your work (`Ctrl+Z` in the editor still works on the same edits).
+- **Blueprint: edit a node.** *Edit…* in the details panel (or `E` on the selected node) opens a form for the name, the return type and the parameters (name, type, and how it is passed: in, var, const, out; add and remove rows). The body of the routine is kept; a new name goes through the rename so every call follows. Adding or removing a parameter does not touch the calls, a message says so.
+- The exec arrows no longer touch the edge of the window after *Fit*.
+
 ## 0.1.47 — 2026-10-28
 - **Blueprint: what is left is laid out again.** When the filter or *hide others* leaves only some routines, they are placed as if the others did not exist (columns by call depth, wires kept short) and centred in the window, instead of staying where they were in the full graph. When everything is shown again, each routine goes back to its own place; the positions you saved are never touched by this.
 

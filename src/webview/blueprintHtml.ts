@@ -13,6 +13,7 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: 12px; colo
 .bar .title { font-weight: 600; margin-right: 6px; }
 .bar button { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, inherit); border: 1px solid transparent; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; font-family: inherit; }
 .bar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(127,127,127,0.3)); }
+.bar button:disabled { opacity: 0.4; cursor: default; }
 .bar button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
 .bar label { display: flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); cursor: pointer; }
@@ -37,6 +38,15 @@ body.noside #side { display: none; }
 #side .li .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 #side .li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #side .li .ct { color: var(--vscode-descriptionForeground); font-size: 10px; }
+#side .fld { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+#side .fld .fl { width: 52px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+#side input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 5px; font-size: 12px; min-width: 0; font-family: var(--vscode-editor-font-family, monospace); }
+#side .fld input { flex: 1; }
+#side .prow { display: flex; gap: 3px; margin: 3px 0; align-items: center; }
+#side .prow select { width: 54px; flex: none; background: var(--vscode-dropdown-background, var(--vscode-input-background)); color: var(--vscode-dropdown-foreground, inherit); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; font-size: 11px; padding: 2px; }
+#side .prow .pn { width: 70px; flex: 1; }
+#side .prow .pt { width: 70px; flex: 1; }
+#side button.act.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 #side .none { color: var(--vscode-descriptionForeground); font-size: 11px; padding: 2px 4px; }
 #side .tip { color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.5; margin-top: 12px; }
 svg#cv { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; }
@@ -86,6 +96,8 @@ export function blueprintScript(): string {
   var sel = null;                       // { type: 'node' | 'edge', id: string }
   var filter = '';
   var hideAlone = false;
+  var editing = null;                   // id of the routine whose signature is being edited in the details panel
+  var editForm = null;
   var swapped = false;                  // the nodes shown are laid out again among themselves (the saved positions are kept aside)
   var subsetKey = '';
   var isolate = false;                  // hide everything that is not linked to the selected routine
@@ -290,12 +302,66 @@ export function blueprintScript(): string {
     if (!edges.length) { h('div', 'none', field === 'from' ? 'nobody in this file' : 'no call', side); return; }
     edges.forEach(function (e) { var n = byId(e[field]); if (n) { listItem(side, n, e.lines.length); } });
   }
+  function startEdit(id) {
+    var n = byId(id);
+    if (!n) { return; }
+    editing = id;
+    editForm = { name: n.name, returnType: n.ret || '', params: n.params.map(function (p) { return { name: p.name, type: p.type || '', dir: p.dir || '' }; }) };
+    sideKey = '';
+    renderSide();
+  }
+  function stopEdit() { editing = null; editForm = null; sideKey = ''; renderSide(); }
+  function field(parent, label, value, onInput, narrow) {
+    var row = h('label', 'fld', undefined, parent);
+    if (label) { h('span', 'fl', label, row); }
+    var inp = h('input', narrow ? 'narrow' : '', undefined, row);
+    inp.type = 'text'; inp.value = value; inp.spellcheck = false;
+    inp.addEventListener('input', function () { onInput(inp.value); });
+    return inp;
+  }
+  function renderEditor(side, n) {
+    h('h3', '', 'Edit ' + n.name, side);
+    h('div', 'kind', 'The body of the routine is kept. A new name is applied to every call too.', side);
+    field(side, 'Name', editForm.name, function (v) { editForm.name = v; });
+    if (n.kind !== 'constructor' && n.kind !== 'destructor') { field(side, 'Returns', editForm.returnType, function (v) { editForm.returnType = v; }); }
+    h('h4', '', 'Parameters', side);
+    var list = h('div', 'plist', undefined, side);
+    function draw() {
+      while (list.firstChild) { list.removeChild(list.firstChild); }
+      editForm.params.forEach(function (p, i) {
+        var row = h('div', 'prow', undefined, list);
+        var dir = h('select', '', undefined, row);
+        ['', 'var', 'const', 'out'].forEach(function (d) { var o = h('option', '', d || 'in', dir); o.value = d; });
+        dir.value = p.dir; dir.title = 'How the parameter is passed';
+        dir.addEventListener('change', function () { p.dir = dir.value; });
+        var nm = h('input', 'pn', undefined, row); nm.type = 'text'; nm.value = p.name; nm.placeholder = 'name'; nm.spellcheck = false;
+        nm.addEventListener('input', function () { p.name = nm.value; });
+        var ty = h('input', 'pt', undefined, row); ty.type = 'text'; ty.value = p.type; ty.placeholder = 'type'; ty.spellcheck = false;
+        ty.addEventListener('input', function () { p.type = ty.value; });
+        var rm = h('button', 'act danger', 'x', row); rm.title = 'Remove this parameter';
+        rm.addEventListener('click', function () { editForm.params.splice(i, 1); draw(); });
+      });
+    }
+    draw();
+    var add = h('button', 'act', '+ Parameter', side);
+    add.addEventListener('click', function () { editForm.params.push({ name: '', type: '', dir: '' }); draw(); });
+    var acts = h('div', 'acts', undefined, side);
+    var ok = h('button', 'act primary', 'Apply', acts);
+    ok.addEventListener('click', function () {
+      post({ type: 'editNode', id: n.id, name: editForm.name, returnType: editForm.returnType, params: editForm.params });
+      stopEdit();
+    });
+    var cancel = h('button', 'act', 'Cancel', acts);
+    cancel.addEventListener('click', stopEdit);
+  }
   function renderSide() {
-    var key = (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode;
+    if (editing && !(sel && sel.type === 'node' && sel.id === editing)) { editing = null; editForm = null; }
+    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode;
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
     while (side.firstChild) { side.removeChild(side.firstChild); }
+    if (editing && sel && sel.type === 'node' && byId(sel.id)) { renderEditor(side, byId(sel.id)); return; }
     if (sel && sel.type === 'node' && byId(sel.id)) {
       var n = byId(sel.id);
       h('h3', '', n.name, side);
@@ -304,9 +370,9 @@ export function blueprintScript(): string {
       n.params.forEach(function (p) { h('div', '', (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' : ''), sig).appendChild(h('span', 't', p.type || '')); });
       if (n.ret) { var r = h('div', '', 'returns ', sig); r.appendChild(h('span', 't', n.ret)); }
       var acts = h('div', 'acts', undefined, side);
-      [['Open code', 'openCode', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']].forEach(function (a) {
+      [['Open code', 'openCode', ''], ['Edit... (E)', 'edit', ''], ['Rename (F2)', 'rename', ''], ['Delete', 'deleteNode', ' danger']].forEach(function (a) {
         var b = h('button', 'act' + a[2], a[0], acts);
-        b.addEventListener('click', function () { post({ type: a[1], id: n.id }); });
+        b.addEventListener('click', function () { if (a[1] === 'edit') { startEdit(n.id); } else { post({ type: a[1], id: n.id }); } });
       });
       section(side, 'Called by', callersOf(n.id), 'from');
       section(side, 'Calls', calleesOf(n.id), 'to');
@@ -388,6 +454,7 @@ export function blueprintScript(): string {
     if (!list.length) { view = { x: 40, y: 40, k: 1 }; applyView(); return; }
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     list.forEach(function (n) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + heightOf(n)); });
+    x0 -= 12; x1 += 12;   // the exec arrows stick out of the nodes
     var w = cv.clientWidth - 60, h = cv.clientHeight - 60;
     var k = Math.min(1.2, Math.max(0.15, Math.min(w / (x1 - x0), h / (y1 - y0))));
     view = { k: k, x: 30 - x0 * k + (w - (x1 - x0) * k) / 2, y: 30 - y0 * k + (h - (y1 - y0) * k) / 2 };
@@ -489,6 +556,12 @@ export function blueprintScript(): string {
     var inField = ev.target && ev.target.tagName === 'INPUT';
     if (ev.key === 'Escape') { if (inField) { return; } else if (!sel && full) { setFull(false); } sel = null; render(); return; }
     if (inField) { return; }
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {
+      var kk = ev.key.toLowerCase();
+      if (kk === 'z') { ev.preventDefault(); post({ type: ev.shiftKey ? 'redo' : 'undo' }); return; }
+      if (kk === 'y') { ev.preventDefault(); post({ type: 'redo' }); return; }
+      return;
+    }
     if (ev.key === '/') { ev.preventDefault(); document.getElementById('filter').focus(); return; }
     if (ev.key === 'f' || ev.key === '9') { fit(); return; }
     if (ev.key === 'h') { setIsolate(!isolate); return; }
@@ -501,10 +574,13 @@ export function blueprintScript(): string {
       ev.preventDefault();
       if (sel.type === 'edge') { var p = sel.id.split('>'); post({ type: 'removeCall', from: p[0], to: p[1] }); }
       else { post({ type: 'deleteNode', id: sel.id }); }
-    } else if (ev.key === 'F2' && sel.type === 'node') { ev.preventDefault(); post({ type: 'rename', id: sel.id }); }
+    } else if (ev.key === 'e' && sel.type === 'node') { startEdit(sel.id); }
+    else if (ev.key === 'F2' && sel.type === 'node') { ev.preventDefault(); post({ type: 'rename', id: sel.id }); }
     else if (ev.key === 'Enter' && sel.type === 'node') { post({ type: 'openCode', id: sel.id }); }
   });
 
+  document.getElementById('undo').addEventListener('click', function () { post({ type: 'undo' }); });
+  document.getElementById('redo').addEventListener('click', function () { post({ type: 'redo' }); });
   document.getElementById('addNode').addEventListener('click', function () { post({ type: 'addNode' }); });
   var full = false;
   function setFull(on) {
@@ -585,6 +661,11 @@ export function blueprintScript(): string {
       document.getElementById('count').textContent = model.nodes.length + ' routines, ' + model.edges.length + ' calls';
     } else if (m.type === 'notice') { say(m.text); }
     else if (m.type === 'toggleFull') { setFull(!full); }
+    else if (m.type === 'history') {
+      var u = document.getElementById('undo'), r = document.getElementById('redo');
+      u.disabled = !m.undo; u.title = m.undo ? 'Undo: ' + m.undo + ' (Ctrl+Z)' : 'Nothing to undo';
+      r.disabled = !m.redo; r.title = m.redo ? 'Redo: ' + m.redo + ' (Ctrl+Y)' : 'Nothing to redo';
+    }
     else if (m.type === 'subset') {
       if (m.key !== subsetKey) { return; }
       model.nodes.forEach(function (n) {
@@ -617,6 +698,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
 <button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6; Full screen</button>
+<button id="undo" disabled title="Nothing to undo">&#x21B6; Undo</button><button id="redo" disabled title="Nothing to redo">&#x21B7; Redo</button>
 <button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
 <button id="refresh" title="Read the file again">Refresh</button>
 <input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">

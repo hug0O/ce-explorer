@@ -778,6 +778,7 @@ export function blueprintScript(): string {
       locked = projectMode || flowMode;
       document.body.classList.toggle('project', projectMode || flowMode);
       document.body.classList.toggle('flow', flowMode);
+      document.getElementById('empty').textContent = projectMode ? 'No unit found in the project.' : 'No routine to draw in this file.';
       document.getElementById('back').hidden = !flowMode;
       document.getElementById('vfile').classList.toggle('on', !projectMode);
       document.getElementById('vproject').classList.toggle('on', projectMode);
@@ -794,6 +795,11 @@ export function blueprintScript(): string {
       document.getElementById('filter').placeholder = projectMode ? 'Find a unit (/)' : 'Find a routine (/)';
     } else if (m.type === 'notice') { say(m.text); }
     else if (m.type === 'toggleFull') { setFull(!full); }
+    else if (m.type === 'loading') {
+      // a long read: say how far it is, over the empty canvas, and in the bar once something is drawn
+      if (!model.nodes.length && m.text) { var em = document.getElementById('empty'); em.style.display = 'flex'; em.textContent = m.text; }
+      say(m.text);
+    }
     else if (m.type === 'history') {
       var u = document.getElementById('undo'), r = document.getElementById('redo');
       u.disabled = !m.undo; u.title = m.undo ? 'Undo: ' + m.undo + ' (Ctrl+Z)' : 'Nothing to undo';

@@ -23,7 +23,11 @@ const PASCAL = familyOf('pascal')!;
 
 /** The unit, program, library or package a text declares and the units it lists in its `uses` clauses; undefined for any other text. */
 export function readUnit(text: string, file: string): UnitInfo | undefined {
-    const masked = maskCode(text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text, PASCAL);
+    // the header and the `uses` clauses are at the start of a unit (the one of the implementation follows `implementation`): the code after
+    // is not read, which is most of a big unit
+    const whole = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+    const implIn = /^\s*unit\b/im.test(whole.slice(0, 2000)) ? whole.search(/^\s*implementation\b/im) : -1;
+    const masked = maskCode(implIn >= 0 ? whole.slice(0, Math.min(whole.length, implIn + 8000)) : whole, PASCAL);
     const head = /^\s*(unit|program|library|package)\s+([\w.]+)/im.exec(masked);
     if (!head) { return undefined; }
     const kind = head[1].toLowerCase() === 'unit' ? 'unit' : 'program';

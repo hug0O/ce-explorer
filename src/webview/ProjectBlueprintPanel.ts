@@ -7,6 +7,7 @@ import { analyze } from '../utils/blueprintAnalysis';
 import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { UnitGraph, UnitInfo, addUses, buildUnitGraph, readUnit, removeUses } from '../utils/unitGraph';
 import { unitFacts } from '../services/ProjectUnused';
+import { pool } from '../utils/pool';
 
 const SOURCE_GLOB = '**/*.{pas,dpr,dpk}';
 const EXCLUDE = '**/{node_modules,__history,__recovery,.git,Win32,Win64,Debug,Release}/**';
@@ -24,6 +25,10 @@ function nonce(): string {
  * `uses` of the first (implementation section), deleting a wire removes it; double-click opens the unit, and the details panel opens the
  * Blueprint of its routines.
  */
+/** What was read of each file, kept while the editor runs: a file that has not changed (same date and size) is not read again. */
+const CACHE = new Map<string, { stamp: string; unit: UnitInfo | undefined }>();
+const PARALLEL = 24;
+
 export class ProjectBlueprintPanel {
     private static current: ProjectBlueprintPanel | undefined;
     private static state: vscode.Memento | undefined;
@@ -46,6 +51,8 @@ export class ProjectBlueprintPanel {
 
     private graph: UnitGraph = { nodes: [], edges: [], external: new Map(), unneeded: [] };
     private symbols = new Map<string, UnitInfo['symbols']>();
+    /** The number of the load in progress: a later one makes an earlier one stop. */
+    private run = 0;
     private timer: NodeJS.Timeout | undefined;
     private zen = false;
     private readonly subs: vscode.Disposable[] = [];
@@ -68,33 +75,82 @@ export class ProjectBlueprintPanel {
 
     private later(): void {
         if (this.timer) { clearTimeout(this.timer); }
-        this.timer = setTimeout(() => { void this.send(true); }, 500);
+        this.timer = setTimeout(() => { void this.load(false); }, 500);
     }
 
     private positions(): SavedPositions { return ProjectBlueprintPanel.state?.get<SavedPositions>(this.stateKey, {}) ?? {}; }
 
-    /** Reads every source file of the project again and draws the units. */
-    private async scan(): Promise<void> {
-        const files = await vscode.workspace.findFiles(SOURCE_GLOB, EXCLUDE, MAX_FILES);
-        const units: UnitInfo[] = [];
-        for (const f of files) {
-            try {
-                const bytes = await vscode.workspace.fs.readFile(f);
-                const text = Buffer.from(bytes).toString('latin1');
-                const u = readUnit(text, f.toString());
-                if (u) {
-                    const facts = u.kind === 'unit' ? unitFacts(text) : undefined;
-                    if (facts) { u.symbols = { exported: facts.exported, words: facts.words }; this.symbols.set(u.name, u.symbols); }
-                    units.push(u);
-                }
-            } catch { /* a file that cannot be read is left out */ }
-        }
+    private loading(text: string): void { void this.panel.webview.postMessage({ type: 'loading', text }); }
+
+    /**
+     * Reads the project in two steps so that the picture comes quickly: first the header and the `uses` of every file (read in parallel, and
+     * not again when the file is unchanged), drawn at once; then, in small steps that leave the editor free, the names each unit offers and
+     * uses, which add what every wire carries.
+     */
+    private async load(fit: boolean): Promise<void> {
+        const run = ++this.run;
+        const units = await this.readAll(run);
+        if (run !== this.run) { return; }
         this.graph = buildUnitGraph(units, this.positions());
-        if (files.length >= MAX_FILES) { this.notice('Only the first ' + MAX_FILES + ' files are read.'); }
+        this.postModel(fit);
+        await this.analyse(units, run);
     }
 
-    private async send(rescan: boolean, fit = false): Promise<void> {
-        if (rescan || !this.graph.nodes.length) { await this.scan(); }
+    /** Step 1: the units and their `uses`. */
+    private async readAll(run: number): Promise<UnitInfo[]> {
+        const files = await vscode.workspace.findFiles(SOURCE_GLOB, EXCLUDE, MAX_FILES);
+        const units: (UnitInfo | undefined)[] = new Array(files.length).fill(undefined);
+        let done = 0;
+        let last = 0;
+        await pool(files, PARALLEL, async (f, i) => {
+            if (run !== this.run) { return; }
+            const key = f.toString();
+            try {
+                const st = await vscode.workspace.fs.stat(f);
+                const stamp = st.mtime + ':' + st.size;
+                const hit = CACHE.get(key);
+                if (hit && hit.stamp === stamp) { units[i] = hit.unit; }
+                else {
+                    const text = Buffer.from(await vscode.workspace.fs.readFile(f)).toString('latin1');
+                    const unit = readUnit(text, key);
+                    CACHE.set(key, { stamp, unit });
+                    units[i] = unit;
+                }
+            } catch { /* a file that cannot be read is left out */ }
+            done++;
+            if (Date.now() - last > 150) { last = Date.now(); this.loading('Reading the units... ' + done + ' / ' + files.length); }
+        });
+        if (files.length >= MAX_FILES) { this.notice('Only the first ' + MAX_FILES + ' files are read.'); }
+        return units.filter((u): u is UnitInfo => !!u);
+    }
+
+    /** Step 2: what each unit offers and mentions, to say what a `uses` takes. The graph is drawn again when it is done. */
+    private async analyse(units: UnitInfo[], run: number): Promise<void> {
+        const todo = units.filter(u => u.kind === 'unit' && !u.symbols);
+        let done = 0;
+        let last = 0;
+        for (const u of todo) {
+            if (run !== this.run) { return; }
+            try {
+                const text = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.parse(u.file))).toString('latin1');
+                const facts = unitFacts(text);
+                if (facts) { u.symbols = { exported: facts.exported, words: facts.words }; }
+            } catch { /* left without symbols: nothing is claimed about its uses */ }
+            done++;
+            if (Date.now() - last > 150) {
+                last = Date.now();
+                this.loading('Looking at what each unit takes... ' + done + ' / ' + todo.length);
+                await new Promise(r => setTimeout(r, 0));   // the editor stays free
+            }
+        }
+        if (run !== this.run) { return; }
+        for (const u of units) { if (u.symbols) { this.symbols.set(u.name, u.symbols); } }
+        this.graph = buildUnitGraph(units, this.positions());
+        this.postModel(false);
+        this.loading('');
+    }
+
+    private postModel(fit: boolean): void {
         // a unit that nobody uses is "unused"; only the `interface` uses make a loop that Delphi refuses
         const ids = this.graph.nodes.map(n => n.id);
         const interfaceEdges = this.graph.edges.filter(e => e.section === 'interface');
@@ -110,9 +166,9 @@ export class ProjectBlueprintPanel {
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
         switch (m.type) {
-            case 'ready': await this.send(true, true); break;
+            case 'ready': await this.load(true); break;
             case 'positions': await ProjectBlueprintPanel.state?.update(this.stateKey, { ...this.positions(), ...((m.positions ?? {}) as SavedPositions) }); break;
-            case 'resetLayout': await ProjectBlueprintPanel.state?.update(this.stateKey, {}); await this.send(false, true); break;
+            case 'resetLayout': await ProjectBlueprintPanel.state?.update(this.stateKey, {}); this.graph = buildUnitGraph(this.graph.nodes.map(n => this.unitOf(n)), {}); this.postModel(true); break;
             case 'openCode': await this.openUnit(this.node(m.id), false); break;
             case 'openUnit': await this.openUnit(this.node(m.id), true); break;
             case 'addCall': await this.changeUses(this.node(m.from), this.node(m.to), true); break;
@@ -157,21 +213,21 @@ export class ProjectBlueprintPanel {
             this.notice(add ? from.name + ' now uses ' + to.name + ' (implementation section). Save to see the graph updated; Ctrl+Z in the unit undoes it.' : from.name + ' no longer uses ' + to.name + '. Save to see the graph updated.');
             // the unit is changed in memory: draw it from there without waiting for the save
             const u = readUnit(after, from.file);
-            if (u) { u.symbols = this.symbols.get(u.name); await this.redraw(u); }
+            if (u) { u.symbols = this.symbols.get(u.name); this.redraw(u); }
         }
     }
 
-    private async redraw(changed: UnitInfo): Promise<void> {
-        const infos: UnitInfo[] = [];
-        for (const n of this.graph.nodes) {
-            if (n.file === changed.file) { infos.push(changed); continue; }
-            // the other units keep what was read: rebuild their uses from the current edges
-            const uses = this.graph.edges.filter(e => e.from === n.id).map(e => ({ name: e.to, section: e.section, line: e.lines[0] ?? 0 }))
-                .concat((n.external ?? []).map(name => ({ name, section: 'interface' as const, line: 0 })));
-            infos.push({ name: n.name, kind: n.kind === 'program' ? 'program' : 'unit', uses, file: n.file ?? '', symbols: this.symbols.get(n.name) });
-        }
+    /** A unit rebuilt from the graph (its uses from the wires, the others from what was listed as outside the project). */
+    private unitOf(n: UnitGraph['nodes'][number]): UnitInfo {
+        const uses = this.graph.edges.filter(e => e.from === n.id).map(e => ({ name: e.to, section: e.section, line: e.lines[0] ?? 0 }))
+            .concat((n.external ?? []).map(name => ({ name, section: 'interface' as const, line: 0 })));
+        return { name: n.name, kind: n.kind === 'program' ? 'program' : 'unit', uses, file: n.file ?? '', symbols: this.symbols.get(n.name) };
+    }
+
+    private redraw(changed: UnitInfo): void {
+        const infos: UnitInfo[] = this.graph.nodes.map(n => (n.file === changed.file ? changed : this.unitOf(n)));
         this.graph = buildUnitGraph(infos, this.positions());
-        await this.send(false);
+        this.postModel(false);
     }
 
     private subsetLayout(ids: unknown, key: unknown): void {

@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.62 — 2026-10-28
+- **The preview says what it will do**: *Apply 4 changes in 2 files: Main.pas, Main.dfm?* instead of a bare *Apply these changes?*.
+
 ## 0.1.61 — 2026-10-28
 - **Undo, one click away.** Every edit the extension makes — a rename, a deletion, a member added or updated, a doc header, a synchronisation, a move — now says so with an **Undo** button on the message (the undo of the editor, on the file that was edited).
 - **What was changed.** A log of those edits (and of the Blueprint's: a call added or removed, a `uses` written), kept per workspace, with *how long ago* and the file: **CE: What was changed**, also in the status bar menu; choose an entry to open its file.

@@ -136,8 +136,9 @@ export async function previewAndConfirm(
             ? shownLabels.join(', ')
             : 'the target file';
 
+        const total = documents.reduce((n, d) => n + d.edits.length, 0);
         const choice = await vscode.window.showWarningMessage(
-            `Apply these changes to ${scope}?`,
+            `Apply ${total} change${total === 1 ? "" : "s"} in ${shownLabels.length || 1} file${shownLabels.length > 1 ? "s" : ""}: ${scope}?`,
             { modal: false },
             'Apply',
             'Cancel',

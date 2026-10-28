@@ -74,3 +74,9 @@ test('Templates answer to the keys of the other lists, and the project Blueprint
     assert.match(bp, /'uses the selected' : 'calls the selected'/);
     assert.match(read('webview/shortcutsSection.ts'), /Templates: insert \/ edit \/ delete \/ star/);
 });
+
+test('the preview says how many changes in how many files before asking', () => {
+    const s = read('services/SafePreview.ts');
+    assert.match(s, /const total = documents\.reduce\(\(n, d\) => n \+ d\.edits\.length, 0\)/);
+    assert.match(s, /Apply \$\{total\} change/);
+});

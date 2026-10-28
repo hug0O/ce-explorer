@@ -10,6 +10,8 @@ import { BpMember, BpModel, SavedPositions, buildBlueprint, nodeIds } from '../u
 import { layout } from '../utils/blueprintLayout';
 import { analyze } from '../utils/blueprintAnalysis';
 import { toMermaid, toSvg } from '../utils/blueprintExport';
+import { eventsByHandler } from '../utils/blueprintEvents';
+import { parseDfmTree } from '../services/DelphiLayout';
 import { blueprintHtml } from './blueprintHtml';
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -67,6 +69,9 @@ export class BlueprintPanel {
     private undoStack: { label: string; before: string; after: string }[] = [];
     private redoStack: { label: string; before: string; after: string }[] = [];
     private zen = false;
+    /** The handlers of the form of this unit (Delphi), read from the .dfm next to it. */
+    private handlers = new Map<string, string[]>();
+    private dfmUri: vscode.Uri | undefined;
     private entries: Entry[] = [];
     private timer: NodeJS.Timeout | undefined;
     private readonly subs: vscode.Disposable[] = [];
@@ -86,6 +91,9 @@ export class BlueprintPanel {
                 if (e.document.uri.toString() !== doc.uri.toString()) { return; }
                 if (this.timer) { clearTimeout(this.timer); }
                 this.timer = setTimeout(() => this.send(), 350);
+            }),
+            vscode.workspace.onDidSaveTextDocument(d => {
+                if (this.dfmUri && d.uri.toString() === this.dfmUri.toString()) { void this.readForm().then(() => this.send()); }
             }),
             panel.onDidDispose(() => {
                 if (this.zen) { void this.setZen(false); }
@@ -131,12 +139,26 @@ export class BlueprintPanel {
 
     private lines(): string[] { return this.doc.getText().split(/\r?\n/); }
 
+    /** Reads the .dfm that goes with a Delphi unit and remembers which routine answers which event. */
+    private async readForm(): Promise<void> {
+        const m = /^(.*)\.pas$/i.exec(this.doc.uri.fsPath);
+        if (!m) { return; }
+        const dfm = vscode.Uri.file(m[1] + '.dfm');
+        try {
+            const bytes = await vscode.workspace.fs.readFile(dfm);
+            this.handlers = eventsByHandler(parseDfmTree(Buffer.from(bytes).toString('latin1')));
+            this.dfmUri = dfm;
+        } catch { this.handlers = new Map(); this.dfmUri = undefined; }
+    }
+
     private model(): BpModel | undefined {
         const r = this.read();
         const family = r ? familyOf(r.languageId) : undefined;
         if (!r || !family) { return undefined; }
         this.entries = r.entries;
-        return buildBlueprint(r.entries.map(e => e.node), this.lines(), family, this.positions());
+        const model = buildBlueprint(r.entries.map(e => e.node), this.lines(), family, this.positions());
+        for (const n of model.nodes) { const ev = this.handlers.get(n.name.toLowerCase()); if (ev) { n.events = ev; } }
+        return model;
     }
 
     private send(fit = false): void {
@@ -148,7 +170,7 @@ export class BlueprintPanel {
     }
 
     /** Routines that are called from outside the file (event handlers…): not reported as unused. */
-    private entryPoints(): string[] { return []; }
+    private entryPoints(): string[] { return this.model()?.nodes.filter(n => n.events).map(n => n.id) ?? []; }
 
     private notice(text: string): void { void this.panel.webview.postMessage({ type: 'notice', text }); }
 
@@ -177,7 +199,12 @@ export class BlueprintPanel {
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
         switch (m.type) {
-            case 'ready': this.send(true); this.sendHistory(); break;
+            case 'ready': await this.readForm(); this.send(true); this.sendHistory(); break;
+            case 'openDesigner': {
+                await vscode.window.showTextDocument(this.doc, { viewColumn: vscode.ViewColumn.One });
+                await vscode.commands.executeCommand('ce.delphi.designer');
+                break;
+            }
             case 'undo': await this.undo(); break;
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;

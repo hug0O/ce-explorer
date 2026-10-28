@@ -29,6 +29,8 @@ export interface BpNode {
     line: number;
     hasBody: boolean;
     recursive: boolean;
+    /** The events of the form this routine answers (`btnSave.OnClick`): it is an entry point, called by the form. */
+    events?: string[];
     x: number;
     y: number;
     w: number;

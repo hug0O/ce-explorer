@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.49.vsix
+code --install-extension ce-code-explorer-0.1.50.vsix
 ```
 
 ## Supported Languages

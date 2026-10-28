@@ -124,7 +124,8 @@ export function blueprintScript(): string {
   var world = document.getElementById('world');
   var gridG = document.getElementById('grid');
   var HEAD = 34, ROWH = 20;
-  var HEADS = { method: '#2a6fb0', 'function': '#2a6fb0', constructor: '#2e8b57', destructor: '#a33b3b' };
+  var HEADS = { method: '#2a6fb0', 'function': '#2a6fb0', constructor: '#2e8b57', destructor: '#a33b3b', event: '#b5453a' };
+  function headColor(n) { return n.events && n.events.length ? HEADS.event : (HEADS[n.kind] || '#2a6fb0'); }
 
   function el(name, attrs, parent) {
     var e = document.createElementNS(NS, name);
@@ -176,6 +177,7 @@ export function blueprintScript(): string {
   function aloneSet() {
     var linked = {};
     model.edges.forEach(function (e) { linked[e.from] = true; linked[e.to] = true; });
+    model.nodes.forEach(function (n) { if (n.events && n.events.length) { linked[n.id] = true; } });   // an event is called by the form
     return linked;
   }
   /* the nodes drawn: the ones that pass the filter (and, if asked, their direct neighbours), without the isolated ones if hidden */
@@ -259,11 +261,13 @@ export function blueprintScript(): string {
       var nh = heightOf(n);
       var g = el('g', { 'class': cls, transform: 'translate(' + n.x + ',' + n.y + ')', 'data-id': n.id }, world);
       el('rect', { 'class': 'body', x: 0, y: 0, width: n.w, height: nh, rx: 6 }, g);
-      var head = el('path', { 'class': 'head', d: 'M0,6 a6,6 0 0 1 6,-6 h' + (n.w - 12) + ' a6,6 0 0 1 6,6 v' + (HEAD - 6) + ' h-' + n.w + ' z', fill: HEADS[n.kind] || '#2a6fb0' }, g);
-      var kindWord = n.kind === 'constructor' ? 'Create ' : n.kind === 'destructor' ? 'Destroy ' : '';
-      var ttl = el('text', { 'class': 'ttl', x: 10, y: n.owner ? 15 : 21 }, g);
+      var head = el('path', { 'class': 'head', d: 'M0,6 a6,6 0 0 1 6,-6 h' + (n.w - 12) + ' a6,6 0 0 1 6,6 v' + (HEAD - 6) + ' h-' + n.w + ' z', fill: headColor(n) }, g);
+      var isEvent = !!(n.events && n.events.length);
+      var kindWord = isEvent ? 'Event ' : n.kind === 'constructor' ? 'Create ' : n.kind === 'destructor' ? 'Destroy ' : '';
+      var subText = isEvent ? n.events[0] + (n.events.length > 1 ? ' +' + (n.events.length - 1) : '') : n.owner;
+      var ttl = el('text', { 'class': 'ttl', x: 10, y: subText ? 15 : 21 }, g);
       ttl.textContent = trunc(kindWord + n.name + (n.recursive ? ' \\u21BB' : ''), Math.floor((n.w - 20) / 7));
-      if (n.owner) { var sub = el('text', { 'class': 'sub', x: 10, y: 28 }, g); sub.textContent = trunc(n.owner, Math.floor((n.w - 20) / 6)); }
+      if (subText) { var sub = el('text', { 'class': 'sub', x: 10, y: 28 }, g); sub.textContent = trunc(subText, Math.floor((n.w - 20) / 6)); }
       var ht = el('title', {}, head); ht.textContent = (n.owner ? n.owner + '.' : '') + n.name + (n.hasBody ? '' : ' (declaration only: no body in this file)') + ' - double-click opens the code, F2 renames, Delete deletes';
       // exec pins: the arrow on the left receives the call, the one on the right makes calls
       var pin = el('path', { 'class': 'pin exec', d: 'M-7,' + (HEAD + 5) + ' l8,7 l-8,7 z', 'data-pin': 'in' }, g);
@@ -315,7 +319,7 @@ export function blueprintScript(): string {
   }
   function listItem(parent, n, count, onclick) {
     var b = h('button', 'li', undefined, parent);
-    var dot = h('span', 'dot', undefined, b); dot.style.background = HEADS[n.kind] || '#2a6fb0';
+    var dot = h('span', 'dot', undefined, b); dot.style.background = headColor(n);
     h('span', 'nm', (n.owner ? n.owner + '.' : '') + n.name, b);
     if (count > 1) { h('span', 'ct', count + 'x', b); }
     b.addEventListener('click', onclick || function () { select(n.id, true); });
@@ -390,6 +394,12 @@ export function blueprintScript(): string {
       var n = byId(sel.id);
       h('h3', '', n.name, side);
       h('div', 'kind', (n.owner ? n.owner + ' - ' : '') + n.kind + (n.hasBody ? '' : ' (declaration only)') + (n.recursive ? ' - recursive' : '') + ' - line ' + (n.line + 1), side);
+      if (n.events && n.events.length) {
+        h('h4', '', 'Triggered by', side);
+        n.events.forEach(function (ev) { h('div', 'sig', ev, side); });
+        var od = h('button', 'act', 'Open the form designer', side);
+        od.addEventListener('click', function () { post({ type: 'openDesigner' }); });
+      }
       var sig = h('div', 'sig', undefined, side);
       n.params.forEach(function (p) { h('div', '', (p.dir ? p.dir + ' ' : '') + p.name + (p.type ? ': ' : ''), sig).appendChild(h('span', 't', p.type || '')); });
       if (n.ret) { var r = h('div', '', 'returns ', sig); r.appendChild(h('span', 't', n.ret)); }
@@ -425,9 +435,9 @@ export function blueprintScript(): string {
     h('h3', '', 'Routines', side);
     h('div', 'kind', model.nodes.length + ' routines, ' + model.edges.length + ' calls', side);
     var groups = [
-      ['Entry points (nobody calls them here)', shown.filter(function (n) { return linked[n.id] && !callersOf(n.id).length; })],
-      ['Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0; })],
-      ['Isolated (no call in or out)', shown.filter(function (n) { return !linked[n.id]; })]
+      ['Entry points (events, or nobody calls them here)', shown.filter(function (n) { return (linked[n.id] || (n.events && n.events.length)) && !callersOf(n.id).length; })],
+      ['Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0 && !(n.events && n.events.length && !callersOf(n.id).length); })],
+      ['Isolated (no call in or out)', shown.filter(function (n) { return !linked[n.id] && !(n.events && n.events.length); })]
     ];
     groups.forEach(function (g) {
       if (!g[1].length) { return; }

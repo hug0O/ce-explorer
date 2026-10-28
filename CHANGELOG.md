@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.50 — 2026-10-28
+- **Blueprint: the events of the form.** In a Delphi unit with its `.dfm`, the routines that answer an event (`btnSave.OnClick`, `Form.OnCreate`…) are drawn as **events**: a red title bar, the component and event written under the name. They are the entry points of the graph, so they are no longer reported as unused or isolated; the details panel says what triggers them (*Triggered by*) and has an *Open the form designer* button. The `.dfm` is read again when it is saved.
+
 ## 0.1.49 — 2026-10-28
 - **Blueprint: a simpler bar.** Only the everyday controls stay on it: *+ Node*, zoom, undo / redo, the search box, *hide others*, *Details* and full screen (an icon now). The rest moved into a **More** menu: parameter pins, hide isolated routines, how far the focus reaches, search keeping linked routines, export, auto layout and refresh.
 - **Unused routines and loops.** The details panel lists the routines that nobody calls in the file (*Not called in this file*) and the groups of routines that call each other in a loop (*Calls in a loop*); on the picture the unused ones have a dashed orange outline and the loops are drawn in red (box *Mark unused routines and loops* in the More menu).

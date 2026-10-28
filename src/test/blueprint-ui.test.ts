@@ -70,3 +70,9 @@ test('the blueprint has a full screen: its button, Ctrl+K Ctrl+F, Esc to leave, 
     assert.match(panel, /case 'fullscreen': await this\.setZen/);
     assert.match(panel, /workbench\.action\.toggleZenMode/);
 });
+
+test('the graph follows the size of its window: refitted in Fit window mode, kept otherwise', () => {
+    const js = blueprintScript();
+    assert.match(js, /new ResizeObserver\(resized\)\.observe\(document\.getElementById\('stage'\)\)/);
+    assert.match(js, /if \(fitMode \|\| firstSize\) \{ fit\(\); \} else \{ applyView\(\); \}/);
+});

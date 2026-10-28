@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.43 — 2026-10-28
+- **Blueprint follows the size of its window**: when the tab is resized, split, shown again or put in full screen, the graph is fitted again to the room it has (in *Fit window* mode); with a zoom you chose, the zoom and the point of view are kept.
+
 ## 0.1.42 — 2026-10-28
 - **Blueprint: full screen** — the *Full screen* button or `Ctrl+K Ctrl+F` (the same key as the designer, while the blueprint tab is active) hides the side bar and the panels so the graph gets the whole window; `Esc` (with nothing selected) or the same key leaves it, and the view is refitted.
 

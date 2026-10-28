@@ -312,7 +312,6 @@ export function blueprintScript(): string {
     document.body.classList.toggle('full', on);
     document.getElementById('full').innerHTML = on ? '&#x26F6; Exit full screen' : '&#x26F6; Full screen';
     post({ type: 'fullscreen', on: on });
-    setTimeout(function () { if (fitMode) { fit(); } else { applyView(); } }, 250);
   }
   document.getElementById('full').addEventListener('click', function () { setFull(!full); });
   document.getElementById('zoom').addEventListener('change', function (ev) {
@@ -326,7 +325,18 @@ export function blueprintScript(): string {
   document.getElementById('refresh').addEventListener('click', function () { post({ type: 'ready' }); });
   document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); render(); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); });
-  window.addEventListener('resize', applyView);
+  /* the graph follows the size of its window: in Fit window mode it is fitted again, otherwise the zoom and the point of view stay */
+  var lastW = 0, lastH = 0;
+  function resized() {
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (w === lastW && h === lastH) { return; }
+    var firstSize = lastW === 0 || lastH === 0;
+    lastW = w; lastH = h;
+    if (w < 50 || h < 50) { return; }
+    if (fitMode || firstSize) { fit(); } else { applyView(); }
+  }
+  if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(resized).observe(document.getElementById('stage')); }
+  window.addEventListener('resize', resized);
 
   window.addEventListener('message', function (ev) {
     var m = ev.data || {};

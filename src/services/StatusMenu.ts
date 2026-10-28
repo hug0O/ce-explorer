@@ -67,6 +67,7 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(note) Memo', description: 'Ctrl+K Ctrl+N', command: 'ce.memo.open' },
                 { label: '$(book) User guide', description: 'pictures and animations', command: 'ce.openGuide' },
+                { label: '$(history) What was changed', description: 'the edits made by the extension', command: 'ce.showActionLog' },
                 { label: '$(rocket) Quick start', description: 'a 1-minute tour', command: 'ce.openWalkthrough' },
                 { label: '$(gear) Settings', description: 'the few options of the extension', command: 'ce.openSettings' },
             ];

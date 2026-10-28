@@ -9,6 +9,7 @@ import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
 import type { WorkspaceIndex } from './WorkspaceIndex';
 import { queueDfmRename, syncFormAfterDelete } from './FormSync';
 import { insertPlDocHeader } from './PlSqlCommands';
+import { notify } from './Notify';
 
 let _workspaceIndex: WorkspaceIndex | undefined;
 export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
@@ -138,7 +139,7 @@ export async function editMember(
             ceLog('[editMember] standalone rewrite result: ' + ok);
             if (ok) {
                 codeExplorer.refresh();
-                vscode.window.showInformationMessage('CE: Updated "' + result.name + '"');
+                void notify.done('CE: Updated "' + result.name + '"');
             }
             return ok;
         }
@@ -170,7 +171,7 @@ export async function editMember(
         const success = await applyGeneratedCode(doc, provider, gen);
         if (success) {
             codeExplorer.refresh();
-            vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + cls.name);
+            void notify.done('CE: Updated "' + result.name + '" in ' + cls.name);
         }
         return success;
     }
@@ -204,7 +205,7 @@ export async function editMember(
     ceLog('[editMember] final success: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('CE: Updated "' + result.name + '" in ' + cls.name);
+        void notify.done('CE: Updated "' + result.name + '" in ' + cls.name);
     }
 
     return success;
@@ -354,7 +355,7 @@ export async function createLocalVariable(
     if (ok) {
         const newPos = new vscode.Position(editor.selection.active.line, 0);
         editor.selection = new vscode.Selection(newPos, newPos);
-        vscode.window.showInformationMessage(`CE: Inserted local "${localName}: ${fieldType}".`);
+        void notify.done(`CE: Inserted local "${localName}: ${fieldType}".`);
     }
     return ok;
 }
@@ -454,7 +455,7 @@ export async function implementInterface(
     ceLog('[implementInterface] success: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('CE: Implemented ' + selected.length + ' method(s) in ' + cls.name);
+        void notify.done('CE: Implemented ' + selected.length + ' method(s) in ' + cls.name);
     }
     return success;
 }
@@ -473,7 +474,7 @@ export async function insertDocHeader(
 ): Promise<boolean> {
     if (provider.languageId === 'plsql') {
         const ok = await insertPlDocHeader(doc, { name: member.name, startLine: member.range.start.line });
-        if (ok) { vscode.window.showInformationMessage(`CE: PLDoc header written for "${member.name}".`); }
+        if (ok) { void notify.done(`CE: PLDoc header written for "${member.name}".`); }
         return ok;
     }
     const target = member.implementationRange?.start ?? member.range.start;
@@ -507,7 +508,7 @@ export async function insertDocHeader(
     pipeline.insert(doc.uri, new vscode.Position(target.line, 0), block);
     const ok = await pipeline.apply(`Insert doc header for "${member.name}"`);
     if (ok) {
-        vscode.window.showInformationMessage(`CE: Doc header inserted for "${member.name}".`);
+        void notify.done(`CE: Doc header inserted for "${member.name}".`);
     }
     return ok;
 }
@@ -541,7 +542,7 @@ export async function deleteMember(
     ceLog('[deleteMember] codeGenerator.deleteMember returned: ' + success);
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage(`Deleted member: ${member.name}`);
+        void notify.done(`Deleted member: ${member.name}`);
         // A component field of a Delphi form: remove its .dfm object (and empty handlers) too.
         await syncFormAfterDelete(doc, cls.name, member);
     }
@@ -602,7 +603,7 @@ export async function renameMember(
         ceLog('[renameMember] language-server rename applied: ' + applied);
         if (applied) {
             codeExplorer.refresh();
-            vscode.window.showInformationMessage(`Renamed "${member.name}" to "${newName}" (language server)`);
+            void notify.done(`Renamed "${member.name}" to "${newName}" (language server)`);
             return true;
         }
     }
@@ -723,7 +724,7 @@ export async function renameMember(
     ceLog('[renameMember] applyEdit result: ' + ok);
     if (ok) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage(`Renamed "${member.name}" to "${newName}"`);
+        void notify.done(`Renamed "${member.name}" to "${newName}"`);
     }
     return ok;
 }

@@ -8,6 +8,7 @@ import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { UnitGraph, UnitInfo, addUses, buildUnitGraph, readUnit, removeUses } from '../utils/unitGraph';
 import { unitFacts } from '../services/ProjectUnused';
 import { pool } from '../utils/pool';
+import { actionLog } from '../services/ActionLog';
 
 const SOURCE_GLOB = '**/*.{pas,dpr,dpk}';
 const EXCLUDE = '**/{node_modules,__history,__recovery,.git,Win32,Win64,Debug,Release}/**';
@@ -210,6 +211,7 @@ export class ProjectBlueprintPanel {
         const we = new vscode.WorkspaceEdit();
         we.replace(doc.uri, new vscode.Range(0, 0, doc.lineCount, 0), after);
         if (await vscode.workspace.applyEdit(we)) {
+            actionLog.record('Blueprint: ' + (add ? from.name + ' now uses ' + to.name : from.name + ' no longer uses ' + to.name), doc.uri.fsPath);
             this.notice(add ? from.name + ' now uses ' + to.name + ' (implementation section). Save to see the graph updated; Ctrl+Z in the unit undoes it.' : from.name + ' no longer uses ' + to.name + '. Save to see the graph updated.');
             // the unit is changed in memory: draw it from there without waiting for the save
             const u = readUnit(after, from.file);

@@ -475,6 +475,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const doc = editor.document;
         try {
             this.clearReviewDiagnostics();
+            const doing: Record<string, string> = { review: 'Reviewing the file', documentation: 'Writing the documentation', export: 'Exporting the structure', deadcode: 'Looking for dead code' };
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'CE: ' + (doing[kind] ?? 'Working') + '…' }, async () => {
+            await new Promise(r => setTimeout(r, 0));   // the message shows before the work starts
             switch (kind) {
                 case 'review': {
                     const findings = reviewDocument(doc, provider);
@@ -504,6 +507,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 }
             }
+            });
             this._analyticsKind = kind;
             this._mode = 'analytics';
             this.updateView();

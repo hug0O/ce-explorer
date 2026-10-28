@@ -2,6 +2,13 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.61 — 2026-10-28
+- **Undo, one click away.** Every edit the extension makes — a rename, a deletion, a member added or updated, a doc header, a synchronisation, a move — now says so with an **Undo** button on the message (the undo of the editor, on the file that was edited).
+- **What was changed.** A log of those edits (and of the Blueprint's: a call added or removed, a `uses` written), kept per workspace, with *how long ago* and the file: **CE: What was changed**, also in the status bar menu; choose an entry to open its file.
+- **Progress.** The review, the documentation, the export and the dead code search show what they are doing in the status bar while they work.
+- **The same keys in the lists.** Templates answer to the keys of the other lists: arrows move, `Enter` inserts, `E` edits, `Delete` deletes, `F` stars, `/` searches (listed in the Shortcuts tab).
+- **Same words in the project Blueprint**: the pins and the legend say *uses* / *used by* where the file view says *calls* / *called by*.
+
 ## 0.1.60 — 2026-10-28
 - **Quick start.** A VS Code *Get Started* walkthrough with five short steps — the structure of the file, moving between members, the Blueprint, the quick actions menu, the settings and the guide — each with its page and a link that runs the command (**CE: Quick start**). The first time the extension runs, a short message offers the tour once and never again.
 - **A tip a day.** The menu of the status bar item starts with a tip (*Alt+G picks a member by typing a few letters*…) that runs the command it talks about when chosen; ten tips, the same all day. The menu also has *Quick start* and *Settings*.

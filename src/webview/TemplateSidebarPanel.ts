@@ -213,7 +213,7 @@ ${hiddenCount > 0 || this._showAll
             const escName = escapeHtml(t.name).replace(/"/g, '&quot;');
             const text = escapeHtml((t.name + ' ' + (t.prefix ?? '') + ' ' + (t.description ?? '') + ' ' + langs).toLowerCase());
             const star = favs.has(t.name);
-            return `<div class="tpl-row" data-text="${text}">
+            return `<div class="tpl-row" data-text="${text}" tabindex="0">
 <button class="act star${star ? ' on' : ''}" data-fav="${escName}" title="${star ? 'Remove from the favorites' : 'Add to the favorites: listed first, for every file'}">${star ? '★' : '☆'}</button>
 <div class="tpl-main" data-insert="${escName}" title="Click to insert at cursor">
 <div class="tpl-name">${escapeHtml(t.name)} <span class="badge ${scopeClass}">${scopeLabel}</span></div>
@@ -267,6 +267,7 @@ body { font-family: var(--vscode-font-family, sans-serif); font-size: var(--vsco
 .filter-toggle { background: var(--vscode-button-secondaryBackground, rgba(127,127,127,0.2)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); border: none; border-radius: 3px; padding: 2px 8px; cursor: pointer; font-family: inherit; font-size: 10px; }
 .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--vscode-descriptionForeground); margin: 8px 0 4px; }
 .tpl-row { display: flex; align-items: center; gap: 4px; border-radius: 4px; padding: 4px 6px; margin-bottom: 2px; }
+.tpl-row:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: -1px; }
 .tpl-row:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15)); }
 .tpl-main { flex: 1; min-width: 0; cursor: pointer; }
 .tpl-name { font-weight: 600; font-size: 12px; }
@@ -311,6 +312,28 @@ ${builtinRows ? '<div class="section-title">Built-in</div>' + builtinRows : ''}
     search.addEventListener('input', function() { applySearch(); api.postMessage({ command: 'search', text: search.value }); });
     search.addEventListener('keydown', function(e) { if (e.key === 'Escape') { search.value = ''; applySearch(); api.postMessage({ command: 'search', text: '' }); } });
     applySearch();
+    // the keys of the other lists: arrows move, Enter inserts, E edits, Delete deletes, F stars, / searches
+    function rows() { return Array.prototype.filter.call(document.querySelectorAll('.tpl-row'), function(r) { return !r.hidden; }); }
+    document.addEventListener('keydown', function(e) {
+        var t = e.target;
+        if (t && t.tagName === 'INPUT') { if (e.key === 'ArrowDown') { var first = rows()[0]; if (first) { first.focus(); e.preventDefault(); } } return; }
+        if (e.key === '/') { search.focus(); e.preventDefault(); return; }
+        var list = rows();
+        var cur = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('tpl-row') ? document.activeElement : null;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            var i = cur ? list.indexOf(cur) : -1;
+            i = e.key === 'ArrowDown' ? Math.min(list.length - 1, i + 1) : Math.max(0, i - 1);
+            if (list[i]) { list[i].focus(); }
+            e.preventDefault();
+            return;
+        }
+        if (!cur) { return; }
+        var ins = cur.querySelector('[data-insert]'), ed = cur.querySelector('[data-edit]'), del = cur.querySelector('[data-del]'), fav = cur.querySelector('[data-fav]');
+        if (e.key === 'Enter' && ins) { api.postMessage({ command: 'insert', name: ins.getAttribute('data-insert') }); e.preventDefault(); }
+        else if ((e.key === 'e' || e.key === 'E') && ed) { api.postMessage({ command: 'edit', name: ed.getAttribute('data-edit'), scope: ed.getAttribute('data-scope') }); e.preventDefault(); }
+        else if (e.key === 'Delete' && del) { api.postMessage({ command: 'delete', name: del.getAttribute('data-del'), scope: del.getAttribute('data-scope') }); e.preventDefault(); }
+        else if ((e.key === 'f' || e.key === 'F') && fav) { api.postMessage({ command: 'favorite', name: fav.getAttribute('data-fav') }); e.preventDefault(); }
+    });
     document.querySelectorAll('[data-fav]').forEach(function(el) {
         el.addEventListener('click', function(e) { e.stopPropagation(); api.postMessage({ command: 'favorite', name: el.getAttribute('data-fav') }); });
     });

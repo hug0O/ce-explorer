@@ -300,8 +300,8 @@ export function blueprintScript(): string {
       var pout = el('path', { 'class': 'pin exec', d: 'M' + (n.w - 1) + ',' + (HEAD + 5) + ' l8,7 l-8,7 z', 'data-pin': 'out' }, g);
       var tin = el('title', {}, pin); tin.textContent = 'Drag from here to another node to make it call ' + n.name;
       var tout = el('title', {}, pout); tout.textContent = 'Drag to another node: ' + n.name + ' will call it';
-      var inl = el('text', { 'class': 'lbl', x: 12, y: HEAD + 16 }, g); inl.textContent = 'call';
-      var outl = el('text', { 'class': 'lbl out', x: n.w - 12, y: HEAD + 16 }, g); outl.textContent = 'then';
+      var inl = el('text', { 'class': 'lbl', x: 12, y: HEAD + 16 }, g); inl.textContent = projectMode ? 'used by' : 'call';
+      var outl = el('text', { 'class': 'lbl out', x: n.w - 12, y: HEAD + 16 }, g); outl.textContent = projectMode ? 'uses' : 'then';
       if (!compact) { n.params.forEach(function (p, i) {
         var y = HEAD + 12 + (i + 1) * ROWH;
         var c = el('circle', { 'class': 'pin', cx: 0, cy: y, r: 5, fill: pinColor(p.type) }, g);
@@ -778,6 +778,9 @@ export function blueprintScript(): string {
       locked = projectMode || flowMode;
       document.body.classList.toggle('project', projectMode || flowMode);
       document.body.classList.toggle('flow', flowMode);
+      document.getElementById('lgWire').textContent = projectMode ? 'Wire colour = the unit that uses' : 'Wire colour = the caller';
+      document.getElementById('lgIn').textContent = projectMode ? 'uses the selected' : 'calls the selected';
+      document.getElementById('lgOut').textContent = projectMode ? 'used by the selected' : 'called by the selected';
       document.getElementById('empty').textContent = projectMode ? 'No unit found in the project.' : 'No routine to draw in this file.';
       document.getElementById('back').hidden = !flowMode;
       document.getElementById('vfile').classList.toggle('on', !projectMode);
@@ -862,7 +865,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div id="stage">
 <svg id="cv"><g id="grid"></g><g id="world"></g></svg>
 <div class="empty" id="empty">No routine to draw in this file.</div>
-<div class="legend">Wire colour = the caller<i style="background:#4aa3ff"></i>calls the selected<i style="background:#ffb347"></i>called by the selected</div>
+<div class="legend"><span id="lgWire">Wire colour = the caller</span><i style="background:#4aa3ff"></i><span id="lgIn">calls the selected</span><i style="background:#ffb347"></i><span id="lgOut">called by the selected</span></div>
 <div class="help">Wheel zooms, middle button pans &middot; Drag a node by its title &middot; drag from a white arrow to another node to add a call &middot; click a wire + Delete removes the call &middot; F2 rename &middot; Delete removes the routine &middot; double-click opens the code</div>
 </div>
 <div id="side"></div>

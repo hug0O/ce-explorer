@@ -49,6 +49,7 @@ import { offerDfmForNewField } from './services/FormSync';
 import { alignSelection, addComponent, addEventHandler } from './services/FormCommands';
 import { batchMove, batchGenerateGettersSetters, buildMoveTargetCode } from './services/BatchOperations';
 import { notify } from './services/Notify';
+import { actionLog, ageText } from './services/ActionLog';
 
 let providerRegistry: ProviderRegistry;
 let codeExplorer: CodeExplorerService;
@@ -138,6 +139,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
+        actionLog.init(context.workspaceState);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.showActionLog', async () => {
+            const entries = actionLog.list();
+            if (!entries.length) { void vscode.window.showInformationMessage('CE: Nothing has been changed by Code Explorer in this workspace yet.'); return; }
+            const pick = await vscode.window.showQuickPick(
+                entries.map(e => ({ label: e.label, description: ageText(e.at), detail: e.file ? vscode.workspace.asRelativePath(e.file) : undefined, file: e.file })),
+                { title: 'What Code Explorer changed (newest first)', placeHolder: 'Pick one to open the file' });
+            if (pick?.file) { await vscode.window.showTextDocument(vscode.Uri.file(pick.file)); }
+        }));
         context.subscriptions.push(vscode.commands.registerCommand('ce.openWalkthrough', () => vscode.commands.executeCommand('workbench.action.openWalkthrough', 'ce.ce-code-explorer#ce.start', false)));
         // the first time only: a short offer to see how to start, never again (and never in the way of the work)
         if (!context.globalState.get<boolean>('ce.welcomed')) {
@@ -331,7 +341,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const applied = await pipeline.apply(`Move "${member.name}" to ${destName}`);
             codeExplorer.refresh();
             if (applied) {
-                vscode.window.showInformationMessage(`Moved "${member.name}" from ${sourceClass.name} to ${destClass.name}`);
+                void notify.done(`Moved "${member.name}" from ${sourceClass.name} to ${destClass.name}`);
             } else {
                 void notify.failed(`CE: Move of "${member.name}" cancelled or failed — nothing changed.`);
             }
@@ -474,7 +484,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             if (totalSynced > 0) {
                 codeExplorer.refresh();
-                vscode.window.showInformationMessage(`Synchronized ${totalSynced} member(s).`);
+                void notify.done(`Synchronized ${totalSynced} member(s).`);
             } else {
                 vscode.window.showInformationMessage('All members are already synchronized.');
             }
@@ -810,7 +820,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             if (totalGenerated > 0) {
                 codeExplorer.refresh();
-                vscode.window.showInformationMessage('CE: Generated ' + totalGenerated + ' accessor(s).');
+                void notify.done('CE: Generated ' + totalGenerated + ' accessor(s).');
             } else {
                 vscode.window.showInformationMessage('CE: No accessors were generated.');
             }
@@ -1065,7 +1075,7 @@ async function addMember(kind: MemberKind, _item?: CodeExplorerTreeItem): Promis
 
     if (success) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage('CE: Added "' + result.name + '" to ' + targetClass.name + ' ✓');
+        void notify.done('CE: Added "' + result.name + '" to ' + targetClass.name + ' ✓');
         if (result.kind === MemberKind.Field && provider.languageId === 'pascal') {
             await offerDfmForNewField(doc, result.name, result.type || result.returnType);
         }
@@ -1149,7 +1159,7 @@ async function applyStandaloneFunction(doc: vscode.TextDocument, provider: ILang
     const ok = await pipeline.apply('Add standalone function');
     if (ok) {
         codeExplorer.refresh();
-        vscode.window.showInformationMessage(`CE: Added function "${name}" ✓`);
+        void notify.done(`CE: Added function "${name}" ✓`);
     }
 }
 

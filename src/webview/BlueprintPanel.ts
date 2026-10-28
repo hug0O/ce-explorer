@@ -10,6 +10,7 @@ import { BpMember, BpModel, SavedPositions, buildBlueprint, nodeIds } from '../u
 import { layout } from '../utils/blueprintLayout';
 import { analyze } from '../utils/blueprintAnalysis';
 import { toMermaid, toSvg } from '../utils/blueprintExport';
+import { actionLog } from '../services/ActionLog';
 import { eventsByHandler } from '../utils/blueprintEvents';
 import { buildFlow } from '../utils/pascalFlow';
 import { parseDfmTree } from '../services/DelphiLayout';
@@ -289,6 +290,7 @@ export class BlueprintPanel {
         const after = this.doc.getText();
         if (after !== before) {
             this.undoStack.push({ label, before, after });
+            actionLog.record('Blueprint: ' + label, this.doc.uri.fsPath);
             if (this.undoStack.length > 100) { this.undoStack.shift(); }
             this.redoStack = [];
         }

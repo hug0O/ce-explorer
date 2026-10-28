@@ -116,7 +116,8 @@ export const BLUEPRINT_SHORTCUTS: ShortcutItem[] = [
 ];
 
 export const SIDEBAR_SHORTCUTS: ShortcutItem[] = [
-    { keys: 'Up / Down', label: 'Structure: move along the members' },
+    { keys: 'Up / Down', label: 'Structure and Templates: move along the list' },
+    { keys: 'Enter / E / Delete / F', label: 'Templates: insert / edit / delete / star the template under the cursor; / searches' },
     { keys: 'Enter', label: 'Structure: go to the member under the cursor' },
     { keys: 'F2 / E / Delete', label: 'Structure: rename / edit / delete the member under the cursor' },
     { keys: 'Click a member', label: 'Structure: go to it, and show where it is used in the file', mouse: true },

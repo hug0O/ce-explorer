@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { actionLog } from './ActionLog';
 
 /** A button of a message: a label and the command it runs. */
 export interface NotifyAction { label: string; command: string; args?: unknown[] }
@@ -30,6 +31,22 @@ export const notify = {
             { label: 'Pick a member...', command: 'ce.nav.pickMember' },
             { label: 'Show the structure', command: 'ce.manageMembers' },
         ]);
+    },
+
+    /**
+     * An edit was made: say it, keep it in the log of the actions, and offer **Undo**. The undo is the one of the editor, on the file that
+     * was being edited.
+     */
+    async done(message: string): Promise<void> {
+        const uri = vscode.window.activeTextEditor?.document.uri;
+        actionLog.record(message, uri?.fsPath);
+        const pick = await vscode.window.showInformationMessage(message, 'Undo');
+        if (pick !== 'Undo') { return; }
+        try {
+            if (uri && vscode.window.activeTextEditor?.document.uri.toString() !== uri.toString()) { await vscode.window.showTextDocument(uri); }
+            await vscode.commands.executeCommand('undo');
+            actionLog.record('Undone: ' + message, uri?.fsPath);
+        } catch { /* nothing to undo any more */ }
     },
 
     /** Something failed: say it, and offer the log, plus whatever else helps. */

@@ -19,7 +19,7 @@ test('the page script is valid and sends one message per gesture', () => {
 
 test('the page has its toolbar, a canvas and a strict content security policy', () => {
     const html = blueprintHtml({ nonce: 'abc', cspSource: 'vscode-resource:', title: 'A <b>' });
-    for (const id of ['addNode', 'fit', 'relayout', 'filter', 'alone', 'cv']) { assert.ok(html.includes('id="' + id + '"'), id); }
+    for (const id of ['addNode', 'zoom', 'zoomIn', 'zoomOut', 'relayout', 'filter', 'alone', 'cv']) { assert.ok(html.includes('id="' + id + '"'), id); }
     assert.match(html, /script-src 'nonce-abc'/);
     assert.ok(!html.includes('A <b>') && html.includes('A &lt;b&gt;'), 'the title is escaped');
 });
@@ -42,4 +42,16 @@ test('the Blueprint command is declared, in the editor submenu, the quick action
     const ext = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
     assert.match(ext, /registerCommand\('ce\.blueprint\.open'/);
     assert.match(ext, /BlueprintPanel\.configure\(/);
+});
+
+test('zoom works as in the designer: a select with presets and Fit window, buttons, the wheel around the pointer, keys, middle-button pan', () => {
+    const js = blueprintScript();
+    const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
+    for (const v of ['fit', '0.25', '0.5', '1', '1.5', '2']) { assert.ok(html.includes('<option value="' + v + '"'), 'preset ' + v); }
+    assert.match(js, /function setZoom\(k, mx, my\)/);
+    assert.match(js, /setZoom\(view\.k \* \(1 \+ step \* 0\.6\), ev\.clientX - r\.left, ev\.clientY - r\.top\)/);
+    assert.match(js, /ev\.key === '0'\) \{ setZoom\(1\)/);
+    assert.match(js, /ev\.key === 'f' \|\| ev\.key === '9'/);
+    assert.match(js, /ev\.button === 1/);
+    assert.match(js, /'Fit window \(' \+ pct/);
 });

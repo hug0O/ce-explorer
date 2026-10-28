@@ -151,6 +151,7 @@ export function blueprintScript(): string {
   }
 
   function applyView() {
+    showZoom();
     world.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')');
     // the grid follows the view
     var gs = 40 * view.k;
@@ -162,7 +163,27 @@ export function blueprintScript(): string {
     for (var y = oy; y < h; y += gs) { el('line', { 'class': 'grid-line', x1: 0, y1: y, x2: w, y2: y }, gridG); }
   }
 
+  var fitMode = true;
+  function showZoom() {
+    var sel = document.getElementById('zoom');
+    var pct = Math.round(view.k * 100);
+    var o = document.getElementById('zoomcustom');
+    if (fitMode) { sel.value = 'fit'; sel.options[0].textContent = 'Fit window (' + pct + '%)'; o.hidden = true; return; }
+    sel.options[0].textContent = 'Fit window';
+    var key = String(Math.round(view.k * 100) / 100);
+    for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === key) { o.hidden = true; sel.value = key; return; } }
+    o.textContent = pct + '%'; o.hidden = false; sel.value = 'custom';
+  }
+  /* zoom to k keeping the point (mx, my) of the canvas where it is; without a point, the middle of the canvas */
+  function setZoom(k, mx, my) {
+    k = Math.min(3, Math.max(0.1, k));
+    if (mx === undefined) { mx = cv.clientWidth / 2; my = cv.clientHeight / 2; }
+    view.x = mx - (mx - view.x) * (k / view.k); view.y = my - (my - view.y) * (k / view.k); view.k = k;
+    fitMode = false;
+    applyView();
+  }
   function fit() {
+    fitMode = true;
     var list = model.nodes;
     if (!list.length) { view = { x: 40, y: 40, k: 1 }; applyView(); return; }
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
@@ -186,6 +207,12 @@ export function blueprintScript(): string {
   // --- gestures ---
   var drag = null;
   cv.addEventListener('mousedown', function (ev) {
+    if (ev.button === 1) {
+      ev.preventDefault();
+      drag = { mode: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y, moved: false };
+      cv.classList.add('panning');
+      return;
+    }
     if (ev.button !== 0) { return; }
     var t = ev.target;
     var pinKind = t.getAttribute && t.getAttribute('data-pin');
@@ -251,10 +278,9 @@ export function blueprintScript(): string {
   cv.addEventListener('wheel', function (ev) {
     ev.preventDefault();
     var r = cv.getBoundingClientRect();
-    var mx = ev.clientX - r.left, my = ev.clientY - r.top;
-    var k = Math.min(2.5, Math.max(0.1, view.k * (ev.deltaY < 0 ? 1.12 : 1 / 1.12)));
-    view.x = mx - (mx - view.x) * (k / view.k); view.y = my - (my - view.y) * (k / view.k); view.k = k;
-    applyView();
+    // a wheel notch is about 12 percent, a trackpad pinch (small deltas) follows the fingers
+    var step = Math.max(-0.5, Math.min(0.5, -ev.deltaY / (ev.deltaMode === 1 ? 20 : 200)));
+    setZoom(view.k * (1 + step * 0.6), ev.clientX - r.left, ev.clientY - r.top);
   }, { passive: false });
 
   window.addEventListener('keydown', function (ev) {
@@ -262,7 +288,10 @@ export function blueprintScript(): string {
     if (ev.key === 'Escape') { if (inField) { ev.target.blur(); } sel = null; render(); return; }
     if (inField) { return; }
     if (ev.key === '/') { ev.preventDefault(); document.getElementById('filter').focus(); return; }
-    if (ev.key === 'f') { fit(); return; }
+    if (ev.key === 'f' || ev.key === '9') { fit(); return; }
+    if (ev.key === '0') { setZoom(1); return; }
+    if (ev.key === '+' || ev.key === '=') { setZoom(view.k * 1.25); return; }
+    if (ev.key === '-') { setZoom(view.k / 1.25); return; }
     if (ev.key === 'l') { post({ type: 'resetLayout' }); return; }
     if (!sel) { return; }
     if (ev.key === 'Delete' || ev.key === 'Backspace') {
@@ -274,7 +303,13 @@ export function blueprintScript(): string {
   });
 
   document.getElementById('addNode').addEventListener('click', function () { post({ type: 'addNode' }); });
-  document.getElementById('fit').addEventListener('click', fit);
+  document.getElementById('zoom').addEventListener('change', function (ev) {
+    var v = ev.target.value;
+    if (v === 'custom') { return; }
+    if (v === 'fit') { fit(); } else { setZoom(Number(v)); }
+  });
+  document.getElementById('zoomIn').addEventListener('click', function () { setZoom(view.k * 1.25); });
+  document.getElementById('zoomOut').addEventListener('click', function () { setZoom(view.k / 1.25); });
   document.getElementById('relayout').addEventListener('click', function () { post({ type: 'resetLayout' }); });
   document.getElementById('refresh').addEventListener('click', function () { post({ type: 'ready' }); });
   document.getElementById('filter').addEventListener('input', function (ev) { filter = ev.target.value.toLowerCase().trim(); render(); });
@@ -309,7 +344,8 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div class="bar">
 <span class="title">${esc(o.title)}</span>
 <button id="addNode" class="primary" title="Add a routine to the code (double-click on the canvas does the same where you click)">+ Node</button>
-<button id="fit" title="Show everything (F)">Fit</button>
+<label title="Fit window shows everything. The wheel zooms too, the middle button pans; keys: 0 = 100%, 9 or F = fit, + and - zoom">Zoom <select id="zoom"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+<button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
 <button id="relayout" title="Forget the positions and lay the nodes out again (L)">Auto layout</button>
 <button id="refresh" title="Read the file again">Refresh</button>
 <input id="filter" type="text" placeholder="Filter nodes (/)" spellcheck="false">
@@ -319,7 +355,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div id="stage">
 <svg id="cv"><g id="grid"></g><g id="world"></g></svg>
 <div class="empty" id="empty">No routine to draw in this file.</div>
-<div class="help">Drag a node by its title &middot; drag from a white arrow to another node to add a call &middot; click a wire + Delete removes the call &middot; F2 rename &middot; Delete removes the routine &middot; double-click opens the code</div>
+<div class="help">Wheel zooms, middle button pans &middot; Drag a node by its title &middot; drag from a white arrow to another node to add a call &middot; click a wire + Delete removes the call &middot; F2 rename &middot; Delete removes the routine &middot; double-click opens the code</div>
 </div>
 <script nonce="${o.nonce}">${blueprintScript()}</script>
 </body></html>`;

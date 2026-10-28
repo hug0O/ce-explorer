@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.41 — 2026-10-28
+- **Blueprint: zoom as in the designer** — a *Zoom* box (Fit window with its percentage, 25% to 200%), `−` / `+` buttons, the wheel zooming around the pointer, `0` for 100%, `9` or `F` to fit, `+` / `-`, and the middle button to pan.
+
 ## 0.1.40 — 2026-10-28
 - **Blueprint mode** (*CE: Blueprint*, in the *Code Explorer* right-click submenu and the quick actions): the routines of the file drawn as nodes, in the manner of Unreal Engine blueprints: a title bar, a white exec arrow in and out, one pin per parameter on the left and the return value on the right, and a wire for every call, laid out in columns from the callers to what they call.
 - **It edits the code**: drag from the arrow of a node to another node and the call is written at the end of the routine; click a wire and press Delete to remove the call (every call site); **F2** renames a routine with all its calls; **Delete** removes a routine; **double-click** a node opens its code; **double-click the canvas** or drag a wire to empty space adds a new routine (called by the one you dragged from). Everything is an ordinary edit of the file, so Ctrl+Z undoes it, and the picture is redrawn when the code changes.

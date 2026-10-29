@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.67",
+  "version": "0.1.68",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -42,7 +42,8 @@
     "onLanguage:bat",
     "onLanguage:powershell",
     "onLanguage:shellscript",
-    "onLanguage:markdown"
+    "onLanguage:markdown",
+    "onCustomEditor:ce.markdownEditor"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -433,6 +434,14 @@
       {
         "command": "ce.delphi.showInDesigner",
         "title": "CE Delphi: Show a component in the designer"
+      },
+      {
+        "command": "ce.markdown.open",
+        "title": "CE: Open as a Markdown page (viewer and editor)"
+      },
+      {
+        "command": "ce.markdown.new",
+        "title": "CE: New Markdown page"
       }
     ],
     "submenus": [
@@ -538,6 +547,11 @@
           "command": "ce.delphi.designer",
           "when": "resourceExtname =~ /^\\.(pas|dfm)$/i",
           "group": "navigation"
+        },
+        {
+          "command": "ce.markdown.open",
+          "when": "resourceExtname =~ /^\\.(md|markdown)$/i && activeCustomEditorId != ce.markdownEditor",
+          "group": "navigation@5"
         }
       ],
       "explorer/context": [
@@ -662,6 +676,11 @@
           "command": "ce.nav.toggleDeclImpl",
           "when": "editorTextFocus",
           "group": "1_navigate@7"
+        },
+        {
+          "command": "ce.markdown.open",
+          "when": "resourceExtname =~ /^\\.(md|markdown)$/i",
+          "group": "1_navigate@10"
         }
       ]
     },
@@ -1090,6 +1109,21 @@
               "onCommand:ce.openSettings",
               "onCommand:ce.openGuide"
             ]
+          }
+        ]
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "ce.markdownEditor",
+        "displayName": "Code Explorer Markdown (page)",
+        "priority": "option",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
           }
         ]
       }

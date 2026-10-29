@@ -35,6 +35,7 @@ test('the extension activates on startup and for every supported language', () =
         'onLanguage:powershell',
         'onLanguage:shellscript',
         'onLanguage:markdown',
+        'onCustomEditor:ce.markdownEditor',
     ];
 
     assert.deepEqual(manifest.activationEvents, expected);

@@ -41,7 +41,7 @@ export const GROUPS: { id: string; title: string; icon: string }[] = [
 
 const GROUP_OF: Record<string, string> = {
     'ce.goToMember': 'navigate', 'ce.goToWorkspaceMember': 'navigate', 'ce.manageMembers': 'navigate', 'ce.filterTree': 'navigate', 'ce.toggleGroupBy': 'navigate',
-    'ce.refreshExplorer': 'navigate', 'ce.nav.pickMember': 'navigate', 'ce.nav.nextMember': 'navigate', 'ce.nav.prevMember': 'navigate', 'ce.nav.toggleDeclImpl': 'navigate', 'ce.blueprint.open': 'navigate', 'ce.blueprint.project': 'navigate',
+    'ce.refreshExplorer': 'navigate', 'ce.nav.pickMember': 'navigate', 'ce.nav.nextMember': 'navigate', 'ce.nav.prevMember': 'navigate', 'ce.nav.toggleDeclImpl': 'navigate', 'ce.blueprint.open': 'navigate', 'ce.markdown.open': 'navigate', 'ce.markdown.new': 'navigate', 'ce.blueprint.project': 'navigate',
     'ce.addMethod': 'members', 'ce.addField': 'members', 'ce.addProperty': 'members', 'ce.addConstructor': 'members', 'ce.editMember': 'members',
     'ce.synchronizeDeclImpl': 'members', 'ce.implementInterface': 'members', 'ce.generateGettersSetters': 'members', 'ce.insertTemplate': 'members', 'ce.manageTemplates': 'members',
     'ce.renameMember': 'refactor', 'ce.renameVariable': 'refactor', 'ce.renameLocalVariable': 'refactor', 'ce.changeVariableType': 'refactor', 'ce.changeLocalType': 'refactor',

@@ -2,6 +2,12 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.68 — 2026-10-28
+- **A Markdown page: viewer and editor, with `/` commands as in Notion.** *CE: Open as a Markdown page* (title bar of a `.md` file, the *More commands* menu, or *Open With… > Code Explorer Markdown*) shows the file as a page — headings, lists, to-do check boxes you can tick, quotes, code blocks, tables, rules, images next to the file, links — with an **Outline** of the headings on the left. The normal Markdown editor stays the default: this one is opt-in.
+- **Edit by blocks**: *✎ Edit*, then click a block to change its text. `Enter` makes a new block (or the next item of a list; a second `Enter` on an empty item leaves the list; inside a code block it is a new line), `Backspace` on an empty block removes it, `↑` / `↓` at the edge go to the neighbour block, `Alt+↑` / `Alt+↓` move the block, `Esc` leaves it; the **＋ ↑ ↓ ✕** at the left of a block add, move and delete it.
+- **Type `/`** in a block for the menu: *Text, Heading 1-3, Bulleted / Numbered / To-do list, Quote, Callout, Code block, Divider, Table, Image, Link, Table of contents* — a few letters filter it, `↑` `↓` and `Enter` choose.
+- The file stays plain Markdown: the editor writes the blocks one blank line apart (nothing is rewritten until you edit), and a change made in the text editor, by undo or by git shows up in the page. **CE: New Markdown page** creates a page next to the file you are in and opens it.
+
 ## 0.1.67 — 2026-10-28
 - **The *Show in the designer* button is at the top of the Structure tab**, not inside the detail of the selected component: it is there whenever the unit has a form, and says *(btnSave)* when the member under the cursor is a component, so it comes back to the designer with that component selected; with nothing selected it just goes back to the designer.
 

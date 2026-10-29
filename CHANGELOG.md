@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.65 — 2026-10-28
+- **Every key of the designer, in a menu of the designer.** A **⌨ Keys** button in the toolbar (or `?` / `F1`) opens a list of all the keys and mouse gestures of the designer, with a filter box (`Esc` closes). It is the same list as the *Shortcuts* tab of the sidebar, so the two cannot disagree; it also says what is bound outside the page (`Ctrl+K Ctrl+B`, `Ctrl+K Ctrl+F`).
+- **Back from the code after `S`.** `Ctrl+K Ctrl+B` now also works while the sidebar has the focus, and brings the designer back **with the component selected again**. In the Structure tab, a component has a **🎨 Show in the designer** button that does the same (the unit and the form must be the same name, as in Delphi).
+
 ## 0.1.64 — 2026-10-28
 - **From the designer to the code in one key.** With one component selected in the form designer, **S** (or *Show in Structure* in its right-click menu) switches to the unit and brings the sidebar to the **Structure** tab, filtered on that component, with the component opened: its events and *Used in this file* unfolded.
 - **The events of a component, in the Structure tab.** Click a component (a field such as `btnSave`) and an **Events** block lists what the `.dfm` wires on it — `OnClick → btnSaveClick` — each one a click away from the handler's implementation; a handler named in the form but without code in the unit is shown as *(no implementation)*. Click the handler itself and the tab says *Handler of btnSave.OnClick* (all of them when one handler serves several components).

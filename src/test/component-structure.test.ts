@@ -57,3 +57,45 @@ test('in the designer, S on a selected component switches to the code and the St
     assert.ok(pkg.contributes.menus.commandPalette.some(m => m.command === 'ce.structure.showComponent' && m.when === 'false'), 'not offered in the palette');
     assert.match(read('webview/shortcutsSection.ts'), /keys: 'S', label: 'Switch to the code/);
 });
+
+import { helpItems, helpScript, DESIGNER_CHORDS } from '../webview/designerHelp';
+import { buildShortcutGroups } from '../webview/shortcutsSection';
+import { hasComponent } from '../utils/componentEvents';
+
+test('the designer lists every key and gesture in a menu of its own, the same list as the Shortcuts tab', () => {
+    const html = designerHtml('N');
+    assert.ok(html.includes('id="helpbtn"') && html.includes('id="keyhelp"') && html.includes('id="keyq"'));
+    const items = helpItems();
+    for (const k of ['S', 'F2', 'Ctrl+D', 'Ctrl+F', 'Ctrl+L / Ctrl+H', '? / F1', 'Ctrl+K Ctrl+B', 'Ctrl+K Ctrl+F']) { assert.ok(items.some(i => i.keys === k), k + ' is listed'); }
+    assert.ok(items.some(i => i.mouse) && items.some(i => !i.mouse), 'keyboard and mouse');
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, '..', 'package.json'), 'utf8')) as { contributes: { keybindings: { key: string; command: string; when?: string }[] } };
+    const chords = pkg.contributes.keybindings.filter(k => /ceFormDesigner/.test(k.when ?? '')).map(k => k.key.split(' ').map(w => w.replace(/^ctrl\+/, 'Ctrl+').replace(/^(\w)$/, c => c.toUpperCase()).replace(/^Ctrl\+(\w)$/, (_m, c: string) => 'Ctrl+' + c.toUpperCase())).join(' '));
+    for (const c of chords) { assert.ok(DESIGNER_CHORDS.some(d => d.keys === c), 'the chord ' + c + ' of package.json is in the menu'); }
+    const tab = buildShortcutGroups(pkg as never).find(g => g.id === 'designer')!.items.map(i => i.keys);
+    for (const i of items.filter(i => !DESIGNER_CHORDS.includes(i))) { assert.ok(tab.includes(i.keys), i.keys + ' is in the Shortcuts tab too'); }
+    const js = helpScript();
+    assert.ok(!js.includes('`') && !js.includes('${'), 'plain script');
+    assert.match(js, /ev\.key === 'F1' \|\| \(ev\.key === '\?'/);
+    assert.match(js, /ev\.key === 'Escape' && !\$\('keyhelp'\)\.hidden/);
+    assert.doesNotThrow(() => new Function('$', 'document', js.replace(/\$\('helpbtn'\)[\s\S]*$/, '')), 'the list data parses');
+});
+
+test('back from the code: Ctrl+K Ctrl+B also from the sidebar, a button on the component, and the component comes back selected', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, '..', 'package.json'), 'utf8')) as { contributes: { keybindings: { key: string; command: string; when?: string }[]; menus: { commandPalette: { command: string; when: string }[] } } };
+    const k = pkg.contributes.keybindings.find(b => b.command === 'ce.delphi.toggleDesigner')!;
+    assert.match(k.when ?? '', /sideBarFocus/);
+    assert.match(k.when ?? '', /resourceExtname/, 'still in the unit and the form');
+    assert.ok(pkg.contributes.menus.commandPalette.some(m => m.command === 'ce.delphi.showInDesigner' && m.when === 'false'));
+    const html = focusHtml({ ...base, designerComponent: true });
+    assert.match(html, /data-m-act="designer" data-id="m1"[^>]*>🎨 Show in the designer<span class="kbd">Ctrl\+K Ctrl\+B<\/span>/);
+    assert.ok(!/data-m-act="designer"/.test(focusHtml(base)), 'only for a component');
+    assert.equal(hasComponent(DFM, 'btnSave'), true);
+    assert.equal(hasComponent(DFM, 'Missing'), false);
+    const d = read('webview/FormDesignerPanel.ts');
+    assert.match(d, /FormDesignerPanel\.backTo\.set\(this\.dfmDoc\.uri\.toString\(\), name\)/, 'S remembers the component');
+    assert.match(d, /type: 'selectComponent', name: back/);
+    assert.match(d, /static async showComponent\(/);
+    assert.match(read('webview/designerHtml.ts'), /m\.type === 'selectComponent'/);
+    assert.match(read('webview/MemberViewerPanel.ts'), /executeCommand\('ce\.delphi\.showInDesigner', target\.name\)/);
+    assert.match(read('extension.ts'), /registerCommand\('ce\.delphi\.showInDesigner'/);
+});

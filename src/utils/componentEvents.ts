@@ -27,6 +27,12 @@ export function eventsOfComponent(dfm: string, name: string): WiredEvent[] {
     return out;
 }
 
+/** Whether the form has a component (or is the form) with this name. */
+export function hasComponent(dfm: string, name: string): boolean {
+    const root = parseDfmTree(dfm);
+    return !!root && !!find(root, name);
+}
+
 /** The `Component.OnEvent` pairs that a handler answers (a handler can serve several components). */
 export function eventsOfHandler(dfm: string, handler: string): string[] {
     const root = parseDfmTree(dfm);

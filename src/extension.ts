@@ -157,6 +157,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         context.subscriptions.push(vscode.commands.registerCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
         context.subscriptions.push(vscode.commands.registerCommand('ce.structure.showComponent', (name: string) => { if (typeof name === 'string') { void memberViewer.showComponentInStructure(name); } }));
+        context.subscriptions.push(vscode.commands.registerCommand('ce.delphi.showInDesigner', (name: string) => { if (typeof name === 'string') { void FormDesignerPanel.showComponent(vscode.window.activeTextEditor?.document, name); } }));
         context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);

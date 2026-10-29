@@ -51,6 +51,8 @@ export interface FocusView {
     events?: { event: string; handler: string; line?: number }[];
     /** Delphi: the `Component.OnEvent` this routine is the handler of. */
     handlerOf?: string[];
+    /** Delphi: this member is a component of the form: a button brings the designer back with it selected. */
+    designerComponent?: boolean;
     /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
     open: { used: boolean; vars: boolean; find: boolean; events?: boolean };
 }
@@ -167,6 +169,9 @@ function hitRowsHtml(hits: LineHit[], total: number): string {
 export function focusHtml(f: FocusView): string {
     const open = (on: boolean): string => (on ? ' open' : '');
     let html = `<div class="mfocus" id="mFocus">`;
+    if (f.designerComponent) {
+        html += `<button class="ana has-kbd" data-m-act="designer" data-id="${esc(f.id)}" title="Back to the form designer with ${esc(f.name)} selected">🎨 Show in the designer<span class="kbd">Ctrl+K Ctrl+B</span></button>`;
+    }
     if (f.handlerOf?.length) {
         html += `<p class="mnote">⚡ Handler of <b>${f.handlerOf.map(esc).join('</b>, <b>')}</b></p>`;
     }

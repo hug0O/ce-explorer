@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.64",
+  "version": "0.1.65",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -429,6 +429,10 @@
       {
         "command": "ce.structure.showComponent",
         "title": "CE: Show a component in the structure"
+      },
+      {
+        "command": "ce.delphi.showInDesigner",
+        "title": "CE Delphi: Show a component in the designer"
       }
     ],
     "submenus": [
@@ -517,6 +521,10 @@
         },
         {
           "command": "ce.structure.showComponent",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.showInDesigner",
           "when": "false"
         }
       ],
@@ -871,7 +879,7 @@
       {
         "command": "ce.delphi.toggleDesigner",
         "key": "ctrl+k ctrl+b",
-        "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'ceFormDesigner'"
+        "when": "(editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i) || activeWebviewPanelId == 'ceFormDesigner' || sideBarFocus"
       },
       {
         "command": "ce.nav.nextMember",

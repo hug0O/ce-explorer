@@ -124,7 +124,13 @@ export class FormDesignerPanel {
         }
         const key = pair.dfm.toString();
         const existing = FormDesignerPanel.open.get(key);
-        if (existing) { existing.panel.reveal(existing.panel.viewColumn ?? vscode.ViewColumn.Active); return; }
+        if (existing) {
+            existing.panel.reveal(existing.panel.viewColumn ?? vscode.ViewColumn.Active);
+            // coming back from the Structure tab (the S key): the component that was left comes back selected
+            const back = FormDesignerPanel.backTo.get(key);
+            if (back) { FormDesignerPanel.backTo.delete(key); void existing.panel.webview.postMessage({ type: 'selectComponent', name: back }); }
+            return;
+        }
         const [pasDoc, dfmDoc] = await Promise.all([vscode.workspace.openTextDocument(pair.pas), vscode.workspace.openTextDocument(pair.dfm)]);
         if (!buildDesignModel(dfmDoc.getText())) {
             vscode.window.showWarningMessage('CE: The .dfm is not in text format (in Delphi: right-click the form → Text DFM).');
@@ -136,6 +142,16 @@ export class FormDesignerPanel {
             enableScripts: true, retainContextWhenHidden: true,
         });
         FormDesignerPanel.open.set(key, new FormDesignerPanel(panel, pasDoc, dfmDoc));
+    }
+
+    /** The component to select when the designer is shown again, by .dfm (set when the code is reached with S or from the Structure tab). */
+    private static readonly backTo = new Map<string, string>();
+
+    /** The designer of the unit with this component selected (the *Show in the designer* button of the Structure tab). */
+    static async showComponent(doc: vscode.TextDocument | undefined, name: string): Promise<void> {
+        const m = doc ? /^(.*)\.(pas|dfm)$/i.exec(doc.uri.fsPath) : null;
+        if (m) { FormDesignerPanel.backTo.set(vscode.Uri.file(m[1] + '.dfm').toString(), name); }
+        await FormDesignerPanel.createOrShow(doc);
     }
 
     /** Delphi's F12: from the designer to the code, from the code (or the .dfm) back to the designer. */
@@ -467,6 +483,7 @@ export class FormDesignerPanel {
                 // to the code, and the sidebar on the component: filtered, with its events and where it is used
                 const name = str(m.name);
                 if (!NAME_RE.test(name)) { return; }
+                FormDesignerPanel.backTo.set(this.dfmDoc.uri.toString(), name);
                 await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn });
                 await vscode.commands.executeCommand('ce.structure.showComponent', name);
                 return;

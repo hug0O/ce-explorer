@@ -7,6 +7,7 @@ import { snapScript } from './designerSnap';
 import { viewButton, viewCss, viewHtml, viewScript } from './designerView';
 import { toolsButton, toolsCss, toolsScript } from './designerTools';
 import { ergoCss, ergoHtml, ergoScript } from './designerErgo';
+import { helpButton, helpCss, helpHtml, helpScript } from './designerHelp';
 import { marksCss, marksScript } from './designerMarks';
 import { compareCss, compareScript } from './designerCompare';
 import { layoutsCss, layoutsScript } from './designerLayouts';
@@ -265,6 +266,7 @@ textarea.capbox { width: 100%; min-height: 36px; resize: vertical; font: inherit
 ${viewCss()}
 ${toolsCss()}
 ${ergoCss()}
+${helpCss()}
 ${marksCss()}
 ${compareCss()}
 ${layoutsCss()}
@@ -384,7 +386,7 @@ body.full #toolbar { padding: 3px 8px; }
 </style></head>
 <body>
 ${viewHtml()}
-${ergoHtml()}
+${ergoHtml()}${helpHtml()}
 <div id="toolbar">
   <div class="tg" title="File">
     <button id="save" title="Save the .dfm and the .pas (Ctrl+S)">💾 Save<span id="dirty" hidden>●</span><span class="kbd">Ctrl+S</span></button><button id="undo" class="ib" title="Undo (Ctrl+Z)">↶</button><button id="redo" class="ib" title="Redo (Ctrl+Y)">↷</button>
@@ -402,6 +404,7 @@ ${ergoHtml()}
     <label>Zoom <select id="zoom" title="Fit window scales the form to the room left by the panels. Ctrl + wheel zooms too"><option value="fit">Fit window</option><option id="zoomcustom" value="custom" hidden>100%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
     ${viewButton()}
     ${toolsButton()}
+    ${helpButton()}
   </div>
   <div class="tg end">
     <button id="togleft" class="active" title="Hide / show the palette and the component list (P)">◧ Palette</button><button id="togright" class="active" title="Hide / show the inspector (I)">Inspector ◨</button><button id="full" title="Full screen: hides both panels and the VS Code interface (F, or Ctrl+K Ctrl+F). Press again to come back">⛶ Full screen<span class="kbd">Ctrl+K Ctrl+F</span></button><button id="opencode" title="Switch to the code of the unit; come back with the Designer tab, the title-bar button or the same shortcut">&lt;/&gt; Code<span class="kbd">Ctrl+K Ctrl+B</span></button><button id="opendfm" title="Open the .dfm text">.dfm</button>
@@ -2015,6 +2018,7 @@ ${snapScript()}
 ${viewScript()}
 ${toolsScript()}
 ${ergoScript()}
+${helpScript()}
 ${marksScript()}
 ${compareScript()}
 ${layoutsScript()}
@@ -2565,6 +2569,7 @@ ${layoutsScript()}
   function onMessage(m) {
     if (m.type === 'hosts') { state.hosts = m.hosts || []; render(); return; }
     if (m.type === 'toggleFull') { setFull(!state.ui.full); return; }
+    if (m.type === 'selectComponent') { if (m.name && byName[m.name]) { select([m.name]); state.notice = m.name + ' selected.'; renderStatus(); } return; }
     if (m.type === 'model') {
       state.model = m.model;
       state.hosts = m.hosts || [];

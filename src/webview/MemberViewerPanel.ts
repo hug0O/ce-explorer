@@ -26,7 +26,7 @@ import { currentDocument } from '../services/LastEditor';
 import { COMMON_COMMANDS, DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 import { notify } from '../services/Notify';
-import { eventsOfComponent, eventsOfHandler } from '../utils/componentEvents';
+import { eventsOfComponent, eventsOfHandler, hasComponent } from '../utils/componentEvents';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -795,14 +795,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     }
 
     /** A component's events and the handlers' lines; for a routine, the events it answers. */
-    private formLinks(member: ClassMember): { events?: { event: string; handler: string; line?: number }[]; handlerOf?: string[] } {
+    private formLinks(member: ClassMember): { events?: { event: string; handler: string; line?: number }[]; handlerOf?: string[]; designerComponent?: boolean } {
         const dfm = this.dfmText();
         if (!dfm) { return {}; }
         const all = [...this.manageContext().classes.flatMap(c => c.members), ...this.manageContext().standalone];
         if (member.kind === MemberKind.Field) {
+            if (!hasComponent(dfm, member.name)) { return {}; }
             const wired = eventsOfComponent(dfm, member.name);
-            if (!wired.length) { return {}; }
-            return { events: wired.map(w => {
+            if (!wired.length) { return { designerComponent: true }; }
+            return { designerComponent: true, events: wired.map(w => {
                 const h = all.find(x => x.name.toLowerCase() === w.handler.toLowerCase() && x.kind !== MemberKind.Field);
                 const line = h ? (h.implementationRange ?? h.range).start.line : undefined;
                 return { event: w.event, handler: w.handler, line };
@@ -939,6 +940,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** Edit / rename / delete / go-to / accessors / move on ANY member listed in the Manage tab (not only the one under the cursor). */
     private async handleManageAction(act: string, id: string): Promise<void> {
+        if (act === 'designer') {
+            const target = this.manageTargets().find(x => x.id === id);
+            if (target) { await vscode.commands.executeCommand('ce.delphi.showInDesigner', target.name); }
+            return;
+        }
         // a routine declared inside another one: no member of its own, only a place to go to
         if (act === 'goline') {
             const ed = vscode.window.activeTextEditor ?? vscode.window.visibleTextEditors?.find(e => e.document === currentDocument());

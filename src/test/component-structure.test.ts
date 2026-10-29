@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
-import { eventsOfComponent, eventsOfHandler } from '../utils/componentEvents';
+import { eventsOfComponent, eventsOfHandler, menuItemsOf } from '../utils/componentEvents';
 import { focusHtml, FocusView, manageListHtml } from '../webview/manageSection';
 import { designerHtml } from '../webview/designerHtml';
 
@@ -137,4 +137,48 @@ test('after S the focus stays in the code, so Ctrl+K Ctrl+B goes back; the form 
     assert.match(panel, /this\._view\.show\(true\)/, 'the sidebar is shown without the focus');
     assert.match(panel, /executeCommand\('workbench\.action\.focusActiveEditorGroup'\)/);
     assert.match(panel, /const doc = vscode\.window\.activeTextEditor\?\.document \?\? currentDocument\(\);\s*\n\s*const m = doc \? \/\^\(\.\*\)\\.pas\$\/i/);
+});
+
+const MENU_DFM = [
+    'object Form1: TForm1',
+    '  object pmGrid: TPopupMenu', '    OnPopup = pmGridPopup',
+    '    object miOpen: TMenuItem', "      Caption = '&Open'", '      ShortCut = 16463', '      OnClick = miOpenClick', '    end',
+    '    object miSep: TMenuItem', "      Caption = '-'", '    end',
+    '    object miMore: TMenuItem', "      Caption = 'More'",
+    '      object miSub: TMenuItem', "        Caption = 'Sub'", '        OnClick = miSubClick', '      end',
+    '    end',
+    '  end',
+    '  object Grid1: TStringGrid', '    PopupMenu = pmGrid', '  end',
+    'end',
+].join('\r\n');
+
+test('a TPopupMenu lists its items, sub-items included, with the handler of each', () => {
+    assert.deepEqual(menuItemsOf(MENU_DFM, 'pmGrid').map(i => [i.name, i.caption, i.depth, i.shortcut, i.events.map(e => e.handler).join()]), [
+        ['miOpen', 'Open', 0, 'Ctrl+O', 'miOpenClick'], ['miSep', '-', 0, '', ''], ['miMore', 'More', 0, '', ''], ['miSub', 'Sub', 1, '', 'miSubClick'],
+    ]);
+    assert.deepEqual(menuItemsOf(MENU_DFM, 'miMore').map(i => i.name), ['miSub'], 'the sub-items of an item');
+    assert.deepEqual(menuItemsOf(MENU_DFM, 'Grid1'), [], 'not a menu');
+    assert.deepEqual(eventsOfComponent(MENU_DFM, 'pmGrid'), [{ event: 'OnPopup', handler: 'pmGridPopup' }], 'the OnPopup of the menu itself');
+    const html = focusHtml({ ...base, name: 'pmGrid', menuItems: [
+        { name: 'miOpen', caption: 'Open', depth: 0, shortcut: 'Ctrl+O', event: 'OnClick', handler: 'miOpenClick', line: 41 },
+        { name: 'miSep', caption: '-', depth: 0, shortcut: '' },
+        { name: 'miSub', caption: 'Sub', depth: 1, shortcut: '', event: 'OnClick', handler: 'miSubClick' },
+    ] });
+    assert.match(html, /Menu items \(3\)/);
+    assert.match(html, /data-m-line="41"[^>]*><span class="mln">miOpen<\/span><span class="mtx">Open <span class="mkey">Ctrl\+O<\/span> → miOpenClick/, 'a handler is one click away');
+    assert.match(html, /class="mhit off"[^>]*><span class="mln">miSep<\/span><span class="mtx">───/, 'a separator has no handler');
+    assert.match(html, /class="mhit off"[^>]*padding-left:16px[^>]*>[^]*miSubClick \(no implementation\)/, 'a handler without code is said so, the sub-item is indented');
+    const designer = designerHtml('n');
+    assert.match(designer, /function menuEvent\(c\)/, 'the preview of the menu shows the OnClick of each item');
+    assert.match(designer, /Popup of \(/, 'and the controls that show the popup menu');
+});
+
+test('the designer closes the side bars and keeps the centre; a setting turns it off', () => {
+    const panel = read('webview/FormDesignerPanel.ts');
+    assert.match(panel, /workbench\.action\.closeSidebar/);
+    assert.match(panel, /workbench\.action\.closeAuxiliaryBar/);
+    assert.match(panel, /await FormDesignerPanel\.openOrReveal\(target\);\s*\n\s*await FormDesignerPanel\.hideSideBars\(\);/);
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, '..', 'package.json'), 'utf8'));
+    const props = Object.assign({}, ...[].concat(pkg.contributes.configuration).map((c: { properties: object }) => c.properties));
+    assert.equal(props['ce.delphi.designerHideSidebars'].default, true);
 });

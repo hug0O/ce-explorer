@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.70 — 2026-10-29
+- **Popup menus: the items and their events.** In the designer, the preview of a `TPopupMenu` / `TMainMenu` shows the `OnClick` handler of every item (⚡ `miOpenClick`: a click opens its code; a grey ⚡ creates the handler), and lists the controls that show the popup menu. In the **Structure** tab, selecting a menu lists its **Menu items** (sub-items indented, with the shortcut) and the handler of each, one click from its code; the `OnPopup` of the menu stays in *Events*.
+- **The designer keeps only the centre.** When the designer is shown, the side bars on the left and on the right are closed. *S* (Show in Structure) shows the left one again. Setting `ce.delphi.designerHideSidebars` (on by default) turns this off.
+
 ## 0.1.69 — 2026-10-28
 - **Back to the designer after `S`: the real cause fixed.** `S` used to give the focus to the sidebar, where the keys of the unit do not work, so `Ctrl+K Ctrl+B` did nothing. The sidebar is now shown **without taking the focus**: you are in the code of the unit and `Ctrl+K Ctrl+B` goes back to the designer, with the component selected. The form is also found when no editor is active (the *Show in the designer* button and the *Events* block no longer disappear).
 - **Used in this file: the routine that holds each line.** Above the lines found, the parent routine is written in grey (`TForm1.btnSaveClick`, a nested routine as `Outer.Inner`), once for each group of lines, so you see at a glance where a member is used. Lines outside any routine have no grey title.

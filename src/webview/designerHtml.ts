@@ -297,6 +297,10 @@ ${layoutsCss()}
 .mrow .mchk { width: 12px; flex: none; text-align: center; }
 .mrow .mcap { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mrow .msc { color: var(--vscode-descriptionForeground); font-size: 10.5px; }
+.mrow .mev { font-size: 10.5px; color: var(--vscode-textLink-foreground); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 3px; padding: 0 3px; }
+.mrow .mev:hover { background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.25)); text-decoration: underline; }
+.mrow .mev.free { color: var(--vscode-descriptionForeground); opacity: 0.45; }
+.mrow:hover .mev.free { opacity: 1; }
 .mrow .msub { width: 10px; flex: none; text-align: right; }
 .msep { height: 1px; margin: 3px 4px; background: var(--vscode-panel-border, #555); }
 .ferow { display: flex; align-items: center; gap: 6px; }
@@ -1450,6 +1454,16 @@ ${ergoHtml()}${helpHtml()}
     sep.addEventListener('click', function () { post({ type: 'add', className: 'TMenuItem', parent: n.name, left: 0, top: 0, caption: '-' }); });
     bar.appendChild(add); bar.appendChild(sep); b.appendChild(bar);
   }
+  /* The OnClick of a menu item in its row: the handler opens the code, a free item gets one with a click on the bolt. */
+  function menuEvent(c) {
+    var h = c.events && c.events['OnClick'];
+    var s = el('span', 'mev' + (h ? '' : ' free'), h ? '⚡ ' + h : '⚡');
+    s.title = h ? 'OnClick = ' + h + ': open its code' : 'No OnClick yet: create the handler ' + previewHandler(c.name, 'OnClick');
+    s.addEventListener('click', function () {
+      if (h) { post({ type: 'open', name: c.name, event: 'OnClick' }); } else { post({ type: 'addEvent', name: c.name, event: 'OnClick', open: state.openAfter }); }
+    });
+    return s;
+  }
   function menuPreview(b, n) {
     var box = el('div', 'mprev');
     var rows = 0;
@@ -1463,6 +1477,7 @@ ${ergoHtml()}${helpHtml()}
         r.appendChild(el('span', 'mchk', c.props['RadioItem'] === 'True' && c.props['Checked'] === 'True' ? '●' : (c.props['Checked'] === 'True' ? '✓' : '')));
         r.appendChild(el('span', 'mcap', menuShown(c.caption !== undefined ? c.caption : c.name)));
         r.appendChild(el('span', 'msc', c.shortcut || ''));
+        r.appendChild(menuEvent(c));
         r.appendChild(el('span', 'msub', c.children.some(function (k) { return kind(k.cls) === 'menuitem'; }) ? '▸' : ''));
         box.appendChild(r);
         walk(c, depth + 1);
@@ -1472,6 +1487,12 @@ ${ergoHtml()}${helpHtml()}
     if (!rows) { box.appendChild(el('div', 'hint', 'No item yet: add one above, or pick TMenuItem in the palette (System) while the menu is selected.')); }
     b.appendChild(el('div', 'fehead', 'Preview'));
     b.appendChild(box);
+    // the controls that show this popup menu (their PopupMenu property)
+    var users = Object.keys(byName).filter(function (k) { return byName[k].props && byName[k].props['PopupMenu'] === n.name; });
+    if (kind(n.cls) === 'menu' && users.length) {
+      b.appendChild(el('div', 'fehead', 'Popup of (' + users.length + ')'));
+      users.forEach(function (u) { b.appendChild(fieldRow(byName[u], byName[u].caption || u, byName[u].cls)); });
+    }
   }
   function menuItemFields(box, n) {
     box.appendChild(labelled('Caption', textInput(n.props['Caption'] !== undefined ? n.caption : '', setter(n, 'Caption'))));
@@ -2111,6 +2132,7 @@ ${layoutsScript()}
     if (twist) { toggleCollapse(twist.getAttribute('data-twist')); ev.preventDefault(); return; }
     var crumb = t.closest && t.closest('[data-crumb]');
     if (crumb) { var cn = crumb.getAttribute('data-crumb'); if (cn === rootName()) { select([]); } else { listClick(cn, ev); } return; }
+    if (t.closest && t.closest('.mev')) { return; }
     var pick = t.closest && t.closest('[data-pick]');
     if (pick) { listClick(pick.getAttribute('data-pick'), ev); openInspector(); return; }
     if (!inClient) { return; }

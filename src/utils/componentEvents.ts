@@ -3,6 +3,7 @@
  * them under a component, so the handler is one click away from the component the designer had selected. Pure.
  */
 import { DfmNode, parseDfmTree } from '../services/DelphiLayout';
+import { shortcutText } from '../services/DelphiMenus';
 
 export interface WiredEvent { event: string; handler: string }
 
@@ -31,6 +32,31 @@ export function eventsOfComponent(dfm: string, name: string): WiredEvent[] {
 export function hasComponent(dfm: string, name: string): boolean {
     const root = parseDfmTree(dfm);
     return !!root && !!find(root, name);
+}
+
+export interface MenuEntry { name: string; caption: string; depth: number; shortcut: string; events: WiredEvent[] }
+
+/** The items of a `TPopupMenu` / `TMainMenu` (or the sub-items of an item), in the order of the menu, each with the events wired on it. */
+export function menuItemsOf(dfm: string, name: string): MenuEntry[] {
+    const root = parseDfmTree(dfm);
+    const host = root ? find(root, name) : undefined;
+    if (!host || !/^T(Popup|Main|Menu)/i.test(host.className) && !/^TMenuItem$/i.test(host.className)) { return []; }
+    const out: MenuEntry[] = [];
+    const walk = (n: DfmNode, depth: number): void => {
+        for (const c of n.children) {
+            if (!/^TMenuItem$/i.test(c.className)) { continue; }
+            const events: WiredEvent[] = [];
+            for (const [prop, value] of Object.entries(c.props)) {
+                if (EVENT_RE.test(prop) && /^[A-Za-z_]\w*$/.test(value.trim())) { events.push({ event: prop, handler: value.trim() }); }
+            }
+            const cap = /^'(.*)'$/.exec((c.props['Caption'] ?? '').trim());
+            const caption = cap ? cap[1].replace(/''/g, "'").replace(/&(&?)/g, (_m, d: string) => (d ? '&' : '')) : c.name;
+            out.push({ name: c.name, caption, depth, shortcut: shortcutText(c.props['ShortCut']), events });
+            walk(c, depth + 1);
+        }
+    };
+    walk(host, 0);
+    return out;
 }
 
 /** The `Component.OnEvent` pairs that a handler answers (a handler can serve several components). */

@@ -49,6 +49,8 @@ export interface FocusView {
     variables?: { count: number; html: string };
     /** Delphi: the events wired on this component in the .dfm, with the line of the handler in the unit (none: no implementation found). */
     events?: { event: string; handler: string; line?: number }[];
+    /** Delphi: for a TPopupMenu / TMainMenu, its items with the handler of each (`line`: where it is in the unit). */
+    menuItems?: { name: string; caption: string; depth: number; shortcut: string; event?: string; handler?: string; line?: number }[];
     /** Delphi: the `Component.OnEvent` this routine is the handler of. */
     handlerOf?: string[];
     /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
@@ -151,6 +153,7 @@ export function manageCss(): string {
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
 .mdesigner { margin: 0 0 8px; }
+.mhits .mkey { color: var(--vscode-descriptionForeground); font-size: 10px; }
 .mhits .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); opacity: 0.75; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
@@ -185,6 +188,19 @@ export function focusHtml(f: FocusView): string {
             + f.events.map(e => e.line === undefined
                 ? `<li class="mhit off" title="${esc(e.handler)} is named in the .dfm but has no implementation in this unit"><span class="mln">${esc(e.event)}</span><span class="mtx">${esc(e.handler)} (no implementation)</span></li>`
                 : `<li class="mhit" data-m-line="${e.line}" title="Go to ${esc(e.handler)} (line ${e.line + 1})"><span class="mln">${esc(e.event)}</span><span class="mtx">${esc(e.handler)}</span></li>`).join('')
+            + `</ul></details>`;
+    }
+    if (f.menuItems?.length) {
+        html += `<details class="mdet" data-fold="events"${open(f.open.events !== false)}><summary>Menu items (${f.menuItems.length})</summary><ul class="mhits" id="mMenuItems">`
+            + f.menuItems.map(i => {
+                const pad = `style="padding-left:${4 + i.depth * 12}px"`;
+                const cap = i.caption === '-' ? '───' : i.caption;
+                const sc = i.shortcut ? ` <span class="mkey">${esc(i.shortcut)}</span>` : '';
+                if (!i.handler) { return `<li class="mhit off" ${pad} title="${esc(i.name)}: no OnClick"><span class="mln">${esc(i.name)}</span><span class="mtx">${esc(cap)}${sc}</span></li>`; }
+                return i.line === undefined
+                    ? `<li class="mhit off" ${pad} title="${esc(i.handler)} is named in the .dfm but has no implementation in this unit"><span class="mln">${esc(i.name)}</span><span class="mtx">${esc(cap)}${sc} → ${esc(i.handler)} (no implementation)</span></li>`
+                    : `<li class="mhit" ${pad} data-m-line="${i.line}" title="Go to ${esc(i.handler)} (line ${i.line + 1})"><span class="mln">${esc(i.name)}</span><span class="mtx">${esc(cap)}${sc} → ${esc(i.handler)}</span></li>`;
+            }).join('')
             + `</ul></details>`;
     }
     html += `<details class="mdet" data-fold="used"${open(f.open.used)}><summary>Used in this file (<span id="mUsageCount">${f.usageTotal}</span>)</summary>`;

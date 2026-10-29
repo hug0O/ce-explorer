@@ -109,6 +109,19 @@ export class FormDesignerPanel {
      * back. From the designer tab itself there is no text editor: the designer that is open is shown again.
      */
     static async createOrShow(target: vscode.TextDocument | vscode.Uri | undefined): Promise<void> {
+        await FormDesignerPanel.openOrReveal(target);
+        await FormDesignerPanel.hideSideBars();
+    }
+
+    /** The designer gets the whole width: the side bars on the left and on the right are closed, only the centre stays (ce.delphi.designerHideSidebars). */
+    private static async hideSideBars(): Promise<void> {
+        if (![...FormDesignerPanel.open.values()].length || !vscode.workspace.getConfiguration('ce').get<boolean>('delphi.designerHideSidebars', true)) { return; }
+        for (const c of ['workbench.action.closeSidebar', 'workbench.action.closeAuxiliaryBar']) {
+            try { await vscode.commands.executeCommand(c); } catch { /* this VS Code has no such bar */ }
+        }
+    }
+
+    private static async openOrReveal(target: vscode.TextDocument | vscode.Uri | undefined): Promise<void> {
         let doc: vscode.TextDocument | undefined;
         if (target && 'uri' in target) { doc = target; }
         else if (target) { try { doc = await vscode.workspace.openTextDocument(target); } catch { doc = undefined; } }

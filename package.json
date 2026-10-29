@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.69",
+  "version": "0.1.70",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -740,6 +740,11 @@
             ],
             "default": "active",
             "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
+          },
+          "ce.delphi.designerHideSidebars": {
+            "type": "boolean",
+            "default": true,
+            "description": "Close the side bars (left and right) when the form designer is shown, so that only the centre stays. The Show in Structure key (S) shows the left one again."
           },
           "ce.delphi.designerAutoSave": {
             "type": "boolean",

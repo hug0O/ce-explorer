@@ -231,6 +231,7 @@ function ergoKey(ev) {
   if (ev.key === '/') { openGoto(); ev.preventDefault(); return true; }
   if (ev.key === 'F2') { if (state.sel.length === 1) { startRename(state.sel[0]); ev.preventDefault(); return true; } return false; }
   if (ev.key === 'Tab') { walkTo(ev.shiftKey ? -1 : 1); ev.preventDefault(); return true; }
+  if ((ev.key === 's' || ev.key === 'S') && state.sel.length === 1 && state.sel[0] !== rootName()) { post({ type: 'showInStructure', name: state.sel[0] }); ev.preventDefault(); return true; }
   if (ev.key === 'Enter' && state.sel.length === 1 && state.sel[0] !== rootName()) { post({ type: 'open', name: state.sel[0] }); ev.preventDefault(); return true; }
   if (ev.key === '0' && !ev.shiftKey) { setZoom(1); ev.preventDefault(); return true; }
   if (ev.key === '9' && !ev.shiftKey) { state.fit = true; state.fitSet = true; $('zoom').value = 'fit'; fitZoom(true); saveUi(); ev.preventDefault(); return true; }
@@ -269,6 +270,7 @@ function openCtx(x, y, name) {
     row('Send to back', '', function () { post({ type: 'zorder', names: state.sel.slice(), dir: 'back' }); }, !locked && !(n && n.fixed));
     sep();
     row('Rename...', 'F2', function () { startRename(name); }, !many);
+    row('Show in Structure', 'S', function () { post({ type: 'showInStructure', name: name }); }, !many);
     row(many ? 'Open the code' : 'Open the default handler', many ? '' : 'Enter', function () { post({ type: many ? 'openCode' : 'open', name: name }); });
     sep();
     row('Select the parent', 'Esc', selectParent);

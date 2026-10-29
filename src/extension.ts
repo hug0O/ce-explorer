@@ -156,6 +156,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 .then(pick => { if (pick === 'Quick start') { void vscode.commands.executeCommand('ce.openWalkthrough'); } });
         }
         context.subscriptions.push(vscode.commands.registerCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
+        context.subscriptions.push(vscode.commands.registerCommand('ce.structure.showComponent', (name: string) => { if (typeof name === 'string') { void memberViewer.showComponentInStructure(name); } }));
         context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);

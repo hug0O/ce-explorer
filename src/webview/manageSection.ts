@@ -47,8 +47,12 @@ export interface FocusView {
     searchTotal: number;
     /** Local variables and parameters of the member (markup made by the panel, already escaped), when it has a body. */
     variables?: { count: number; html: string };
+    /** Delphi: the events wired on this component in the .dfm, with the line of the handler in the unit (none: no implementation found). */
+    events?: { event: string; handler: string; line?: number }[];
+    /** Delphi: the `Component.OnEvent` this routine is the handler of. */
+    handlerOf?: string[];
     /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
-    open: { used: boolean; vars: boolean; find: boolean };
+    open: { used: boolean; vars: boolean; find: boolean; events?: boolean };
 }
 
 export interface ManageView {
@@ -144,6 +148,8 @@ export function manageCss(): string {
 .mhits { list-style: none; max-height: 190px; overflow: auto; margin: 2px 0 6px; }
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
+.mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
+.mhit.off { opacity: 0.6; cursor: default; }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
 .mhit .mtx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mhits:empty { display: none; }
@@ -161,6 +167,16 @@ function hitRowsHtml(hits: LineHit[], total: number): string {
 export function focusHtml(f: FocusView): string {
     const open = (on: boolean): string => (on ? ' open' : '');
     let html = `<div class="mfocus" id="mFocus">`;
+    if (f.handlerOf?.length) {
+        html += `<p class="mnote">⚡ Handler of <b>${f.handlerOf.map(esc).join('</b>, <b>')}</b></p>`;
+    }
+    if (f.events?.length) {
+        html += `<details class="mdet" data-fold="events"${open(f.open.events !== false)}><summary>Events (${f.events.length})</summary><ul class="mhits" id="mEvents">`
+            + f.events.map(e => e.line === undefined
+                ? `<li class="mhit off" title="${esc(e.handler)} is named in the .dfm but has no implementation in this unit"><span class="mln">${esc(e.event)}</span><span class="mtx">${esc(e.handler)} (no implementation)</span></li>`
+                : `<li class="mhit" data-m-line="${e.line}" title="Go to ${esc(e.handler)} (line ${e.line + 1})"><span class="mln">${esc(e.event)}</span><span class="mtx">${esc(e.handler)}</span></li>`).join('')
+            + `</ul></details>`;
+    }
     html += `<details class="mdet" data-fold="used"${open(f.open.used)}><summary>Used in this file (<span id="mUsageCount">${f.usageTotal}</span>)</summary>`;
     html += f.usageTotal
         ? `<ul class="mhits" id="mUsages">${hitRowsHtml(f.usages, f.usageTotal)}</ul>`

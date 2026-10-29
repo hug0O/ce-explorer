@@ -69,6 +69,7 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: 'Ctrl+A', label: 'Select every component of the container of the selection (of the form when nothing is selected)' },
     { keys: 'Delete', label: 'Delete the selected components' },
     { keys: 'F2', label: 'Rename the selected component in place (Enter applies, Esc cancels)' },
+    { keys: 'S', label: 'Switch to the code: the Structure tab filtered on the selected component, with its events and where it is used' },
     { keys: 'Tab / Shift+Tab', label: 'Select the next / previous component (form order, siblings by TabOrder)' },
     { keys: 'Enter', label: 'Create or open the default handler of the selected component' },
     { keys: '0 / 9', label: 'Zoom 100% / Fit window' },

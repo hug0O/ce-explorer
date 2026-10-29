@@ -463,6 +463,14 @@ export class FormDesignerPanel {
             case 'redo': await this.step('redo'); return;
             case 'fullscreen': await this.setZen(m.on === true); return;
             case 'openCode': await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn }); return;
+            case 'showInStructure': {
+                // to the code, and the sidebar on the component: filtered, with its events and where it is used
+                const name = str(m.name);
+                if (!NAME_RE.test(name)) { return; }
+                await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn });
+                await vscode.commands.executeCommand('ce.structure.showComponent', name);
+                return;
+            }
             case 'openDfm': await vscode.window.showTextDocument(this.dfmDoc, { viewColumn: this.panel.viewColumn }); return;
             default: break;
         }

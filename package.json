@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.63",
+  "version": "0.1.64",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -425,6 +425,10 @@
       {
         "command": "ce.showActionLog",
         "title": "CE: What was changed (log of the actions)"
+      },
+      {
+        "command": "ce.structure.showComponent",
+        "title": "CE: Show a component in the structure"
       }
     ],
     "submenus": [
@@ -509,6 +513,10 @@
         },
         {
           "command": "ce.delphi.designerFullScreen",
+          "when": "false"
+        },
+        {
+          "command": "ce.structure.showComponent",
           "when": "false"
         }
       ],

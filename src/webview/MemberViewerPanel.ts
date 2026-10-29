@@ -26,6 +26,7 @@ import { currentDocument } from '../services/LastEditor';
 import { COMMON_COMMANDS, DELPHI_COMMANDS, LanguageInfo, PLSQL_ALIGN_IDS, PLSQL_COMMANDS, TOOLS_SUBS, sanitizeChips, shortcutOf, toolsCss, toolsHtml, toolsScript } from './toolsSection';
 import { alignSelection, getLastAlignToken } from '../services/FormCommands';
 import { notify } from '../services/Notify';
+import { eventsOfComponent, eventsOfHandler } from '../utils/componentEvents';
 
 interface MemberViewerState {
     member: ClassMember | undefined;
@@ -110,7 +111,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _shortcutFilter = '';
     private _delphiSeen = false;
     // Blocks under the selected member that are unfolded (kept between redraws).
-    private _folds = { used: true, vars: true, find: true };
+    private _folds = { used: true, vars: true, find: true, events: true };
+    private _dfmCache: { path: string; mtime: number; text: string } | undefined;
     private _hiLine?: vscode.TextEditorDecorationType;
     private _hiUse?: vscode.TextEditorDecorationType;
     private _hiFind?: vscode.TextEditorDecorationType;
@@ -263,7 +265,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
                 case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
                 case 'manageLine': this.handleManageLine(Number(msg.line)); break;
-                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find') { this._folds[msg.key as 'used' | 'vars' | 'find'] = msg.open === true; } break;
+                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find' || msg.key === 'events') { this._folds[msg.key as 'used' | 'vars' | 'find' | 'events'] = msg.open === true; } break;
                 case 'manageSearch': this.handleMemberSearch(String(msg.text ?? '')); break;
                 case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
@@ -777,6 +779,61 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return this._state.member;
     }
 
+    /** The text of the .dfm that goes with the unit being edited (Delphi), read again only when the file changed. */
+    private dfmText(): string | undefined {
+        const doc = vscode.window.activeTextEditor?.document;
+        const m = doc ? /^(.*)\.pas$/i.exec(doc.uri.fsPath) : null;
+        if (!m) { return undefined; }
+        const path = m[1] + '.dfm';
+        try {
+            const st = fs.statSync(path);
+            if (this._dfmCache && this._dfmCache.path === path && this._dfmCache.mtime === st.mtimeMs) { return this._dfmCache.text; }
+            const text = fs.readFileSync(path, 'latin1');
+            this._dfmCache = { path, mtime: st.mtimeMs, text };
+            return text;
+        } catch { return undefined; }
+    }
+
+    /** A component's events and the handlers' lines; for a routine, the events it answers. */
+    private formLinks(member: ClassMember): { events?: { event: string; handler: string; line?: number }[]; handlerOf?: string[] } {
+        const dfm = this.dfmText();
+        if (!dfm) { return {}; }
+        const all = [...this.manageContext().classes.flatMap(c => c.members), ...this.manageContext().standalone];
+        if (member.kind === MemberKind.Field) {
+            const wired = eventsOfComponent(dfm, member.name);
+            if (!wired.length) { return {}; }
+            return { events: wired.map(w => {
+                const h = all.find(x => x.name.toLowerCase() === w.handler.toLowerCase() && x.kind !== MemberKind.Field);
+                const line = h ? (h.implementationRange ?? h.range).start.line : undefined;
+                return { event: w.event, handler: w.handler, line };
+            }) };
+        }
+        const of = eventsOfHandler(dfm, member.name);
+        return of.length ? { handlerOf: of } : {};
+    }
+
+    /**
+     * From the form designer: the Structure tab, filtered on the component, with the component opened (its events, where it is used).
+     * The unit has just been shown, so the panel waits for the editor change to settle before it sets its own state.
+     */
+    public async showComponentInStructure(name: string): Promise<void> {
+        await new Promise(r => setTimeout(r, 200));
+        const ctx = this.manageContext();
+        const owner = ctx.classes.find(c => c.members.some(m => m.name.toLowerCase() === name.toLowerCase()));
+        if (owner) { this._manageClassId = owner.id; }
+        const found = (owner?.members ?? []).find(m => m.name.toLowerCase() === name.toLowerCase());
+        this._manageFilter = name;
+        this._manageKind = '';
+        this._focusId = found?.id ?? '';
+        this._memberSearch = '';
+        this._folds.used = true;
+        this._folds.events = true;
+        this._tab = 'manage';
+        this._stateKey = '';
+        this.updateView();
+        try { await vscode.commands.executeCommand('ceViewer.focus'); } catch { /* the view is shown already */ }
+    }
+
     /** Where the focused member is used in the current file, and the search inside its code. */
     private focusData(withVariables = false): FocusView | undefined {
         const member = this.focusMember();
@@ -795,7 +852,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return {
             id: member.id, name: member.name, kindLabel, usages: use.hits, usageTotal: use.total,
             searchable, search: this._memberSearch, searchHits: found.hits, searchTotal: found.total,
-            variables, open: { ...this._folds },
+            variables, open: { ...this._folds }, ...this.formLinks(member),
         };
     }
 

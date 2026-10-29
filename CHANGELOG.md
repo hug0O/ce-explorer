@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.64 — 2026-10-28
+- **From the designer to the code in one key.** With one component selected in the form designer, **S** (or *Show in Structure* in its right-click menu) switches to the unit and brings the sidebar to the **Structure** tab, filtered on that component, with the component opened: its events and *Used in this file* unfolded.
+- **The events of a component, in the Structure tab.** Click a component (a field such as `btnSave`) and an **Events** block lists what the `.dfm` wires on it — `OnClick → btnSaveClick` — each one a click away from the handler's implementation; a handler named in the form but without code in the unit is shown as *(no implementation)*. Click the handler itself and the tab says *Handler of btnSave.OnClick* (all of them when one handler serves several components).
+
 ## 0.1.63 — 2026-10-28
 - **The commands are named the same way.** All the titles of the palette follow one style — `CE:` (or `CE Delphi:` / `CE PL/SQL:`), a verb first, sentence case — and one word for one thing: the four ways to move to a member all say *Go to member* (*pick from a list*, *type a few letters*, *in the workspace*, *from a code lens*); *Navigate to* is gone. A test keeps the titles consistent.
 

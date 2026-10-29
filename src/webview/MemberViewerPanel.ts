@@ -794,16 +794,24 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         } catch { return undefined; }
     }
 
+    /** The button of the top of the Structure tab: shown for a unit that has a form, naming the component of the focus when it is one. */
+    private designerButton(member: ClassMember | undefined): { id: string; name?: string } | undefined {
+        const dfm = this.dfmText();
+        if (!dfm) { return undefined; }
+        const isComponent = !!member && member.kind === MemberKind.Field && hasComponent(dfm, member.name);
+        return isComponent && member ? { id: member.id, name: member.name } : { id: '' };
+    }
+
     /** A component's events and the handlers' lines; for a routine, the events it answers. */
-    private formLinks(member: ClassMember): { events?: { event: string; handler: string; line?: number }[]; handlerOf?: string[]; designerComponent?: boolean } {
+    private formLinks(member: ClassMember): { events?: { event: string; handler: string; line?: number }[]; handlerOf?: string[] } {
         const dfm = this.dfmText();
         if (!dfm) { return {}; }
         const all = [...this.manageContext().classes.flatMap(c => c.members), ...this.manageContext().standalone];
         if (member.kind === MemberKind.Field) {
             if (!hasComponent(dfm, member.name)) { return {}; }
             const wired = eventsOfComponent(dfm, member.name);
-            if (!wired.length) { return { designerComponent: true }; }
-            return { designerComponent: true, events: wired.map(w => {
+            if (!wired.length) { return {}; }
+            return { events: wired.map(w => {
                 const h = all.find(x => x.name.toLowerCase() === w.handler.toLowerCase() && x.kind !== MemberKind.Field);
                 const line = h ? (h.implementationRange ?? h.range).start.line : undefined;
                 return { event: w.event, handler: w.handler, line };
@@ -942,7 +950,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private async handleManageAction(act: string, id: string): Promise<void> {
         if (act === 'designer') {
             const target = this.manageTargets().find(x => x.id === id);
-            if (target) { await vscode.commands.executeCommand('ce.delphi.showInDesigner', target.name); }
+            await vscode.commands.executeCommand('ce.delphi.showInDesigner', target ? target.name : '');
             return;
         }
         // a routine declared inside another one: no member of its own, only a place to go to
@@ -1717,6 +1725,7 @@ ${shortcutsScript()}
             canMove: ctx.classes.length > 1, rows,
             filter: this._manageFilter, kindFilter: this._manageKind, group: this._manageGroup, focusFilter: this._focusFilter,
             focus: this.focusData(true),
+            designer: this.designerButton(member),
         };
         this._focusFilter = false;
         return manageListHtml(view);

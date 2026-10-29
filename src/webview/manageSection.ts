@@ -51,13 +51,13 @@ export interface FocusView {
     events?: { event: string; handler: string; line?: number }[];
     /** Delphi: the `Component.OnEvent` this routine is the handler of. */
     handlerOf?: string[];
-    /** Delphi: this member is a component of the form: a button brings the designer back with it selected. */
-    designerComponent?: boolean;
     /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
     open: { used: boolean; vars: boolean; find: boolean; events?: boolean };
 }
 
 export interface ManageView {
+    /** Delphi unit with a form: a button at the top goes to the designer, with the component of the focus selected when there is one. */
+    designer?: { id: string; name?: string };
     /** One entry per type of the file (and the file-level routines); the selector is hidden when there is only one. */
     typeOptions: { id: string; label: string }[];
     selectedType: string;
@@ -150,6 +150,7 @@ export function manageCss(): string {
 .mhits { list-style: none; max-height: 190px; overflow: auto; margin: 2px 0 6px; }
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
+.mdesigner { margin: 0 0 8px; }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
@@ -169,9 +170,6 @@ function hitRowsHtml(hits: LineHit[], total: number): string {
 export function focusHtml(f: FocusView): string {
     const open = (on: boolean): string => (on ? ' open' : '');
     let html = `<div class="mfocus" id="mFocus">`;
-    if (f.designerComponent) {
-        html += `<button class="ana has-kbd" data-m-act="designer" data-id="${esc(f.id)}" title="Back to the form designer with ${esc(f.name)} selected">🎨 Show in the designer<span class="kbd">Ctrl+K Ctrl+B</span></button>`;
-    }
     if (f.handlerOf?.length) {
         html += `<p class="mnote">⚡ Handler of <b>${f.handlerOf.map(esc).join('</b>, <b>')}</b></p>`;
     }
@@ -211,6 +209,9 @@ export function manageListHtml(v: ManageView): string {
         html += `<div class="mhead"><span class="mtypelabel">${esc(typeLabel)}</span></div>`;
     }
 
+    if (v.designer) {
+        html += `<button class="ana has-kbd mdesigner" data-m-act="designer" data-id="${esc(v.designer.id)}" title="${v.designer.name ? 'Back to the form designer with ' + esc(v.designer.name) + ' selected' : 'Back to the form designer'}">🎨 Show in the designer${v.designer.name ? ' (' + esc(v.designer.name) + ')' : ''}<span class="kbd">Ctrl+K Ctrl+B</span></button>`;
+    }
     html += `<div class="section madd-box"><div class="section-title">Add</div><div class="mbtns">`;
     if (v.add.field) { html += `<button class="ana" data-m-add="field">📦 Field</button>`; }
     if (v.add.method) { html += `<button class="ana" data-m-add="method">🔧 Method</button>`; }

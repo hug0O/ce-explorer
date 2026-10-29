@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.67 — 2026-10-28
+- **The *Show in the designer* button is at the top of the Structure tab**, not inside the detail of the selected component: it is there whenever the unit has a form, and says *(btnSave)* when the member under the cursor is a component, so it comes back to the designer with that component selected; with nothing selected it just goes back to the designer.
+
 ## 0.1.66 — 2026-10-28
 - **Back to the designer after `S`, fixed.** While a page of the sidebar has the focus VS Code reports no active text editor, and `Ctrl+K Ctrl+B` then had no unit to work from: it now uses the last unit that was edited, shows the designer **and selects the component again**. After `S`, the status bar says which key goes back.
 

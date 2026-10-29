@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
 import { eventsOfComponent, eventsOfHandler } from '../utils/componentEvents';
-import { focusHtml, FocusView } from '../webview/manageSection';
+import { focusHtml, FocusView, manageListHtml } from '../webview/manageSection';
 import { designerHtml } from '../webview/designerHtml';
 
 const root = path.join(__dirname, '..');
@@ -86,9 +86,12 @@ test('back from the code: Ctrl+K Ctrl+B also from the sidebar, a button on the c
     assert.match(k.when ?? '', /sideBarFocus/);
     assert.match(k.when ?? '', /resourceExtname/, 'still in the unit and the form');
     assert.ok(pkg.contributes.menus.commandPalette.some(m => m.command === 'ce.delphi.showInDesigner' && m.when === 'false'));
-    const html = focusHtml({ ...base, designerComponent: true });
-    assert.match(html, /data-m-act="designer" data-id="m1"[^>]*>🎨 Show in the designer<span class="kbd">Ctrl\+K Ctrl\+B<\/span>/);
-    assert.ok(!/data-m-act="designer"/.test(focusHtml(base)), 'only for a component');
+    assert.ok(!/data-m-act="designer"/.test(focusHtml(base)), 'the button is not inside the detail of a component');
+    const top = manageListHtml({ typeOptions: [], selectedType: 'c', isFile: false, add: { field: true, method: true, property: false, constructor: false }, canMove: false, rows: [], filter: '', kindFilter: '', group: 'source', designer: { id: 'm1', name: 'btnSave' } } as never);
+    assert.match(top, /data-m-act="designer" data-id="m1"[^>]*>🎨 Show in the designer \(btnSave\)<span class="kbd">Ctrl\+K Ctrl\+B<\/span>/, 'at the top of the Structure tab, naming the component');
+    assert.ok(top.indexOf('mdesigner') < top.indexOf('madd-box'), 'above the Add buttons');
+    assert.match(manageListHtml({ typeOptions: [], selectedType: 'c', isFile: false, add: { field: true, method: true, property: false, constructor: false }, canMove: false, rows: [], filter: '', kindFilter: '', group: 'source', designer: { id: '' } } as never), /data-id=""[^>]*>🎨 Show in the designer<span/, 'with no component, just the designer');
+    assert.ok(!/mdesigner/.test(manageListHtml({ typeOptions: [], selectedType: 'c', isFile: false, add: { field: true, method: true, property: false, constructor: false }, canMove: false, rows: [], filter: '', kindFilter: '', group: 'source' } as never)), 'not for a unit with no form');
     assert.equal(hasComponent(DFM, 'btnSave'), true);
     assert.equal(hasComponent(DFM, 'Missing'), false);
     const d = read('webview/FormDesignerPanel.ts');
@@ -96,7 +99,7 @@ test('back from the code: Ctrl+K Ctrl+B also from the sidebar, a button on the c
     assert.match(d, /type: 'selectComponent', name: back/);
     assert.match(d, /static async showComponent\(/);
     assert.match(read('webview/designerHtml.ts'), /m\.type === 'selectComponent'/);
-    assert.match(read('webview/MemberViewerPanel.ts'), /executeCommand\('ce\.delphi\.showInDesigner', target\.name\)/);
+    assert.match(read('webview/MemberViewerPanel.ts'), /executeCommand\('ce\.delphi\.showInDesigner', target \? target\.name : ''\)/);
     assert.match(read('extension.ts'), /registerCommand\('ce\.delphi\.showInDesigner'/);
 });
 

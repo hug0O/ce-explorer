@@ -151,6 +151,7 @@ export function manageCss(): string {
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
 .mdesigner { margin: 0 0 8px; }
+.mhits .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); opacity: 0.75; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
@@ -162,7 +163,13 @@ export function manageCss(): string {
 }
 
 function hitRowsHtml(hits: LineHit[], total: number): string {
-    return hits.map(h => `<li class="mhit" data-m-line="${h.line}" title="Go to line ${h.line + 1}"><span class="mln">${h.line + 1}</span><span class="mtx">${esc(h.text)}</span></li>`).join('')
+    // the routine that holds the lines is written in grey above the first line of each group
+    let last: string | undefined = '';
+    return hits.map(h => {
+        const head = h.parent !== undefined && h.parent !== last ? `<li class="mparent" title="The routine that holds the lines below">${esc(h.parent)}</li>` : '';
+        last = h.parent;
+        return head + `<li class="mhit" data-m-line="${h.line}" title="Go to line ${h.line + 1}"><span class="mln">${h.line + 1}</span><span class="mtx">${esc(h.text)}</span></li>`;
+    }).join('')
         + (total > hits.length ? `<li class="mmore">… ${total - hits.length} more not listed (first ${MAX_HITS} shown)</li>` : '');
 }
 

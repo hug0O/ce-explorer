@@ -110,3 +110,31 @@ test('the way back works while a page of the sidebar has the focus (no active te
     assert.match(d, /const back = FormDesignerPanel\.backTo\.get\(shown\.dfmDoc\.uri\.toString\(\)\)/, 'the way with no document selects the component too');
     assert.match(d, /setStatusBarMessage\('CE: Ctrl\+K Ctrl\+B goes back to the designer/);
 });
+
+import { parentOf, withParents } from '../utils/memberSearch';
+
+test('"Used in this file" writes the routine that holds the lines in grey above them', () => {
+    const ranges = [
+        { name: 'TForm1.btnSaveClick', start: 10, end: 20 }, { name: 'TForm1.btnSaveClick', start: 40, end: 52 },
+        { name: 'TForm1.Other', start: 60, end: 70 }, { name: 'Outer', start: 100, end: 140 }, { name: 'Outer.Inner', start: 110, end: 115 },
+    ];
+    assert.equal(parentOf(12, ranges), 'TForm1.btnSaveClick');
+    assert.equal(parentOf(45, ranges), 'TForm1.btnSaveClick', 'the implementation is a range too');
+    assert.equal(parentOf(112, ranges), 'Outer.Inner', 'the narrowest one holds it');
+    assert.equal(parentOf(5, ranges), undefined, 'outside every routine: nothing');
+    const hit = (line: number) => ({ line, text: 'x', start: 0, end: 1 });
+    const html = focusHtml({ ...base, usageTotal: 4, usages: withParents([hit(12), hit(15), hit(65), hit(5)], ranges) });
+    const rows = [...html.matchAll(/class="(mparent|mhit)"[^>]*>(?:<span class="mln">(\d+)<\/span>|([^<]*))/g)].map(m => m[1] === 'mparent' ? 'P:' + m[3] : 'L:' + m[2]);
+    assert.deepEqual(rows, ['P:TForm1.btnSaveClick', 'L:13', 'L:16', 'P:TForm1.Other', 'L:66', 'L:6'], 'one grey line per group, none for a line outside a routine');
+    assert.ok(!/data-m-line="[^"]*"[^>]*class="mparent"/.test(html) && !/class="mparent" data-m-line/.test(html), 'the grey line is not a link');
+    const panel = read('webview/MemberViewerPanel.ts');
+    assert.match(panel, /use\.hits = withParents\(use\.hits, this\.parentRanges\(\)\)/);
+    assert.match(panel, /private parentRanges\(\): ParentRange\[\]/);
+});
+
+test('after S the focus stays in the code, so Ctrl+K Ctrl+B goes back; the form is found even when no editor is active', () => {
+    const panel = read('webview/MemberViewerPanel.ts');
+    assert.match(panel, /this\._view\.show\(true\)/, 'the sidebar is shown without the focus');
+    assert.match(panel, /executeCommand\('workbench\.action\.focusActiveEditorGroup'\)/);
+    assert.match(panel, /const doc = vscode\.window\.activeTextEditor\?\.document \?\? currentDocument\(\);\s*\n\s*const m = doc \? \/\^\(\.\*\)\\.pas\$\/i/);
+});

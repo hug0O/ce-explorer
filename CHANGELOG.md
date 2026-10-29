@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.69 — 2026-10-28
+- **Back to the designer after `S`: the real cause fixed.** `S` used to give the focus to the sidebar, where the keys of the unit do not work, so `Ctrl+K Ctrl+B` did nothing. The sidebar is now shown **without taking the focus**: you are in the code of the unit and `Ctrl+K Ctrl+B` goes back to the designer, with the component selected. The form is also found when no editor is active (the *Show in the designer* button and the *Events* block no longer disappear).
+- **Used in this file: the routine that holds each line.** Above the lines found, the parent routine is written in grey (`TForm1.btnSaveClick`, a nested routine as `Outer.Inner`), once for each group of lines, so you see at a glance where a member is used. Lines outside any routine have no grey title.
+
 ## 0.1.68 — 2026-10-28
 - **A Markdown page: viewer and editor, with `/` commands as in Notion.** *CE: Open as a Markdown page* (title bar of a `.md` file, the *More commands* menu, or *Open With… > Code Explorer Markdown*) shows the file as a page — headings, lists, to-do check boxes you can tick, quotes, code blocks, tables, rules, images next to the file, links — with an **Outline** of the headings on the left. The normal Markdown editor stays the default: this one is opt-in.
 - **Edit by blocks**: *✎ Edit*, then click a block to change its text. `Enter` makes a new block (or the next item of a list; a second `Enter` on an empty item leaves the list; inside a code block it is a new line), `Backspace` on an empty block removes it, `↑` / `↓` at the edge go to the neighbour block, `Alt+↑` / `Alt+↓` move the block, `Esc` leaves it; the **＋ ↑ ↓ ✕** at the left of a block add, move and delete it.

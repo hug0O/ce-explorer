@@ -9,6 +9,8 @@ export interface LineHit {
     line: number;
     /** The line, trimmed and shortened for a list. */
     text: string;
+    /** The routine that holds the line (`TForm1.btnSaveClick`), when there is one: shown in grey above the line. */
+    parent?: string;
     /** Where the match starts and ends on the (untrimmed) line, for the highlight. */
     start: number;
     end: number;
@@ -42,6 +44,24 @@ export function memberLineRanges(member: { range: { start: { line: number }; end
  * Lines that use `name` as a whole word, once per line. The lines in `skip` (the member's own
  * declaration and implementation header) are left out. `total` is the exact count, `hits` the first rows.
  */
+/** A routine of the file with the lines it spans (its declaration and its implementation are two ranges). */
+export interface ParentRange { name: string; start: number; end: number }
+
+/** The routine that holds a line: the narrowest of the ranges that contain it. */
+export function parentOf(line: number, ranges: readonly ParentRange[]): string | undefined {
+    let best: ParentRange | undefined;
+    for (const r of ranges) {
+        if (line < r.start || line > r.end) { continue; }
+        if (!best || r.end - r.start < best.end - best.start) { best = r; }
+    }
+    return best?.name;
+}
+
+/** The hits with the routine that holds each one. */
+export function withParents(hits: LineHit[], ranges: readonly ParentRange[]): LineHit[] {
+    return hits.map(h => ({ ...h, parent: parentOf(h.line, ranges) }));
+}
+
 export function usageLines(lines: string[], name: string, skip: ReadonlySet<number>): { hits: LineHit[]; total: number } {
     const word = name.replace(/^[~&*]+/, '');
     if (!word) { return { hits: [], total: 0 }; }

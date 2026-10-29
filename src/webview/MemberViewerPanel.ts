@@ -17,7 +17,7 @@ import { MemoStore, GENERAL_MEMO, sanitizeLang } from '../services/MemoStore';
 import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
-import { LineHit, memberLineRanges, searchLines, usageLines } from '../utils/memberSearch';
+import { LineHit, memberLineRanges, searchLines, usageLines, ParentRange, withParents } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
 import { DEFAULT_REVIEW_OPTIONS, REVIEW_SORTS, ReviewSort, reviewCss, reviewHtml } from './reviewSection';
@@ -781,7 +781,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** The text of the .dfm that goes with the unit being edited (Delphi), read again only when the file changed. */
     private dfmText(): string | undefined {
-        const doc = vscode.window.activeTextEditor?.document;
+        const doc = vscode.window.activeTextEditor?.document ?? currentDocument();
         const m = doc ? /^(.*)\.pas$/i.exec(doc.uri.fsPath) : null;
         if (!m) { return undefined; }
         const path = m[1] + '.dfm';
@@ -800,6 +800,21 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (!dfm) { return undefined; }
         const isComponent = !!member && member.kind === MemberKind.Field && hasComponent(dfm, member.name);
         return isComponent && member ? { id: member.id, name: member.name } : { id: '' };
+    }
+
+    /** The routines of the file with their lines (the declaration and the implementation of each), to say which one holds a line. */
+    private parentRanges(): ParentRange[] {
+        const ctx = this.manageContext();
+        const out: ParentRange[] = [];
+        const add = (m: ClassMember, owner?: string): void => {
+            if (m.kind === MemberKind.Field || m.kind === MemberKind.Property) { return; }
+            const name = owner ? owner + '.' + m.name : m.name;
+            out.push({ name, start: m.range.start.line, end: m.range.end.line });
+            if (m.implementationRange) { out.push({ name, start: m.implementationRange.start.line, end: m.implementationRange.end.line }); }
+        };
+        for (const c of ctx.classes) { for (const m of c.members) { add(m, c.name && !c.isSynthetic ? c.name : undefined); } }
+        for (const m of ctx.standalone) { add(m); }
+        return out;
     }
 
     /** A component's events and the handlers' lines; for a routine, the events it answers. */
@@ -840,7 +855,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         this._tab = 'manage';
         this._stateKey = '';
         this.updateView();
-        try { await vscode.commands.executeCommand('ceViewer.focus'); } catch { /* the view is shown already */ }
+        // the sidebar is shown without taking the focus: the keys of the unit (Ctrl+K Ctrl+B back to the designer) keep working
+        try {
+            if (this._view) { this._view.show(true); } else { await vscode.commands.executeCommand('ceViewer.focus'); }
+            await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+        } catch { /* the view is shown already */ }
     }
 
     /** Where the focused member is used in the current file, and the search inside its code. */
@@ -852,6 +871,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const skip = new Set<number>([member.range.start.line]);
         if (member.implementationRange) { skip.add(member.implementationRange.start.line); }
         const use = usageLines(lines, member.name, skip);
+        use.hits = withParents(use.hits, this.parentRanges());
         const searchable = member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
         const found = searchable && this._memberSearch ? searchLines(lines, memberLineRanges(member), this._memberSearch) : { hits: [] as LineHit[], total: 0 };
         const kindLabel = member.kind.charAt(0).toUpperCase() + member.kind.slice(1);

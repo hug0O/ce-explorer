@@ -39,7 +39,7 @@ import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
 import { ProjectScanner } from './services/ProjectScanner';
 import { registerLanguageCommands } from './services/LanguageCommands';
-import { trackLastEditor } from './services/LastEditor';
+import { trackLastEditor, currentDocument } from './services/LastEditor';
 import { setDesignerStores } from './services/DesignerStore';
 import { registerEncodingCommands } from './services/EncodingCommands';
 
@@ -527,7 +527,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('ce.delphi.designer', (uri?: vscode.Uri) => FormDesignerPanel.createOrShow(uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document)),
         vscode.commands.registerCommand('ce.openGuide', (topic?: unknown) => GuidePanel.show(context.extensionUri, typeof topic === 'string' ? topic : undefined)),
         vscode.commands.registerCommand('ce.delphi.designerFullScreen', () => { FormDesignerPanel.toggleFullScreen(); BlueprintPanel.toggleFullScreen(); }),
-        vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document)),
+        vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document ?? currentDocument())),
         vscode.commands.registerCommand('ce.delphi.align', delphi.alignComponentsCommand),
         vscode.commands.registerCommand('ce.delphi.anchors', delphi.anchorsCommand),
         vscode.commands.registerCommand('ce.delphi.tabOrder', delphi.tabOrderCommand),

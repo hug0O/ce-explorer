@@ -99,3 +99,11 @@ test('back from the code: Ctrl+K Ctrl+B also from the sidebar, a button on the c
     assert.match(read('webview/MemberViewerPanel.ts'), /executeCommand\('ce\.delphi\.showInDesigner', target\.name\)/);
     assert.match(read('extension.ts'), /registerCommand\('ce\.delphi\.showInDesigner'/);
 });
+
+test('the way back works while a page of the sidebar has the focus (no active text editor), and says which key does it', () => {
+    const ext = read('extension.ts');
+    assert.match(ext, /FormDesignerPanel\.toggle\(vscode\.window\.activeTextEditor\?\.document \?\? currentDocument\(\)\)/, 'the last document is used');
+    const d = read('webview/FormDesignerPanel.ts');
+    assert.match(d, /const back = FormDesignerPanel\.backTo\.get\(shown\.dfmDoc\.uri\.toString\(\)\)/, 'the way with no document selects the component too');
+    assert.match(d, /setStatusBarMessage\('CE: Ctrl\+K Ctrl\+B goes back to the designer/);
+});

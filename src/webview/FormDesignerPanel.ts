@@ -115,7 +115,12 @@ export class FormDesignerPanel {
         if (!doc) {
             const open = [...FormDesignerPanel.open.values()];
             const shown = open.find(d => d.panel.active) ?? open[open.length - 1];
-            if (shown) { shown.panel.reveal(shown.panel.viewColumn ?? vscode.ViewColumn.Active); return; }
+            if (shown) {
+                shown.panel.reveal(shown.panel.viewColumn ?? vscode.ViewColumn.Active);
+                const back = FormDesignerPanel.backTo.get(shown.dfmDoc.uri.toString());
+                if (back) { FormDesignerPanel.backTo.delete(shown.dfmDoc.uri.toString()); void shown.panel.webview.postMessage({ type: 'selectComponent', name: back }); }
+                return;
+            }
         }
         const pair = await resolveFormPair(doc);
         if (!pair) {
@@ -484,6 +489,7 @@ export class FormDesignerPanel {
                 const name = str(m.name);
                 if (!NAME_RE.test(name)) { return; }
                 FormDesignerPanel.backTo.set(this.dfmDoc.uri.toString(), name);
+                vscode.window.setStatusBarMessage('CE: Ctrl+K Ctrl+B goes back to the designer, with ' + name + ' selected', 8000);
                 await vscode.window.showTextDocument(this.pasDoc, { viewColumn: this.panel.viewColumn });
                 await vscode.commands.executeCommand('ce.structure.showComponent', name);
                 return;

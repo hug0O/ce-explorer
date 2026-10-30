@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.75 — 2026-10-30
+- **Translate text inside the code with a free service.** **CE: Translate** (the *More commands* menu of the editor, or the palette) translates the selected text, or, with nothing selected, the **comment or string literal under the cursor** (TypeScript, Python, Java, C#, Go, Rust, C/C++, Delphi, PL/SQL…: only the words you wrote, not the `//`, `#`, `{ }` or the quotes). The translation is shown with two buttons, **Replace** (in the code, one undo away) and **Copy**. **CE: Translate into another language...** picks the language (French, English, Spanish, German… or any code such as `pt-BR`) and translates.
+- It uses **MyMemory**, which needs no account or key. The first time, you are told that the text you translate is sent to `api.mymemory.translated.net` (nothing else of your code), and you agree once. Settings: `ce.translate.target` (default `fr`), `ce.translate.source` (`auto`), and an optional `ce.translate.email` that raises the free daily quota. A text is sent line by line, 40 pieces at most per command; when the quota is used up or the service cannot be reached, the message says so.
+
 ## 0.1.74 — 2026-10-30
 - **Memo: a `main.md` by default, and as many memos as you want, in a list.** The tab no longer follows the language of the file: it opens on **main** (`main.md`, created for you), and every memo of the folder is a row of a **selectable list** (the memos written by earlier versions, `pascal.md`, `general.md`…, are in it too; an *empty* mark shows the ones with nothing yet). **＋ New memo** asks for a name and creates the file (`Release notes` makes `release-notes.md`), ready to write.
 - **Open a memo as a page.** **📖 Open as page** shows it in the application's Markdown page (outline of the headings, to-do boxes you can tick, tables, the `/` menu to add blocks as in Notion); **📝 Text** opens the same file in the text editor; **🗑** moves a memo to the trash (it can be taken back; main stays).

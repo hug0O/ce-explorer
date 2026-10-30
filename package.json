@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.74",
+  "version": "0.1.75",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -442,6 +442,14 @@
       {
         "command": "ce.markdown.new",
         "title": "CE: New Markdown page"
+      },
+      {
+        "command": "ce.translate",
+        "title": "CE: Translate the selection or the comment / string under the cursor"
+      },
+      {
+        "command": "ce.translateTo",
+        "title": "CE: Translate into another language..."
       }
     ],
     "submenus": [
@@ -681,6 +689,16 @@
           "command": "ce.markdown.open",
           "when": "resourceExtname =~ /^\\.(md|markdown)$/i",
           "group": "1_navigate@10"
+        },
+        {
+          "command": "ce.translate",
+          "when": "editorTextFocus",
+          "group": "3_text@1"
+        },
+        {
+          "command": "ce.translateTo",
+          "when": "editorTextFocus",
+          "group": "3_text@2"
         }
       ]
     },
@@ -723,7 +741,22 @@
           "ce.memo.folder": {
             "type": "string",
             "default": "",
-            "description": "Folder holding the Markdown memos, one file per language (typescript.md, pascal.md, plsql.md, general.md…). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
+            "description": "Folder holding the Markdown memos (main.md and the others you create, one file each). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
+          },
+          "ce.translate.target": {
+            "type": "string",
+            "default": "fr",
+            "description": "The language CE: Translate translates into (a code such as fr, en, de, es, pt-BR). CE: Translate into another language... changes it."
+          },
+          "ce.translate.source": {
+            "type": "string",
+            "default": "auto",
+            "description": "The language of the text to translate: 'auto' to let the service find it, or a code such as en."
+          },
+          "ce.translate.email": {
+            "type": "string",
+            "default": "",
+            "description": "Optional e-mail given to the free translation service (MyMemory) to raise its daily quota; it is sent with each request when set."
           }
         }
       },

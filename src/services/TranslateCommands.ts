@@ -81,26 +81,28 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
     };
 
     /** After a choice of language: translate the selection when there is one, else just say what is set. */
-    const thenRun = async (): Promise<void> => {
+    const thenRun = async (set: string): Promise<void> => {
         const e = vscode.window.activeTextEditor;
         if (e && !e.selection.isEmpty) { await run(); return; }
         const { source, target } = settings();
-        vscode.window.setStatusBarMessage('CE: translate ' + nameOf(source) + ' → ' + nameOf(target), 4000);
+        vscode.window.setStatusBarMessage('CE: translate ' + nameOf(source) + ' → ' + nameOf(target) + ' (set ' + set + ', the other side is unchanged)', 5000);
     };
 
     context.subscriptions.push(
         trackedCommand('ce.translate', run),
         trackedCommand('ce.translateTo', async () => {
-            const code = await pickLanguage('Translate into', settings().target, false);
+            const now = settings();
+            const code = await pickLanguage('Translate into (from ' + nameOf(now.source) + ')', now.target, false);
             if (!code) { return; }
             await context.globalState.update(TARGET_KEY, code);
-            await thenRun();
+            await thenRun('into ' + nameOf(code));
         }),
         trackedCommand('ce.translateFrom', async () => {
-            const code = await pickLanguage('The text is written in', settings().source, true);
+            const now = settings();
+            const code = await pickLanguage('The text is written in (into ' + nameOf(now.target) + ')', now.source, true);
             if (!code) { return; }
             await context.globalState.update(SOURCE_KEY, code);
-            await thenRun();
+            await thenRun('from ' + nameOf(code));
         }),
     );
 }

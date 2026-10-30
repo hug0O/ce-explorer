@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.80 — 2026-10-30
+- **Translate: the two languages are told apart.** *Translate into* only ever sets the language you translate **into**, and *Translate from* only the language of the text; a test now drives both commands to make sure of it. Each list says what the other side is (`Translate into (from English)`), and the message after the choice says which side was set and that the other one is unchanged. If the source looks as if it followed the target, it was the **detection** (`auto`): after *Replace* the text is in the new language, so the service detects that one next time: choose the source with *Translate from* to keep it fixed.
+
 ## 0.1.79 — 2026-10-30
 - **Translate: choose the language of the text.** **CE: Translate from a language...** (the *More commands* menu of the editor, or the palette) lists the languages with **Detect the language** first; the choice is remembered, and if text is selected it is translated at once. The result and the progress now say the way (`English → French`), and a source equal to the target is refused before anything is sent. The setting `ce.translate.source` stays the default (`auto`).
 

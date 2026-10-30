@@ -1,8 +1,7 @@
 /**
  * Translating text inside the code with a free web service that asks for no key (MyMemory). Pure: it cuts a text into the pieces the service
- * accepts, builds the request, reads the answer, and finds the comment or string literal under the cursor; the command sends the request.
+ * accepts, builds the request, reads the answer, the command sends the request.
  */
-import { familyOf, maskCode } from './callGraph';
 
 /** The service accepts at most 500 bytes a request: the pieces stay well under. */
 export const MAX_PIECE = 400;
@@ -69,60 +68,6 @@ export function parseTranslation(json: unknown): { text?: string; error?: string
 /** The translated segments put back with their blanks and their lines. */
 export function joinSegments(segments: Segment[], translated: string[][]): string {
     return segments.map((s, i) => (s.pieces.length ? s.lead + translated[i].join(' ') : '')).join('\n');
-}
-
-export interface Piece {
-    /** Offset of the text to translate in the document, and its end. */
-    start: number;
-    end: number;
-    text: string;
-    kind: 'comment' | 'string';
-}
-
-const COMMENT_MARK = /^(?:\/\/+[!/]?|#+|--+|\/\*+!?|\(\*|\{|@?rem\b|::)\s*/i;
-const COMMENT_END = /\s*(?:\*+\/|\*\)|\})$/;
-
-/**
- * The comment or the string literal the cursor is in (offsets in the document), without its marks (slashes, stars, quotes): the part a human
- * wrote. The text is masked with the call graph's masking, which blanks exactly the comments and the strings; the blanks of the code are
- * replaced beforehand so that a blank in the masked text can only come from a comment or a string. With the cursor outside any, the only
- * comment or string of the line is taken.
- */
-export function pieceAt(text: string, languageId: string, offset: number): Piece | undefined {
-    const family = familyOf(languageId);
-    if (!family) { return undefined; }
-    const masked = maskCode(text.replace(/[ \t]/g, ';'), family);
-    const lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
-    const nl = text.indexOf('\n', offset);
-    const lineEnd = nl < 0 ? text.length : nl;
-    const runs: { s: number; e: number }[] = [];
-    for (let i = lineStart; i < lineEnd; i++) {
-        if (masked[i] === ' ' && text[i] !== '\r') {
-            const s = i;
-            while (i < lineEnd && masked[i] === ' ' && text[i] !== '\r') { i++; }
-            runs.push({ s, e: i });
-        }
-    }
-    const run = runs.find(r => offset >= r.s && offset <= r.e) ?? (runs.length === 1 ? runs[0] : undefined);
-    if (!run) { return undefined; }
-    let { s, e } = run;
-    const quoted = s > 0 && /["'`]/.test(text[s - 1]) && text[s - 1] === text[e];
-    let body = text.slice(s, e);
-    if (!quoted) {
-        const m = COMMENT_MARK.exec(body);
-        if (m) { s += m[0].length; body = body.slice(m[0].length); }
-        const t = COMMENT_END.exec(body);
-        if (t) { body = body.slice(0, body.length - t[0].length); }
-        // the stars that start the lines of a block comment are not text
-        const star = /^\s*\*+\s?/.exec(body);
-        if (star && !/^\s*\*+\//.test(body)) { s += star[0].length; body = body.slice(star[0].length); }
-        const blank = /^\s+/.exec(body);
-        if (blank) { s += blank[0].length; body = body.slice(blank[0].length); }
-    }
-    body = body.trimEnd();
-    if (!/\p{L}/u.test(body)) { return undefined; }
-    e = s + body.length;
-    return { start: s, end: e, text: body, kind: quoted ? 'string' : 'comment' };
 }
 
 /** The most pieces one command sends: the free service is for a sentence or a comment, not for a file. */

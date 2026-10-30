@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.76 — 2026-10-30
+- **Translate: only the selection.** *CE: Translate* translates the text you selected and nothing else; with no selection it just asks you to select one (the comment or string under the cursor is no longer taken by itself).
+
 ## 0.1.75 — 2026-10-30
 - **Translate text inside the code with a free service.** **CE: Translate** (the *More commands* menu of the editor, or the palette) translates the selected text, or, with nothing selected, the **comment or string literal under the cursor** (TypeScript, Python, Java, C#, Go, Rust, C/C++, Delphi, PL/SQL…: only the words you wrote, not the `//`, `#`, `{ }` or the quotes). The translation is shown with two buttons, **Replace** (in the code, one undo away) and **Copy**. **CE: Translate into another language...** picks the language (French, English, Spanish, German… or any code such as `pt-BR`) and translates.
 - It uses **MyMemory**, which needs no account or key. The first time, you are told that the text you translate is sent to `api.mymemory.translated.net` (nothing else of your code), and you agree once. Settings: `ce.translate.target` (default `fr`), `ce.translate.source` (`auto`), and an optional `ce.translate.email` that raises the free daily quota. A text is sent line by line, 40 pieces at most per command; when the quota is used up or the service cannot be reached, the message says so.

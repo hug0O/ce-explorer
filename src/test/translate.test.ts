@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
-import { LANGUAGES, MAX_PIECES, decodeEntities, isLanguageCode, parseTranslation, pieceAt, segmentsOf, translateAll, translateUrl } from '../utils/translate';
+import { LANGUAGES, MAX_PIECES, decodeEntities, isLanguageCode, parseTranslation, segmentsOf, translateAll, translateUrl } from '../utils/translate';
 
 test('a text is cut into lines and pieces the service accepts, blanks kept', () => {
     const segs = segmentsOf('  Hello world.\n\nSecond line');
@@ -45,25 +45,6 @@ test('translating a text: line by line, blanks and numbers untouched, failures r
     assert.match((await translateAll('', 'auto', 'fr', '', get)).error ?? '', /nothing/);
     const many = Array.from({ length: MAX_PIECES + 1 }, (_v, i) => 'line ' + i + ' word').join('\n');
     assert.match((await translateAll(many, 'auto', 'fr', '', get)).error ?? '', /too long/);
-});
-
-test('the comment or string under the cursor, without its marks', () => {
-    const ts = 'const a = 1; // compute the total\nconst s = "hello there";\n/* first line\n * second line */\nlet b = 2;';
-    const at = (needle: string, off = 0): number => ts.indexOf(needle) + off;
-    const c = pieceAt(ts, 'typescript', at('total'));
-    assert.deepEqual([c?.text, c?.kind], ['compute the total', 'comment']);
-    assert.equal(ts.slice(c!.start, c!.end), 'compute the total', 'the offsets are those of the text alone');
-    const s = pieceAt(ts, 'typescript', at('hello', 2));
-    assert.deepEqual([s?.text, s?.kind], ['hello there', 'string']);
-    assert.equal(pieceAt(ts, 'typescript', at('const s'))?.text, 'hello there', 'the only string of the line, cursor elsewhere');
-    assert.equal(pieceAt(ts, 'typescript', at('let b')), undefined, 'no comment, no string');
-    const block = pieceAt(ts, 'typescript', at('second'));
-    assert.equal(block?.text, 'second line');
-    assert.equal(pieceAt('x = 1  # set the value', 'python', 8)?.text, 'set the value');
-    assert.equal(pieceAt('x := 1; { adds one }', 'pascal', 14)?.text, 'adds one');
-    assert.equal(pieceAt('-- the total\nselect 1 from dual;', 'plsql', 5)?.text, 'the total');
-    assert.equal(pieceAt('// 42 --\nx', 'typescript', 3), undefined, 'no letter to translate');
-    assert.equal(pieceAt('hello', 'markdown', 2), undefined, 'a language without comments and strings to read');
 });
 
 test('the command is in the palette and the "More commands" menu, with its settings; the text is sent only after the user agreed', () => {

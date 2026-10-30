@@ -1,10 +1,10 @@
 /**
- * `CE: Translate`: the selected text, or the comment / string literal under the cursor, translated with a free web service that needs no
+ * `CE: Translate`: the selected text translated with a free web service that needs no
  * key (MyMemory). The answer is shown with two buttons: replace the text in the code, or copy it. The first time, the user is told what
  * is sent and where, and agrees once.
  */
 import * as vscode from 'vscode';
-import { LANGUAGES, isLanguageCode, pieceAt, translateAll } from '../utils/translate';
+import { LANGUAGES, isLanguageCode, translateAll } from '../utils/translate';
 
 const CONSENT_KEY = 'ce.translate.consent';
 
@@ -43,22 +43,16 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         const editor = vscode.window.activeTextEditor;
         if (!editor) { void vscode.window.showWarningMessage('CE: open a file, select a text and translate it.'); return; }
         const doc = editor.document;
-        let range: vscode.Range | undefined;
-        let text = '';
-        const sel = editor.selection;
-        if (!sel.isEmpty) { range = sel; text = doc.getText(sel); }
-        else {
-            const piece = pieceAt(doc.getText(), doc.languageId, doc.offsetAt(sel.active));
-            if (piece) { range = new vscode.Range(doc.positionAt(piece.start), doc.positionAt(piece.end)); text = piece.text; }
-        }
-        if (!range || !text.trim()) { void vscode.window.showInformationMessage('CE: select the text to translate, or put the cursor in a comment or a string.'); return; }
+        const range = editor.selection;
+        const text = doc.getText(range);
+        if (range.isEmpty || !text.trim()) { void vscode.window.showInformationMessage('CE: select the text to translate.'); return; }
         if (!await agreed()) { return; }
         const { source, target, email } = settings();
         const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CE: translating to ' + nameOf(target) + '...' }, () => translateAll(text, source, target, email, get));
         if (result.text === undefined) { void vscode.window.showWarningMessage('CE: ' + (result.error ?? 'The text could not be translated.')); return; }
         const pick = await vscode.window.showInformationMessage('Translation to ' + nameOf(target), { modal: true, detail: result.text }, 'Replace', 'Copy');
         if (pick === 'Replace') {
-            const ok = await editor.edit(b => b.replace(range!, result.text!));
+            const ok = await editor.edit(b => b.replace(range, result.text!));
             if (!ok) { void vscode.window.showWarningMessage('CE: the text could not be replaced (the file changed?).'); }
         } else if (pick === 'Copy') {
             await vscode.env.clipboard.writeText(result.text);

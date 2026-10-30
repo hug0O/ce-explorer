@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
-import { LANGUAGES, MAX_PIECES, decodeEntities, isLanguageCode, parseTranslation, segmentsOf, translateAll, translateUrl } from '../utils/translate';
+import { LANGUAGES, MAX_PIECES, TranslationMemory, decodeEntities, isLanguageCode, parseTranslation, segmentsOf, translateAll, translateUrl } from '../utils/translate';
 
 test('a text is cut into lines and pieces the service accepts, blanks kept', () => {
     const segs = segmentsOf('  Hello world.\n\nSecond line');
@@ -75,4 +75,25 @@ test('the command is in the palette and the "More commands" menu, with its setti
     assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === 'ce.translateFrom'));
     assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === 'ce.translateFrom'));
     assert.match(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8'), /registerTranslateCommands\(context\)/);
+});
+
+test('a translation made here is translated again from its original, in its own language', () => {
+    const m = new TranslationMemory(3);
+    assert.equal(m.recall('Hello'), undefined);
+    m.remember('Hello world', 'Bonjour le monde', 'fr');
+    assert.deepEqual(m.recall('  Hello   world '), { original: 'Bonjour le monde', source: 'fr' }, 'blanks do not matter');
+    // English → German of the translation: still French → German
+    m.remember('Hallo Welt', m.recall('Hello world')!.original, m.recall('Hello world')!.source);
+    assert.deepEqual(m.recall('Hallo Welt'), { original: 'Bonjour le monde', source: 'fr' });
+    // a translation of a translation keeps the first original
+    m.remember('Hola mundo', 'Hello world', 'en');
+    assert.deepEqual(m.recall('Hola mundo'), { original: 'Bonjour le monde', source: 'fr' }, 'the chain goes back to the first text');
+    // bounded
+    m.remember('a', 'b', 'fr'); m.remember('c', 'd', 'fr');
+    assert.equal(m.recall('Hello world'), undefined, 'the oldest is forgotten');
+    assert.ok(m.recall('c'));
+    const cmd = fs.readFileSync(path.join(__dirname, '..', 'services', 'TranslateCommands.ts'), 'utf8');
+    assert.match(cmd, /memory\.recall\(selected\)/);
+    assert.match(cmd, /\(from the original text\)/);
+    assert.match(cmd, /known\.source\.toLowerCase\(\) === target\.toLowerCase\(\)/, 'back to the original language: nothing is sent');
 });

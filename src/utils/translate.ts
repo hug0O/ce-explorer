@@ -104,3 +104,29 @@ export async function translateAll(text: string, source: string, target: string,
     await Promise.all([worker(), worker(), worker()]);
     return failure ? { error: failure } : { text: joinSegments(segments, translated), detected };
 }
+
+/**
+ * What was translated in this session: the text a translation gave, with the text it came from and the language of that text. Translating
+ * the result again (after a *Replace*, the code now holds the result) starts from the original, in its own language, instead of from the
+ * translation: French → English, then English → German is really French → German, and the source does not follow the text that was replaced.
+ */
+export class TranslationMemory {
+    private readonly items = new Map<string, { original: string; source: string }>();
+
+    constructor(private readonly max = 30) {}
+
+    private static key(text: string): string { return text.replace(/\s+/g, ' ').trim(); }
+
+    /** `source` is the language of `original` (a code, never 'auto'). A translation of a translation keeps the very first original. */
+    remember(result: string, original: string, source: string): void {
+        const from = this.recall(original) ?? { original, source };
+        this.items.delete(TranslationMemory.key(result));
+        this.items.set(TranslationMemory.key(result), from);
+        while (this.items.size > this.max) { this.items.delete(this.items.keys().next().value as string); }
+    }
+
+    /** The original and its language when `selection` is a translation made here, else undefined. */
+    recall(selection: string): { original: string; source: string } | undefined {
+        return this.items.get(TranslationMemory.key(selection));
+    }
+}

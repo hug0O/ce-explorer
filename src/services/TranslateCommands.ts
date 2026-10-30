@@ -5,7 +5,7 @@
  */
 import * as vscode from 'vscode';
 import { trackedCommand } from './UsageStats';
-import { LANGUAGES, isLanguageCode, translateAll } from '../utils/translate';
+import { LANGUAGES, TranslationMemory, isLanguageCode, translateAll } from '../utils/translate';
 
 const CONSENT_KEY = 'ce.translate.consent';
 /** The language picked with *Translate into another language*: kept by the extension itself, so it needs no setting to be registered. */
@@ -30,6 +30,7 @@ const log = (): vscode.OutputChannel => (output ??= vscode.window.createOutputCh
 const nameOf = (code: string): string => (code === 'auto' ? 'the detected language' : LANGUAGES.find(l => l.code === code.toLowerCase())?.name ?? code);
 
 export function registerTranslateCommands(context: vscode.ExtensionContext): void {
+    const memory = new TranslationMemory();
     const settings = (): { source: string; target: string; email: string } => {
         const c = vscode.workspace.getConfiguration('ce.translate');
         const target = (context.globalState.get<string>(TARGET_KEY, '') || c.get<string>('target', 'fr') || 'fr').trim();
@@ -66,16 +67,30 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         if (!editor) { void vscode.window.showWarningMessage('CE: open a file, select a text and translate it.'); return; }
         const doc = editor.document;
         const range = editor.selection;
-        const text = doc.getText(range);
-        if (range.isEmpty || !text.trim()) { void vscode.window.showInformationMessage('CE: select the text to translate.'); return; }
-        const { source, target, email } = settings();
+        const selected = doc.getText(range);
+        if (range.isEmpty || !selected.trim()) { void vscode.window.showInformationMessage('CE: select the text to translate.'); return; }
+        const set = settings();
+        const { target, email } = set;
+        // the text is a translation made here: translate again from the original, in its own language, so the source does not follow the replaced text
+        const known = memory.recall(selected);
+        const text = known ? known.original : selected;
+        const source = known ? known.source : set.source;
+        if (known && known.source.toLowerCase() === target.toLowerCase()) {
+            // back to the language of the original: no request, the original text is given back
+            const back = await vscode.window.showInformationMessage('The original text, ' + nameOf(known.source), { modal: true, detail: known.original }, 'Replace', 'Copy');
+            if (back === 'Replace') { await editor.edit(b => b.replace(range, known.original)); }
+            else if (back === 'Copy') { await vscode.env.clipboard.writeText(known.original); }
+            return;
+        }
         if (source.toLowerCase() === target.toLowerCase()) { void vscode.window.showWarningMessage('CE: the text is said to be in ' + nameOf(source) + ' and is to be translated into ' + nameOf(target) + ': change one of the two (CE: Translate from... / into...).'); return; }
         if (!await agreed()) { return; }
-        let way = nameOf(source) + ' → ' + nameOf(target);
+        let way = nameOf(source) + ' → ' + nameOf(target) + (known ? ' (from the original text)' : '');
         const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CE: translating, ' + way + '...' }, () => translateAll(text, source, target, email, get));
         if (result.text === undefined) { void vscode.window.showWarningMessage('CE: ' + (result.error ?? 'The text could not be translated.')); return; }
         // with a source left to the service, the language it found is told: it follows the text, not a setting
         if (source === 'auto' && result.detected) { way = nameOf(result.detected) + ' (detected) → ' + nameOf(target); }
+        const used = source === 'auto' ? result.detected : source;
+        if (used) { memory.remember(result.text, text, used); }
         log().appendLine(new Date().toISOString().slice(11, 19) + '  ' + source + ' | ' + target + (result.detected ? '  detected ' + result.detected : '') + '  (' + text.length + ' characters)');
         const pick = await vscode.window.showInformationMessage('Translation, ' + way, { modal: true, detail: result.text }, 'Replace', 'Copy');
         if (pick === 'Replace') {

@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.82 — 2026-10-30
+- **Translate: the source no longer follows the text you replaced.** After a *Replace* the code holds the translation, so the language the service detected for the next translation was the one you had just translated into. The extension now remembers, for this session, what each translation came from: translating that text again starts **from the original text, in its own language** (`French → German (from the original text)`, better than French → English → German), and asking for the original language gives the original text back without any request.
+
 ## 0.1.81 — 2026-10-30
 - **Translate says which language it translated from.** With the source left on *Detect the language*, the service looks at the text itself, so after a *Replace* (the text is now in the new language) the next translation starts from that language: the result now reads `English (detected) → French` so this is visible, and every translation is written in the **CE Translate** output (`fr | en  detected fr`). To keep the source fixed whatever the text, pick it with **Translate from**.
 

@@ -2377,7 +2377,8 @@ ${layoutsScript()}
     if (!state.sel.length) { state.notice = 'Select the components to ' + (cut ? 'cut' : 'copy') + ' first.'; renderStatus(); return; }
     state.cut = cut ? state.sel.slice() : [];
     markCut(); renderOutline();
-    post({ type: cut ? 'cut' : 'copy', names: state.sel.slice() });
+    // the clipboard gets the name and the label of what is copied, as text; the components themselves are kept by the extension
+    post({ type: cut ? 'cut' : 'copy', names: state.sel.slice(), labels: state.sel.map(function (n) { return { name: n, label: byName[n] ? textOf(byName[n], 'caption') : '' }; }) });
   }
   function doPaste() {
     var prim = state.sel[state.sel.length - 1];

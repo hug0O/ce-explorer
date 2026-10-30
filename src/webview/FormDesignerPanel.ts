@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { hitMessage } from '../services/UsageStats';
 import { TextEdit } from '../services/DelphiForm';
 import { DfmNode, parseDfmTree, findNode, isContainer, listContainers } from '../services/DelphiLayout';
 import { ANCHOR_MODES, AnchorMode, applyAnchorMode, planTabOrder } from '../services/DelphiAlign';
@@ -164,6 +165,9 @@ export class FormDesignerPanel {
 
     /** The component to select when the designer is shown again, by .dfm (set when the code is reached with S or from the Structure tab). */
     private static readonly backTo = new Map<string, string>();
+
+    /** The last copy: the text put on the clipboard (names and labels) and the components behind it, for the paste of this or another form. */
+    private static lastCopy: { plain: string; clip: string } | undefined;
 
     /** The designer of the unit with this component selected (the *Show in the designer* button of the Structure tab). */
     static async showComponent(doc: vscode.TextDocument | undefined, name: string): Promise<void> {
@@ -476,6 +480,7 @@ export class FormDesignerPanel {
     /* ───────────── messages ───────────── */
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
+        hitMessage('designer', m.type);
         try {
             if (this.dfmDoc.isClosed || this.pasDoc.isClosed) { await this.reopenDocs(); }
             await this.handle(m);
@@ -566,7 +571,16 @@ export class FormDesignerPanel {
                 const r = copyComponents(pas, dfm, list, await this.unitsOf(root, list));
                 if ('error' in r) { this.sendModel(undefined, r.error); return; }
                 const text = serializeClip(r.payload);
-                await vscode.env.clipboard.writeText(text);
+                // what goes on the clipboard is readable: a line "name<TAB>label" per component, not the payload; the payload is kept here
+                // and comes back when that very text is pasted in a designer
+                const labels = Array.isArray(m.labels) ? m.labels : [];
+                const plain = list.map(n => {
+                    const l = labels.find((x: unknown) => !!x && typeof x === 'object' && (x as { name?: unknown }).name === n) as { label?: unknown } | undefined;
+                    const label = typeof l?.label === 'string' ? l.label.replace(/[\r\n\t]+/g, ' ').trim() : '';
+                    return label ? n + '\t' + label : n;
+                }).join('\n');
+                FormDesignerPanel.lastCopy = { plain, clip: text };
+                await vscode.env.clipboard.writeText(plain);
                 const roots = r.payload.objects.map(o => parseDfmTree(o)?.name).filter((n): n is string => !!n);
                 this.cut = m.type === 'cut' ? { clip: text, names: roots } : undefined;
                 const count = r.payload.components.length;
@@ -576,7 +590,8 @@ export class FormDesignerPanel {
                 return;
             }
             case 'paste': {
-                const text = await vscode.env.clipboard.readText();
+                const raw = await vscode.env.clipboard.readText();
+                const text = FormDesignerPanel.lastCopy && raw === FormDesignerPanel.lastCopy.plain ? FormDesignerPanel.lastCopy.clip : raw;
                 const clip = parseClip(text);
                 if (!clip) { this.sendModel(undefined, 'The clipboard holds no components copied from the designer (select some, then Ctrl+C or Ctrl+X).'); return; }
                 const target = NAME_RE.test(str(m.target)) ? findNode(root, str(m.target)) : root;

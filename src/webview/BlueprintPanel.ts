@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { hitMessage } from '../services/UsageStats';
 import { ClassInfo, ClassMember, MemberFormResult, MemberKind, Parameter, Visibility } from '../models/types';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { CodeExplorerService } from '../services/CodeExplorerService';
@@ -224,6 +225,7 @@ export class BlueprintPanel {
     private entry(id: unknown): Entry | undefined { return typeof id === 'string' ? this.entries.find(e => e.id === id) : undefined; }
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
+        hitMessage('blueprint', m.type);
         switch (m.type) {
             case 'ready': this.flowOf = undefined; await this.readForm(); this.send(true); this.sendHistory(); break;
             case 'showFlow': this.showFlow(this.entry(m.id)); break;

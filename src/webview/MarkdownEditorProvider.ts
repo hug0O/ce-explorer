@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { trackedCommand } from '../services/UsageStats';
 import * as path from 'path';
 import { joinBlocks, outline, parseBlocks } from '../utils/mdBlocks';
 import { RenderOptions, esc, renderBlock, slug, toggleTask } from '../utils/mdRender';
@@ -38,12 +39,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     static register(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
             vscode.window.registerCustomEditorProvider(MarkdownEditorProvider.viewType, new MarkdownEditorProvider(), { webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: false }),
-            vscode.commands.registerCommand('ce.markdown.open', async (uri?: vscode.Uri) => {
+            trackedCommand('ce.markdown.open', async (uri?: vscode.Uri) => {
                 const target = uri ?? vscode.window.activeTextEditor?.document.uri;
                 if (!target || !/\.(md|markdown)$/i.test(target.fsPath)) { void vscode.window.showWarningMessage('CE: Open a Markdown file (.md) to see it as a page.'); return; }
                 await vscode.commands.executeCommand('vscode.openWith', target, MarkdownEditorProvider.viewType);
             }),
-            vscode.commands.registerCommand('ce.markdown.new', async () => {
+            trackedCommand('ce.markdown.new', async () => {
                 const name = await vscode.window.showInputBox({ title: 'New Markdown page', prompt: 'Name of the page', placeHolder: 'Meeting notes', validateInput: v => (/^[^\\/:*?"<>|]+$/.test(v.trim()) ? undefined : 'A name without \\ / : * ? " < > |') });
                 if (!name) { return; }
                 const here = vscode.window.activeTextEditor?.document.uri;

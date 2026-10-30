@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { trackedCommand, usage } from './services/UsageStats';
+import { UsagePanel } from './webview/UsagePanel';
 import * as path from 'path';
 import { ProviderRegistry } from './providers/ProviderRegistry';
 import { CodeExplorerService, CodeExplorerTreeItem } from './services/CodeExplorerService';
@@ -81,6 +83,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         workspaceIndex = new WorkspaceIndex(providerRegistry);
         context.subscriptions.push(workspaceIndex);
         ops.setWorkspaceIndex(workspaceIndex);
+        usage.attach(context.globalState);
+        context.subscriptions.push(vscode.commands.registerCommand('ce.usage.show', () => UsagePanel.show(context)));
+        context.subscriptions.push({ dispose: () => { void usage.flush(); } });
         setFormStorage(context.globalState);
         plsql.setPlSqlContext(providerRegistry, workspaceIndex);
         delphi.setDelphiContext(providerRegistry);
@@ -143,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
         actionLog.init(context.workspaceState);
-        context.subscriptions.push(vscode.commands.registerCommand('ce.showActionLog', async () => {
+        context.subscriptions.push(trackedCommand('ce.showActionLog', async () => {
             const entries = actionLog.list();
             if (!entries.length) { void vscode.window.showInformationMessage('CE: Nothing has been changed by Code Explorer in this workspace yet.'); return; }
             const pick = await vscode.window.showQuickPick(
@@ -151,27 +156,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 { title: 'What Code Explorer changed (newest first)', placeHolder: 'Pick one to open the file' });
             if (pick?.file) { await vscode.window.showTextDocument(vscode.Uri.file(pick.file)); }
         }));
-        context.subscriptions.push(vscode.commands.registerCommand('ce.openWalkthrough', () => vscode.commands.executeCommand('workbench.action.openWalkthrough', 'ce.ce-code-explorer#ce.start', false)));
+        context.subscriptions.push(trackedCommand('ce.openWalkthrough', () => vscode.commands.executeCommand('workbench.action.openWalkthrough', 'ce.ce-code-explorer#ce.start', false)));
         // the first time only: a short offer to see how to start, never again (and never in the way of the work)
         if (!context.globalState.get<boolean>('ce.welcomed')) {
             void context.globalState.update('ce.welcomed', true);
             void vscode.window.showInformationMessage('Code Explorer is ready. Want a 1-minute tour?', 'Quick start', 'Not now')
                 .then(pick => { if (pick === 'Quick start') { void vscode.commands.executeCommand('ce.openWalkthrough'); } });
         }
-        context.subscriptions.push(vscode.commands.registerCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
-        context.subscriptions.push(vscode.commands.registerCommand('ce.structure.showComponent', (name: string) => { if (typeof name === 'string') { void memberViewer.showComponentInStructure(name); } }));
-        context.subscriptions.push(vscode.commands.registerCommand('ce.delphi.showInDesigner', (name: string) => { if (typeof name === 'string') { void FormDesignerPanel.showComponent(vscode.window.activeTextEditor?.document, name); } }));
+        context.subscriptions.push(trackedCommand('ce.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:ce.ce-code-explorer')));
+        context.subscriptions.push(trackedCommand('ce.structure.showComponent', (name: string) => { if (typeof name === 'string') { void memberViewer.showComponentInStructure(name); } }));
+        context.subscriptions.push(trackedCommand('ce.delphi.showInDesigner', (name: string) => { if (typeof name === 'string') { void FormDesignerPanel.showComponent(vscode.window.activeTextEditor?.document, name); } }));
         MarkdownEditorProvider.register(context);
-        context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
+        context.subscriptions.push(trackedCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);
-        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.project', (column?: vscode.ViewColumn, group?: string) => {
+        context.subscriptions.push(trackedCommand('ce.blueprint.project', (column?: vscode.ViewColumn, group?: string) => {
             // from a file that is not Delphi: the project of that language (its files and imports)
             const lang = (BlueprintPanel.lastDoc ?? vscode.window.activeTextEditor?.document)?.languageId;
             const g = group ?? ProjectBlueprintPanel.groupOfLanguage(lang);
             ProjectBlueprintPanel.show(typeof column === 'number' ? column : undefined, g as Parameters<typeof ProjectBlueprintPanel.show>[1]);
         }));
-        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.open', () => BlueprintPanel.show(vscode.window.activeTextEditor?.document)));
+        context.subscriptions.push(trackedCommand('ce.blueprint.open', () => BlueprintPanel.show(vscode.window.activeTextEditor?.document)));
         registerStatusMenu(context, providerRegistry);
 
         const codeLensProvider = new CeCodeLensProvider(providerRegistry);
@@ -225,11 +230,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
 
-        vscode.commands.registerCommand('ce.refreshExplorer', () => {
+        trackedCommand('ce.refreshExplorer', () => {
             codeExplorer.refresh();
         }),
 
-        vscode.commands.registerCommand('ce.navigateToMember', async (position: vscode.Position) => {
+        trackedCommand('ce.navigateToMember', async (position: vscode.Position) => {
             const editor = vscode.window.activeTextEditor;
             if (editor && position) {
                 editor.selection = new vscode.Selection(position, position);
@@ -240,23 +245,23 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.addMethod', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.addMethod', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Method, item);
         }),
 
-        vscode.commands.registerCommand('ce.addField', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.addField', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Field, item);
         }),
 
-        vscode.commands.registerCommand('ce.addProperty', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.addProperty', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Property, item);
         }),
 
-        vscode.commands.registerCommand('ce.addConstructor', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.addConstructor', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Constructor, item);
         }),
 
-        vscode.commands.registerCommand('ce.editMember', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.editMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 void notify.noMember();
@@ -270,7 +275,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.editMember(resolved.doc, resolved.provider, resolved.cls, resolved.member, codeGenerator, codeExplorer, result as MemberFormResult);
         }),
 
-        vscode.commands.registerCommand('ce.deleteMember', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.deleteMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 void notify.noMember();
@@ -279,7 +284,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.deleteMember(resolved.doc, resolved.cls, resolved.member, codeGenerator, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('ce.moveMember', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.moveMember', async (item?: CodeExplorerTreeItem) => {
             if (!item || !('kind' in item.itemData)) {
                 vscode.window.showWarningMessage('Select a member in the explorer to move.');
                 return;
@@ -358,7 +363,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.renameMember', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.renameMember', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 void notify.noMember();
@@ -372,7 +377,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.renameMember(resolved.doc, resolved.cls, resolved.member, resolved.provider, codeExplorer, result.name);
         }),
 
-        vscode.commands.registerCommand('ce.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.createLocalVariable', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 void notify.noEditor();
@@ -391,7 +396,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // Resolves the enclosing method + cursor position for local-variable ops.
-        vscode.commands.registerCommand('ce.renameLocalVariable', async () => {
+        trackedCommand('ce.renameLocalVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
             const doc = editor.document;
@@ -410,7 +415,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await renameLocal(doc, scope, local, newName);
         }),
 
-        vscode.commands.registerCommand('ce.changeLocalType', async () => {
+        trackedCommand('ce.changeLocalType', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on a local variable inside a method.'); return; }
             const doc = editor.document;
@@ -427,7 +432,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await changeLocalType(doc, local);
         }),
 
-        vscode.commands.registerCommand('ce.declareLocalVariable', async () => {
+        trackedCommand('ce.declareLocalVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { vscode.window.showWarningMessage('Place the cursor on the undeclared variable to declare.'); return; }
             const doc = editor.document;
@@ -443,7 +448,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // --- Unified variable refactoring (works on locals, params, fields, properties) ---
-        vscode.commands.registerCommand('ce.renameVariable', async () => {
+        trackedCommand('ce.renameVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to rename.'); return; }
@@ -453,7 +458,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
         }),
 
-        vscode.commands.registerCommand('ce.changeVariableType', async () => {
+        trackedCommand('ce.changeVariableType', async () => {
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a typed variable.'); return; }
             const newType = await vscode.window.showInputBox({ prompt: 'New type', value: ref.type || '' });
@@ -461,7 +466,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.changeType(ref, newType);
         }),
 
-        vscode.commands.registerCommand('ce.deleteVariable', async () => {
+        trackedCommand('ce.deleteVariable', async () => {
             const editor = vscode.window.activeTextEditor;
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a variable to delete.'); return; }
@@ -469,7 +474,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.remove(ref, provider, editor?.selection.active);
         }),
 
-        vscode.commands.registerCommand('ce.synchronizeDeclImpl', async () => {
+        trackedCommand('ce.synchronizeDeclImpl', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 return;
@@ -501,7 +506,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.extractMethod', async () => {
+        trackedCommand('ce.extractMethod', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor || editor.selection.isEmpty) {
                 vscode.window.showWarningMessage('Select code to extract into a method.');
@@ -532,55 +537,55 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.alignSelection', alignSelection),
-        vscode.commands.registerCommand('ce.delphi.designer', (uri?: vscode.Uri) => FormDesignerPanel.createOrShow(uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document)),
-        vscode.commands.registerCommand('ce.openGuide', (topic?: unknown) => GuidePanel.show(context.extensionUri, typeof topic === 'string' ? topic : undefined)),
-        vscode.commands.registerCommand('ce.delphi.designerFullScreen', () => { FormDesignerPanel.toggleFullScreen(); BlueprintPanel.toggleFullScreen(); }),
-        vscode.commands.registerCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document ?? currentDocument())),
-        vscode.commands.registerCommand('ce.delphi.align', delphi.alignComponentsCommand),
-        vscode.commands.registerCommand('ce.delphi.anchors', delphi.anchorsCommand),
-        vscode.commands.registerCommand('ce.delphi.tabOrder', delphi.tabOrderCommand),
-        vscode.commands.registerCommand('ce.delphi.check', () => delphi.checkFormCommand()),
-        vscode.commands.registerCommand('ce.delphi.cleanHandlers', delphi.cleanHandlersCommand),
-        vscode.commands.registerCommand('ce.delphi.copy', delphi.copyCommand),
-        vscode.commands.registerCommand('ce.delphi.paste', delphi.pasteCommand),
-        vscode.commands.registerCommand('ce.delphi.duplicate', delphi.duplicateCommand),
-        vscode.commands.registerCommand('ce.delphi.formFromFields', delphi.formFromFieldsCommand),
-        vscode.commands.registerCommand('ce.delphi.formFromClass', delphi.formFromClassCommand),
-        vscode.commands.registerCommand('ce.delphi.changeClass', delphi.changeClassCommand),
+        trackedCommand('ce.alignSelection', alignSelection),
+        trackedCommand('ce.delphi.designer', (uri?: vscode.Uri) => FormDesignerPanel.createOrShow(uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document)),
+        trackedCommand('ce.openGuide', (topic?: unknown) => GuidePanel.show(context.extensionUri, typeof topic === 'string' ? topic : undefined)),
+        trackedCommand('ce.delphi.designerFullScreen', () => { FormDesignerPanel.toggleFullScreen(); BlueprintPanel.toggleFullScreen(); }),
+        trackedCommand('ce.delphi.toggleDesigner', () => FormDesignerPanel.toggle(vscode.window.activeTextEditor?.document ?? currentDocument())),
+        trackedCommand('ce.delphi.align', delphi.alignComponentsCommand),
+        trackedCommand('ce.delphi.anchors', delphi.anchorsCommand),
+        trackedCommand('ce.delphi.tabOrder', delphi.tabOrderCommand),
+        trackedCommand('ce.delphi.check', () => delphi.checkFormCommand()),
+        trackedCommand('ce.delphi.cleanHandlers', delphi.cleanHandlersCommand),
+        trackedCommand('ce.delphi.copy', delphi.copyCommand),
+        trackedCommand('ce.delphi.paste', delphi.pasteCommand),
+        trackedCommand('ce.delphi.duplicate', delphi.duplicateCommand),
+        trackedCommand('ce.delphi.formFromFields', delphi.formFromFieldsCommand),
+        trackedCommand('ce.delphi.formFromClass', delphi.formFromClassCommand),
+        trackedCommand('ce.delphi.changeClass', delphi.changeClassCommand),
         // read on demand only: nothing of the project is scanned until the panel is asked to
-        vscode.commands.registerCommand('ce.delphi.project', () => ProjectPanel.show(projectScanner)),
-        vscode.commands.registerCommand('ce.delphi.diffForm', () => ProjectPanel.show(projectScanner, 'changes', p => void p.compare('HEAD'))),
-        vscode.commands.registerCommand('ce.plsql.syncPackage', plsql.syncPackage),
-        vscode.commands.registerCommand('ce.plsql.newPackage', plsql.newPackage),
-        vscode.commands.registerCommand('ce.plsql.sqlFromTable', plsql.sqlFromTable),
-        vscode.commands.registerCommand('ce.plsql.utplsql', plsql.utplsqlFromSpec),
-        vscode.commands.registerCommand('ce.plsql.exceptionBlock', plsql.insertExceptionBlock),
-        vscode.commands.registerCommand('ce.plsql.extractProcedure', plsql.extractProcedure),
-        vscode.commands.registerCommand('ce.plsql.alignPreset', (id: string) => plsql.alignPreset(String(id))),
-        vscode.commands.registerCommand('ce.plsql.docHeader', async () => {
+        trackedCommand('ce.delphi.project', () => ProjectPanel.show(projectScanner)),
+        trackedCommand('ce.delphi.diffForm', () => ProjectPanel.show(projectScanner, 'changes', p => void p.compare('HEAD'))),
+        trackedCommand('ce.plsql.syncPackage', plsql.syncPackage),
+        trackedCommand('ce.plsql.newPackage', plsql.newPackage),
+        trackedCommand('ce.plsql.sqlFromTable', plsql.sqlFromTable),
+        trackedCommand('ce.plsql.utplsql', plsql.utplsqlFromSpec),
+        trackedCommand('ce.plsql.exceptionBlock', plsql.insertExceptionBlock),
+        trackedCommand('ce.plsql.extractProcedure', plsql.extractProcedure),
+        trackedCommand('ce.plsql.alignPreset', (id: string) => plsql.alignPreset(String(id))),
+        trackedCommand('ce.plsql.docHeader', async () => {
             const editor = vscode.window.activeTextEditor;
             const resolved = editor ? resolveFromItemOrCursor(undefined) : undefined;
             if (!resolved) { vscode.window.showWarningMessage('CE: Place the cursor on a procedure or function.'); return; }
             await plsql.insertPlDocHeader(resolved.doc, { name: resolved.member.name, startLine: resolved.member.range.start.line });
         }),
-        vscode.commands.registerCommand('ce.plsql.findCallers', () => vscode.commands.executeCommand('editor.action.referenceSearch.trigger')),
+        trackedCommand('ce.plsql.findCallers', () => vscode.commands.executeCommand('editor.action.referenceSearch.trigger')),
         vscode.languages.registerDefinitionProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlDefinitionProvider()),
         vscode.languages.registerReferenceProvider(plsql.plsqlSelectors(providerRegistry), new plsql.PlSqlReferenceProvider()),
-        vscode.commands.registerCommand('ce.addComponent', addComponent),
-        vscode.commands.registerCommand('ce.addEventHandler', addEventHandler),
+        trackedCommand('ce.addComponent', addComponent),
+        trackedCommand('ce.addEventHandler', addEventHandler),
 
-        vscode.commands.registerCommand('ce.manageMembers', async () => {
+        trackedCommand('ce.manageMembers', async () => {
             await memberViewer.showManageTab();
         }),
 
-        vscode.commands.registerCommand('ce.memo.open', async () => {
+        trackedCommand('ce.memo.open', async () => {
             await memberViewer.showMemoTab();
         }),
 
         // Code-lens entry point: put the cursor on the lens's member first, so
         // the cursor-based commands act on the member the user clicked.
-        vscode.commands.registerCommand('ce.lensRun', async (cmd: string, line: number) => {
+        trackedCommand('ce.lensRun', async (cmd: string, line: number) => {
             if (!['ce.manageMembers', 'ce.editMember', 'ce.deleteMember'].includes(cmd)) { return; }
             const editor = vscode.window.activeTextEditor;
             if (editor && typeof line === 'number') {
@@ -590,11 +595,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await vscode.commands.executeCommand(cmd);
         }),
 
-        vscode.commands.registerCommand('ce.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.openMemberEditor', async (item?: CodeExplorerTreeItem) => {
             await addMember(MemberKind.Method, item);
         }),
 
-        vscode.commands.registerCommand('ce.showActions', async () => {
+        trackedCommand('ce.showActions', async () => {
             // Every command of the extension that makes sense for this file, from its package.json, grouped, with its shortcut.
             const doc = vscode.window.activeTextEditor?.document;
             const prov = doc ? providerRegistry.getByDocument(doc) : undefined;
@@ -621,7 +626,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await vscode.commands.executeCommand(picked.command);
         }),
 
-        vscode.commands.registerCommand('ce.insertTemplate', async () => {
+        trackedCommand('ce.insertTemplate', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 void notify.noEditor();
@@ -646,11 +651,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await editor.insertSnippet(new vscode.SnippetString(picked.template.body));
         }),
 
-        vscode.commands.registerCommand('ce.manageTemplates', async () => {
+        trackedCommand('ce.manageTemplates', async () => {
             await TemplateManagerPanel.createOrShow(context.extensionUri, templateStore);
         }),
 
-        vscode.commands.registerCommand('ce.implementInterface', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.implementInterface', async (item?: CodeExplorerTreeItem) => {
             let doc: vscode.TextDocument | undefined;
             let prov: ILanguageProvider | undefined;
             let cls: ClassInfo | undefined;
@@ -694,7 +699,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.implementInterface(doc, prov, cls, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('ce.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.generateGettersSetters', async (item?: CodeExplorerTreeItem) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 void notify.noEditor();
@@ -838,20 +843,20 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }),
 
         // The members are filtered and grouped in the Structure tab of the sidebar (it replaced the Classes tree).
-        vscode.commands.registerCommand('ce.filterTree', async () => {
+        trackedCommand('ce.filterTree', async () => {
             await memberViewer.focusManageFilter();
         }),
 
-        vscode.commands.registerCommand('ce.clearFilter', () => {
+        trackedCommand('ce.clearFilter', () => {
             memberViewer.clearManageFilter();
         }),
 
-        vscode.commands.registerCommand('ce.toggleGroupBy', () => {
+        trackedCommand('ce.toggleGroupBy', () => {
             const mode = memberViewer.cycleManageGroup();
             vscode.window.showInformationMessage('CE: Members ordered by ' + MANAGE_GROUP_LABELS[mode]);
         }),
 
-        vscode.commands.registerCommand('ce.goToWorkspaceMember', async () => {
+        trackedCommand('ce.goToWorkspaceMember', async () => {
             await workspaceIndex.ensureBuilt();
             const symbols = workspaceIndex.allSymbols();
             if (symbols.length === 0) {
@@ -874,7 +879,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await vscode.window.showTextDocument(picked.symbol.uri, { selection: new vscode.Range(pos, pos) });
         }),
 
-        vscode.commands.registerCommand('ce.goToMember', async () => {
+        trackedCommand('ce.goToMember', async () => {
             const symbols = codeExplorer.listAllSymbols();
             if (symbols.length === 0) {
                 vscode.window.showInformationMessage('No symbols found in the active document.');
@@ -900,7 +905,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             }
         }),
 
-        vscode.commands.registerCommand('ce.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
+        trackedCommand('ce.insertDocHeader', async (item?: CodeExplorerTreeItem) => {
             const resolved = resolveFromItemOrCursor(item);
             if (!resolved) {
                 void notify.noMember();
@@ -909,13 +914,13 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await ops.insertDocHeader(resolved.doc, resolved.provider, resolved.cls, resolved.member);
         }),
 
-        vscode.commands.registerCommand('ce.detectDeadCode', async () => {
+        trackedCommand('ce.detectDeadCode', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('deadcode');
             vscode.commands.executeCommand('ceViewer.focus');
         }),
 
-        vscode.commands.registerCommand('ce.batchMove', async () => {
+        trackedCommand('ce.batchMove', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
@@ -950,7 +955,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await batchMove(treeItems, providerRegistry, codeGenerator, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('ce.batchGenerateGettersSetters', async () => {
+        trackedCommand('ce.batchGenerateGettersSetters', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
@@ -986,19 +991,19 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await batchGenerateGettersSetters(treeItems, providerRegistry, codeGenerator, codeExplorer);
         }),
 
-        vscode.commands.registerCommand('ce.exportStructure', async () => {
+        trackedCommand('ce.exportStructure', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('export');
             vscode.commands.executeCommand('ceViewer.focus');
         }),
 
-        vscode.commands.registerCommand('ce.generateDocumentation', async () => {
+        trackedCommand('ce.generateDocumentation', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('documentation');
             vscode.commands.executeCommand('ceViewer.focus');
         }),
 
-        vscode.commands.registerCommand('ce.codeReview', async () => {
+        trackedCommand('ce.codeReview', async () => {
             // Centralized into the Member viewer (inline analytics) per feedback.
             await memberViewer.handleRunAnalytics('review');
             vscode.commands.executeCommand('ceViewer.focus');

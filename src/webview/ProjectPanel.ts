@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { hitMessage } from '../services/UsageStats';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
@@ -85,6 +86,7 @@ export class ProjectPanel {
     private post(msg: unknown): void { void this.panel.webview.postMessage(msg); }
 
     private async onMessage(m: { type?: string; file?: string; line?: number; ref?: string; from?: string; to?: string; items?: { from?: string; to?: string }[] }): Promise<void> {
+        hitMessage('insights', m.type);
         switch (m.type) {
             case 'ready':
                 if (this.tab) { this.post({ type: 'tab', tab: this.tab }); }

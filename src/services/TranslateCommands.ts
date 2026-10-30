@@ -4,6 +4,7 @@
  * is sent and where, and agrees once.
  */
 import * as vscode from 'vscode';
+import { trackedCommand } from './UsageStats';
 import { LANGUAGES, isLanguageCode, translateAll } from '../utils/translate';
 
 const CONSENT_KEY = 'ce.translate.consent';
@@ -64,8 +65,8 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
     };
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('ce.translate', run),
-        vscode.commands.registerCommand('ce.translateTo', async () => {
+        trackedCommand('ce.translate', run),
+        trackedCommand('ce.translateTo', async () => {
             const current = settings().target;
             const items: (vscode.QuickPickItem & { code?: string })[] = LANGUAGES.map(l => ({ label: l.name, description: l.code + (l.code === current ? '  (now)' : ''), code: l.code }));
             items.push({ label: '$(edit) Another language code...', description: 'en, pt-BR, ...' });

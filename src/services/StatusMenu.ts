@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { trackedCommand } from './UsageStats';
 import * as path from 'path';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { analyseEncoding, looksWrong } from '../utils/encodingRepair';
@@ -48,8 +49,8 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
         vscode.window.onDidChangeActiveTextEditor(later),
         vscode.workspace.onDidChangeTextDocument(e => { if (e.document === vscode.window.activeTextEditor?.document) { later(); } }),
         vscode.workspace.onDidOpenTextDocument(later),
-        vscode.commands.registerCommand('ce.refreshStatus', refresh),
-        vscode.commands.registerCommand('ce.statusMenu', async () => {
+        trackedCommand('ce.refreshStatus', refresh),
+        trackedCommand('ce.statusMenu', async () => {
             const doc = vscode.window.activeTextEditor?.document;
             const delphi = !!doc && /\.(pas|dfm|dpr|dpk)$/i.test(doc.uri.fsPath);
             const bad = !!doc && suspect(doc);

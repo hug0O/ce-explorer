@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { hitMessage } from '../services/UsageStats';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -219,6 +220,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         });
 
         webviewView.webview.onDidReceiveMessage(async (msg) => {
+            hitMessage('sidebar', msg?.command);
             switch (msg.command) {
                 case 'submit': this.endSession(msg.data as MemberFormResult); break;
                 case 'cancel': this.endSession(undefined); break;

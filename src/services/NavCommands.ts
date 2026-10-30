@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { trackedCommand } from './UsageStats';
 import { CodeExplorerService } from './CodeExplorerService';
 import { MemberRanges, declImplTarget, memberLines, stepMember } from './MemberNav';
 
@@ -30,10 +31,10 @@ export function registerNavCommands(context: vscode.ExtensionContext, explorer: 
     };
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('ce.nav.nextMember', step(1)),
-        vscode.commands.registerCommand('ce.nav.prevMember', step(-1)),
+        trackedCommand('ce.nav.nextMember', step(1)),
+        trackedCommand('ce.nav.prevMember', step(-1)),
 
-        vscode.commands.registerCommand('ce.nav.toggleDeclImpl', () => {
+        trackedCommand('ce.nav.toggleDeclImpl', () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { return; }
             const parsed = explorer.getParsedDocument(editor.document);
@@ -47,7 +48,7 @@ export function registerNavCommands(context: vscode.ExtensionContext, explorer: 
             say(`${t.kind} of ${t.name}`);
         }),
 
-        vscode.commands.registerCommand('ce.nav.pickMember', () => {
+        trackedCommand('ce.nav.pickMember', () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { return; }
             const symbols = explorer.listAllSymbols();

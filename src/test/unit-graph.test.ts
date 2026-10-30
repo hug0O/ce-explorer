@@ -70,7 +70,7 @@ test('the project view: its command, its menu entry, its page mode and the panel
     const entry = pkg.contributes.menus['ce.editorMenu'].find(m => m.command === 'ce.blueprint.project')!;
     assert.match(entry.when ?? '', /pas\|dfm\|dpr\|dpk/);
     const ext = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
-    assert.match(ext, /registerCommand\('ce\.blueprint\.project'/);
+    assert.match(ext, /trackedCommand\('ce\.blueprint\.project'/);
     const js = blueprintScript();
     assert.match(js, /projectMode = m\.mode === 'project'/);
     assert.match(js, /projectMode \? 'Used by' : 'Called by'/);

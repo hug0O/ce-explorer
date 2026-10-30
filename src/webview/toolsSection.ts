@@ -212,6 +212,7 @@ function analyzeBlock(): string {
 <div class="tools-block">
 <div class="section-title">Project</div>
 <button class="ana has-kbd tool-lead" data-common="ce.delphi.project" title="SQL, dead code, size and hotspots of every language, and the Delphi checks when the project has Delphi forms (read on demand)">🗂️ Project insights${kbdHtml('global', 'ce.delphi.project')}</button>
+<button class="ana" data-common="ce.usage.show" title="Which features you use most, which you use little or never: counted on this machine only, nothing is sent">📊 Feature usage</button>
 </div>`;
 }
 

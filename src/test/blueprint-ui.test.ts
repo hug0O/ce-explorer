@@ -40,7 +40,7 @@ test('the Blueprint command is declared, in the editor submenu, the quick action
     assert.ok(pkg.contributes.commands.some(c => c.command === 'ce.blueprint.open'));
     assert.ok(pkg.contributes.menus['ce.editorMenu'].some(m => m.command === 'ce.blueprint.open'));
     const ext = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
-    assert.match(ext, /registerCommand\('ce\.blueprint\.open'/);
+    assert.match(ext, /trackedCommand\('ce\.blueprint\.open'/);
     assert.match(ext, /BlueprintPanel\.configure\(/);
 });
 

@@ -46,7 +46,7 @@ test('in the designer, S on a selected component switches to the code and the St
     assert.match(html, /row\('Show in Structure', 'S'/);
     const designer = read('webview/FormDesignerPanel.ts');
     assert.match(designer, /case 'showInStructure': \{[\s\S]*showTextDocument\(this\.pasDoc[\s\S]*executeCommand\('ce\.structure\.showComponent', name\)/);
-    assert.match(read('extension.ts'), /registerCommand\('ce\.structure\.showComponent'[\s\S]*memberViewer\.showComponentInStructure\(name\)/);
+    assert.match(read('extension.ts'), /trackedCommand\('ce\.structure\.showComponent'[\s\S]*memberViewer\.showComponentInStructure\(name\)/);
     const panel = read('webview/MemberViewerPanel.ts');
     assert.match(panel, /public async showComponentInStructure\(name: string\)/);
     assert.match(panel, /this\._manageFilter = name;/);
@@ -100,7 +100,7 @@ test('back from the code: Ctrl+K Ctrl+B also from the sidebar, a button on the c
     assert.match(d, /static async showComponent\(/);
     assert.match(read('webview/designerHtml.ts'), /m\.type === 'selectComponent'/);
     assert.match(read('webview/MemberViewerPanel.ts'), /executeCommand\('ce\.delphi\.showInDesigner', target \? target\.name : ''\)/);
-    assert.match(read('extension.ts'), /registerCommand\('ce\.delphi\.showInDesigner'/);
+    assert.match(read('extension.ts'), /trackedCommand\('ce\.delphi\.showInDesigner'/);
 });
 
 test('the way back works while a page of the sidebar has the focus (no active text editor), and says which key does it', () => {

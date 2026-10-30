@@ -225,7 +225,11 @@ test('copy, cut and paste: copies are pasted into the chosen container, a cut mo
     const html = designerHtml('N');
     for (const id of ['copy', 'cut', 'paste']) { assert.ok(html.includes(`id="${id}"`), id); }
     assert.match(html, /doCopy\(kc === 'x'\)/);
-    assert.match(html, /post\(\{ type: cut \? 'cut' : 'copy', names: state\.sel\.slice\(\) \}\)/);
+    assert.match(html, /post\(\{ type: cut \? 'cut' : 'copy', names: state\.sel\.slice\(\), labels: state\.sel\.map/, 'the copy carries the names and the labels');
+    const host = fs.readFileSync(path.join(__dirname, '..', 'webview', 'FormDesignerPanel.ts'), 'utf8');
+    assert.match(host, /await vscode\.env\.clipboard\.writeText\(plain\)/, 'the clipboard gets names and labels, not the payload');
+    assert.ok(!/clipboard\.writeText\(text\)/.test(host.slice(host.indexOf("case 'copy':"), host.indexOf("case 'paste':"))), 'no payload on the clipboard');
+    assert.match(host, /raw === FormDesignerPanel\.lastCopy\.plain \? FormDesignerPanel\.lastCopy\.clip : raw/, 'and the paste finds the components behind that text');
     assert.match(html, /post\(\{ type: 'paste', target: prim && byName\[prim\] \? prim : rootName\(\) \}\)/, 'pasted into the selected container, else around the selected component, else the form');
     assert.match(html, /\.ctl\.cutmark \{ opacity: 0\.4/, 'a cut component is dimmed until it is pasted');
     assert.match(html, /clearCut\(true\)/, 'Esc cancels a cut');

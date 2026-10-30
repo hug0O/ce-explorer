@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.78 — 2026-10-30
+- **Designer: Ctrl+C puts only the name and the label on the clipboard.** What you paste in the code, a search box or a message is one line per component, `name<Tab>label` (`btnSave	Save`), not the JSON payload any more. Pasting in a designer (Ctrl+V) still brings the components back: the extension keeps what is behind the text you copied, so it works in the same form or in another one. Cut and paste (move) is unchanged.
+- **Which features are used: a ranking, and the ones that are not.** Every command of the extension, and the actions of the designer, the sidebar, the Blueprint and Project insights, are now counted **on this machine only (nothing is sent)**. **CE: Feature usage (ranking, least used)** (palette, or *Feature usage* in Tools > Project) shows the **most used** features with a bar, the **little used** ones (two uses or fewer) and the commands **never used**, grouped; it warns that the counting is too young to judge before about two weeks. *Copy as Markdown* gives the ranking to paste in a note, *Reset* starts again from zero.
+
 ## 0.1.77 — 2026-10-30
 - **Translate into another language: no more error about a setting that is not registered.** The language you pick is remembered by the extension itself instead of being written in the settings (which failed with *ce.translate.target is not a registered configuration* when the window had not been reloaded after the update). The choice wins over the `ce.translate.target` setting, which stays the default.
 

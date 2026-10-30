@@ -50,7 +50,7 @@ test('an edit says so with an Undo button and writes the log; the Blueprint and 
     const ext = read('extension.ts');
     assert.match(ext, /void notify\.done\('CE: Added "'/);
     assert.match(ext, /actionLog\.init\(context\.workspaceState\)/);
-    assert.match(ext, /registerCommand\('ce\.showActionLog'/);
+    assert.match(ext, /trackedCommand\('ce\.showActionLog'/);
     assert.match(read('webview/BlueprintPanel.ts'), /actionLog\.record\('Blueprint: ' \+ label/);
     assert.match(read('webview/ProjectBlueprintPanel.ts'), /actionLog\.record\('Blueprint: '/);
     assert.match(read('services/StatusMenu.ts'), /command: 'ce\.showActionLog'/);

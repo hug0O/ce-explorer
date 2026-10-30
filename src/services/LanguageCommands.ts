@@ -4,6 +4,7 @@
  * there: on a file VS Code left as plain text, or on one that was given a language by hand.
  */
 import * as vscode from 'vscode';
+import { trackedCommand } from './UsageStats';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { extensionOf, languageOverrides } from './LanguageOverrides';
 import { currentDocument } from './LastEditor';
@@ -27,7 +28,7 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
 
     context.subscriptions.push(
         // from the Tools tab: '' goes back to what the extension detects
-        vscode.commands.registerCommand('ce.setLanguageTo', async (id: unknown, scope: unknown) => {
+        trackedCommand('ce.setLanguageTo', async (id: unknown, scope: unknown) => {
             const doc = currentDocument();
             if (!doc || !doc.uri.fsPath) { return; }
             const file = doc.uri.fsPath;
@@ -38,7 +39,7 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, regis
             await save();
         }),
         vscode.window.onDidChangeActiveTextEditor(update),
-        vscode.commands.registerCommand('ce.setLanguage', async () => {
+        trackedCommand('ce.setLanguage', async () => {
             const doc = currentDocument();
             if (!doc || !doc.uri.fsPath) { void vscode.window.showWarningMessage('CE: open a file first.'); return; }
             const file = doc.uri.fsPath;

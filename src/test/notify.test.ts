@@ -21,7 +21,7 @@ test('the plain messages of the commands go through it', () => {
     assert.ok(!/showWarningMessage\('Place cursor on a class member first\.'\)/.test(ext));
     assert.ok(!/showErrorMessage\('Code Explorer failed/.test(ext));
     assert.match(ext, /notify\.failed\('Code Explorer failed: ' \+ msg, \[\{ label: 'Reload the window'/);
-    assert.match(ext, /registerCommand\('ce\.showLog'/);
+    assert.match(ext, /trackedCommand\('ce\.showLog'/);
     for (const f of ['services/BatchOperations.ts', 'services/CodeReviewService.ts', 'services/DocumentationGenerator.ts', 'services/ExportService.ts', 'services/FormCommands.ts', 'webview/MemberViewerPanel.ts']) {
         const s = read(f);
         assert.ok(/import \{ notify \} from '(\.\/|\.\.\/services\/)Notify'/.test(s), f + ' imports notify');

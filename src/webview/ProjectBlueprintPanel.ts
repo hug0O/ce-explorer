@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { hitMessage } from '../services/UsageStats';
 import { BlueprintPanel } from './BlueprintPanel';
 import { blueprintHtml } from './blueprintHtml';
 import { SavedPositions } from '../utils/blueprintModel';
@@ -209,6 +210,7 @@ export class ProjectBlueprintPanel {
     private node(id: unknown): UnitGraph['nodes'][number] | undefined { return typeof id === 'string' ? this.graph.nodes.find(n => n.id === id) : undefined; }
 
     private async onMessage(m: Record<string, unknown>): Promise<void> {
+        hitMessage('blueprint', m.type);
         switch (m.type) {
             case 'ready': await this.load(true); break;
             case 'positions': await ProjectBlueprintPanel.state?.update(this.stateKey, { ...this.positions(), ...((m.positions ?? {}) as SavedPositions) }); break;

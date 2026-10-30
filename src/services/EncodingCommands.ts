@@ -9,6 +9,7 @@
  * wrong; the command is always in the palette.
  */
 import * as vscode from 'vscode';
+import { trackedCommand } from './UsageStats';
 import { EncodingReport, analyseEncoding, looksWrong, repairMojibake } from '../utils/encodingRepair';
 
 const MAX_SCAN = 2_000_000;
@@ -33,7 +34,7 @@ export function registerEncodingCommands(context: vscode.ExtensionContext): void
         vscode.window.onDidChangeActiveTextEditor(later),
         vscode.workspace.onDidChangeTextDocument(e => { if (e.document === vscode.window.activeTextEditor?.document) { later(); } }),
         vscode.workspace.onDidOpenTextDocument(later),
-        vscode.commands.registerCommand('ce.fixEncoding', async () => {
+        trackedCommand('ce.fixEncoding', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { void vscode.window.showWarningMessage('CE: open a file first.'); return; }
             await fixEncoding(editor);

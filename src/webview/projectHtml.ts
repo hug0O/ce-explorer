@@ -82,16 +82,31 @@ const SCRIPT = `
   /** The Delphi tabs need Delphi units: a .pas of the project (the scan lists them in metrics, not the other languages). */
   function delphiProject() { return !!state.data && state.data.units > 0; }
 
+  /** The tab that opens: the one the user left, unless the project has nothing in it (no SQL in a project without SQL): then the first with something. */
+  function pickTab() {
+    var d = state.data;
+    if (!d) { return; }
+    var counts = tabCounts();
+    var shown = TABS.filter(function (t) { return COMMON.indexOf(t) >= 0 || delphiProject(); });
+    if (shown.indexOf(state.tab) < 0 || (!state.chose && !counts[state.tab] && state.tab !== 'hotspots')) {
+      state.tab = shown.filter(function (t) { return counts[t] > 0; })[0] || shown[0];
+    }
+  }
+
+  function tabCounts() {
+    var d = state.data;
+    return d ? { sql: d.sql.length + (d.commonSql || []).length, dead: (d.deadCode || []).length, size: (d.common || []).length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length + d.gridIssues.length, texts: d.texts.length, names: d.naming.length, forms: d.families.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
+  }
+
   function tabs() {
     var bar = $('tabs');
     bar.textContent = '';
-    var d = state.data;
-    var counts = d ? { sql: d.sql.length + (d.commonSql || []).length, dead: (d.deadCode || []).length, size: (d.common || []).length, unused: d.unusedUnits.length + d.unusedComponents.length + d.sqlIssues.length, checks: d.formChecks.length + d.gridIssues.length, texts: d.texts.length, names: d.naming.length, forms: d.families.length, changes: state.diff && state.diff.result ? state.diff.result.changes.length : 0 } : {};
+    var counts = tabCounts();
     var shown = TABS.filter(function (t) { return COMMON.indexOf(t) >= 0 || delphiProject(); });
     shown.forEach(function (t) {
       var b = h('button', 'tab' + (t === state.tab ? ' on' : ''), LABEL[t]);
       if (counts[t]) { b.appendChild(h('span', 'n', String(counts[t]))); }
-      b.addEventListener('click', function () { state.tab = t; save(); render(); });
+      b.addEventListener('click', function () { state.tab = t; state.chose = true; save(); render(); });
       bar.appendChild(b);
     });
   }
@@ -106,7 +121,10 @@ const SCRIPT = `
       return;
     }
     if (!d) { s.textContent = 'Nothing is read until you scan: the project is not slowed down.'; return; }
-    s.textContent = d.units + ' units, ' + d.forms + ' forms, ' + d.sql.length + ' statements - ' + d.ms + ' ms (' + d.read + ' read, ' + d.cached + ' from memory)' + (d.truncated ? ' - too many files: only the first ones were read' : '');
+    // what the project is made of: its languages first, the Delphi units and forms only when there are some
+    var langs = (d.languages || []).slice(0, 4).map(function (l) { return l.language + ' ' + l.files + (l.files === 1 ? ' file' : ' files') + ', ' + l.lines + ' lines'; }).join(' - ');
+    var sqlCount = d.sql.length + (d.commonSql || []).length;
+    s.textContent = (langs || 'No source file found') + (d.units ? ' - ' + d.forms + ' forms' : '') + (sqlCount ? ' - ' + sqlCount + ' SQL statements' : '') + ' - ' + d.ms + ' ms (' + d.read + ' read, ' + d.cached + ' from memory)' + (d.truncated ? ' - too many files: only the first ones were read' : '');
   }
 
   function kindClass(s) { return s === 'dfm' ? 'badge' : s === 'rq' ? 'badge rq' : 'badge code'; }
@@ -193,24 +211,37 @@ const SCRIPT = `
 
   function renderDead(root) {
     var d = state.data;
-    root.appendChild(h('div', 'note', 'Methods and classes that nothing refers to, in every language of the project. Advice: a method called by a name built at run time, or by a framework, looks unused. Check before removing.'));
+    root.appendChild(h('div', 'note', 'For each language of the project: what its compiler or linter reports as unused (imports, local variables, private members, routines nobody calls, unreachable code - the rule is the badge), then the public methods and classes that nothing refers to. These are hints read from the text: a name built at run time, used by reflection or by a framework looks unused. Check before removing.'));
     if (!d.deadCode.length) { root.appendChild(h('div', 'empty', 'Nothing unused.')); return; }
     var byLang = {}; var order = [];
     d.deadCode.forEach(function (x) { var k = x.language || 'Other'; if (!byLang[k]) { byLang[k] = []; order.push(k); } byLang[k].push(x); });
+    var TITLES = { 'import': 'Unused imports', local: 'Local variables never read', 'private': 'Private members nobody uses', 'function': 'Routines nobody calls', unreachable: 'Unreachable code', method: 'Methods nothing refers to', 'class': 'Classes nothing refers to' };
+    var KINDS = ['import', 'local', 'private', 'function', 'unreachable', 'method', 'class'];
     order.forEach(function (lang) {
       root.appendChild(h('h2', '', lang + ' (' + byLang[lang].length + ')'));
-      byLang[lang].forEach(function (x) {
-        var text = (x.kind === 'class' ? 'class ' : x.kind === 'import' ? 'import ' : '') + (x.className ? x.className + '.' : '') + x.name;
-        lineItem(root, x.kind, 'badge', text, base(x.file) + ':' + (x.line + 1), x.file, x.line);
+      KINDS.forEach(function (kind) {
+        var rows = byLang[lang].filter(function (x) { return x.kind === kind; });
+        if (!rows.length) { return; }
+        root.appendChild(h('div', 'note', TITLES[kind] + ' (' + rows.length + ')'));
+        rows.slice(0, 200).forEach(function (x) {
+          var l = h('div', 'line');
+          l.appendChild(h('span', 'badge', x.rule || x.kind));
+          l.appendChild(h('span', '', (x.className ? x.className + '.' : '') + x.name));
+          l.appendChild(h('span', 'loc', base(x.file) + ':' + (x.line + 1)));
+          l.title = (x.tool ? x.tool + ' - ' : '') + (x.message || '');
+          l.addEventListener('click', function () { open(x.file, x.line); });
+          root.appendChild(l);
+        });
+        if (rows.length > 200) { root.appendChild(h('div', 'note', 'The first 200 of ' + rows.length + ' are shown.')); }
       });
     });
   }
 
   function renderSize(root) {
     var d = state.data;
-    root.appendChild(h('div', 'note', 'Size of the source files that are not Delphi: lines of code, routines, and the longest routine (a routine of more than 60 lines is counted as long).'));
+    root.appendChild(h('div', 'note', 'Size of the source files, in every language of the project: lines of code, routines, and the longest routine (a routine of more than 60 lines is counted as long).'));
     var rows = (d.common || []).slice().sort(function (a, b) { return b.metrics.lines - a.metrics.lines; });
-    if (!rows.length) { root.appendChild(h('div', 'empty', 'No source file of another language in the project.')); return; }
+    if (!rows.length) { root.appendChild(h('div', 'empty', 'No source file of a supported language in the project.')); return; }
     rows.slice(0, 300).forEach(function (u) {
       var l = h('div', 'line');
       l.appendChild(h('span', 'badge', u.language));
@@ -485,7 +516,7 @@ const SCRIPT = `
   $('gfilter').addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('gfilter').value = ''; state.gfilter = ''; save(); applyGenericFilter(); } });
   window.addEventListener('message', function (ev) {
     var m = ev.data;
-    if (m.type === 'data') { state.data = m.data; state.scanning = false; state.progress = null; render(); }
+    if (m.type === 'data') { state.data = m.data; state.scanning = false; state.progress = null; pickTab(); render(); }
     else if (m.type === 'scanning') { state.scanning = m.on; state.progress = m.progress || null; if (m.on && !m.progress) { render(); } else { status(); } }
     else if (m.type === 'diff') { state.diff = m; state.layout = false; state.nested = false; state.tab = 'changes'; render(); }
     else if (m.type === 'hotspots') { state.hot = m; render(); }

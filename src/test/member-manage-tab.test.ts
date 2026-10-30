@@ -183,7 +183,8 @@ test('Tools are split into sub-tabs; only the pages that apply to the file are o
     const plain: string = panel.getHtml();
     assert.deepEqual(subs(plain), ['align', 'analyze'], 'a plain file has the Align and Analyze pages');
     assert.deepEqual(shown(plain), ['align']);
-    for (const ak of ['review', 'documentation', 'export', 'deadcode']) { assert.ok(plain.includes(`data-ak="${ak}"`), ak); }
+    for (const ak of ['review', 'documentation', 'deadcode']) { assert.ok(plain.includes(`data-ak="${ak}"`), ak); }
+    assert.ok(!plain.includes('data-ak="export"'), 'the Export button is gone (the command stays in the palette)');
     assert.equal(plain.split('data-ak="review"').length - 1, 1, 'the Analyze buttons are in Tools only, once');
 
     panel.isDelphi = () => true;

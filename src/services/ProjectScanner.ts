@@ -13,7 +13,13 @@ import { GridIssue, NameRow, NamingIssue, TextGroup, TextRow, componentNames, fo
 import { Family, FormInfo, UnitMetrics, families, formInfo, unitMetrics } from './ProjectForms';
 import { CommonMetrics, commonMetrics, commonSql } from './ProjectCommon';
 import { DeadCodeItem, collectDeadCode } from './DeadCodeDetector';
+import { UnusedFinding, unusedInParsed } from '../utils/unusedCode';
 import type { ILanguageProvider } from '../providers/ILanguageProvider';
+
+/** What the compiler / linter of the language reports as unused in a file, as rows of the Dead code tab. */
+function unusedItems(findings: UnusedFinding[], file: string): DeadCodeItem[] {
+    return findings.map(f => ({ kind: f.kind, name: f.name, file, line: f.line, col: f.col, endCol: f.endCol, rule: f.rule, tool: f.tool, message: f.message }));
+}
 
 const EXCLUDE = '**/{node_modules,.git,dist,out,build,bin,obj,target,Win32,Win64,__history,__recovery,.vscode-test}/**';
 const MAX_FILES = 6000;
@@ -43,7 +49,9 @@ export interface ProjectData {
     root: string;
     units: number;
     forms: number;
-    /** Every source file of a supported language that is not Delphi: size and routines. */
+    /** The languages of the project with their number of files and lines (Delphi included), the largest first. */
+    languages: { language: string; files: number; lines: number }[];
+    /** Every source file of a supported language, Delphi units included: size and routines. */
     common: CommonUnit[];
     /** SQL written in the code of the other languages (string literals that start with a statement). */
     commonSql: (SqlEntry & { file: string })[];
@@ -80,6 +88,8 @@ interface UnitResult {
     names: NameRow[];
     form?: FormInfo;
     metrics: UnitMetrics;
+    /** Unused locals, private members and routines of the unit (Delphi hints H2164 / H2219). */
+    unused?: DeadCodeItem[];
 }
 
 /** Most groups of texts and uses of a text that are sent to the page: the rest is counted, not listed. */
@@ -144,6 +154,7 @@ export class ProjectScanner {
         const files = (await vscode.workspace.findFiles(`**/*.{${exts.join(',')}}`, EXCLUDE, MAX_FILES))
             .filter(u => !/\.(pas|dfm)$/i.test(u.fsPath));
         const common: CommonUnit[] = [];
+        const fileHints: (DeadCodeItem & { language: string })[] = [];
         const sqlRows: (SqlEntry & { file: string })[] = [];
         let sliceStart = Date.now();
         for (const uri of files) {
@@ -159,6 +170,7 @@ export class ProjectScanner {
                 const starts = [...parsed.classes.flatMap(c => c.members.map(m => m.range.start.line)), ...parsed.standaloneProcedures.map(p => p.range.start.line)];
                 const name = uri.fsPath.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '');
                 common.push({ language: provider.displayName, name, path: uri.fsPath, metrics: commonMetrics(lines, starts) });
+                for (const d of unusedItems(unusedInParsed(parsed, text, uri.fsPath), uri.fsPath)) { fileHints.push({ ...d, language: provider.displayName }); }
                 sqlRows.push(...commonSql(name, lines).map(e => ({ ...e, file: uri.fsPath })));
             } catch { /* an unreadable file is left out */ }
             if (Date.now() - sliceStart > SLICE_MS) { await tick(); sliceStart = Date.now(); }
@@ -167,7 +179,8 @@ export class ProjectScanner {
             ? (await collectDeadCode({ getByDocument: doc => registry.getByDocument(doc) }, exts))
                 .map(d => ({ ...d, language: registry.getByFileExtension(d.file)?.displayName ?? '' }))
             : [];
-        return { common, commonSql: sqlRows, deadCode };
+        // what the compiler / linter of each language says first, then what nothing refers to
+        return { common, commonSql: sqlRows, deadCode: [...fileHints, ...deadCode] };
     }
 
     private async run(token?: vscode.CancellationToken, progress?: (done: number, total: number) => void): Promise<ProjectData> {
@@ -200,6 +213,10 @@ export class ProjectScanner {
                     const text = decoder.decode(await vscode.workspace.fs.readFile(uri)).replace(/^\uFEFF/, '');
                     const dtext = dfmUri ? decoder.decode(await vscode.workspace.fs.readFile(dfmUri)).replace(/^\uFEFF/, '') : undefined;
                     const result = analyse(uri.fsPath, text, dtext && /^\s*(object|inherited|inline)\b/i.test(dtext) ? dtext : undefined);
+                    const pascal = registry?.getByFileExtension(uri.fsPath);
+                    if (pascal) {
+                        try { result.unused = unusedItems(unusedInParsed(pascal.parseDocument(fakeDocument(uri, text, text.split(/\r?\n/).length, pascal.languageId)), text, uri.fsPath, dtext ?? ''), uri.fsPath); } catch { /* a unit that cannot be parsed has no hints */ }
+                    }
                     this.cache.set(uri.fsPath, { signature, result });
                     read++;
                     results.push({ path: uri.fsPath, dfmPath: dfmUri?.fsPath, result });
@@ -218,13 +235,21 @@ export class ProjectScanner {
         const allTexts = results.flatMap(r => r.result.texts);
         const groups = groupTexts(allTexts);
         const dfmOf = new Map(results.filter(r => r.dfmPath).map(r => [r.result.name, r.dfmPath!]));
+        // the Delphi units are sized and checked like the files of the other languages
+        const delphiCommon: CommonUnit[] = results.map(r => ({ language: 'Delphi', name: r.result.name, path: r.path, metrics: r.result.metrics }));
+        const common = [...others.common, ...delphiCommon];
+        const languages = [...common.reduce((m, u) => {
+            const e = m.get(u.language) ?? { language: u.language, files: 0, lines: 0 };
+            e.files++; e.lines += u.metrics.lines; m.set(u.language, e); return m;
+        }, new Map<string, { language: string; files: number; lines: number }>()).values()].sort((a, b) => b.lines - a.lines);
         return {
             root,
             units: results.length,
             forms: results.filter(r => r.dfmPath).length,
-            common: others.common,
+            languages,
+            common,
             commonSql: others.commonSql,
-            deadCode: others.deadCode,
+            deadCode: [...results.flatMap(r => (r.result.unused ?? []).map(d => ({ ...d, language: 'Delphi' }))), ...others.deadCode],
             sql: results.flatMap(r => r.result.sql.map(e => ({ ...e, file: e.source === 'dfm' ? r.dfmPath ?? r.path : r.path }))),
             sqlIssues: results.flatMap(r => r.result.sqlIssues.map(i => ({ ...i, path: i.file === 'dfm' ? r.dfmPath ?? r.path : r.path }))),
             unusedUnits: unusedUnits(withFacts).map(u => ({ ...u, path: pathOf.get(u.unit) ?? '' })),

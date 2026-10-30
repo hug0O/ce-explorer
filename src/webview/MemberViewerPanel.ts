@@ -12,6 +12,8 @@ import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
 import { buildExportData, ExportData } from '../services/ExportService';
 import { generateMarkdown } from '../services/DocumentationGenerator';
 import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
+import { unusedInParsed } from '../utils/unusedCode';
+import { deadCodeHtml } from './deadCodeHtml';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
 import { MemoStore, GENERAL_MEMO, sanitizeLang } from '../services/MemoStore';
 import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
@@ -139,6 +141,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _reviewShowIgnored = false;
     private reviewIgnored(): string[] { return this._extensionContext.workspaceState?.get<string[]>('ce.review.ignored', []) ?? []; }
     private _reviewDiag?: vscode.DiagnosticCollection;
+    private _unusedDiag?: vscode.DiagnosticCollection;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -499,13 +502,22 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 }
                 case 'deadcode': {
+                    // first what the compiler / linter of the language says about this file, then what nothing in the workspace refers to
+                    const text = doc.getText();
+                    const extra = /\.pas$/i.test(doc.uri.fsPath) ? await this.siblingDfmText(doc) : '';
+                    const own: DeadCodeItem[] = unusedInParsed(provider.parseDocument(doc), text, doc.uri.fsPath, extra).map(f => ({
+                        kind: f.kind, name: f.name, file: doc.uri.fsPath, line: f.line, col: f.col, endCol: f.endCol, rule: f.rule, tool: f.tool, message: f.message,
+                    }));
                     const extensions = provider.fileExtensions.map(e => e.substring(1));
-                    this._analyticsData = await vscode.window.withProgress(
+                    const wide = await vscode.window.withProgress(
                         { location: vscode.ProgressLocation.Window, title: 'CE: Scanning workspace for dead code…' },
                         (progress) => collectDeadCode(this._providerRegistry, extensions, (done, total, file) => {
                             progress.report({ message: `${done}/${total} ${file}` });
                         }),
                     );
+                    this._analyticsData = [...own, ...wide];
+                    this._analyticsUri = doc.uri;
+                    this.publishUnusedDiagnostics(doc, own);
                     break;
                 }
             }
@@ -538,6 +550,26 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     private clearReviewDiagnostics(): void {
         this._reviewDiag?.clear();
+        this._unusedDiag?.clear();
+    }
+
+    /** The text of the .dfm next to a Delphi unit: it names the event handlers, which nothing in the unit calls. */
+    private async siblingDfmText(doc: vscode.TextDocument): Promise<string> {
+        try { return Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.file(doc.uri.fsPath.replace(/\.pas$/i, '.dfm')))).toString('latin1'); } catch { return ''; }
+    }
+
+    /** The unused code as faded text in the editor (and hints in the Problems panel) until the report is closed. */
+    private publishUnusedDiagnostics(doc: vscode.TextDocument, items: DeadCodeItem[]): void {
+        if (typeof vscode.languages?.createDiagnosticCollection !== 'function') { return; }
+        this._unusedDiag ??= vscode.languages.createDiagnosticCollection('ce-unused');
+        const diagnostics = items.filter(d => d.line < doc.lineCount).map(d => {
+            const x = new vscode.Diagnostic(new vscode.Range(d.line, d.col ?? 0, d.line, Math.max(d.endCol ?? 0, (d.col ?? 0) + 1)), (d.message ?? d.name) + (d.tool ? ' (' + d.tool + ')' : ''), vscode.DiagnosticSeverity.Hint);
+            x.source = 'CE Dead code';
+            x.code = d.rule;
+            x.tags = [vscode.DiagnosticTag.Unnecessary];
+            return x;
+        });
+        this._unusedDiag.set(doc.uri, diagnostics);
     }
 
     /** A click on a finding of the review, or on an entry of the dead code list: the editor goes to that place. */
@@ -554,7 +586,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             const d = (this._analyticsData as DeadCodeItem[] | undefined)?.[idx];
             if (!d) { return; }
             uri = vscode.Uri.file(d.file);
-            range = new vscode.Range(d.line, 0, d.line, 0);
+            range = new vscode.Range(d.line, d.col ?? 0, d.line, d.endCol ?? d.col ?? 0);
         }
         if (!uri || !range) { return; }
         try { await vscode.window.showTextDocument(uri, { selection: range, preserveFocus: false }); }
@@ -1405,12 +1437,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (kind === 'review') {
             body = reviewHtml((data as ReviewFinding[]) || [], { sev: this._reviewSev, sort: this._reviewSort, ignored: this.reviewIgnored(), showIgnored: this._reviewShowIgnored });
         } else if (kind === 'deadcode') {
-            const items = (data as DeadCodeItem[]) || [];
-            body = items.length === 0
-                ? '<p class="muted">No dead code detected ✓</p>'
-                : '<table class="tbl"><thead><tr><th>Kind</th><th>Name</th><th>File</th><th>Line</th></tr></thead><tbody>'
-                    + items.map((d, i) => `<tr data-idx="${i}" tabindex="0" title="Go to ${escapeHtml(shortFile(d.file))}:${d.line + 1}"><td>${escapeHtml(d.kind)}</td><td>${escapeHtml(d.name)}</td><td class="muted">${escapeHtml(shortFile(d.file))}</td><td>${d.line + 1}</td></tr>`).join('')
-                    + '</tbody></table>';
+            body = deadCodeHtml((data as DeadCodeItem[]) || [], this._analyticsUri?.fsPath ?? '');
         } else if (kind === 'documentation') {
             const md = (data as string) || '';
             body = `<pre class="raw">${escapeHtml(md)}</pre>`;

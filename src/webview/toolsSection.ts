@@ -199,8 +199,7 @@ function analyzeBlock(): string {
 <div class="analyze-grid">
 <button class="ana" data-ak="review">✅ Review</button>
 <button class="ana" data-ak="documentation">📖 Doc</button>
-<button class="ana" data-ak="export">📋 Export</button>
-<button class="ana" data-ak="deadcode">💀 Dead Code</button>
+<button class="ana" data-ak="deadcode" title="What the compiler or linter of the language says is unused in this file (imports, locals, private members, unreachable code), and what nothing in the project refers to">💀 Dead Code</button>
 </div>
 </div>
 <div class="tools-block">

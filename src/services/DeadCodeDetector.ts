@@ -8,11 +8,18 @@ export interface DeadCodeRegistry {
 }
 
 export interface DeadCodeItem {
-    kind: 'method' | 'class' | 'import';
+    /** `method` / `class`: nothing in the workspace refers to it. The others are what the compiler or linter of the language reports in the file. */
+    kind: 'method' | 'class' | 'import' | 'local' | 'private' | 'function' | 'unreachable';
     name: string;
     file: string;
     line: number;
     className?: string;
+    /** What the compiler / linter calls it (`TS6133`, `F401`, `H2164`...), the tool, and its message. */
+    rule?: string;
+    tool?: string;
+    message?: string;
+    col?: number;
+    endCol?: number;
 }
 
 /**

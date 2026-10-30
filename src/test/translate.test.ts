@@ -21,6 +21,8 @@ test('the request and the answer of the service', () => {
     assert.deepEqual(parseTranslation({ responseData: { translatedText: 'Bonjour &amp; vous l&#39;ami' }, responseStatus: 200 }), { text: "Bonjour & vous l'ami" });
     assert.match(parseTranslation({ responseData: { translatedText: 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY' }, responseStatus: 200 }).error ?? '', /quota/);
     assert.match(parseTranslation({ responseStatus: 429 }).error ?? '', /wait/);
+    assert.equal(parseTranslation({ responseData: { translatedText: 'Bonjour', detectedLanguage: 'EN' }, responseStatus: 200 }).detected, 'en', 'the language the service found');
+    assert.equal(parseTranslation({ responseData: { translatedText: 'Bonjour', detectedLanguage: 'not a code' }, responseStatus: 200 }).detected, undefined);
     assert.match(parseTranslation({ responseData: {}, responseStatus: 403, responseDetails: 'INVALID LANGUAGE PAIR' }).error ?? '', /INVALID LANGUAGE PAIR/);
     assert.match(parseTranslation(null).error ?? '', /no answer/);
     assert.equal(decodeEntities('&lt;b&gt; &#x41;'), '<b> A');

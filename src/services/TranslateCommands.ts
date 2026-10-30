@@ -23,6 +23,10 @@ async function get(url: string): Promise<unknown> {
     } finally { clearTimeout(timer); }
 }
 
+let output: vscode.OutputChannel | undefined;
+/** What each translation used: the source and the target set, and the language the service found. */
+const log = (): vscode.OutputChannel => (output ??= vscode.window.createOutputChannel('CE Translate'));
+
 const nameOf = (code: string): string => (code === 'auto' ? 'the detected language' : LANGUAGES.find(l => l.code === code.toLowerCase())?.name ?? code);
 
 export function registerTranslateCommands(context: vscode.ExtensionContext): void {
@@ -67,9 +71,12 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         const { source, target, email } = settings();
         if (source.toLowerCase() === target.toLowerCase()) { void vscode.window.showWarningMessage('CE: the text is said to be in ' + nameOf(source) + ' and is to be translated into ' + nameOf(target) + ': change one of the two (CE: Translate from... / into...).'); return; }
         if (!await agreed()) { return; }
-        const way = nameOf(source) + ' → ' + nameOf(target);
+        let way = nameOf(source) + ' → ' + nameOf(target);
         const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CE: translating, ' + way + '...' }, () => translateAll(text, source, target, email, get));
         if (result.text === undefined) { void vscode.window.showWarningMessage('CE: ' + (result.error ?? 'The text could not be translated.')); return; }
+        // with a source left to the service, the language it found is told: it follows the text, not a setting
+        if (source === 'auto' && result.detected) { way = nameOf(result.detected) + ' (detected) → ' + nameOf(target); }
+        log().appendLine(new Date().toISOString().slice(11, 19) + '  ' + source + ' | ' + target + (result.detected ? '  detected ' + result.detected : '') + '  (' + text.length + ' characters)');
         const pick = await vscode.window.showInformationMessage('Translation, ' + way, { modal: true, detail: result.text }, 'Replace', 'Copy');
         if (pick === 'Replace') {
             const ok = await editor.edit(b => b.replace(range, result.text!));

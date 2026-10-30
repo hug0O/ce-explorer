@@ -55,14 +55,15 @@ export function decodeEntities(s: string): string {
 }
 
 /** The translated text of the service's answer, or what went wrong (quota used up, language refused...). */
-export function parseTranslation(json: unknown): { text?: string; error?: string } {
-    const o = (json && typeof json === 'object' ? json : {}) as { responseData?: { translatedText?: unknown }; responseStatus?: unknown; responseDetails?: unknown };
+export function parseTranslation(json: unknown): { text?: string; error?: string; detected?: string } {
+    const o = (json && typeof json === 'object' ? json : {}) as { responseData?: { translatedText?: unknown; detectedLanguage?: unknown }; responseStatus?: unknown; responseDetails?: unknown };
     const text = typeof o.responseData?.translatedText === 'string' ? o.responseData.translatedText : undefined;
     const status = Number(o.responseStatus ?? 200);
     if (text && /^MYMEMORY WARNING/i.test(text)) { return { error: 'The free quota of the translation service is used up for today (an e-mail in the setting ce.translate.email raises it).' }; }
     if (status === 429) { return { error: 'The translation service asks to wait: too many requests.' }; }
     if (status !== 200 || !text) { return { error: typeof o.responseDetails === 'string' && o.responseDetails ? o.responseDetails : 'The translation service gave no answer.' }; }
-    return { text: decodeEntities(text) };
+    const det = o.responseData?.detectedLanguage;
+    return typeof det === 'string' && isLanguageCode(det) ? { text: decodeEntities(text), detected: det.toLowerCase() } : { text: decodeEntities(text) };
 }
 
 /** The translated segments put back with their blanks and their lines. */
@@ -77,7 +78,7 @@ export const MAX_PIECES = 40;
  * Translates a text piece by piece with `get` (the request itself, so the function runs without a network in tests). Blank lines, the blanks
  * at the start of a line and pieces without a letter (numbers, signs) stay as they are.
  */
-export async function translateAll(text: string, source: string, target: string, email: string, get: (url: string) => Promise<unknown>): Promise<{ text?: string; error?: string }> {
+export async function translateAll(text: string, source: string, target: string, email: string, get: (url: string) => Promise<unknown>): Promise<{ text?: string; error?: string; detected?: string }> {
     const segments = segmentsOf(text);
     const total = segments.reduce((n, s) => n + s.pieces.length, 0);
     if (total === 0) { return { error: 'There is nothing to translate.' }; }
@@ -86,6 +87,7 @@ export async function translateAll(text: string, source: string, target: string,
     const jobs: { i: number; k: number; piece: string }[] = [];
     segments.forEach((s, i) => s.pieces.forEach((piece, k) => { if (/\p{L}/u.test(piece)) { jobs.push({ i, k, piece }); } }));
     let failure: string | undefined;
+    let detected: string | undefined;
     let next = 0;
     const worker = async (): Promise<void> => {
         while (next < jobs.length && !failure) {
@@ -94,9 +96,10 @@ export async function translateAll(text: string, source: string, target: string,
                 const r = parseTranslation(await get(translateUrl(job.piece, source, target, email)));
                 if (r.text === undefined) { failure = r.error; return; }
                 translated[job.i][job.k] = r.text;
+                detected ??= r.detected;
             } catch (e) { failure = 'The translation service cannot be reached (' + (e instanceof Error ? e.message : String(e)) + ').'; return; }
         }
     };
     await Promise.all([worker(), worker(), worker()]);
-    return failure ? { error: failure } : { text: joinSegments(segments, translated) };
+    return failure ? { error: failure } : { text: joinSegments(segments, translated), detected };
 }

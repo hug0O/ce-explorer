@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.81 — 2026-10-30
+- **Translate says which language it translated from.** With the source left on *Detect the language*, the service looks at the text itself, so after a *Replace* (the text is now in the new language) the next translation starts from that language: the result now reads `English (detected) → French` so this is visible, and every translation is written in the **CE Translate** output (`fr | en  detected fr`). To keep the source fixed whatever the text, pick it with **Translate from**.
+
 ## 0.1.80 — 2026-10-30
 - **Translate: the two languages are told apart.** *Translate into* only ever sets the language you translate **into**, and *Translate from* only the language of the text; a test now drives both commands to make sure of it. Each list says what the other side is (`Translate into (from English)`), and the message after the choice says which side was set and that the other one is unchanged. If the source looks as if it followed the target, it was the **detection** (`auto`): after *Replace* the text is in the new language, so the service detects that one next time: choose the source with *Translate from* to keep it fixed.
 

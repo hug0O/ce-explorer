@@ -60,5 +60,17 @@ test('the command is in the palette and the "More commands" menu, with its setti
     const cmd = fs.readFileSync(path.join(root, 'src', 'services', 'TranslateCommands.ts'), 'utf8');
     assert.ok(cmd.indexOf('await agreed()') < cmd.indexOf('translateAll(text'), 'consent first, request after');
     assert.match(cmd, /api\.mymemory\.translated\.net/);
+    assert.ok(!cmd.includes('pieceAt'), 'only the selection is translated');
+    assert.match(cmd, /select the text to translate\./);
+    assert.ok(!/update\('target'/.test(cmd), 'the choice is kept by the extension: it does not write a setting that may not be registered yet');
+    assert.match(cmd, /globalState\.update\(TARGET_KEY, code\)/);
+    // the language of the text can be chosen: from a list with "detect it", remembered by the extension, and the way is shown
+    assert.match(cmd, /trackedCommand\('ce\.translateFrom'/);
+    assert.match(cmd, /globalState\.update\(SOURCE_KEY, code\)/);
+    assert.match(cmd, /Detect the language/);
+    assert.match(cmd, /nameOf\(source\) \+ ' → ' \+ nameOf\(target\)/, 'the result says from which language to which');
+    assert.match(cmd, /source\.toLowerCase\(\) === target\.toLowerCase\(\)/, 'the same language on both sides is refused before the request');
+    assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === 'ce.translateFrom'));
+    assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === 'ce.translateFrom'));
     assert.match(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8'), /registerTranslateCommands\(context\)/);
 });

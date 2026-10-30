@@ -10,6 +10,8 @@ import { LANGUAGES, isLanguageCode, translateAll } from '../utils/translate';
 const CONSENT_KEY = 'ce.translate.consent';
 /** The language picked with *Translate into another language*: kept by the extension itself, so it needs no setting to be registered. */
 const TARGET_KEY = 'ce.translate.pickedTarget';
+/** The language the text is written in, picked with *Translate from*; 'auto' lets the service find it. */
+const SOURCE_KEY = 'ce.translate.pickedSource';
 
 async function get(url: string): Promise<unknown> {
     const ctl = new AbortController();
@@ -21,14 +23,14 @@ async function get(url: string): Promise<unknown> {
     } finally { clearTimeout(timer); }
 }
 
-const nameOf = (code: string): string => LANGUAGES.find(l => l.code === code.toLowerCase())?.name ?? code;
+const nameOf = (code: string): string => (code === 'auto' ? 'the detected language' : LANGUAGES.find(l => l.code === code.toLowerCase())?.name ?? code);
 
 export function registerTranslateCommands(context: vscode.ExtensionContext): void {
     const settings = (): { source: string; target: string; email: string } => {
         const c = vscode.workspace.getConfiguration('ce.translate');
-        const picked = context.globalState.get<string>(TARGET_KEY, '');
-        const target = (picked || c.get<string>('target', 'fr') || 'fr').trim();
-        return { source: (c.get<string>('source', 'auto') || 'auto').trim(), target: isLanguageCode(target) ? target : 'fr', email: (c.get<string>('email', '') || '').trim() };
+        const target = (context.globalState.get<string>(TARGET_KEY, '') || c.get<string>('target', 'fr') || 'fr').trim();
+        const source = (context.globalState.get<string>(SOURCE_KEY, '') || c.get<string>('source', 'auto') || 'auto').trim();
+        return { source: source === 'auto' || isLanguageCode(source) ? source : 'auto', target: isLanguageCode(target) ? target : 'fr', email: (c.get<string>('email', '') || '').trim() };
     };
 
     const agreed = async (): Promise<boolean> => {
@@ -43,6 +45,18 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         return true;
     };
 
+    /** A list of languages (with, for the source, "detect it"), then a code typed when the language is not in the list. */
+    const pickLanguage = async (title: string, current: string, withAuto: boolean): Promise<string | undefined> => {
+        const items: (vscode.QuickPickItem & { code?: string })[] = [];
+        if (withAuto) { items.push({ label: '$(search) Detect the language', description: 'auto' + (current === 'auto' ? '  (now)' : ''), detail: 'The service finds the language of the text: fine for a sentence, less sure for one word', code: 'auto' }); }
+        for (const l of LANGUAGES) { items.push({ label: l.name, description: l.code + (l.code === current ? '  (now)' : ''), code: l.code }); }
+        items.push({ label: '$(edit) Another language code...', description: 'en, pt-BR, ...' });
+        const pick = await vscode.window.showQuickPick(items, { title, placeHolder: title });
+        if (!pick) { return undefined; }
+        if (pick.code) { return pick.code; }
+        return (await vscode.window.showInputBox({ title: 'Language code', prompt: 'Two letters (fr, de, ja) or with a region (pt-BR)', validateInput: v => (isLanguageCode(v) ? undefined : 'A code such as fr or pt-BR') }))?.trim() || undefined;
+    };
+
     const run = async (): Promise<void> => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) { void vscode.window.showWarningMessage('CE: open a file, select a text and translate it.'); return; }
@@ -50,11 +64,13 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         const range = editor.selection;
         const text = doc.getText(range);
         if (range.isEmpty || !text.trim()) { void vscode.window.showInformationMessage('CE: select the text to translate.'); return; }
-        if (!await agreed()) { return; }
         const { source, target, email } = settings();
-        const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CE: translating to ' + nameOf(target) + '...' }, () => translateAll(text, source, target, email, get));
+        if (source.toLowerCase() === target.toLowerCase()) { void vscode.window.showWarningMessage('CE: the text is said to be in ' + nameOf(source) + ' and is to be translated into ' + nameOf(target) + ': change one of the two (CE: Translate from... / into...).'); return; }
+        if (!await agreed()) { return; }
+        const way = nameOf(source) + ' → ' + nameOf(target);
+        const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CE: translating, ' + way + '...' }, () => translateAll(text, source, target, email, get));
         if (result.text === undefined) { void vscode.window.showWarningMessage('CE: ' + (result.error ?? 'The text could not be translated.')); return; }
-        const pick = await vscode.window.showInformationMessage('Translation to ' + nameOf(target), { modal: true, detail: result.text }, 'Replace', 'Copy');
+        const pick = await vscode.window.showInformationMessage('Translation, ' + way, { modal: true, detail: result.text }, 'Replace', 'Copy');
         if (pick === 'Replace') {
             const ok = await editor.edit(b => b.replace(range, result.text!));
             if (!ok) { void vscode.window.showWarningMessage('CE: the text could not be replaced (the file changed?).'); }
@@ -64,21 +80,27 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         }
     };
 
+    /** After a choice of language: translate the selection when there is one, else just say what is set. */
+    const thenRun = async (): Promise<void> => {
+        const e = vscode.window.activeTextEditor;
+        if (e && !e.selection.isEmpty) { await run(); return; }
+        const { source, target } = settings();
+        vscode.window.setStatusBarMessage('CE: translate ' + nameOf(source) + ' → ' + nameOf(target), 4000);
+    };
+
     context.subscriptions.push(
         trackedCommand('ce.translate', run),
         trackedCommand('ce.translateTo', async () => {
-            const current = settings().target;
-            const items: (vscode.QuickPickItem & { code?: string })[] = LANGUAGES.map(l => ({ label: l.name, description: l.code + (l.code === current ? '  (now)' : ''), code: l.code }));
-            items.push({ label: '$(edit) Another language code...', description: 'en, pt-BR, ...' });
-            const pick = await vscode.window.showQuickPick(items, { title: 'Translate into', placeHolder: 'The language the text is translated into' });
-            if (!pick) { return; }
-            let code = pick.code;
-            if (!code) {
-                code = (await vscode.window.showInputBox({ title: 'Language code', prompt: 'Two letters (fr, de, ja) or with a region (pt-BR)', validateInput: v => (isLanguageCode(v) ? undefined : 'A code such as fr or pt-BR') }))?.trim();
-                if (!code) { return; }
-            }
+            const code = await pickLanguage('Translate into', settings().target, false);
+            if (!code) { return; }
             await context.globalState.update(TARGET_KEY, code);
-            await run();
+            await thenRun();
+        }),
+        trackedCommand('ce.translateFrom', async () => {
+            const code = await pickLanguage('The text is written in', settings().source, true);
+            if (!code) { return; }
+            await context.globalState.update(SOURCE_KEY, code);
+            await thenRun();
         }),
     );
 }

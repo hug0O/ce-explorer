@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.78",
+  "version": "0.1.79",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -454,6 +454,10 @@
       {
         "command": "ce.usage.show",
         "title": "CE: Feature usage (ranking, least used)"
+      },
+      {
+        "command": "ce.translateFrom",
+        "title": "CE: Translate from a language... (the language of the text)"
       }
     ],
     "submenus": [
@@ -700,9 +704,14 @@
           "group": "3_text@1"
         },
         {
-          "command": "ce.translateTo",
+          "command": "ce.translateFrom",
           "when": "editorTextFocus",
           "group": "3_text@2"
+        },
+        {
+          "command": "ce.translateTo",
+          "when": "editorTextFocus",
+          "group": "3_text@3"
         }
       ]
     },
@@ -755,7 +764,7 @@
           "ce.translate.source": {
             "type": "string",
             "default": "auto",
-            "description": "The language of the text to translate: 'auto' to let the service find it, or a code such as en."
+            "description": "The language of the text to translate: 'auto' to let the service find it, or a code such as en. CE: Translate from a language... picks it from a list; that choice is remembered and wins over this setting."
           },
           "ce.translate.email": {
             "type": "string",

@@ -71,7 +71,7 @@ test('Templates answer to the keys of the other lists, and the project Blueprint
     const bp = read('webview/blueprintHtml.ts');
     assert.match(bp, /inl\.textContent = projectMode \? 'used by' : 'call'/);
     assert.match(bp, /outl\.textContent = projectMode \? 'uses' : 'then'/);
-    assert.match(bp, /'uses the selected' : 'calls the selected'/);
+    assert.match(bp, /' the selected' : 'calls the selected'/);
     assert.match(read('webview/shortcutsSection.ts'), /Templates: insert \/ edit \/ delete \/ star/);
 });
 

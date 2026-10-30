@@ -163,7 +163,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         context.subscriptions.push(vscode.commands.registerCommand('ce.showLog', () => outputChannel.show(true)));
         BlueprintPanel.configure(providerRegistry, codeExplorer, codeGenerator, context.workspaceState);
         ProjectBlueprintPanel.configure(context.workspaceState);
-        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.project', (column?: vscode.ViewColumn) => ProjectBlueprintPanel.show(typeof column === 'number' ? column : undefined)));
+        context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.project', (column?: vscode.ViewColumn, group?: string) => {
+            // from a file that is not Delphi: the project of that language (its files and imports)
+            const lang = (BlueprintPanel.lastDoc ?? vscode.window.activeTextEditor?.document)?.languageId;
+            const g = group ?? ProjectBlueprintPanel.groupOfLanguage(lang);
+            ProjectBlueprintPanel.show(typeof column === 'number' ? column : undefined, g as Parameters<typeof ProjectBlueprintPanel.show>[1]);
+        }));
         context.subscriptions.push(vscode.commands.registerCommand('ce.blueprint.open', () => BlueprintPanel.show(vscode.window.activeTextEditor?.document)));
         registerStatusMenu(context, providerRegistry);
 

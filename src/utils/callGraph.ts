@@ -97,14 +97,14 @@ function resolve(byName: Map<string, GraphRoutine[]>, name: string, owner: strin
 }
 
 /** The call sites of `name` in a (masked) line: positions of the word, not after a `.` unless it is `Self.` / `this.`. */
-export function callSites(masked: string, name: string, family: CodeFamily): number[] {
+export function callSites(masked: string, name: string, family: CodeFamily, anyReceiver = false): number[] {
     const out: number[] = [];
     const flags = family.kind === 'pascal' || family.kind === 'sql' || family.kind === 'batch' ? 'gi' : 'g';
     const re = new RegExp('(?<![\\w$])' + escapeRe(name) + '(?![\\w$])', flags);
     for (const m of masked.matchAll(re)) {
         const at = m.index ?? 0;
         const before = masked.slice(0, at);
-        if (/\.\s*$/.test(before) && !/\b(?:self|this)\s*\.\s*$/i.test(before)) { continue; }
+        if (/\.\s*$/.test(before) && !/\b(?:self|this)\s*\.\s*$/i.test(before) && !(anyReceiver && /[\w)\]]\s*\.\s*$/.test(before))) { continue; }
         if (family.kind === 'batch' && !/\b(?:call|goto)\s+:?$/i.test(before)) { continue; }
         if (family.needParen && !/^\s*\(/.test(masked.slice(at + name.length))) { continue; }
         if (family.kind === 'hash' && family.needParen === false && /^\s*=/.test(masked.slice(at + name.length))) { continue; }
@@ -113,11 +113,33 @@ export function callSites(masked: string, name: string, family: CodeFamily): num
     return out;
 }
 
+/**
+ * The body of a routine written with braces, when the parser gave only its signature line (Go, for one): from the line where it starts
+ * to the line of the brace that closes it. Undefined when no brace opens it (a declaration) or none closes it.
+ */
+export function bracedBody(lines: string[], start: number, family: CodeFamily): { start: number; end: number } | undefined {
+    if (family.kind !== 'c') { return undefined; }
+    const masked = maskCode(lines.join('\n'), family).split('\n');
+    let depth = 0;
+    let opened = false;
+    for (let l = start; l < masked.length; l++) {
+        for (const ch of masked[l]) {
+            if (ch === ';' && !opened && depth === 0) { return undefined; }
+            if (ch === '{') { depth++; opened = true; } else if (ch === '}') { depth--; if (opened && depth === 0) { return { start, end: l }; } }
+        }
+        if (l - start > 5 && !opened) { return undefined; }
+    }
+    return undefined;
+}
+
 /** Every call from a routine to another routine of the file (a recursive call is not an edge: see `recursive`). */
 export function findCalls(routines: GraphRoutine[], lines: string[], family: CodeFamily): { calls: GraphCall[]; recursive: Set<string> } {
     const byName = new Map<string, GraphRoutine[]>();
     for (const r of routines) { byName.set(r.name.toLowerCase(), [...(byName.get(r.name.toLowerCase()) ?? []), r]); }
     const masked = maskCode(lines.join('\n'), family).split('\n');
+    // `obj.method(...)`: the type of the receiver is not known, so it counts only for a method whose name no other routine of the file has
+    const viaObject = new Set<string>();
+    if (family.needParen) { for (const [k, list] of byName) { if (list.length === 1 && list[0].owner) { viaObject.add(k); } } }
     const acc = new Map<string, GraphCall>();
     const recursive = new Set<string>();
     for (const r of routines) {
@@ -126,7 +148,7 @@ export function findCalls(routines: GraphRoutine[], lines: string[], family: Cod
             const line = masked[l];
             if (family.kind === 'pascal' && /^\s*(procedure|function|constructor|destructor)\b/i.test(line)) { continue; }
             for (const target of new Set(routines.map(x => x.name))) {
-                if (callSites(line, target, family).length === 0) { continue; }
+                if (callSites(line, target, family, viaObject.has(target.toLowerCase())).length === 0) { continue; }
                 const to = resolve(byName, target, r.owner);
                 if (!to) { continue; }
                 if (to.id === r.id) { recursive.add(r.id); continue; }

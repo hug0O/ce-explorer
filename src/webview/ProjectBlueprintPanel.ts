@@ -9,6 +9,7 @@ import { UnitGraph, UnitInfo, addUses, buildUnitGraph, readUnit, removeUses } fr
 import { unitFacts } from '../services/ProjectUnused';
 import { pool } from '../utils/pool';
 import { actionLog } from '../services/ActionLog';
+import { MODULE_GROUPS, ModuleGroup, ModuleSource, buildModules, globOf, groupOfLanguage } from '../utils/moduleGraph';
 
 const SOURCE_GLOB = '**/*.{pas,dpr,dpk}';
 const EXCLUDE = '**/{node_modules,__history,__recovery,.git,Win32,Win64,Debug,Release}/**';
@@ -43,11 +44,23 @@ export class ProjectBlueprintPanel {
         };
     }
 
-    static show(column?: vscode.ViewColumn): void {
-        if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showWarningMessage('CE: Open a folder with Delphi sources to draw its units.'); return; }
-        if (ProjectBlueprintPanel.current) { ProjectBlueprintPanel.current.panel.reveal(); return; }
+    /** `group`: the language of the project to draw (the files of that language and their imports); Delphi when none is given. */
+    static show(column?: vscode.ViewColumn, group?: ModuleGroup | 'pascal'): void {
+        if (!vscode.workspace.workspaceFolders?.length) { vscode.window.showWarningMessage('CE: Open a folder with sources to draw its files.'); return; }
+        const want = group ?? 'pascal';
+        const cur = ProjectBlueprintPanel.current;
+        if (cur) {
+            cur.panel.reveal();
+            if (group && cur.group !== want) { cur.group = want; cur.retitle(); void cur.load(true); }
+            return;
+        }
         const panel = vscode.window.createWebviewPanel('ceBlueprint', 'Blueprint: project', column ?? vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
-        ProjectBlueprintPanel.current = new ProjectBlueprintPanel(panel);
+        ProjectBlueprintPanel.current = new ProjectBlueprintPanel(panel, want);
+    }
+
+    /** The group of drawing of a language id: Delphi, or the group of files and imports of that language. */
+    static groupOfLanguage(languageId: string | undefined): ModuleGroup | 'pascal' | undefined {
+        return languageId === 'pascal' ? 'pascal' : languageId ? groupOfLanguage(languageId) : undefined;
     }
 
     private graph: UnitGraph = { nodes: [], edges: [], external: new Map(), unneeded: [] };
@@ -59,12 +72,18 @@ export class ProjectBlueprintPanel {
     private readonly subs: vscode.Disposable[] = [];
     private readonly stateKey = 'ce.blueprint.project.' + (vscode.workspace.workspaceFolders?.[0]?.uri.toString() ?? '');
 
-    private constructor(private readonly panel: vscode.WebviewPanel) {
+    private group: ModuleGroup | 'pascal';
+
+    private constructor(private readonly panel: vscode.WebviewPanel, group: ModuleGroup | 'pascal') {
+        this.group = group;
         const n = nonce();
-        panel.webview.html = blueprintHtml({ nonce: n, cspSource: panel.webview.cspSource, title: 'Project: units and uses' });
+        panel.webview.html = blueprintHtml({ nonce: n, cspSource: panel.webview.cspSource, title: group === 'pascal' ? 'Project: units and uses' : 'Project: files and imports' });
         this.subs.push(
             panel.webview.onDidReceiveMessage(m => { void this.onMessage(m as Record<string, unknown>); }),
-            vscode.workspace.onDidSaveTextDocument(d => { if (/\.(pas|dpr|dpk)$/i.test(d.uri.fsPath)) { this.later(); } }),
+            vscode.workspace.onDidSaveTextDocument(d => {
+                const mine = this.group === 'pascal' ? /\.(pas|dpr|dpk)$/i.test(d.uri.fsPath) : MODULE_GROUPS[this.group].exts.some(e => d.uri.fsPath.toLowerCase().endsWith('.' + e));
+                if (mine) { this.later(); }
+            }),
             panel.onDidDispose(() => {
                 if (this.timer) { clearTimeout(this.timer); }
                 if (this.zen) { void this.setZen(false); }
@@ -72,6 +91,10 @@ export class ProjectBlueprintPanel {
                 this.subs.forEach(s => s.dispose());
             }),
         );
+    }
+
+    private retitle(): void {
+        this.panel.title = this.group === 'pascal' ? 'Blueprint: project' : 'Blueprint: project (' + MODULE_GROUPS[this.group].label + ')';
     }
 
     private later(): void {
@@ -90,11 +113,30 @@ export class ProjectBlueprintPanel {
      */
     private async load(fit: boolean): Promise<void> {
         const run = ++this.run;
-        const units = await this.readAll(run);
+        const units = this.group === 'pascal' ? await this.readAll(run) : await this.readModules(run, this.group);
         if (run !== this.run) { return; }
         this.graph = buildUnitGraph(units, this.positions());
         this.postModel(fit);
-        await this.analyse(units, run);
+        if (this.group === 'pascal') { await this.analyse(units, run); } else { this.loading(''); }
+    }
+
+    /** A project in another language: its files, read in parallel, and the imports that name another file of the project. */
+    private async readModules(run: number, group: ModuleGroup): Promise<UnitInfo[]> {
+        const files = await vscode.workspace.findFiles(globOf(group), EXCLUDE, MAX_FILES);
+        const sources: (ModuleSource | undefined)[] = new Array(files.length).fill(undefined);
+        let done = 0;
+        let last = 0;
+        await pool(files, PARALLEL, async (f, i) => {
+            if (run !== this.run) { return; }
+            try {
+                const text = Buffer.from(await vscode.workspace.fs.readFile(f)).toString('utf8');
+                sources[i] = { path: vscode.workspace.asRelativePath(f, false).split('\\').join('/'), file: f.toString(), text };
+            } catch { /* a file that cannot be read is left out */ }
+            done++;
+            if (Date.now() - last > 150) { last = Date.now(); this.loading('Reading the files... ' + done + ' / ' + files.length); }
+        });
+        if (files.length >= MAX_FILES) { this.notice('Only the first ' + MAX_FILES + ' files are read.'); }
+        return buildModules(sources.filter((x): x is ModuleSource => !!x), group);
     }
 
     /** Step 1: the units and their `uses`. */
@@ -154,10 +196,11 @@ export class ProjectBlueprintPanel {
     private postModel(fit: boolean): void {
         // a unit that nobody uses is "unused"; only the `interface` uses make a loop that Delphi refuses
         const ids = this.graph.nodes.map(n => n.id);
-        const interfaceEdges = this.graph.edges.filter(e => e.section === 'interface');
+        const interfaceEdges = this.group === 'pascal' ? this.graph.edges.filter(e => e.section === 'interface') : this.graph.edges;
         const analysis = { ...analyze(ids, interfaceEdges, this.graph.nodes.filter(n => n.kind === 'program').map(n => n.id)), unneeded: this.graph.unneeded };
         void this.panel.webview.postMessage({
             type: 'model', mode: 'project', nodes: this.graph.nodes, edges: this.graph.edges, analysis, fit,
+            words: this.group === 'pascal' ? { unit: 'unit', units: 'units', uses: 'uses' } : { unit: 'file', units: 'files', uses: 'imports' },
         });
     }
 
@@ -204,6 +247,7 @@ export class ProjectBlueprintPanel {
     /** A wire dragged between two units writes the `uses`; a wire removed takes it out. */
     private async changeUses(from: UnitGraph['nodes'][number] | undefined, to: UnitGraph['nodes'][number] | undefined, add: boolean): Promise<void> {
         if (!from?.file || !to) { return; }
+        if (this.group !== 'pascal') { this.notice('The wires are read from the import lines: change the import in the file itself (double-click opens it). Only Delphi uses clauses are written from here.'); return; }
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(from.file));
         const before = doc.getText();
         const after = add ? addUses(before, to.name) : removeUses(before, to.name);

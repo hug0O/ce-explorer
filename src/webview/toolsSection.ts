@@ -207,7 +207,7 @@ function analyzeBlock(): string {
 <div class="section-title">Blueprint</div>
 <div class="analyze-grid">
 <button class="ana" data-common="ce.blueprint.open" title="The routines of this file as nodes, the calls as wires: drag to add a call, F2 to rename, flow of a routine">🗺️ File</button>
-<button class="ana" data-common="ce.blueprint.project" title="The units of the project and the uses between them (Delphi): drag to add a uses, see what each one takes">🗺️ Project</button>
+<button class="ana" data-common="ce.blueprint.project" title="The files of the project and the imports between them (the units and uses of a Delphi project, the imports of TypeScript, Python, Java, C#, Go, Rust, C/C++): double-click opens a file; Delphi wires can be dragged">🗺️ Project</button>
 </div>
 </div>
 <div class="tools-block">

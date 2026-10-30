@@ -110,7 +110,7 @@ test('the File | Project switch goes both ways, and the project view shows what 
     assert.match(js, /'Uses that take nothing \('/);
     assert.match(js, /wire\.nouse|' nouse'/);
     const file = fs.readFileSync(path.join(root, 'src', 'webview', 'BlueprintPanel.ts'), 'utf8');
-    assert.match(file, /case 'switchView': if \(m\.to === 'project'\) \{ await vscode\.commands\.executeCommand\('ce\.blueprint\.project', this\.panel\.viewColumn\)/);
+    assert.match(file, /case 'switchView': if \(m\.to === 'project'\) \{ await vscode\.commands\.executeCommand\('ce\.blueprint\.project', this\.panel\.viewColumn, /);
     assert.match(file, /static lastDoc/);
     const project = fs.readFileSync(path.join(root, 'src', 'webview', 'ProjectBlueprintPanel.ts'), 'utf8');
     assert.match(project, /case 'switchView': if \(m\.to === 'file'\) \{ this\.showFile\(\); \}/);

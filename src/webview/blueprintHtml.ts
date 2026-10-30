@@ -120,6 +120,7 @@ export function blueprintScript(): string {
   var showAnalysis = true;              // mark the unused routines and the cycles on the picture
   var flowMode = false;                 // the statements of one routine
   var locked = false;                   // flow and project views: no editing of routines
+  var W = { unit: 'unit', units: 'units', uses: 'uses' };   // the words of the project view: units and uses, or files and imports
   var projectMode = false;              // the units of a project instead of the routines of a file
   var editing = null;                   // id of the routine whose signature is being edited in the details panel
   var editForm = null;
@@ -266,7 +267,7 @@ export function blueprintScript(): string {
       p.setAttribute('data-edge', id);
       var hit = el('path', { d: d, 'class': 'hit' }, wires);
       var tip = el('title', {}, hit); tip.textContent = projectMode
-        ? a.name + ' uses ' + b.name + (e.taken ? (e.taken.length ? ': ' + e.taken.slice(0, 12).join(', ') + (e.taken.length > 12 ? '...' : '') : ' but takes nothing from it: it may not be needed') : '') + ' - click, then Delete to remove it from the uses'
+        ? a.name + ' ' + (W.uses === 'uses' ? 'uses' : 'imports') + ' ' + b.name + (e.taken ? (e.taken.length ? ': ' + e.taken.slice(0, 12).join(', ') + (e.taken.length > 12 ? '...' : '') : ' but takes nothing from it: it may not be needed') : '') + ' - click, then Delete to remove it from the uses'
         : a.name + ' calls ' + b.name + ' (' + e.lines.length + 'x) - click, then Delete to remove the call';
       hit.addEventListener('mousedown', function (ev) { ev.stopPropagation(); sel = { type: 'edge', id: id }; render(); });
     });
@@ -454,7 +455,7 @@ export function blueprintScript(): string {
       });
       section(side, projectMode ? 'Used by' : 'Called by', callersOf(n.id), 'from');
       section(side, projectMode ? 'Uses' : 'Calls', calleesOf(n.id), 'to');
-      if (projectMode && n.external && n.external.length) { h('h4', '', 'Also uses, outside the project (' + n.external.length + ')', side); h('div', 'sig', n.external.join(', '), side); }
+      if (projectMode && n.external && n.external.length) { h('h4', '', 'Also ' + (W.uses === 'uses' ? 'uses' : 'imports') + ', outside the project (' + n.external.length + ')', side); h('div', 'sig', n.external.join(', '), side); }
       h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Focus box widens or narrows what is lit.', side);
       return;
     }
@@ -465,7 +466,7 @@ export function blueprintScript(): string {
         h('h3', '', a.name + ' calls ' + b2.name, side);
         h('div', 'kind', ed.lines.length + (ed.lines.length > 1 ? ' call sites' : ' call site') + ', line ' + ed.lines.map(function (l) { return l + 1; }).join(', '), side);
         var acts2 = h('div', 'acts', undefined, side);
-        var rm = h('button', 'act danger', projectMode ? 'Remove from the uses (Delete)' : 'Remove the call (Delete)', acts2);
+        var rm = h('button', 'act danger', projectMode ? 'Remove from the ' + W.uses + ' (Delete)' : 'Remove the call (Delete)', acts2);
         rm.addEventListener('click', function () { post({ type: 'removeCall', from: p2[0], to: p2[1] }); });
         var op = h('button', 'act', 'Open ' + a.name, acts2);
         op.addEventListener('click', function () { post({ type: 'openCode', id: a.id }); });
@@ -481,8 +482,8 @@ export function blueprintScript(): string {
     var linked = aloneSet();
     var keepSide = visibleSet();
     var shown = model.nodes.filter(function (n) { return keepSide[n.id]; });
-    h('h3', '', projectMode ? 'Units' : 'Routines', side);
-    h('div', 'kind', model.nodes.length + (projectMode ? ' units, ' + model.edges.length + ' uses' : ' routines, ' + model.edges.length + ' calls'), side);
+    h('h3', '', projectMode ? (W.units.charAt(0).toUpperCase() + W.units.slice(1)) : 'Routines', side);
+    h('div', 'kind', model.nodes.length + (projectMode ? ' ' + W.units + ', ' + model.edges.length + ' ' + W.uses : ' routines, ' + model.edges.length + ' calls'), side);
     var groups = [
       [projectMode ? 'Not used by others (programs, top of the tree)' : 'Entry points (events, or nobody calls them here)', shown.filter(function (n) { return (linked[n.id] || (n.events && n.events.length)) && !callersOf(n.id).length; })],
       [projectMode ? 'Used by other units' : 'Called by others', shown.filter(function (n) { return callersOf(n.id).length > 0 && !(n.events && n.events.length && !callersOf(n.id).length); })],
@@ -774,14 +775,15 @@ export function blueprintScript(): string {
       var first = model.nodes.length === 0;
       model = { nodes: m.nodes || [], edges: m.edges || [] };
       projectMode = m.mode === 'project';
+      W = m.words || { unit: 'unit', units: 'units', uses: 'uses' };
       flowMode = m.mode === 'flow';
       locked = projectMode || flowMode;
       document.body.classList.toggle('project', projectMode || flowMode);
       document.body.classList.toggle('flow', flowMode);
-      document.getElementById('lgWire').textContent = projectMode ? 'Wire colour = the unit that uses' : 'Wire colour = the caller';
-      document.getElementById('lgIn').textContent = projectMode ? 'uses the selected' : 'calls the selected';
-      document.getElementById('lgOut').textContent = projectMode ? 'used by the selected' : 'called by the selected';
-      document.getElementById('empty').textContent = projectMode ? 'No unit found in the project.' : 'No routine to draw in this file.';
+      document.getElementById('lgWire').textContent = projectMode ? 'Wire colour = the ' + W.unit + ' that ' + (W.uses === 'uses' ? 'uses' : 'imports') : 'Wire colour = the caller';
+      document.getElementById('lgIn').textContent = projectMode ? (W.uses === 'uses' ? 'uses' : 'imports') + ' the selected' : 'calls the selected';
+      document.getElementById('lgOut').textContent = projectMode ? (W.uses === 'uses' ? 'used' : 'imported') + ' by the selected' : 'called by the selected';
+      document.getElementById('empty').textContent = projectMode ? 'No ' + W.unit + ' found in the project.' : 'No routine to draw in this file.';
       document.getElementById('back').hidden = !flowMode;
       document.getElementById('vfile').classList.toggle('on', !projectMode);
       document.getElementById('vproject').classList.toggle('on', projectMode);
@@ -794,8 +796,8 @@ export function blueprintScript(): string {
       render();
       if (first || m.fit) { fit(); }
       syncSubset();
-      document.getElementById('count').textContent = model.nodes.length + (projectMode ? ' units, ' + model.edges.length + ' uses' : ' routines, ' + model.edges.length + ' calls');
-      document.getElementById('filter').placeholder = projectMode ? 'Find a unit (/)' : 'Find a routine (/)';
+      document.getElementById('count').textContent = model.nodes.length + (projectMode ? ' ' + W.units + ', ' + model.edges.length + ' ' + W.uses : ' routines, ' + model.edges.length + ' calls');
+      document.getElementById('filter').placeholder = projectMode ? 'Find a ' + W.unit + ' (/)' : 'Find a routine (/)';
     } else if (m.type === 'notice') { say(m.text); }
     else if (m.type === 'toggleFull') { setFull(!full); }
     else if (m.type === 'loading') {

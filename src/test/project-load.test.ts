@@ -38,7 +38,7 @@ test('the project view draws first and analyses after, reads in parallel, rememb
     assert.match(panel, /await pool\(files, PARALLEL,/);
     assert.match(panel, /const CACHE = new Map<string, \{ stamp: string; unit: UnitInfo \| undefined \}>\(\)/);
     assert.match(panel, /if \(hit && hit\.stamp === stamp\) \{ units\[i\] = hit\.unit; \}/, 'a file that did not change is not read again');
-    assert.match(panel, /this\.postModel\(fit\);\s*\n\s*await this\.analyse\(units, run\);/, 'the graph is shown before the analysis');
+    assert.match(panel, /this\.postModel\(fit\);\s*\n\s*if \(this\.group === 'pascal'\) \{ await this\.analyse\(units, run\); \}/, 'the graph is shown before the analysis');
     assert.match(panel, /if \(run !== this\.run\) \{ return; \}/, 'a newer load stops an older one');
     assert.match(panel, /await new Promise\(r => setTimeout\(r, 0\)\)/, 'the editor stays free while analysing');
     assert.match(panel, /'Reading the units\.\.\. '/);

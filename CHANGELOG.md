@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.72 — 2026-10-30
+- **Blueprint: the Project view now works for every language, not only Delphi.** From a TypeScript / JavaScript, Python, Java, C#, Go, Rust or C / C++ file, *Project* draws the files of that language as nodes and the imports that name another file of the project as wires (`import` / `require`, `from x import`, `using`, `mod` / `use crate::`, `#include`); a library stays listed on the file as *outside the project*. The page says *files* and *imports* instead of *units* and *uses*. The wires are read from the import lines: change the import in the file itself (only Delphi `uses` clauses are written from the picture).
+- **Blueprint of a file: Go routines now have their body** (their calls were never drawn), and **`obj.method()` is a call** when no other routine of the file has that name (before, only `this.method()` was).
+
 ## 0.1.71 — 2026-10-30
 - **Copy and paste the name and the label of a component, in the designer.** `N` copies the name and `L` the label (Caption) of the selected components as plain text (one per line); `Shift+N` / `Shift+L` paste the clipboard text as the name (renamed in the .dfm and the code) or as the label of the selected component. The same four commands are in the right-click menu, and in the Keys menu.
 

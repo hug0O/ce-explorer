@@ -5,7 +5,7 @@ import { CodeExplorerService } from '../services/CodeExplorerService';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import * as ops from '../services/MemberOperations';
 import { generateFromSpec, memberFormToSpec } from '../services/memberForm';
-import { addCallEdit, familyOf, removeCallEdit, LineEdit } from '../utils/callGraph';
+import { addCallEdit, bracedBody, familyOf, removeCallEdit, LineEdit } from '../utils/callGraph';
 import { BpMember, BpModel, SavedPositions, buildBlueprint, nodeIds } from '../utils/blueprintModel';
 import { layout } from '../utils/blueprintLayout';
 import { analyze } from '../utils/blueprintAnalysis';
@@ -13,6 +13,7 @@ import { toMermaid, toSvg } from '../utils/blueprintExport';
 import { actionLog } from '../services/ActionLog';
 import { eventsByHandler } from '../utils/blueprintEvents';
 import { buildFlow } from '../utils/pascalFlow';
+import { groupOfLanguage } from '../utils/moduleGraph';
 import { parseDfmTree } from '../services/DelphiLayout';
 import { blueprintHtml } from './blueprintHtml';
 
@@ -132,9 +133,16 @@ export class BlueprintPanel {
         for (const member of parsed.standaloneProcedures) {
             raw.push({ cls: { id: 'standalone_' + member.id, name: '', fullName: '', classType: 'standalone', interfaces: [], members: [member], range: member.range, isInterface: false, isRecord: false, isSealed: false, fileUri: this.doc.uri }, member });
         }
+        const family = familyOf(provider.languageId);
+        const docLines = this.lines();
         const bp: BpMember[] = raw.map(({ member, owner }) => {
             const impl = member.implementationRange;
-            const range = impl ?? (bodyless ? undefined : member.range);
+            let range = impl ?? (bodyless ? undefined : member.range);
+            // some parsers give the signature line only (Go): the body is the braces that follow it
+            if (range && range.end.line === range.start.line && family) {
+                const b = bracedBody(docLines, range.start.line, family);
+                if (b) { range = { start: { line: b.start }, end: { line: b.end } } as typeof range; }
+            }
             return {
                 name: member.name, owner,
                 kind: member.kind === MemberKind.Constructor ? 'constructor' : member.kind === MemberKind.Destructor ? 'destructor' : owner === undefined ? 'function' : 'method',
@@ -225,7 +233,7 @@ export class BlueprintPanel {
                 await vscode.commands.executeCommand('ce.delphi.designer');
                 break;
             }
-            case 'switchView': if (m.to === 'project') { await vscode.commands.executeCommand('ce.blueprint.project', this.panel.viewColumn); } break;
+            case 'switchView': if (m.to === 'project') { await vscode.commands.executeCommand('ce.blueprint.project', this.panel.viewColumn, this.doc.languageId === 'pascal' ? 'pascal' : groupOfLanguage(this.doc.languageId)); } break;
             case 'undo': await this.undo(); break;
             case 'export': await this.exportGraph(m.format === 'svg' ? 'svg' : 'mermaid'); break;
             case 'redo': await this.redo(); break;

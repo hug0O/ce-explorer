@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 import { LANGUAGES, isLanguageCode, translateAll } from '../utils/translate';
 
 const CONSENT_KEY = 'ce.translate.consent';
+/** The language picked with *Translate into another language*: kept by the extension itself, so it needs no setting to be registered. */
+const TARGET_KEY = 'ce.translate.pickedTarget';
 
 async function get(url: string): Promise<unknown> {
     const ctl = new AbortController();
@@ -23,7 +25,8 @@ const nameOf = (code: string): string => LANGUAGES.find(l => l.code === code.toL
 export function registerTranslateCommands(context: vscode.ExtensionContext): void {
     const settings = (): { source: string; target: string; email: string } => {
         const c = vscode.workspace.getConfiguration('ce.translate');
-        const target = (c.get<string>('target', 'fr') || 'fr').trim();
+        const picked = context.globalState.get<string>(TARGET_KEY, '');
+        const target = (picked || c.get<string>('target', 'fr') || 'fr').trim();
         return { source: (c.get<string>('source', 'auto') || 'auto').trim(), target: isLanguageCode(target) ? target : 'fr', email: (c.get<string>('email', '') || '').trim() };
     };
 
@@ -73,7 +76,7 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
                 code = (await vscode.window.showInputBox({ title: 'Language code', prompt: 'Two letters (fr, de, ja) or with a region (pt-BR)', validateInput: v => (isLanguageCode(v) ? undefined : 'A code such as fr or pt-BR') }))?.trim();
                 if (!code) { return; }
             }
-            await vscode.workspace.getConfiguration('ce.translate').update('target', code, vscode.ConfigurationTarget.Global);
+            await context.globalState.update(TARGET_KEY, code);
             await run();
         }),
     );

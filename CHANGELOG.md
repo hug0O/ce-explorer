@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.77 — 2026-10-30
+- **Translate into another language: no more error about a setting that is not registered.** The language you pick is remembered by the extension itself instead of being written in the settings (which failed with *ce.translate.target is not a registered configuration* when the window had not been reloaded after the update). The choice wins over the `ce.translate.target` setting, which stays the default.
+
 ## 0.1.76 — 2026-10-30
 - **Translate: only the selection.** *CE: Translate* translates the text you selected and nothing else; with no selection it just asks you to select one (the comment or string under the cursor is no longer taken by itself).
 

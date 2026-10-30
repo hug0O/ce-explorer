@@ -225,6 +225,24 @@ function walkTo(step) {
   openInspector();
 }
 
+/* The name or the label (Caption) of the selected components as text on the clipboard, and the text of the clipboard as the name or the label of one. */
+function textOf(n, what) { return what === 'name' ? n.name : (n.props && n.props['Caption'] !== undefined ? n.caption : (n.caption || '')); }
+function copyText(what) {
+  var list = state.sel.length ? state.sel : [rootName()];
+  var lines = list.map(function (s) { return byName[s] ? textOf(byName[s], what) : ''; }).filter(function (t) { return t !== ''; });
+  if (!lines.length) { ergoToast('No ' + (what === 'name' ? 'name' : 'label') + ' to copy on this selection'); return; }
+  post({ type: 'copyText', text: lines.join(String.fromCharCode(10)), what: what });
+}
+function pasteText(what) {
+  if (state.sel.length !== 1) { ergoToast('Select one component to paste a ' + (what === 'name' ? 'name' : 'label') + ' on'); return; }
+  post({ type: 'pasteText', name: state.sel[0], what: what });
+}
+function applyClipText(m) {
+  var n = byName[m.name];
+  if (!n || !m.text) { return; }
+  if (m.what === 'name') { post({ type: 'rename', from: m.name, to: m.text }); } else { post({ type: 'setProp', name: m.name, prop: 'Caption', value: m.text }); }
+}
+
 /* Keys of the designer that need no modifier. Returns true when the key was used. */
 function ergoKey(ev) {
   if (ev.ctrlKey || ev.metaKey || ev.altKey) { return false; }
@@ -232,6 +250,9 @@ function ergoKey(ev) {
   if (ev.key === 'F2') { if (state.sel.length === 1) { startRename(state.sel[0]); ev.preventDefault(); return true; } return false; }
   if (ev.key === 'Tab') { walkTo(ev.shiftKey ? -1 : 1); ev.preventDefault(); return true; }
   if ((ev.key === 's' || ev.key === 'S') && state.sel.length === 1 && state.sel[0] !== rootName()) { post({ type: 'showInStructure', name: state.sel[0] }); ev.preventDefault(); return true; }
+  if ((ev.key === 'n' || ev.key === 'N') && !ev.shiftKey) { copyText('name'); ev.preventDefault(); return true; }
+  if ((ev.key === 'l' || ev.key === 'L') && !ev.shiftKey) { copyText('caption'); ev.preventDefault(); return true; }
+  if ((ev.key === 'N' || ev.key === 'L') && ev.shiftKey) { pasteText(ev.key === 'N' ? 'name' : 'caption'); ev.preventDefault(); return true; }
   if (ev.key === 'Enter' && state.sel.length === 1 && state.sel[0] !== rootName()) { post({ type: 'open', name: state.sel[0] }); ev.preventDefault(); return true; }
   if (ev.key === '0' && !ev.shiftKey) { setZoom(1); ev.preventDefault(); return true; }
   if (ev.key === '9' && !ev.shiftKey) { state.fit = true; state.fitSet = true; $('zoom').value = 'fit'; fitZoom(true); saveUi(); ev.preventDefault(); return true; }
@@ -261,7 +282,11 @@ function openCtx(x, y, name) {
     row('Copy', 'Ctrl+C', function () { doCopy(false); });
   }
   row('Paste', 'Ctrl+V', doPaste);
+  row('Copy the name' + (many ? 's' : ''), 'N', function () { copyText('name'); });
+  row('Copy the label' + (many ? 's' : ''), 'L', function () { copyText('caption'); });
   if (!isForm) {
+    row('Paste as the name', 'Shift+N', function () { pasteText('name'); }, !many);
+    row('Paste as the label', 'Shift+L', function () { pasteText('caption'); }, !many);
     row('Duplicate', 'Ctrl+D', duplicateSelection);
     row('Copy appearance', '', copyLook, !many && !(n && n.fixed));
     row('Paste appearance' + (ergo.look ? ' of ' + ergo.look.from : ''), '', pasteLook, !!ergo.look);

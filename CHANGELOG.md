@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.71 — 2026-10-30
+- **Copy and paste the name and the label of a component, in the designer.** `N` copies the name and `L` the label (Caption) of the selected components as plain text (one per line); `Shift+N` / `Shift+L` paste the clipboard text as the name (renamed in the .dfm and the code) or as the label of the selected component. The same four commands are in the right-click menu, and in the Keys menu.
+
 ## 0.1.70 — 2026-10-29
 - **Popup menus: the items and their events.** In the designer, the preview of a `TPopupMenu` / `TMainMenu` shows the `OnClick` handler of every item (⚡ `miOpenClick`: a click opens its code; a grey ⚡ creates the handler), and lists the controls that show the popup menu. In the **Structure** tab, selecting a menu lists its **Menu items** (sub-items indented, with the shortcut) and the handler of each, one click from its code; the `OnPopup` of the menu stays in *Events*.
 - **The designer keeps only the centre.** When the designer is shown, the side bars on the left and on the right are closed. *S* (Show in Structure) shows the left one again. Setting `ce.delphi.designerHideSidebars` (on by default) turns this off.

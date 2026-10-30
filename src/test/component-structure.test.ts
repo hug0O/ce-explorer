@@ -182,3 +182,17 @@ test('the designer closes the side bars and keeps the centre; a setting turns it
     const props = Object.assign({}, ...[].concat(pkg.contributes.configuration).map((c: { properties: object }) => c.properties));
     assert.equal(props['ce.delphi.designerHideSidebars'].default, true);
 });
+
+test('the name and the label of a component are copied as text and pasted back, from keys and from the menu', () => {
+    const ergo = read('webview/designerErgo.ts');
+    assert.match(ergo, /function copyText\(what\)/);
+    assert.match(ergo, /row\('Copy the name'/);
+    assert.match(ergo, /row\('Copy the label'/);
+    assert.match(ergo, /row\('Paste as the label', 'Shift\+L'/);
+    assert.match(ergo, /ev\.key === 'n' \|\| ev\.key === 'N'/);
+    const panel = read('webview/FormDesignerPanel.ts');
+    assert.match(panel, /case 'copyText'/);
+    assert.match(panel, /case 'pasteText'/);
+    assert.match(read('webview/designerHtml.ts'), /m\.type === 'clipText'/);
+    assert.ok(helpItems().some(i => i.keys === 'N / L'), 'listed in the Keys menu');
+});

@@ -70,6 +70,8 @@ export const DESIGNER_SHORTCUTS: ShortcutItem[] = [
     { keys: 'Delete', label: 'Delete the selected components' },
     { keys: 'F2', label: 'Rename the selected component in place (Enter applies, Esc cancels)' },
     { keys: 'S', label: 'Switch to the code: the Structure tab filtered on the selected component, with its events and where it is used (Ctrl+K Ctrl+B, or the Show in the designer button, brings the designer back with it selected)' },
+    { keys: 'N / L', label: 'Copy the name / the label (Caption) of the selected components as text, one per line, to paste anywhere' },
+    { keys: 'Shift+N / Shift+L', label: 'Paste the clipboard text as the name (renamed everywhere) / as the label of the selected component' },
     { keys: '? / F1', label: 'List every key and gesture of the designer (the Keys button of the toolbar)' },
     { keys: 'Tab / Shift+Tab', label: 'Select the next / previous component (form order, siblings by TabOrder)' },
     { keys: 'Enter', label: 'Create or open the default handler of the selected component' },

@@ -2591,6 +2591,7 @@ ${layoutsScript()}
   function onMessage(m) {
     if (m.type === 'hosts') { state.hosts = m.hosts || []; render(); return; }
     if (m.type === 'toggleFull') { setFull(!state.ui.full); return; }
+    if (m.type === 'clipText') { applyClipText(m); return; }
     if (m.type === 'selectComponent') { if (m.name && byName[m.name]) { select([m.name]); state.notice = m.name + ' selected.'; renderStatus(); } return; }
     if (m.type === 'model') {
       state.model = m.model;

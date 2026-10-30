@@ -493,6 +493,23 @@ export class FormDesignerPanel {
             case 'ready': this.sendModel(); return;
             case 'save': await this.saveAll(); return;
             case 'uncut': this.cut = undefined; this.sendModel(); return;
+            case 'copyText': {
+                // the name or the label of the selection as plain text, to paste anywhere (the code, a search box, a message)
+                const text = str(m.text).slice(0, 2000);
+                if (!text) { return; }
+                await vscode.env.clipboard.writeText(text);
+                this.cut = undefined;
+                vscode.window.setStatusBarMessage(`CE: ${m.what === 'name' ? 'name' : 'label'} copied: ${text.split('\n').join(', ').slice(0, 80)}`, 4000);
+                void this.panel.webview.postMessage({ type: 'notice', text: `${m.what === 'name' ? 'Name' : 'Label'} copied: ${text.split('\n').join(', ').slice(0, 60)}` });
+                return;
+            }
+            case 'pasteText': {
+                // the first line of the clipboard becomes the name or the label of the component (the webview then applies it like a typed value)
+                const text = (await vscode.env.clipboard.readText()).split(/\r?\n/)[0].trim();
+                if (!text) { this.sendModel(undefined, 'The clipboard holds no text.'); return; }
+                void this.panel.webview.postMessage({ type: 'clipText', name: str(m.name), what: m.what === 'name' ? 'name' : 'caption', text });
+                return;
+            }
             case 'undo': await this.step('undo'); return;
             case 'redo': await this.step('redo'); return;
             case 'fullscreen': await this.setZen(m.on === true); return;

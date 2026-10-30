@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.73.vsix
+code --install-extension ce-code-explorer-0.1.74.vsix
 ```
 
 ## Supported Languages
@@ -56,7 +56,7 @@ Code Explorer adds to VS Code what a Delphi developer misses in it (a structure 
 | Work on Oracle | PL/SQL tools: package skeletons, CRUD from a table, spec ⇄ body sync, utPLSQL tests, callers | Tools → PL/SQL |
 | Use the features on a file CE does not know | **Language of this file** (Tools tab drop-down, or `CE: Use a Language for this File…`), per file or per extension | Tools tab, status bar |
 | Fix letters shown as `�` or `Ã©` | **Fix Encoding (accents)**: repairs UTF-8 read as Windows-1252 in place; reads a Windows-1252 file (what Delphi writes) as such and keeps it for the language | Title-bar button / status bar when something looks wrong, `CE: Fix Encoding (accents)…` |
-| Keep notes, find a shortcut | **Memo** (Markdown per language) and **Shortcuts** (every key, by mode) tabs | Sidebar |
+| Keep notes, find a shortcut | **Memo** (Markdown notes: main.md and as many as you create) and **Shortcuts** (every key, by mode) tabs | Sidebar |
 
 Nothing is read in the background: the project panel scans only when asked, in small steps, and remembers what it read.
 ## Features
@@ -427,13 +427,14 @@ A Pascal routine can declare routines of its own between its header and its `beg
 
 The **Shortcuts** tab lists all the shortcuts of the extension, grouped by the mode they work in: *any code file* (Structure, actions menu, edit member), *any editor* (align on a string, memo), *Delphi units and forms*, *PL/SQL sources* (the same `Ctrl+K` letters mean other commands there), the **form designer** (save, copy / cut / paste, undo, select, move and resize with the arrows, panels, full screen, and the mouse gestures, drawn with dashed keys) and the *sidebar* itself. A filter narrows the list as you type (a key, a word of the command, a mode). The editor shortcuts are read from the keybindings of the extension, so the list is always what VS Code really binds; **⚙** opens VS Code's Keyboard Shortcuts editor on them to change one.
 
-#### Sidebar → Memo: Markdown notes per language
+#### Sidebar → Memo: Markdown notes
 
-The **Memo** tab keeps the actions you repeat every day, one Markdown memo per language (Delphi, PL/SQL, TypeScript… and *General*). The language follows the file you are editing (or pick one in the list; a • marks the languages that already have a memo).
+The **Memo** tab keeps your notes as Markdown files. It starts with a **main** memo (`main.md`, created for you), and you can create **as many others as you want** with **＋ New memo**: they are listed in the tab, pick one to read or write it (an *empty* mark shows the ones with nothing written yet).
 
 - **Edit** as plain Markdown, saved as you type; **Preview** to read it. A memo that has text opens as a preview.
+- **📖 Open as page** shows the memo in the application's Markdown page (headings with an outline, to-do boxes you can tick, tables, a `/` menu to add blocks as in Notion). **📝 Text** opens the same file in the text editor. **🗑** moves a memo to the trash (main stays).
 - In the preview, **task lists** (`- [ ] step`) can be ticked and stay ticked; every **fenced code block** has **Copy** and **Insert** buttons, the latter writing the block at the cursor of the editor (or on every cursor / selection); `code`, **bold**, *italic*, quotes, lists and `https` links work too. Nothing in the text can run: it is escaped, and links only open from the extension.
-- **📝 Open .md** opens the file in the editor. The files are plain `typescript.md`, `pascal.md`, `plsql.md`, `general.md`… in the extension's own storage, or in the folder of the `ce.memo.folder` setting (a relative path starts at the workspace, so the memos can be versioned with the project and shared with the team). A memo saved from the editor refreshes the sidebar.
+- The files are plain `main.md`, `release-notes.md`… in the extension's own storage, or in the folder of the `ce.memo.folder` setting (a relative path starts at the workspace, so the memos can be versioned with the project and shared with the team). A memo saved from the editor refreshes the sidebar. Memos written by earlier versions per language (`pascal.md`, `general.md`…) are in the list like the others.
 - `Ctrl+K Ctrl+N` or **CE: Open Memo** opens the tab.
 
 #### Sidebar → Tools: one page per set of tools

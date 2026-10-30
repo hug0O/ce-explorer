@@ -1,5 +1,5 @@
 /**
- * "Memo" tab of the sidebar: Markdown notes per language, to keep the daily,
+ * "Memo" tab of the sidebar: Markdown notes (a main one and as many as you create), to keep the daily,
  * repetitive actions at hand. Edit as text or read the preview; fenced code
  * blocks can be copied or inserted at the cursor, task boxes ticked.
  *
@@ -10,27 +10,30 @@ import { renderMemo } from '../utils/memoMarkdown';
 export type MemoMode = 'edit' | 'preview';
 
 export interface MemoView {
-    langs: { id: string; label: string }[];
+    /** Every memo of the folder, `main` first. */
+    names: { id: string; label: string; filled: boolean }[];
     selected: string;
-    /** The language follows the file being edited (rather than a fixed choice). */
-    follow: boolean;
     mode: MemoMode;
     text: string;
     /** Where the memo lives, for the tooltip. */
     file: string;
 }
 
-/** Entry of the language list meaning "the language of the active file". */
-export const FOLLOW_ID = '__follow__';
-
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export const MEMO_PLACEHOLDER = '# Daily actions\n\n- [ ] Pull and build\n- [ ] Run the tests\n\n## Release\n\n```bash\nnpm run build\n```\n\nWrite Markdown here: one memo per language, saved as you type.';
+export const MEMO_PLACEHOLDER = '# Daily actions\n\n- [ ] Pull and build\n- [ ] Run the tests\n\n## Release\n\n```bash\nnpm run build\n```\n\nWrite Markdown here: as many memos as you want, saved as you type.';
 
 export function memoCss(): string {
     return `
 .memo .mbar { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; }
 .memo .mbar .grow { flex: 1; }
+.mlist { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; max-height: 150px; overflow-y: auto; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.35)); border-radius: 4px; padding: 2px; }
+.mitem { display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; padding: 3px 6px; border: none; border-radius: 3px; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 12px; font-family: inherit; }
+.mitem:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
+.mitem.active { background: var(--vscode-list-activeSelectionBackground, #094771); color: var(--vscode-list-activeSelectionForeground, #fff); }
+.mitem .mname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mitem .mempty { font-size: 10px; opacity: 0.6; }
+.mitem.mnew { color: var(--vscode-textLink-foreground, #3794ff); }
 .memo-text { width: 100%; min-height: 260px; height: 46vh; resize: vertical; padding: 6px 8px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; line-height: 1.45; tab-size: 2; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; }
 .memo-text:focus { outline: 1px solid var(--vscode-focusBorder, #007fd4); }
 .memo-preview { font-size: 12px; line-height: 1.5; }
@@ -55,26 +58,26 @@ export function memoCss(): string {
 }
 
 export function memoHtml(v: MemoView): string {
-    const followLabel = v.langs.find(l => l.id === v.selected)?.label ?? v.selected;
-    const options = [`<option value="${FOLLOW_ID}"${v.follow ? ' selected' : ''}>↻ Language of the active file (${esc(followLabel)})</option>`]
-        .concat(v.langs.map(l => `<option value="${esc(l.id)}"${!v.follow && l.id === v.selected ? ' selected' : ''}>${esc(l.label)}</option>`));
+    const list = v.names.map(n => `<button class="mitem${n.id === v.selected ? ' active' : ''}" data-memo-pick="${esc(n.id)}" title="${esc(n.id)}.md${n.filled ? '' : ' (empty)'}" role="option" aria-selected="${n.id === v.selected}">📝 <span class="mname">${esc(n.label)}</span>${n.filled ? '' : '<span class="mempty">empty</span>'}</button>`).join('');
     let html = `<div class="memo" data-lang="${esc(v.selected)}">`
-        + `<div class="mbar"><select id="memoLang" class="tool-select" title="One memo per language">${options.join('')}</select></div>`
+        + `<div class="mlist" id="memoList" role="listbox" aria-label="Memos">${list}<button class="mitem mnew" id="memoNew" title="Create a memo: any name, as many as you want">＋ New memo</button></div>`
         + `<div class="mbar"><button class="subtab${v.mode === 'edit' ? ' active' : ''}" data-memo-mode="edit">Edit</button>`
         + `<button class="subtab${v.mode === 'preview' ? ' active' : ''}" data-memo-mode="preview">Preview</button>`
-        + `<span class="grow"></span><button class="mbtn" id="memoOpen" title="Open ${esc(v.file)} in the editor">📝 Open .md</button></div>`;
+        + `<span class="grow"></span><button class="mbtn" id="memoPage" title="Open ${esc(v.file)} as a page: read it, tick the tasks, write blocks with / as in Notion">📖 Open as page</button>`
+        + `<button class="mbtn" id="memoOpen" title="Open ${esc(v.file)} as text in the editor">📝 Text</button>`
+        + (v.selected === 'main' ? '' : `<button class="mbtn" id="memoDelete" title="Move this memo to the trash">🗑</button>`) + `</div>`;
     if (v.mode === 'edit') {
         html += `<textarea id="memoText" class="memo-text" spellcheck="false" placeholder="${esc(MEMO_PLACEHOLDER)}">${esc(v.text)}</textarea>`
             + `<div class="tool-note" id="memoState">Markdown, saved as you type. Tab indents.</div>`;
     } else if (v.text.trim()) {
         html += `<div class="memo-preview">${renderMemo(v.text).html}</div>`;
     } else {
-        html += `<p class="empty-section">Nothing written for this language yet: switch to <b>Edit</b> and note the actions you repeat every day.</p>`;
+        html += `<p class="empty-section">Nothing written in this memo yet: switch to <b>Edit</b> and note what you want to keep at hand.</p>`;
     }
     return html + `</div>`;
 }
 
-/** JS defining `initMemo(api)`: autosave while typing, language / mode switches, and the preview's buttons. */
+/** JS defining `initMemo(api)`: autosave while typing, the choice of the memo, mode switches, and the preview's buttons. */
 export function memoScript(): string {
     return `
 function initMemo(api) {
@@ -107,8 +110,15 @@ function initMemo(api) {
             }
         });
     }
-    var sel = document.getElementById('memoLang');
-    if (sel) { sel.addEventListener('change', function () { save(); api.postMessage({ command: 'memoLang', id: sel.value }); }); }
+    document.querySelectorAll('[data-memo-pick]').forEach(function (b) {
+        b.addEventListener('click', function () { save(); api.postMessage({ command: 'memoLang', id: b.getAttribute('data-memo-pick') }); });
+    });
+    var mnew = document.getElementById('memoNew');
+    if (mnew) { mnew.addEventListener('click', function () { save(); api.postMessage({ command: 'memoNew' }); }); }
+    var mpage = document.getElementById('memoPage');
+    if (mpage) { mpage.addEventListener('click', function () { save(); api.postMessage({ command: 'memoPage', lang: lang }); }); }
+    var mdel = document.getElementById('memoDelete');
+    if (mdel) { mdel.addEventListener('click', function () { api.postMessage({ command: 'memoDelete', lang: lang }); }); }
     document.querySelectorAll('[data-memo-mode]').forEach(function (b) {
         b.addEventListener('click', function () { save(); api.postMessage({ command: 'memoMode', mode: b.getAttribute('data-memo-mode') }); });
     });

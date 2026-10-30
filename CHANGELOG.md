@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.74 — 2026-10-30
+- **Memo: a `main.md` by default, and as many memos as you want, in a list.** The tab no longer follows the language of the file: it opens on **main** (`main.md`, created for you), and every memo of the folder is a row of a **selectable list** (the memos written by earlier versions, `pascal.md`, `general.md`…, are in it too; an *empty* mark shows the ones with nothing yet). **＋ New memo** asks for a name and creates the file (`Release notes` makes `release-notes.md`), ready to write.
+- **Open a memo as a page.** **📖 Open as page** shows it in the application's Markdown page (outline of the headings, to-do boxes you can tick, tables, the `/` menu to add blocks as in Notion); **📝 Text** opens the same file in the text editor; **🗑** moves a memo to the trash (it can be taken back; main stays).
+
 ## 0.1.73 — 2026-10-30
 - **Dead Code now says what the compiler or the linter of the language would say.** For the open file it lists, with the rule: **unused imports** (TS6133, pyflakes F401, Go's *imported and not used*, rustc `unused_imports`, Java), **local variables never read** (TS6133, F841, Go, rustc `unused_variables`, CS0168 / CS0219, `-Wunused-variable`, Delphi H2164), **private members and routines of the file that nothing calls** (Delphi H2219, CS0169 / IDE0051, rustc `dead_code`, `-Wunused-function`, staticcheck U1000, shellcheck SC2329, TS6138) and **unreachable code** after a `return` / `throw` / `Exit` (TS7027, CS0162, rustc `unreachable_code`). A Delphi event handler named in the .dfm is never reported. The findings are also **faded in the editor** and listed as hints in the Problems panel until the report is closed; a click goes to the exact name. Under it stays the list of public methods and classes that nothing in the workspace refers to.
 - **The Export button is removed from Tools** (the command *CE: Export Structure* stays in the palette).

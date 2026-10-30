@@ -12,7 +12,7 @@ export const TIPS: Tip[] = [
     { text: 'The Blueprint draws the calls of a file as a graph you can edit.', command: 'ce.blueprint.open' },
     { text: 'File | Project in the Blueprint switches to the units of the whole project.', command: 'ce.blueprint.project' },
     { text: 'The Structure list: arrows move, Enter goes there, F2 renames, E edits, Delete removes.', command: 'ce.manageMembers' },
-    { text: 'The Memo keeps the actions you repeat every day, one note per language.', command: 'ce.memo.open' },
+    { text: 'The Memo keeps your notes: main.md and as many memos as you create.', command: 'ce.memo.open' },
     { text: 'The user guide has pictures and animations of every feature.', command: 'ce.openGuide' },
     { text: 'CE: Settings opens the few options of the extension.', command: 'ce.openSettings' },
 ];

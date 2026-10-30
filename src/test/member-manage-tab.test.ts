@@ -396,36 +396,76 @@ function memoPanel(): { panel: any; dir: string } {
     return { panel, dir };
 }
 
-test('Memo tab: one Markdown memo per language, following the file being edited', async () => {
+test('Memo tab: main.md by default, a list of memos to pick from, as many as created', async () => {
     const { panel, dir } = memoPanel();
     panel._tab = 'memo';
     vscodeMock.window.activeTextEditor = { document: { lang: 'pascal', uri: { fsPath: '/x/u.pas' } } };
     let html: string = panel.getEmptyHtml();
     assert.match(html, /class="tab active" data-tab="memo"/);
-    assert.match(html, /<select id="memoLang"/);
-    assert.match(html, /selected>↻ Language of the active file \(Delphi \/ Pascal\)/, 'follows the active file');
-    assert.match(html, /<textarea id="memoText"/, 'an empty memo opens in the editor');
+    assert.match(html, /<div class="mlist" id="memoList"/, 'the memos are a list');
+    assert.match(html, /class="mitem active" data-memo-pick="main"/, 'main is selected by default, whatever the file being edited');
+    assert.ok(fs.existsSync(path.join(dir, 'memos', 'main.md')), 'main.md is created for the user');
+    assert.match(html, /<h3>Main<\/h3>/, 'main opens as a preview, with its first lines');
+    assert.doesNotMatch(html, /<select id="memoLang"/);
+    assert.match(html, /id="memoNew"/);
+    assert.match(html, /id="memoPage"/, 'a memo opens as a page');
+    assert.doesNotMatch(html, /id="memoDelete"/, 'main cannot be deleted');
     assert.doesNotMatch(html, /class="class-header"/);
 
-    panel.handleMemoSave('pascal', '# Delphi\n\n- [ ] Build\n\n```pascal\nShowMessage(1);\n```\n');
+    panel.handleMemoSave('release-notes', '# Release\n\n- [ ] Build\n\n```pascal\nShowMessage(1);\n```\n');
     await panel._memoWrites;
-    assert.equal(fs.readFileSync(path.join(dir, 'memos', 'pascal.md'), 'utf8').split('\n')[0], '# Delphi', 'saved as a plain .md file');
-
+    assert.equal(fs.readFileSync(path.join(dir, 'memos', 'release-notes.md'), 'utf8').split('\n')[0], '# Release', 'saved as a plain .md file');
+    panel._memoLang = 'release-notes';
     html = panel.getEmptyHtml();
-    assert.match(html, /<h3>Delphi<\/h3>/, 'a memo with text opens as a preview');
+    assert.match(html, /<h3>Release<\/h3>/, 'a memo with text opens as a preview');
     assert.match(html, /data-memo-insert="0"/);
-    assert.match(html, /Delphi \/ Pascal •/, 'languages that have a memo are marked');
+    assert.match(html, /class="mitem active" data-memo-pick="release-notes"/);
+    assert.match(html, /data-memo-pick="main"/, 'main stays in the list');
+    assert.match(html, /id="memoDelete"/);
 
-    vscodeMock.window.activeTextEditor = { document: { lang: 'plsql', uri: { fsPath: '/x/a.pks' } } };
-    html = panel.getEmptyHtml();
-    assert.match(html, /textarea/, 'another language, another (empty) memo');
-    assert.doesNotMatch(html, /Build/);
+    // + New memo: the name typed makes the file name, the memo is selected and ready to write
+    vscodeMock.window.activeTextEditor = undefined;
+    (vscodeMock.window as any).showInputBox = async () => 'API ideas!';
+    await panel.handleMemoNew();
+    assert.equal(panel._memoLang, 'api-ideas');
+    assert.match(fs.readFileSync(path.join(dir, 'memos', 'api-ideas.md'), 'utf8'), /^# API ideas!/, 'a first heading with the name');
+    assert.match(panel.getEmptyHtml(), /data-memo-pick="api-ideas"/);
+    assert.deepEqual(new (await import('../services/MemoStore')).MemoStore(path.join(dir, 'memos')).namesSync(), ['main', 'api-ideas', 'release-notes'], 'main first, then the others');
 
-    panel._memoLang = 'pascal';
-    vscodeMock.window.activeTextEditor = { document: { lang: 'plsql', uri: { fsPath: '/x/a.pks' } } };
-    assert.match(panel.getEmptyHtml(), /<h3>Delphi<\/h3>/, 'a fixed language does not follow the file');
+    // Open as page: the Markdown page of the application, not the text editor
+    const opened: unknown[][] = [];
+    (vscodeMock.commands as any).executeCommand = async (...a: unknown[]) => { opened.push(a); };
+    await panel.handleMemoPage('api-ideas');
+    assert.equal(opened[0][0], 'vscode.openWith');
+    assert.equal(opened[0][2], 'ce.markdownEditor');
+    assert.match(String((opened[0][1] as { fsPath: string }).fsPath), /api-ideas\.md$/);
+
+    // delete: asks, goes to the trash, main comes back
+    const deleted: unknown[] = [];
+    (vscodeMock.window as any).showWarningMessage = async () => 'Move to trash';
+    (vscodeMock.workspace as any).fs = { delete: async (u: unknown, o: unknown) => { deleted.push([u, o]); } };
+    await panel.handleMemoDelete('api-ideas');
+    assert.equal((deleted[0] as any[])[1].useTrash, true, 'recoverable');
+    assert.equal(panel._memoLang, 'main');
+    await panel.handleMemoDelete('main');
+    assert.equal(deleted.length, 1, 'main is never deleted');
+
+    delete (vscodeMock.window as any).showInputBox;
+    delete (vscodeMock.window as any).showWarningMessage;
+    delete (vscodeMock.workspace as any).fs;
+    delete (vscodeMock.commands as any).executeCommand;
     vscodeMock.window.activeTextEditor = undefined;
     fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('memo names: typed names become safe file names', async () => {
+    const { memoId } = await import('../services/MemoStore');
+    assert.equal(memoId('Release notes'), 'release-notes');
+    assert.equal(memoId('  API ideas!  '), 'api-ideas');
+    assert.equal(memoId('../../Evil'), 'evil');
+    assert.equal(memoId('notes.md'), 'notes');
+    assert.equal(memoId('!!!'), '', 'nothing usable: refused');
+    assert.ok(memoId('x'.repeat(100)).length <= 40);
 });
 
 test('Memo: code blocks are copied or inserted at the cursor, task boxes ticked, and the setting moves the folder', async () => {

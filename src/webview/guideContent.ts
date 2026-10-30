@@ -78,7 +78,7 @@ export const GUIDE: GuideTopic[] = [
     {
         id: 'sidebar', title: 'The sidebar', summary: 'Structure, Tools, Memo, Shortcuts, Changelog + Guide',
         body: [
-            'The **Code Explorer** sidebar has a tab per job: **Details** (the member under the cursor), **Structure** (members of the file: add, filter, rename, move, delete, usages), **Tools** (align, generate, review — with a *Language of this file* drop-down), **Memo** (Markdown notes per language) and **Shortcuts** (every key, by mode). Below it, a **Changelog + Guide** view of its own, folded until you open it, holds this guide and the changelog.',
+            'The **Code Explorer** sidebar has a tab per job: **Details** (the member under the cursor), **Structure** (members of the file: add, filter, rename, move, delete, usages), **Tools** (align, generate, review — with a *Language of this file* drop-down), **Memo** (Markdown notes: a main one and as many as you create) and **Shortcuts** (every key, by mode). Below it, a **Changelog + Guide** view of its own, folded until you open it, holds this guide and the changelog.',
             'The **Project panel** (command palette: *CE: Project Insights*) adds project-wide views: the SQL of the project, unused code, checks between `.pas` and `.dfm`, the semantic `.dfm` diff.',
         ],
     },

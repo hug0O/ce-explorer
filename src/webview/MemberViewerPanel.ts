@@ -15,8 +15,8 @@ import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { unusedInParsed } from '../utils/unusedCode';
 import { deadCodeHtml } from './deadCodeHtml';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { MemoStore, GENERAL_MEMO, sanitizeLang } from '../services/MemoStore';
-import { FOLLOW_ID, MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
+import { MemoStore, MAIN_MEMO, memoId, sanitizeLang } from '../services/MemoStore';
+import { MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines, ParentRange, withParents } from '../utils/memberSearch';
@@ -230,7 +230,10 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
                 case 'openKeybindings': await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', '@ext:' + this.extensionId()); break;
                 case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
-                case 'memoLang': this._memoLang = msg.id === FOLLOW_ID ? '' : sanitizeLang(String(msg.id)); this.setTab('memo'); break;
+                case 'memoLang': this._memoLang = sanitizeLang(String(msg.id)); this._memoMode = ''; this.setTab('memo'); break;
+                case 'memoNew': await this.handleMemoNew(); break;
+                case 'memoPage': await this.handleMemoPage(String(msg.lang)); break;
+                case 'memoDelete': await this.handleMemoDelete(String(msg.lang)); break;
                 case 'memoMode': this._memoMode = msg.mode === 'preview' ? 'preview' : 'edit'; this.setTab('memo'); break;
                 case 'memoOpen': await this.handleMemoOpen(String(msg.lang)); break;
                 case 'memoCopy': await this.handleMemoBlock(Number(msg.index), 'copy'); break;
@@ -679,11 +682,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return new MemoStore(folder);
     }
 
-    /** Language of the memo shown: the chosen one, else the language of the file being edited, else General. */
+    /** The memo shown: the chosen one, else main. */
     private memoLang(): string {
-        if (this._memoLang) { return this._memoLang; }
-        const doc = vscode.window.activeTextEditor?.document;
-        return sanitizeLang((doc && this._providerRegistry.getByDocument(doc)?.languageId) || GENERAL_MEMO);
+        return this._memoLang || MAIN_MEMO;
     }
 
     private memoText(lang: string): string {
@@ -695,17 +696,14 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     private getMemoHtml(): string {
         const store = this.memoStore();
+        store.ensureMainSync();   // a folder always starts with main.md
         const lang = this.memoLang();
         const text = this.memoText(lang);
-        const existing = new Set(store.languagesSync());
-        const known = new Map<string, string>();
-        for (const p of this._providerRegistry.getAllProviders?.() ?? []) { known.set(p.languageId, p.displayName); }
-        known.set(GENERAL_MEMO, 'General');
-        for (const id of existing) { if (!known.has(id)) { known.set(id, id); } }
-        if (!known.has(lang)) { known.set(lang, lang); }
-        const langs = [...known].map(([id, label]) => ({ id, label: label + (existing.has(id) ? ' •' : '') }));
+        const filled = new Set(store.languagesSync());
+        const names = store.namesSync();
+        if (!names.includes(lang)) { names.push(lang); }
         const mode: MemoMode = this._memoMode || (text.trim() ? 'preview' : 'edit');
-        return memoHtml({ langs, selected: lang, follow: !this._memoLang, mode, text, file: store.fileFor(lang) });
+        return memoHtml({ names: names.map(id => ({ id, label: id, filled: filled.has(id) || !!this._memoCache.get(id)?.trim() })), selected: lang, mode, text, file: store.fileFor(lang) });
     }
 
     /** Reveals the sidebar on the Memo tab (command and keybinding entry point). */
@@ -755,6 +753,51 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (!fs.existsSync(file)) { await store.write(id, this.memoText(id) || '# Memo - ' + id + '\n\n'); }
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
         await vscode.window.showTextDocument(doc, { preview: false });
+    }
+
+    /** + New memo: asks for a name, creates the file and opens it in the tab, ready to write. */
+    private async handleMemoNew(): Promise<void> {
+        const store = this.memoStore();
+        const name = await vscode.window.showInputBox({
+            title: 'New memo', prompt: 'Name of the memo (a file name.md is made from it)', placeHolder: 'Release notes',
+            validateInput: v => {
+                const id = memoId(v);
+                if (!v.trim()) { return undefined; }
+                if (!id) { return 'Use letters or digits'; }
+                return store.exists(id) ? '"' + id + '" already exists: pick it in the list' : undefined;
+            },
+        });
+        const id = name ? memoId(name) : '';
+        if (!id) { return; }
+        if (!store.exists(id)) { await store.write(id, '# ' + name!.trim().replace(/\.md$/i, '') + '\n\n'); this._memoCache.delete(id); }
+        this._memoLang = id;
+        this._memoMode = 'edit';
+        this.setTab('memo');
+    }
+
+    /** The memo as a page: the Markdown viewer / editor of the application (headings, to-do boxes, a "/" menu), not the plain text editor. */
+    private async handleMemoPage(lang: string): Promise<void> {
+        const id = sanitizeLang(lang);
+        const store = this.memoStore();
+        await this._memoWrites;   // what was typed is on the disk before the page reads it
+        if (!store.exists(id)) { await store.write(id, this.memoText(id) || '# ' + id + '\n\n'); }
+        try { await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(store.fileFor(id)), 'ce.markdownEditor'); }
+        catch { await this.handleMemoOpen(id); }
+    }
+
+    /** The memo goes to the trash (it can be taken back from there); main stays. */
+    private async handleMemoDelete(lang: string): Promise<void> {
+        const id = sanitizeLang(lang);
+        if (id === MAIN_MEMO) { return; }
+        const store = this.memoStore();
+        const pick = await vscode.window.showWarningMessage('Move the memo "' + id + '" to the trash?', { modal: true, detail: store.fileFor(id) }, 'Move to trash');
+        if (pick !== 'Move to trash') { return; }
+        try { await this._memoWrites; await vscode.workspace.fs.delete(vscode.Uri.file(store.fileFor(id)), { useTrash: true }); }
+        catch (e) { void notify.failed('CE: The memo was not deleted: ' + (e instanceof Error ? e.message : String(e))); return; }
+        this._memoCache.delete(id);
+        this._memoLang = MAIN_MEMO;
+        this._memoMode = '';
+        this.setTab('memo');
     }
 
     /** A memo saved from the editor replaces what the sidebar holds for it. */

@@ -62,8 +62,9 @@ export function parseTranslation(json: unknown): { text?: string; error?: string
     if (text && /^MYMEMORY WARNING/i.test(text)) { return { error: 'The free quota of the translation service is used up for today (an e-mail in the setting ce.translate.email raises it).' }; }
     if (status === 429) { return { error: 'The translation service asks to wait: too many requests.' }; }
     if (status !== 200 || !text) { return { error: typeof o.responseDetails === 'string' && o.responseDetails ? o.responseDetails : 'The translation service gave no answer.' }; }
-    const det = o.responseData?.detectedLanguage;
-    return typeof det === 'string' && isLanguageCode(det) ? { text: decodeEntities(text), detected: det.toLowerCase() } : { text: decodeEntities(text) };
+    const raw = o.responseData?.detectedLanguage;
+    const det = typeof raw === 'string' ? raw.trim().toLowerCase().replace(/_/g, '-') : '';
+    return isLanguageCode(det) ? { text: decodeEntities(text), detected: det } : { text: decodeEntities(text) };
 }
 
 /** The translated segments put back with their blanks and their lines. */

@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.86 — 2026-11-03
+- **Structure: the member list is no longer cut at about 150 px.** The style of the Memo list (a small scrolling box) was also applied to the list of members; it now only concerns the memos, so the members use the whole height of the sidebar.
+
 ## 0.1.85 — 2026-11-03
 - **Structure: the lists use the height of the sidebar.** Events, *Used in this file* and the code search were cut at a small fixed height; they now grow with the sidebar, while the filter stays pinned at the top.
 

@@ -27,7 +27,7 @@ export function memoCss(): string {
     return `
 .memo .mbar { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; }
 .memo .mbar .grow { flex: 1; }
-.mlist { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; max-height: 150px; overflow-y: auto; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.35)); border-radius: 4px; padding: 2px; }
+#memoList.mlist { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; max-height: 150px; overflow-y: auto; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.35)); border-radius: 4px; padding: 2px; }
 .mitem { display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; padding: 3px 6px; border: none; border-radius: 3px; background: transparent; color: var(--vscode-foreground); cursor: pointer; font-size: 12px; font-family: inherit; }
 .mitem:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
 .mitem.active { background: var(--vscode-list-activeSelectionBackground, #094771); color: var(--vscode-list-activeSelectionForeground, #fff); }

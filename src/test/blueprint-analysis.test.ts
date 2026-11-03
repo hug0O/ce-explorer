@@ -46,9 +46,9 @@ test('export: a Mermaid flowchart with the calls, and an SVG with a node and a w
 test('the everyday controls stay on the bar, the rest is in the More menu', () => {
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
     const bar = html.slice(html.indexOf('<div class="bar">'), html.indexOf('<div id="moremenu"'));
-    for (const id of ['addNode', 'zoom', 'undo', 'redo', 'filter', 'isolate', 'details', 'full', 'more']) { assert.ok(bar.includes('id="' + id + '"'), id + ' on the bar'); }
+    for (const id of ['addNode', 'zoom', 'undo', 'redo', 'filter', 'isolate', 'lvUp', 'lvDown', 'details', 'full', 'more']) { assert.ok(bar.includes('id="' + id + '"'), id + ' on the bar'); }
     const menu = html.slice(html.indexOf('<div id="moremenu"'), html.indexOf('<div id="main">'));
-    for (const id of ['pins', 'alone', 'focus', 'linked', 'analysis', 'exportMermaid', 'exportSvg', 'relayout', 'refresh']) { assert.ok(menu.includes('id="' + id + '"'), id + ' in the menu'); }
+    for (const id of ['pins', 'alone', 'linked', 'analysis', 'exportMermaid', 'exportSvg', 'relayout', 'refresh']) { assert.ok(menu.includes('id="' + id + '"'), id + ' in the menu'); }
     const js = blueprintScript();
     assert.match(js, /function closeMenus\(\)/);
     assert.match(js, /ev\.key === 'Escape' && !moreMenu\.hidden/);

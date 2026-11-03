@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.83 — 2026-11-03
+- **Change the order of the parameters.** In the *Edit member* form of the sidebar and in the *Edit...* panel of the Blueprint, every parameter has **▲ ▼** buttons (the first cannot go up, the last cannot go down); the preview follows. When an edit **only puts the parameters in another order**, the extension offers to **reorder the arguments of the calls** of the routine in the same file too (`Draw(10, 20, 'a, b')` becomes `Draw('a, b', 10, 20)`): commas inside strings, parentheses or brackets stay with their argument, a call with another number of arguments is left alone, and the declaration is not touched. The offer says how many calls, and one Ctrl+Z undoes it.
+- **Blueprint: callers above and callees below the selected routine, to a level you choose.** The bar has **Levels ↑ ↓**: how many levels of callers (blue) and of callees (orange) are followed from the selected routine, each from 0 to 10 or *all*. The routines in reach are lit and each says its distance (`↑2` = two levels of callers away, `↓1` = a direct callee), the rest is dimmed, and the count reads `2 callers up, 3 callees down`. **hide others** (H), or the new button *Show only its callers and callees* in the details, keeps only those and lays them out again. The *Focus* box of the More menu is replaced by these two.
+
 ## 0.1.82 — 2026-10-30
 - **Translate: the source no longer follows the text you replaced.** After a *Replace* the code holds the translation, so the language the service detected for the next translation was the one you had just translated into. The extension now remembers, for this session, what each translation came from: translating that text again starts **from the original text, in its own language** (`French → German (from the original text)`, better than French → English → German), and asking for the original language gives the original text back without any request.
 

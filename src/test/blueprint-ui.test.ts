@@ -80,7 +80,7 @@ test('the graph follows the size of its window: refitted in Fit window mode, kep
 test('readability: focus on the selection, a details panel, compact nodes, wires coloured by caller, less detail when zoomed out', () => {
     const js = blueprintScript();
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
-    for (const id of ['focus', 'pins', 'details', 'side']) { assert.ok(html.includes('id="' + id + '"'), id); }
+    for (const id of ['lvUp', 'lvDown', 'pins', 'details', 'side']) { assert.ok(html.includes('id="' + id + '"'), id); }
     for (const v of ['1', '2', '99']) { assert.ok(html.includes('<option value="' + v + '">'), 'focus ' + v); }
     assert.match(js, /function reach\(\)/);
     assert.match(js, /cls \+= outE \? ' out' : inE \? ' in' : ' dim'/);
@@ -143,4 +143,41 @@ test('every action of the picture can be undone and redone, and a routine can be
     assert.match(panel, /this\.doc\.getText\(\) !== e\.after/, 'an undo is refused when the file changed since');
     assert.match(panel, /ops\.editMember\(this\.doc, provider, target\.cls, old, this\.deps\.generator, this\.deps\.explorer, form\)/);
     assert.match(panel, /ops\.renameMember\(this\.doc, e\.cls, e\.member, provider, this\.deps\.explorer, name\)/, 'a new name goes through the rename, so the calls follow');
+});
+
+test('callers above and callees below the selected routine, each to a level the user sets', () => {
+    const html = blueprintHtml({ nonce: 'N', cspSource: 'csp', title: 't' });
+    const js = /<script nonce="N">([\s\S]*)<\/script>/.exec(html)![1];
+    assert.doesNotThrow(() => new Function('acquireVsCodeApi', 'document', 'window', js), 'the page script parses');
+    assert.match(html, /<select id="lvUp">(?:<option value="\d+"[^>]*>(?:\d+|all)<\/option>)+<\/select>/, 'levels of callers, up');
+    assert.match(html, /<select id="lvDown">/, 'levels of callees, down');
+    assert.match(html, /<option value="99">all<\/option>/, 'as far as it goes');
+    assert.match(html, /<option value="0">0<\/option>/, 'none on one side');
+    assert.match(js, /walk\(sel\.id, 'to', 'from', up, depthUp\)/);
+    assert.match(js, /walk\(sel\.id, 'from', 'to', down, depthDown\)/, 'each side has its own depth');
+    assert.match(js, /bt\.textContent = \(rc\.up\[n\.id\]/, 'each node says how many levels away it is');
+    assert.match(js, /Show only its callers and callees/, 'a button on the details of the routine');
+    assert.ok(!js.includes('depthMode'));
+    // the walk itself, as the page runs it
+    const walk = (edges: [string, string][], from: string, depth: number, dir: 'up' | 'down'): Record<string, number> => {
+        const out: Record<string, number> = {};
+        const seen = new Set([from]);
+        const queue: [string, number][] = [[from, 0]];
+        while (queue.length) {
+            const [cur, d] = queue.shift()!;
+            if (d >= depth) { continue; }
+            for (const [a, b] of edges) {
+                const [here, next] = dir === 'down' ? [a, b] : [b, a];
+                if (here !== cur || seen.has(next)) { continue; }
+                seen.add(next); out[next] = d + 1; queue.push([next, d + 1]);
+            }
+        }
+        return out;
+    };
+    const e: [string, string][] = [['a', 'b'], ['b', 'c'], ['c', 'd'], ['x', 'b'], ['y', 'x']];
+    assert.deepEqual(walk(e, 'b', 1, 'down'), { c: 1 });
+    assert.deepEqual(walk(e, 'b', 2, 'down'), { c: 1, d: 2 });
+    assert.deepEqual(walk(e, 'b', 1, 'up'), { a: 1, x: 1 });
+    assert.deepEqual(walk(e, 'b', 99, 'up'), { a: 1, x: 1, y: 2 });
+    assert.deepEqual(walk(e, 'b', 0, 'up'), {});
 });

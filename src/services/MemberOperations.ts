@@ -10,6 +10,8 @@ import type { WorkspaceIndex } from './WorkspaceIndex';
 import { queueDfmRename, syncFormAfterDelete } from './FormSync';
 import { insertPlDocHeader } from './PlSqlCommands';
 import { notify } from './Notify';
+import { familyOf } from '../utils/callGraph';
+import { applyChanges, callsTouched, permutation, reorderArguments } from '../utils/paramOrder';
 
 let _workspaceIndex: WorkspaceIndex | undefined;
 export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
@@ -77,7 +79,51 @@ export async function applyGeneratedCode(
     return pipeline.apply('Apply generated code');
 }
 
+/**
+ * Edits the signature of a member. When the edit only puts the parameters in another order, the calls of the routine in this file are
+ * offered the same change (the arguments move with the parameters); any other edit leaves the calls alone.
+ */
 export async function editMember(
+    doc: vscode.TextDocument,
+    provider: ILanguageProvider,
+    cls: ClassInfo,
+    member: ClassMember,
+    codeGenerator: CodeGeneratorService,
+    codeExplorer: CodeExplorerService,
+    result: MemberFormResult
+): Promise<boolean> {
+    const perm = permutation(member.parameters.map(p => p.name), result.parameters.map(p => p.name));
+    const done = await editMemberCore(doc, provider, cls, member, codeGenerator, codeExplorer, result);
+    if (done && perm) { await offerCallReorder(doc, provider, result.name.trim(), perm); }
+    return done;
+}
+
+/** Asks whether the arguments of the calls of `routine` in this file move with its parameters, and does it. */
+export async function offerCallReorder(doc: vscode.TextDocument, provider: ILanguageProvider, routine: string, perm: number[]): Promise<void> {
+    const family = familyOf(provider.languageId);
+    if (!family) { return; }
+    const text = doc.getText();
+    // the lines of the routine's own declaration and implementation are not calls
+    const parsed = provider.parseDocument(doc);
+    const skip: number[] = [];
+    for (const m of [...parsed.classes.flatMap(c => c.members), ...parsed.standaloneProcedures]) {
+        if (m.name.toLowerCase() !== routine.toLowerCase()) { continue; }
+        skip.push(m.range.start.line);
+        if (m.implementationRange) { skip.push(m.implementationRange.start.line); }
+    }
+    const changes = reorderArguments(text, family, routine, perm, skip);
+    if (!changes.length) { return; }
+    const n = callsTouched(changes, text, routine);
+    const pick = await vscode.window.showInformationMessage(
+        'The parameters of ' + routine + ' are in a new order. Reorder the arguments of ' + n + ' call' + (n === 1 ? '' : 's') + ' in this file too?',
+        'Reorder the calls', 'Leave them');
+    if (pick !== 'Reorder the calls') { return; }
+    const edit = new vscode.WorkspaceEdit();
+    for (const c of changes) { edit.replace(doc.uri, new vscode.Range(doc.positionAt(c.start), doc.positionAt(c.end)), c.text); }
+    if (await vscode.workspace.applyEdit(edit)) { vscode.window.setStatusBarMessage('CE: ' + n + ' call' + (n === 1 ? '' : 's') + ' of ' + routine + ' reordered (Ctrl+Z undoes it)', 5000); }
+}
+
+async function editMemberCore(
     doc: vscode.TextDocument,
     provider: ILanguageProvider,
     cls: ClassInfo,

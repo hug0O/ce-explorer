@@ -2197,7 +2197,7 @@ ${shortcutsScript()}
         html += '.compact-vis { margin-bottom: 8px; }';
         html += '.mod-row { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 6px 0 8px; font-size: 11px; } .mod-row label { display: inline-flex; align-items: center; gap: 3px; margin: 0; color: var(--vscode-foreground); } .mod-row input { width: auto; }';
         html += '.disclosure { margin: 6px 0; } .disclosure summary { cursor: pointer; font-size: 11px; color: var(--vscode-descriptionForeground); list-style: none; } .disclosure summary::-webkit-details-marker { display: none; }';
-        html += '.param-row { display: flex; gap: 4px; margin-bottom: 4px; } .param-row input, .param-row select { flex: 1; min-width: 0; padding: 3px 5px; } .param-row .x { flex: 0 0 20px; padding: 2px 0; }';
+        html += '.param-row { display: flex; gap: 4px; margin-bottom: 4px; } .param-row input, .param-row select { flex: 1; min-width: 0; padding: 3px 5px; } .param-row .x { flex: 0 0 20px; padding: 2px 0; } .param-row .mv { font-size: 9px; }';
         html += '.add-param { font-size: 11px; padding: 2px 8px; margin: 2px 0 8px; cursor: pointer; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 3px; }';
         html += '.preview-box { background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.12)); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3)); border-radius: 3px; padding: 6px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; white-space: pre-wrap; max-height: 140px; overflow-y: auto; margin-top: 4px; }';
         html += '.actions { margin-top: 10px; display: flex; gap: 6px; justify-content: flex-end; }';
@@ -2286,6 +2286,8 @@ ${shortcutsScript()}
         html += 'if(isPascal){var s=document.createElement("select");["","const","var","out"].forEach(function(d){var o=document.createElement("option");o.value=d;o.textContent=d||"in";s.appendChild(o);});s.className="param-dir";if(dir)s.value=dir;row.appendChild(s);}';
         html += 'var ni=document.createElement("input");ni.className="param-name";ni.type="text";ni.placeholder="p"+pc;if(n)ni.value=n;row.appendChild(ni);';
         html += 'var ti=document.createElement("input");ti.className="param-type";ti.type="text";ti.placeholder=isPascal?"Integer":pt;if(ty)ti.value=ty;row.appendChild(ti);';
+        html += 'var ub=document.createElement("button");ub.className="x mv";ub.type="button";ub.textContent="▲";ub.title="Move this parameter up (the order of the parameters)";ub.onclick=function(){var p=row.previousElementSibling;if(p){row.parentNode.insertBefore(row,p);schedule();}};row.appendChild(ub);';
+        html += 'var db=document.createElement("button");db.className="x mv";db.type="button";db.textContent="▼";db.title="Move this parameter down (the order of the parameters)";db.onclick=function(){var nx=row.nextElementSibling;if(nx){row.parentNode.insertBefore(nx,row);schedule();}};row.appendChild(db);';
         html += 'var rb=document.createElement("button");rb.className="x";rb.textContent="✕";rb.title="Remove this parameter";rb.onclick=function(){row.remove();schedule();};row.appendChild(rb);';
         html += 'ni.oninput=schedule;ti.oninput=schedule;c.appendChild(row);';
         html += '}';

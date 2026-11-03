@@ -33,6 +33,11 @@ body.flow #addNode, body.flow #undo, body.flow #redo { display: none; }
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
 .bar label { display: flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); cursor: pointer; }
 .bar .grow { flex: 1; }
+.bar .lv { display: inline-flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); }
+.bar .lv select { padding: 1px 2px; }
+.bar .lv .lvu { color: #4aa3ff; font-weight: 700; }
+.bar .lv .lvd { color: #ffb347; font-weight: 700; }
+.node .lvl { fill: rgba(255,255,255,0.95); font-size: 10px; font-weight: 700; text-anchor: end; pointer-events: none; }
 body.full .bar { padding: 3px 8px; }
 body.full .help { display: none; }
 .bar .msg { color: var(--vscode-descriptionForeground); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -59,6 +64,8 @@ body.noside #side { display: none; }
 #side .fld input { flex: 1; }
 #side .prow { display: flex; gap: 3px; margin: 3px 0; align-items: center; }
 #side .prow select { width: 54px; flex: none; background: var(--vscode-dropdown-background, var(--vscode-input-background)); color: var(--vscode-dropdown-foreground, inherit); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; font-size: 11px; padding: 2px; }
+#side .prow .mv { padding: 1px 4px; font-size: 9px; flex: none; }
+#side .prow .mv:disabled { opacity: 0.3; cursor: default; }
 #side .prow .pn { width: 70px; flex: 1; }
 #side .prow .pt { width: 70px; flex: 1; }
 #side button.act.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
@@ -129,7 +136,7 @@ export function blueprintScript(): string {
   var isolate = false;                  // hide everything that is not linked to the selected routine
   var withLinked = false;               // the filter also keeps the routines next to the ones it finds
   var compact = false;                  // no data pins: one line per node
-  var depthMode = 1;                    // how far the focus on the selected node reaches
+  var depthUp = 1, depthDown = 1;       // how many levels of callers (up) and of callees (down) are followed around the selected node; 99 = all
   var modelVer = 0, sideKey = '';
   var cv = document.getElementById('cv');
   var world = document.getElementById('world');
@@ -159,20 +166,20 @@ export function blueprintScript(): string {
   function reach() {
     var up = {}, down = {};
     if (!sel || sel.type !== 'node') { return null; }
-    function walk(start, field, other, into) {
+    function walk(start, field, other, into, depth) {
       var queue = [[start, 0]];
       var seen = {}; seen[start] = true;
       while (queue.length) {
         var cur = queue.shift();
-        if (cur[1] >= depthMode) { continue; }
+        if (cur[1] >= depth) { continue; }
         model.edges.forEach(function (e) {
           if (e[field] !== cur[0] || seen[e[other]]) { return; }
           seen[e[other]] = true; into[e[other]] = cur[1] + 1; queue.push([e[other], cur[1] + 1]);
         });
       }
     }
-    walk(sel.id, 'to', 'from', up);
-    walk(sel.id, 'from', 'to', down);
+    walk(sel.id, 'to', 'from', up, depthUp);
+    walk(sel.id, 'from', 'to', down, depthDown);
     return { up: up, down: down };
   }
   function setAnalysis(a) {
@@ -289,6 +296,11 @@ export function blueprintScript(): string {
         var fh = el('title', {}, head); fh.textContent = n.title + ' ' + n.text + ' - line ' + (n.line + 1) + ' - double-click opens the code';
         return;
       }
+      // the distance from the selected routine: ↑ levels of callers, ↓ levels of callees
+      if (rc && sel.id !== n.id && (rc.up[n.id] || rc.down[n.id])) {
+        var bt = el('text', { 'class': 'lvl', x: n.w - 6, y: 13 }, g);
+        bt.textContent = (rc.up[n.id] ? '↑' + rc.up[n.id] : '') + (rc.up[n.id] && rc.down[n.id] ? ' ' : '') + (rc.down[n.id] ? '↓' + rc.down[n.id] : '');
+      }
       var kindWord = isEvent ? 'Event ' : n.kind === 'constructor' ? 'Create ' : n.kind === 'destructor' ? 'Destroy ' : '';
       var subText = isEvent ? n.events[0] + (n.events.length > 1 ? ' +' + (n.events.length - 1) : '') : n.owner;
       var ttl = el('text', { 'class': 'ttl', x: 10, y: subText ? 15 : 21 }, g);
@@ -393,6 +405,12 @@ export function blueprintScript(): string {
         nm.addEventListener('input', function () { p.name = nm.value; });
         var ty = h('input', 'pt', undefined, row); ty.type = 'text'; ty.value = p.type; ty.placeholder = 'type'; ty.spellcheck = false;
         ty.addEventListener('input', function () { p.type = ty.value; });
+        var up = h('button', 'act mv', '\\u25B2', row); up.title = 'Move this parameter up';
+        up.disabled = i === 0;
+        up.addEventListener('click', function () { var t = editForm.params[i - 1]; editForm.params[i - 1] = editForm.params[i]; editForm.params[i] = t; draw(); });
+        var dn = h('button', 'act mv', '\\u25BC', row); dn.title = 'Move this parameter down';
+        dn.disabled = i === editForm.params.length - 1;
+        dn.addEventListener('click', function () { var t = editForm.params[i + 1]; editForm.params[i + 1] = editForm.params[i]; editForm.params[i] = t; draw(); });
         var rm = h('button', 'act danger', 'x', row); rm.title = 'Remove this parameter';
         rm.addEventListener('click', function () { editForm.params.splice(i, 1); draw(); });
       });
@@ -411,7 +429,7 @@ export function blueprintScript(): string {
   }
   function renderSide() {
     if (editing && !(sel && sel.type === 'node' && sel.id === editing)) { editing = null; editForm = null; }
-    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthMode + '|' + analysis.unused.length + '|' + analysis.cycles.length + '|' + (analysis.unneeded ? analysis.unneeded.length : 0);
+    var key = editing ? 'edit|' + editing : (sel ? sel.type + ':' + sel.id : '') + '|' + filter + '|' + modelVer + '|' + hideAlone + '|' + withLinked + '|' + isolate + '|' + depthUp + '/' + depthDown + '|' + analysis.unused.length + '|' + analysis.cycles.length + '|' + (analysis.unneeded ? analysis.unneeded.length : 0);
     if (key === sideKey) { return; }
     sideKey = key;
     var side = document.getElementById('side');
@@ -453,10 +471,13 @@ export function blueprintScript(): string {
         var b = h('button', 'act' + a[2], a[0], acts);
         b.addEventListener('click', function () { if (a[1] === 'edit') { startEdit(n.id); } else { post({ type: a[1], id: n.id }); } });
       });
+      var around = h('button', 'act' + (isolate ? ' primary' : ''), isolate ? 'Show everything again' : 'Show only its callers and callees', side);
+      around.title = 'Keep only the ' + depthUp + (depthUp === 99 ? ' (all)' : '') + ' level(s) of callers above and ' + depthDown + (depthDown === 99 ? ' (all)' : '') + ' of callees below this routine: the Levels boxes of the bar set how far';
+      around.addEventListener('click', function () { setIsolate(!isolate); });
       section(side, projectMode ? 'Used by' : 'Called by', callersOf(n.id), 'from');
       section(side, projectMode ? 'Uses' : 'Calls', calleesOf(n.id), 'to');
       if (projectMode && n.external && n.external.length) { h('h4', '', 'Also ' + (W.uses === 'uses' ? 'uses' : 'imports') + ', outside the project (' + n.external.length + ')', side); h('div', 'sig', n.external.join(', '), side); }
-      h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Focus box widens or narrows what is lit.', side);
+      h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Levels boxes of the bar widen or narrow what is lit.', side);
       return;
     }
     if (sel && sel.type === 'edge') {
@@ -752,7 +773,24 @@ export function blueprintScript(): string {
   document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
   document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
   document.getElementById('analysis').addEventListener('change', function (ev) { showAnalysis = ev.target.checked; render(); });
-  document.getElementById('focus').addEventListener('change', function (ev) { depthMode = Number(ev.target.value); render(); if (isolate && sel && sel.type === 'node') { fit(); } syncSubset(); });
+  function setLevels(up, down) {
+    if (up !== null) { depthUp = up; }
+    if (down !== null) { depthDown = down; }
+    document.getElementById('lvUp').value = String(depthUp);
+    document.getElementById('lvDown').value = String(depthDown);
+    render();
+    if (isolate && sel && sel.type === 'node') { fit(); }
+    syncSubset();
+    if (sel && sel.type === 'node') { say(levelsText()); }
+  }
+  function levelsText() {
+    var r = reach();
+    if (!r) { return ''; }
+    var nu = Object.keys(r.up).length, nd = Object.keys(r.down).length;
+    return nu + (nu === 1 ? ' caller' : ' callers') + ' up, ' + nd + (nd === 1 ? ' callee' : ' callees') + ' down';
+  }
+  document.getElementById('lvUp').addEventListener('change', function (ev) { setLevels(Number(ev.target.value), null); });
+  document.getElementById('lvDown').addEventListener('change', function (ev) { setLevels(null, Number(ev.target.value)); });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
@@ -830,6 +868,8 @@ export function blueprintScript(): string {
 
 export function blueprintHtml(o: BlueprintPageOptions): string {
     const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // the levels of callers / callees followed around the selected routine
+    const LEVELS = [0, 1, 2, 3, 4, 5, 6, 8, 10, 99].map(n => `<option value="${n}"${n === 1 ? ' selected' : ''}>${n === 99 ? 'all' : n}</option>`).join('');
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${o.cspSource} 'nonce-${o.nonce}'; script-src 'nonce-${o.nonce}';">
@@ -843,7 +883,8 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
 <button id="undo" disabled title="Nothing to undo">&#x21B6;</button><button id="redo" disabled title="Nothing to redo">&#x21B7;</button>
 <input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">
-<label title="Hide every routine that is not linked to the selected one (H). The Focus box in the More menu says how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
+<label title="Hide every routine that is not linked to the selected one (H). The Levels boxes say how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
+<span class="lv" title="How far the calls are followed around the selected routine: the levels of callers above it (blue) and of the routines it calls below it (orange). Tick hide others to see only those">Levels <span class="lvu">&#x2191;</span><select id="lvUp">${LEVELS}</select> <span class="lvd">&#x2193;</span><select id="lvDown">${LEVELS}</select></span>
 <button id="details" title="Show or hide the details panel">Details</button>
 <button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6;</button>
 <span class="dd"><button id="more" title="View options, analysis, export">More &#x25BE;</button>
@@ -851,7 +892,6 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div class="mh">View</div>
 <label class="mi fileonly" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
 <label class="mi" title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> Hide isolated routines</label>
-<label class="mi" title="How far the routines around the selected one are lit: those that call it (blue) and those it calls (orange)">Focus reaches <select id="focus"><option value="1">direct</option><option value="2">2 levels</option><option value="99">all levels</option></select></label>
 <label class="mi" title="With a search, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> Search keeps linked routines</label>
 <label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
 <div class="mh">Export</div>

@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.84 — 2026-11-03
+- **Blueprint: a selected routine shows its whole chain.** The *Levels* boxes are gone: selecting a routine lights **every** caller above it (and theirs) and **every** callee below it (and theirs), each with its distance (`↑2`, `↓3`), and the message says `1 caller up, 4 callees down`. **hide others** (H) and *Show only its callers and callees* keep that whole chain.
+- **Blueprint: the filter only filters what you typed.** The routines that match are marked; their **parents (callers) and children (callees)** stay shown without being filtered by the text, the rest goes. The option *Search keeps linked routines* is removed: it is always on.
+
 ## 0.1.83 — 2026-11-03
 - **Change the order of the parameters.** In the *Edit member* form of the sidebar and in the *Edit...* panel of the Blueprint, every parameter has **▲ ▼** buttons (the first cannot go up, the last cannot go down); the preview follows. When an edit **only puts the parameters in another order**, the extension offers to **reorder the arguments of the calls** of the routine in the same file too (`Draw(10, 20, 'a, b')` becomes `Draw('a, b', 10, 20)`): commas inside strings, parentheses or brackets stay with their argument, a call with another number of arguments is left alone, and the declaration is not touched. The offer says how many calls, and one Ctrl+Z undoes it.
 - **Blueprint: callers above and callees below the selected routine, to a level you choose.** The bar has **Levels ↑ ↓**: how many levels of callers (blue) and of callees (orange) are followed from the selected routine, each from 0 to 10 or *all*. The routines in reach are lit and each says its distance (`↑2` = two levels of callers away, `↓1` = a direct callee), the rest is dimmed, and the count reads `2 callers up, 3 callees down`. **hide others** (H), or the new button *Show only its callers and callees* in the details, keeps only those and lays them out again. The *Focus* box of the More menu is replaced by these two.

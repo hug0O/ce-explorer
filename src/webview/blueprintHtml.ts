@@ -33,10 +33,6 @@ body.flow #addNode, body.flow #undo, body.flow #redo { display: none; }
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
 .bar label { display: flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); cursor: pointer; }
 .bar .grow { flex: 1; }
-.bar .lv { display: inline-flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); }
-.bar .lv select { padding: 1px 2px; }
-.bar .lv .lvu { color: #4aa3ff; font-weight: 700; }
-.bar .lv .lvd { color: #ffb347; font-weight: 700; }
 .node .lvl { fill: rgba(255,255,255,0.95); font-size: 10px; font-weight: 700; text-anchor: end; pointer-events: none; }
 body.full .bar { padding: 3px 8px; }
 body.full .help { display: none; }
@@ -134,9 +130,9 @@ export function blueprintScript(): string {
   var swapped = false;                  // the nodes shown are laid out again among themselves (the saved positions are kept aside)
   var subsetKey = '';
   var isolate = false;                  // hide everything that is not linked to the selected routine
-  var withLinked = false;               // the filter also keeps the routines next to the ones it finds
+  var withLinked = true;                // the filter keeps the routines next to the ones it finds (their callers and callees are not filtered)
   var compact = false;                  // no data pins: one line per node
-  var depthUp = 1, depthDown = 1;       // how many levels of callers (up) and of callees (down) are followed around the selected node; 99 = all
+  var depthUp = 99, depthDown = 99;     // the whole chain of callers (up) and of callees (down) is followed around the selected node
   var modelVer = 0, sideKey = '';
   var cv = document.getElementById('cv');
   var world = document.getElementById('world');
@@ -347,6 +343,7 @@ export function blueprintScript(): string {
     render();
     if (isolate) { fit(); } else if (center) { centerOn(n); }
     syncSubset();
+    say(levelsText());
   }
   function h(tag, cls, text, parent) {
     var e = document.createElement(tag);
@@ -472,12 +469,12 @@ export function blueprintScript(): string {
         b.addEventListener('click', function () { if (a[1] === 'edit') { startEdit(n.id); } else { post({ type: a[1], id: n.id }); } });
       });
       var around = h('button', 'act' + (isolate ? ' primary' : ''), isolate ? 'Show everything again' : 'Show only its callers and callees', side);
-      around.title = 'Keep only the ' + depthUp + (depthUp === 99 ? ' (all)' : '') + ' level(s) of callers above and ' + depthDown + (depthDown === 99 ? ' (all)' : '') + ' of callees below this routine: the Levels boxes of the bar set how far';
+      around.title = 'Keep only the routines that lead to this one (its callers, and theirs) and those it leads to (its callees, and theirs)';
       around.addEventListener('click', function () { setIsolate(!isolate); });
       section(side, projectMode ? 'Used by' : 'Called by', callersOf(n.id), 'from');
       section(side, projectMode ? 'Uses' : 'Calls', calleesOf(n.id), 'to');
       if (projectMode && n.external && n.external.length) { h('h4', '', 'Also ' + (W.uses === 'uses' ? 'uses' : 'imports') + ', outside the project (' + n.external.length + ')', side); h('div', 'sig', n.external.join(', '), side); }
-      h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the Levels boxes of the bar widen or narrow what is lit.', side);
+      h('div', 'tip', 'Click a name to go to that routine. The routines that call it are lit in blue, those it calls in orange; the whole chain is followed, up to each routine at the top and down to each at the bottom.', side);
       return;
     }
     if (sel && sel.type === 'edge') {
@@ -623,6 +620,7 @@ export function blueprintScript(): string {
       drag = { mode: 'move', node: n, sx: ev.clientX, sy: ev.clientY, ox: n.x, oy: n.y, moved: false };
       render();
       syncSubset();
+      say(levelsText());
       return;
     }
     sel = null;
@@ -757,7 +755,6 @@ export function blueprintScript(): string {
       ev.target.value = ''; filter = ''; ev.target.blur(); applyFilter();
     }
   });
-  document.getElementById('linked').addEventListener('change', function (ev) { withLinked = ev.target.checked; applyFilter(); });
   function setIsolate(on) {
     isolate = on;
     document.getElementById('isolate').checked = on;
@@ -773,24 +770,13 @@ export function blueprintScript(): string {
   document.getElementById('exportMermaid').addEventListener('click', function () { post({ type: 'export', format: 'mermaid' }); });
   document.getElementById('exportSvg').addEventListener('click', function () { post({ type: 'export', format: 'svg' }); });
   document.getElementById('analysis').addEventListener('change', function (ev) { showAnalysis = ev.target.checked; render(); });
-  function setLevels(up, down) {
-    if (up !== null) { depthUp = up; }
-    if (down !== null) { depthDown = down; }
-    document.getElementById('lvUp').value = String(depthUp);
-    document.getElementById('lvDown').value = String(depthDown);
-    render();
-    if (isolate && sel && sel.type === 'node') { fit(); }
-    syncSubset();
-    if (sel && sel.type === 'node') { say(levelsText()); }
-  }
+  /* what the selected routine reaches: its callers, and theirs, above; its callees, and theirs, below */
   function levelsText() {
     var r = reach();
     if (!r) { return ''; }
     var nu = Object.keys(r.up).length, nd = Object.keys(r.down).length;
     return nu + (nu === 1 ? ' caller' : ' callers') + ' up, ' + nd + (nd === 1 ? ' callee' : ' callees') + ' down';
   }
-  document.getElementById('lvUp').addEventListener('change', function (ev) { setLevels(Number(ev.target.value), null); });
-  document.getElementById('lvDown').addEventListener('change', function (ev) { setLevels(null, Number(ev.target.value)); });
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
@@ -868,8 +854,6 @@ export function blueprintScript(): string {
 
 export function blueprintHtml(o: BlueprintPageOptions): string {
     const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    // the levels of callers / callees followed around the selected routine
-    const LEVELS = [0, 1, 2, 3, 4, 5, 6, 8, 10, 99].map(n => `<option value="${n}"${n === 1 ? ' selected' : ''}>${n === 99 ? 'all' : n}</option>`).join('');
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${o.cspSource} 'nonce-${o.nonce}'; script-src 'nonce-${o.nonce}';">
@@ -883,8 +867,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
 <button id="undo" disabled title="Nothing to undo">&#x21B6;</button><button id="redo" disabled title="Nothing to redo">&#x21B7;</button>
 <input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">
-<label title="Hide every routine that is not linked to the selected one (H). The Levels boxes say how far the link may go"><input id="isolate" type="checkbox"> hide others</label>
-<span class="lv" title="How far the calls are followed around the selected routine: the levels of callers above it (blue) and of the routines it calls below it (orange). Tick hide others to see only those">Levels <span class="lvu">&#x2191;</span><select id="lvUp">${LEVELS}</select> <span class="lvd">&#x2193;</span><select id="lvDown">${LEVELS}</select></span>
+<label title="Hide every routine that is not linked to the selected one (H). The whole chain of callers and callees of the selected routine is kept"><input id="isolate" type="checkbox"> hide others</label>
 <button id="details" title="Show or hide the details panel">Details</button>
 <button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6;</button>
 <span class="dd"><button id="more" title="View options, analysis, export">More &#x25BE;</button>
@@ -892,7 +875,6 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div class="mh">View</div>
 <label class="mi fileonly" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
 <label class="mi" title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> Hide isolated routines</label>
-<label class="mi" title="With a search, also show the routines that call the ones found or are called by them"><input id="linked" type="checkbox"> Search keeps linked routines</label>
 <label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
 <div class="mh">Export</div>
 <button class="mi btn" id="exportMermaid" title="Copy a Mermaid flowchart of the calls, to paste in a README or a wiki">Copy as Mermaid</button>

@@ -80,8 +80,8 @@ test('the graph follows the size of its window: refitted in Fit window mode, kep
 test('readability: focus on the selection, a details panel, compact nodes, wires coloured by caller, less detail when zoomed out', () => {
     const js = blueprintScript();
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
-    for (const id of ['lvUp', 'lvDown', 'pins', 'details', 'side']) { assert.ok(html.includes('id="' + id + '"'), id); }
-    for (const v of ['1', '2', '99']) { assert.ok(html.includes('<option value="' + v + '">'), 'focus ' + v); }
+    for (const id of ['pins', 'details', 'side']) { assert.ok(html.includes('id="' + id + '"'), id); }
+    assert.ok(!html.includes('id="focus"'), 'no depth to choose: the selection shows the whole chain');
     assert.match(js, /function reach\(\)/);
     assert.match(js, /cls \+= outE \? ' out' : inE \? ' in' : ' dim'/);
     assert.match(js, /stroke: edgeColor\(e\.from\)/);
@@ -95,7 +95,8 @@ test('readability: focus on the selection, a details panel, compact nodes, wires
 test('the filter shows only the routine searched for (and, if asked, its neighbours) and centres the view on it', () => {
     const js = blueprintScript();
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
-    assert.ok(html.includes('id="linked"') && html.includes('Find a routine'));
+    assert.ok(!html.includes('id="linked"') && html.includes('Find a routine'), 'no option: the callers and callees of what is found are always kept');
+    assert.match(js, /var withLinked = true;/, 'the filter does not filter the parents and the children of the routines it finds');
     assert.match(js, /function visibleSet\(\)/);
     assert.match(js, /var visible = visibleSet\(\);/);
     assert.match(js, /function applyFilter\(\)/);
@@ -105,7 +106,7 @@ test('the filter shows only the routine searched for (and, if asked, its neighbo
     assert.match(js, /var keep = visibleSet\(\);\s*var list = model\.nodes\.filter/, 'fit looks at the nodes that are drawn');
 });
 
-test('"hide others" removes every routine not linked to the selection, as far as the Focus box says', () => {
+test('"hide others" removes every routine not linked to the selection, the whole chain of callers and callees', () => {
     const js = blueprintScript();
     const html = blueprintHtml({ nonce: 'n', cspSource: 'x', title: 't' });
     assert.ok(html.includes('id="isolate"') && html.includes('hide others'));
@@ -149,12 +150,11 @@ test('callers above and callees below the selected routine, each to a level the 
     const html = blueprintHtml({ nonce: 'N', cspSource: 'csp', title: 't' });
     const js = /<script nonce="N">([\s\S]*)<\/script>/.exec(html)![1];
     assert.doesNotThrow(() => new Function('acquireVsCodeApi', 'document', 'window', js), 'the page script parses');
-    assert.match(html, /<select id="lvUp">(?:<option value="\d+"[^>]*>(?:\d+|all)<\/option>)+<\/select>/, 'levels of callers, up');
-    assert.match(html, /<select id="lvDown">/, 'levels of callees, down');
-    assert.match(html, /<option value="99">all<\/option>/, 'as far as it goes');
-    assert.match(html, /<option value="0">0<\/option>/, 'none on one side');
+    assert.ok(!html.includes('id="lvUp"') && !html.includes('id="lvDown"') && !html.includes('Levels'), 'no levels to set: the whole chain is followed');
+    assert.match(js, /var depthUp = 99, depthDown = 99;/, 'every level, up and down');
     assert.match(js, /walk\(sel\.id, 'to', 'from', up, depthUp\)/);
-    assert.match(js, /walk\(sel\.id, 'from', 'to', down, depthDown\)/, 'each side has its own depth');
+    assert.match(js, /walk\(sel\.id, 'from', 'to', down, depthDown\)/);
+    assert.match(js, /say\(levelsText\(\)\);/, 'the selection says how many callers and callees it reaches');
     assert.match(js, /bt\.textContent = \(rc\.up\[n\.id\]/, 'each node says how many levels away it is');
     assert.match(js, /Show only its callers and callees/, 'a button on the details of the routine');
     assert.ok(!js.includes('depthMode'));

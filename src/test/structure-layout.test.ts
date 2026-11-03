@@ -27,3 +27,11 @@ test('the small scrolling box of the memo list does not leak onto the member lis
     assert.match(memo, /^#memoList\.mlist \{[^}]*max-height: 150px/m);
     assert.doesNotMatch(memo, /^\.mlist \{/m);
 });
+
+test('a second click on the open member folds its details, until another member is looked at', () => {
+    const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'MemberViewerPanel.ts'), 'utf8');
+    assert.match(panel, /const wasOpen = this\.focusMember\(\)\?\.id === member\.id && this\._foldedId !== member\.id;/);
+    assert.match(panel, /this\._foldedId = wasOpen \? member\.id : '';/);
+    assert.match(panel, /if \(!member \|\| member\.id === this\._foldedId\) \{ return undefined; \}/);
+    assert.match(panel, /if \(this\._foldedId && !ownJump && \(foundMember\?\.id \?\? ''\) !== this\._foldedId\) \{ this\._foldedId = ''; \}/);
+});

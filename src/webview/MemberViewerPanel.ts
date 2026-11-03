@@ -109,6 +109,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _focusId = '';
     // Moment of the last jump made from this view: the cursor events it causes must not change the member being looked at.
     private _ownJumpAt = 0;
+    /** The member whose details were folded by clicking it again: they stay folded until another member is looked at. */
+    private _foldedId = '';
     private _memberSearch = '';
     // Shortcuts tab: the filter text; and whether the last editor seen was a Delphi file (the designer tab has no text editor)
     private _shortcutFilter = '';
@@ -372,6 +374,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         // A jump made from the Structure tab (to a usage line, a search hit) lands in other members: the tab keeps
         // looking at the member it was about. A cursor moved by the user anywhere else takes the focus back.
         const ownJump = Date.now() - this._ownJumpAt < 700;
+        if (this._foldedId && !ownJump && (foundMember?.id ?? '') !== this._foldedId) { this._foldedId = ''; }
         if (this._focusId && !ownJump && (foundMember?.id ?? '') !== this._focusId) {
             this._focusId = '';
             this._stateKey = '';
@@ -951,7 +954,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private focusData(withVariables = false): FocusView | undefined {
         const member = this.focusMember();
         const doc = vscode.window.activeTextEditor?.document;
-        if (!member) { return undefined; }
+        if (!member || member.id === this._foldedId) { return undefined; }
         const lines = doc ? doc.getText().split(/\r?\n/) : [];
         const skip = new Set<number>([member.range.start.line]);
         if (member.implementationRange) { skip.add(member.implementationRange.start.line); }
@@ -1087,10 +1090,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
         };
         if (act === 'go') {
+            // a second click on the member that is open folds its details
+            const wasOpen = this.focusMember()?.id === member.id && this._foldedId !== member.id;
+            this._foldedId = wasOpen ? member.id : '';
             this._focusId = member.id;
             this._memberSearch = '';
             this._ownJumpAt = Date.now();
             await reveal();
+            this._stateKey = '';
+            this.updateView();
             return;
         }
         // These two commands take the same argument as the former tree items: the member and its type.

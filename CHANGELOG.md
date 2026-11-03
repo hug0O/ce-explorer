@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.87 — 2026-11-03
+- **Structure: click a member again to fold it.** The details under a member (events, where it is used, variables, search) fold when you click the member that is open; they open again with the next click, and stay folded while you stay on that member.
+
 ## 0.1.86 — 2026-11-03
 - **Structure: the member list is no longer cut at about 150 px.** The style of the Memo list (a small scrolling box) was also applied to the list of members; it now only concerns the memos, so the members use the whole height of the sidebar.
 

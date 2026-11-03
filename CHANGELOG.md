@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.85 — 2026-11-03
+- **Structure: the lists use the height of the sidebar.** Events, *Used in this file* and the code search were cut at a small fixed height; they now grow with the sidebar, while the filter stays pinned at the top.
+
 ## 0.1.84 — 2026-11-03
 - **Blueprint: a selected routine shows its whole chain.** The *Levels* boxes are gone: selecting a routine lights **every** caller above it (and theirs) and **every** callee below it (and theirs), each with its distance (`↑2`, `↓3`), and the message says `1 caller up, 4 callees down`. **hide others** (H) and *Show only its callers and callees* keep that whole chain.
 - **Blueprint: the filter only filters what you typed.** The routines that match are marked; their **parents (callers) and children (callees)** stay shown without being filtered by the text, the rest goes. The option *Search keeps linked routines* is removed: it is always on.

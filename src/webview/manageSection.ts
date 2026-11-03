@@ -149,7 +149,8 @@ export function manageCss(): string {
 .mdetail .ana { margin-top: 3px; }
 .mdetail .mdet > summary { margin-top: 0; }
 .mdet > summary { cursor: pointer; font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 4px; }
-.mhits { list-style: none; max-height: 190px; overflow: auto; margin: 2px 0 6px; }
+/* a list uses the height of the sidebar (the pinned filter takes the top), never less than a few rows */
+.mhits { list-style: none; max-height: max(190px, calc(100vh - 170px)); overflow: auto; margin: 2px 0 6px; }
 .mhit { display: flex; gap: 6px; padding: 1px 4px; border-radius: 3px; cursor: pointer; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mhit:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
 .mdesigner { margin: 0 0 8px; }

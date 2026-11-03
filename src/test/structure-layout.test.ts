@@ -17,3 +17,7 @@ test('a long name is cut with an ellipsis instead of pushing the icons and butto
     assert.match(manage, /\.mrow > \.var-actions \{ flex: none;/);
     assert.match(manage, /\.tool-row \.tool-select, \.tool-row \.inp \{ min-width: 0;/);
 });
+
+test('the lists under a member use the height of the sidebar, not a fixed few rows', () => {
+    assert.match(manage, /\.mhits \{ list-style: none; max-height: max\(190px, calc\(100vh - 170px\)\);/);
+});

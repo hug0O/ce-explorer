@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.90 — 2026-11-05
+- **Quick actions (Ctrl+K Ctrl+A) find what you mean.** Type a few words in your own language: `traduire fiche`, `renommer`, `code mort`, `vérifier fiche`, `graphe appels` (French or English, accents do not matter) and the right actions come up, best match first, with the group or the explanation under each. Without anything typed, each group lists first what **you** run most (counted on this machine).
+- **One Rename.** New entry **Rename** in the *Code Explorer* menu of the editor (and the palette): on a member it renames the member (unit, form and links), on a variable it renames the variable, anywhere else it renames the name in the whole project with the VS Code preview.
+- **Same prefix everywhere in the palette.** Every command now starts with `CE: ` (`CE: Delphi - Check form`, `CE: PL/SQL - Find callers`): typing `CE:` lists them all. *Translate the captions of this form* is in the editor menu of `.pas` / `.dfm` files.
+
 ## 0.1.89 — 2026-11-05
 - **Form check: the FDATA domains.** *Check form* (Ctrl+K C) has a new category, **Domains**: a persistent field whose name carries a domain (`CLI_FLG`, `ART_CMNT`…) must have the class and the size of that domain. A `TStringField` on an `_FLG` or a `Size` that is not the domain's is reported, with a fix that changes the class in the .dfm, the declaration in the unit and the `Size`.
 - **Rename in the project, with a preview.** New command **CE: Rename in the project (with preview)** (Tools tab, *Rename in the project*): type the name and the new one, and the places are found in every file of the same family (a unit with its forms, a header with its sources, any other language by its extension). Comments and strings are told apart: *Code only* or *Code, comments and strings*. VS Code then lists every place by file in its own refactoring preview, you untick what you want to keep, and one Undo takes everything back.

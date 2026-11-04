@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.89.vsix
+code --install-extension ce-code-explorer-0.1.90.vsix
 ```
 
 ## Supported Languages
@@ -241,7 +241,7 @@ The letters avoid the ones VS Code already uses after `Ctrl+K` (`M F P R O U W Z
 
 Files: `.pks .pkb .pck .pls .plb .prc .fnc .trg .sql`, and `.txt` **only when the text contains SQL / PL/SQL** (notes and logs are left alone). Package specs *and* bodies, stand-alone procedures / functions, triggers, anonymous `DECLARE … END;` blocks of a script and `CREATE TABLE` columns appear in the explorer. The parser understands nested subprograms, `END IF / END LOOP / CASE … END`, constants, exceptions, types, cursors and comments.
 
-Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the command palette (`CE PL/SQL: …`):
+Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the command palette (`CE: PL/SQL - …`):
 
 | Feature | What it does |
 |---------|--------------|
@@ -259,7 +259,7 @@ Tools → **PL/SQL (Oracle)** in the sidebar, the `Ctrl+K Ctrl+A` menu and the c
 
 Setting `ce.plsql.author` is written in generated headers. Nothing connects to a database: everything works on the source text.
 
-### Delphi layout & checks (Tools → "Delphi layout & checks", and `CE Delphi: …` in the palette)
+### Delphi layout & checks (Tools → "Delphi layout & checks", and `CE: Delphi - …` in the palette)
 
 | Command | What it does |
 |---------|--------------|
@@ -272,7 +272,7 @@ Setting `ce.plsql.author` is written in generated headers. Nothing connects to a
 | Check form | `.dfm` ⇄ `.pas`: event link to a missing method (the form would not load), field without component (nil at runtime), wrong field type, duplicate names / TabOrder, controls beyond their container, overlaps, empty or orphan handlers — with one-click fixes and an "apply the safe fixes" action |
 | Clean handlers | The "Handlers" findings of the check only |
 
-### Visual form designer (Delphi) — five ways in: the icon in the title bar of a `.pas` / `.dfm`, **Form Designer** in the status bar (always visible while a unit or a form is being edited), right-click a `.pas` / `.dfm` in the Explorer or in the editor, the **🎨 Designer** button at the right of the sidebar's tab bar (it stays while the designer tab is the active one), and `Ctrl+K D` (`CE Delphi: Open Form Designer`; from the designer tab itself it brings the open designer back)
+### Visual form designer (Delphi) — five ways in: the icon in the title bar of a `.pas` / `.dfm`, **Form Designer** in the status bar (always visible while a unit or a form is being edited), right-click a `.pas` / `.dfm` in the Explorer or in the editor, the **🎨 Designer** button at the right of the sidebar's tab bar (it stays while the designer tab is the active one), and `Ctrl+K D` (`CE: Delphi - Open Form Designer`; from the designer tab itself it brings the open designer back)
 
 The text `.dfm` drawn as a form, next to the code. Where a change goes in the unit: a new component's **field is added right under the last component field** of the form class (before the first `private` / `public`), its handler declaration under the last method declaration, and the units it needs at the end of `uses` — a long list wraps onto the next lines instead of making one very long line. Fields declared on several lines, several names in one declaration (`A, B: TEdit;`) and comments among them are read correctly. Each change reaches VS Code as one tidy edit (overlapping removals merged, duplicates dropped); if the editor still refuses it, the message says why (read-only file, closed document…) and nothing is modified, and a document VS Code closed in the meantime is reopened before the next change. The VCL docking rules are applied (`alTop`, `alBottom`, `alLeft`, `alRight`, `alClient`, panels' bevels, page controls, splitters), so what you see is the layout Delphi would give.
 
@@ -292,7 +292,7 @@ The text `.dfm` drawn as a form, next to the code. Where a change goes in the un
 
 - **Palette** and **Components** are two collapsible lists on the left. The palette shows **one type at a time** (Standard, Additional, Win32, System, DevExpress, TMS — chosen in a drop-down that says how many components each holds), so it never lists everything at once; typing in its name filter searches every type. *Components* lists what is on the form with a filter by name (or class or caption), a filter by type (containers, non-visual, with event handlers, unknown classes, DevExpress, TMS, or a given class), sorting (form order, name, type, position) and a flat / tree switch. Click selects, Ctrl / Shift extend the selection, and a component on a hidden page makes the page tabs switch so you can see it.
 - **Empty handlers disappear on save**, like in the Delphi IDE: on a manual save of the unit, a handler whose body is empty is removed — the method, its declaration and the `OnXxx = Handler` link in the `.dfm`. A body with a comment is not empty; autosave never removes anything. Setting `ce.delphi.removeEmptyHandlers`.
-- **Copy, cut and paste components** (toolbar ⎘ ✂ 📋, or **Ctrl+C / Ctrl+X / Ctrl+V** in the designer): *copy* then *paste* duplicates the selection — with its children, its fields in the unit, its handlers and their code, names changed where they would clash — into the selected container, or the container around the selected component, or the form when nothing is selected. *Cut* dims the components until you paste them: pasting then **moves** the very same components (names, handlers and code unchanged) into the new parent — the easy way to move many components from one parent to another (**Esc** cancels the cut). The copy also goes to the clipboard in the format of the *CE Delphi: Copy / Paste components* commands, so it can be pasted into another form's designer (a cut pasted into another form is a copy). Tiles, grid parts and dataset fields only go into their own kind of host.
+- **Copy, cut and paste components** (toolbar ⎘ ✂ 📋, or **Ctrl+C / Ctrl+X / Ctrl+V** in the designer): *copy* then *paste* duplicates the selection — with its children, its fields in the unit, its handlers and their code, names changed where they would clash — into the selected container, or the container around the selected component, or the form when nothing is selected. *Cut* dims the components until you paste them: pasting then **moves** the very same components (names, handlers and code unchanged) into the new parent — the easy way to move many components from one parent to another (**Esc** cancels the cut). The copy also goes to the clipboard in the format of the *CE: Delphi - Copy / Paste components* commands, so it can be pasted into another form's designer (a cut pasted into another form is a copy). Tiles, grid parts and dataset fields only go into their own kind of host.
 - **Double-click a component** in the designer: the code of its handler opens in the *same editor group*, so the designer stays one tab away. Back to the designer with its tab, the 🎨 button in the title bar of the unit, or **Ctrl+K Ctrl+B** (also from inside the designer to go to the code, as does the *Code* button, which shows the shortcut; **F12** is no longer used). `ce.delphi.designerColumn` can open the designer beside the code instead.
 
 #### Designer: DevExpress tile control (`TdxTileControl`)
@@ -405,7 +405,7 @@ Nothing here adds a button to the toolbar: it all sits in one **👁 View** menu
 - **Move to another parent**, four ways: drag the component onto another container (the target turns green and a tag says `Drop into … : class`; dropping on the form itself takes it out of its container); pick one in the inspector's **Parent** list (the component stays where it is on screen when possible); drag a row of the Components list onto a container row, or onto the `⌂ form` row at its top; or drag a *docked* control (alTop, alClient…) — it keeps its `Align`. A component is always kept inside its new parent, and never goes into itself or its own children.
 - **Esc** selects the parent of the selection (the usual Delphi habit); it first cancels the palette tool if one is armed.
 
-#### Project panel: SQL, unused code, form checks, and what changed in a form (`Ctrl+K I`, `CE Delphi: Project…`)
+#### Project panel: SQL, unused code, form checks, and what changed in a form (`Ctrl+K I`, `CE: Delphi - Project…`)
 
 Things that neither OmniPascal nor VS Code do, because they need the `.dfm` and the `.pas` together. **Nothing is read until you press *Scan the project*** — no watcher, nothing at start-up. A scan reads the files a few at a time and gives the editor back between two batches, it can be cancelled, and it remembers every file (by its date and size) so the next one only reads what changed. A project of a thousand units is read in a few seconds the first time, and in a fraction of a second after.
 
@@ -417,7 +417,7 @@ Things that neither OmniPascal nor VS Code do, because they need the `.dfm` and 
 - **Names** — the names of the components against the convention **the project already follows**: the prefix most components of a class carry (at least 60 % of three or more: `btn`, `edt`, `cxgtv`…). The components that depart from it, or still carry the name the IDE gave (`Button1`), come with a suggested name and a **Rename** button (or *Rename all* for a form) that changes the `.dfm` and the unit together and leaves them modified, so undo is there. `ce.delphi.namingPrefixes` sets a prefix by hand for a class.
 - **Forms** — the forms by the class they descend from (`THadHocFormListe` and its unit), with how much of a visual descendant is inherited and how much is its own. In the designer, a component written `inherited` in the `.dfm` has a dashed outline and cannot be deleted or renamed there, as in the IDE.
 - **Hotspots** — the units that are often changed and hard to change: commits of the last year (one `git log` for the whole project, asked only when the tab is opened) weighted by size and long routines.
-- **Changes** (`Ctrl+K B`, `CE Delphi: Compare the Form with a Git Version`) — the open form against a commit, a branch or `HEAD`, **component by component**: added, removed, moved to another parent, other class, properties and event links that changed (the text of `SQL.Strings` included). A component is found by its name wherever it went, so reordering, reindenting and the IDE rewriting positions are not changes; positions and sizes are hidden unless asked for.
+- **Changes** (`Ctrl+K B`, `CE: Delphi - Compare the Form with a Git Version`) — the open form against a commit, a branch or `HEAD`, **component by component**: added, removed, moved to another parent, other class, properties and event links that changed (the text of `SQL.Strings` included). A component is found by its name wherever it went, so reordering, reindenting and the IDE rewriting positions are not changes; positions and sizes are hidden unless asked for.
 
 #### Structure: routines declared inside a routine
 

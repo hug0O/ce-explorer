@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.89",
+  "version": "0.1.90",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -270,83 +270,83 @@
       },
       {
         "command": "ce.plsql.syncPackage",
-        "title": "CE PL/SQL: Synchronize package spec / body"
+        "title": "CE: PL/SQL - Synchronize package spec / body"
       },
       {
         "command": "ce.plsql.newPackage",
-        "title": "CE PL/SQL: New package..."
+        "title": "CE: PL/SQL - New package..."
       },
       {
         "command": "ce.plsql.sqlFromTable",
-        "title": "CE PL/SQL: SELECT / INSERT / UPDATE / DELETE / MERGE from CREATE TABLE"
+        "title": "CE: PL/SQL - SELECT / INSERT / UPDATE / DELETE / MERGE from CREATE TABLE"
       },
       {
         "command": "ce.plsql.utplsql",
-        "title": "CE PL/SQL: Generate utPLSQL tests from spec"
+        "title": "CE: PL/SQL - Generate utPLSQL tests from spec"
       },
       {
         "command": "ce.plsql.exceptionBlock",
-        "title": "CE PL/SQL: Insert exception block"
+        "title": "CE: PL/SQL - Insert exception block"
       },
       {
         "command": "ce.plsql.extractProcedure",
-        "title": "CE PL/SQL: Extract procedure from selection"
+        "title": "CE: PL/SQL - Extract procedure from selection"
       },
       {
         "command": "ce.plsql.docHeader",
-        "title": "CE PL/SQL: Insert / refresh PLDoc header"
+        "title": "CE: PL/SQL - Insert / refresh PLDoc header"
       },
       {
         "command": "ce.plsql.findCallers",
-        "title": "CE PL/SQL: Find callers"
+        "title": "CE: PL/SQL - Find callers"
       },
       {
         "command": "ce.plsql.alignPreset",
-        "title": "CE PL/SQL: Align selection (preset)"
+        "title": "CE: PL/SQL - Align selection (preset)"
       },
       {
         "command": "ce.delphi.align",
-        "title": "CE Delphi: Align / size / space components..."
+        "title": "CE: Delphi - Align / size / space components..."
       },
       {
         "command": "ce.delphi.anchors",
-        "title": "CE Delphi: Anchors / docking..."
+        "title": "CE: Delphi - Anchors / docking..."
       },
       {
         "command": "ce.delphi.tabOrder",
-        "title": "CE Delphi: TabOrder by screen position..."
+        "title": "CE: Delphi - TabOrder by screen position..."
       },
       {
         "command": "ce.delphi.check",
-        "title": "CE Delphi: Check form (.dfm vs .pas)"
+        "title": "CE: Delphi - Check form (.dfm vs .pas)"
       },
       {
         "command": "ce.delphi.cleanHandlers",
-        "title": "CE Delphi: Clean event handlers"
+        "title": "CE: Delphi - Clean event handlers"
       },
       {
         "command": "ce.delphi.copy",
-        "title": "CE Delphi: Copy components..."
+        "title": "CE: Delphi - Copy components..."
       },
       {
         "command": "ce.delphi.paste",
-        "title": "CE Delphi: Paste components..."
+        "title": "CE: Delphi - Paste components..."
       },
       {
         "command": "ce.delphi.duplicate",
-        "title": "CE Delphi: Duplicate components..."
+        "title": "CE: Delphi - Duplicate components..."
       },
       {
         "command": "ce.delphi.formFromFields",
-        "title": "CE Delphi: Form from fields..."
+        "title": "CE: Delphi - Form from fields..."
       },
       {
         "command": "ce.delphi.formFromClass",
-        "title": "CE Delphi: Form from a class..."
+        "title": "CE: Delphi - Form from a class..."
       },
       {
         "command": "ce.delphi.changeClass",
-        "title": "CE Delphi: Change component class..."
+        "title": "CE: Delphi - Change component class..."
       },
       {
         "command": "ce.setLanguage",
@@ -363,16 +363,16 @@
       },
       {
         "command": "ce.delphi.diffForm",
-        "title": "CE Delphi: Compare the form with a Git version"
+        "title": "CE: Delphi - Compare the form with a Git version"
       },
       {
         "command": "ce.delphi.designer",
-        "title": "CE Delphi: Open form designer / back to the designer",
+        "title": "CE: Delphi - Open form designer / back to the designer",
         "icon": "$(symbol-misc)"
       },
       {
         "command": "ce.delphi.toggleDesigner",
-        "title": "CE Delphi: Toggle form designer / code (like F12 in Delphi)",
+        "title": "CE: Delphi - Toggle form designer / code (like F12 in Delphi)",
         "icon": "$(symbol-misc)"
       },
       {
@@ -381,7 +381,7 @@
       },
       {
         "command": "ce.delphi.designerFullScreen",
-        "title": "CE Delphi: Toggle form designer / blueprint full screen"
+        "title": "CE: Delphi - Toggle form designer / blueprint full screen"
       },
       {
         "command": "ce.openGuide",
@@ -433,7 +433,7 @@
       },
       {
         "command": "ce.delphi.showInDesigner",
-        "title": "CE Delphi: Show a component in the designer"
+        "title": "CE: Delphi - Show a component in the designer"
       },
       {
         "command": "ce.markdown.open",
@@ -466,6 +466,10 @@
       {
         "command": "ce.renamePreview",
         "title": "CE: Rename in the project (with preview)..."
+      },
+      {
+        "command": "ce.rename",
+        "title": "CE: Rename (variable, member or whole project)..."
       }
     ],
     "submenus": [
@@ -499,6 +503,11 @@
           "command": "ce.nav.pickMember",
           "when": "editorTextFocus",
           "group": "0_main@3"
+        },
+        {
+          "command": "ce.rename",
+          "when": "editorTextFocus",
+          "group": "0_main@6"
         },
         {
           "command": "ce.blueprint.open",
@@ -720,6 +729,11 @@
           "command": "ce.translateTo",
           "when": "editorTextFocus",
           "group": "3_text@3"
+        },
+        {
+          "command": "ce.translateForm",
+          "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i",
+          "group": "3_text@4"
         }
       ]
     },

@@ -36,7 +36,7 @@ import { registerNavCommands } from './services/NavCommands';
 import { BlueprintPanel } from './webview/BlueprintPanel';
 import { MarkdownEditorProvider } from './webview/MarkdownEditorProvider';
 import { ProjectBlueprintPanel } from './webview/ProjectBlueprintPanel';
-import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions } from './services/QuickActions';
+import { GROUPS as QUICK_GROUPS, PackageLike, QuickAction, quickActions, searchActions } from './services/QuickActions';
 import { GuidePanel } from './webview/GuidePanel';
 import { GuideSidebarPanel } from './webview/GuideSidebarPanel';
 import { ProjectPanel } from './webview/ProjectPanel';
@@ -460,6 +460,16 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
         }),
 
+        // One entry for every rename: what is under the cursor says which one it is (a member, a variable, or a name to rename in the whole project)
+        trackedCommand('ce.rename', async () => {
+            const editor = vscode.window.activeTextEditor;
+            const word = editor ? editor.document.getText(editor.document.getWordRangeAtPosition(editor.selection.active, /[A-Za-z_]\w*/)) : '';
+            const member = word ? resolveFromItemOrCursor() : undefined;
+            if (member && member.member.name.toLowerCase() === word.toLowerCase()) { await vscode.commands.executeCommand('ce.renameMember'); return; }
+            if (word && resolveVariableFromCursor()) { await vscode.commands.executeCommand('ce.renameVariable'); return; }
+            await vscode.commands.executeCommand('ce.renamePreview');
+        }),
+
         trackedCommand('ce.changeVariableType', async () => {
             const ref = resolveVariableFromCursor();
             if (!ref) { vscode.window.showWarningMessage('CE: Place the cursor on a typed variable.'); return; }
@@ -606,23 +616,42 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const doc = vscode.window.activeTextEditor?.document;
             const prov = doc ? providerRegistry.getByDocument(doc) : undefined;
             const ext = doc ? path.extname(doc.uri.fsPath).toLowerCase() : '';
-            let list = quickActions(context.extension.packageJSON as PackageLike, { ext, languageId: prov?.languageId ?? doc?.languageId ?? '' });
+            const counts: Record<string, number> = {};
+            for (const [k, e] of Object.entries(usage.snapshot().entries)) { counts[k] = e.n; }
+            let list = quickActions(context.extension.packageJSON as PackageLike, { ext, languageId: prov?.languageId ?? doc?.languageId ?? '' }, counts);
             if (prov && !prov.supportsMissingStubs()) { list = list.filter(x => x.command !== 'ce.implementInterface'); }
             const recent = context.globalState.get<string[]>('ce.recentActions', []).filter(c => list.some(x => x.command === c)).slice(0, 4);
             type Item = vscode.QuickPickItem & { command?: string };
-            const items: Item[] = [];
-            const item = (x: QuickAction, icon: string): Item => ({ label: `$(${icon}) ${x.label}`, description: x.keys, command: x.command });
+            const item = (x: QuickAction, icon: string, withGroup = false): Item => ({
+                label: `$(${icon}) ${x.label}`, description: x.keys, command: x.command,
+                detail: x.detail ?? (withGroup ? QUICK_GROUPS.find(g => g.id === x.group)?.title : undefined),
+                // our own search decides what is shown: VS Code must not filter it again on the label
+                alwaysShow: withGroup,
+            });
+            const grouped: Item[] = [];
             if (recent.length) {
-                items.push({ label: 'Recent', kind: vscode.QuickPickItemKind.Separator });
-                for (const c of recent) { const x = list.find(y => y.command === c)!; items.push(item(x, 'history')); }
+                grouped.push({ label: 'Recent', kind: vscode.QuickPickItemKind.Separator });
+                for (const c of recent) { const x = list.find(y => y.command === c)!; grouped.push(item(x, 'history')); }
             }
             for (const g of QUICK_GROUPS) {
                 const rows = list.filter(x => x.group === g.id);
                 if (!rows.length) { continue; }
-                items.push({ label: g.title, kind: vscode.QuickPickItemKind.Separator });
-                for (const x of rows) { items.push(item(x, g.icon)); }
+                grouped.push({ label: g.title, kind: vscode.QuickPickItemKind.Separator });
+                for (const x of rows) { grouped.push(item(x, g.icon)); }
             }
-            const picked = await vscode.window.showQuickPick(items, { placeHolder: 'CE quick actions: type to filter', matchOnDescription: true });
+            const picked = await new Promise<Item | undefined>(resolve => {
+                const qp = vscode.window.createQuickPick<Item>();
+                qp.placeholder = 'What do you want to do? (rename, translate, unused code, form, ...)';
+                qp.matchOnDescription = true;
+                qp.items = grouped;
+                qp.onDidChangeValue(v => {
+                    const found = v.trim() ? searchActions(list, v, counts) : undefined;
+                    qp.items = found ? (found.length ? found.map(x => item(x, 'symbol-event', true)) : [{ label: 'Nothing matches: try another word', alwaysShow: true }]) : grouped;
+                });
+                qp.onDidAccept(() => { resolve(qp.selectedItems[0]); qp.hide(); });
+                qp.onDidHide(() => { resolve(undefined); qp.dispose(); });
+                qp.show();
+            });
             if (!picked?.command) { return; }
             await context.globalState.update('ce.recentActions', [picked.command, ...recent.filter(c => c !== picked.command)].slice(0, 8));
             await vscode.commands.executeCommand(picked.command);

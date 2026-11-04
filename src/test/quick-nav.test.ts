@@ -53,8 +53,8 @@ test('the Code Explorer submenu of the editor has a few entries on top and the r
     assert.deepEqual(top.map(m => m.submenu), ['ce.editorMenu'], 'one entry in the context menu of the editor');
     const main = pkg.contributes.menus['ce.editorMenu'];
     const first = main.filter(m => m.command).map(m => m.command);
-    assert.deepEqual(first, ['ce.showActions', 'ce.manageMembers', 'ce.nav.pickMember', 'ce.blueprint.open', 'ce.blueprint.project'], 'the few things everybody uses');
-    assert.ok(main.length <= 6, 'five commands and the submenu of the others');
+    assert.deepEqual(first, ['ce.showActions', 'ce.manageMembers', 'ce.nav.pickMember', 'ce.rename', 'ce.blueprint.open', 'ce.blueprint.project'], 'the few things everybody uses');
+    assert.ok(main.length <= 7, 'six commands and the submenu of the others');
     assert.ok(main.some(m => m.submenu === 'ce.editorMore'));
     const sub = pkg.contributes.menus['ce.editorMore'];
     assert.ok(['ce.nav.nextMember', 'ce.nav.prevMember', 'ce.nav.toggleDeclImpl', 'ce.codeReview', 'ce.editMember'].every(c => sub.some(m => m.command === c)), 'the others are one level down');

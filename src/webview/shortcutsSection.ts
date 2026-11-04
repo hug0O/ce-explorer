@@ -50,7 +50,7 @@ export function formatKeys(key: string): string {
 
 /** The title of a command without the prefix that groups it in the palette and without its trailing dots. */
 export function shortLabel(title: string): string {
-    return title.replace(/^CE(?: Delphi| PL\/SQL)?:\s*/, '').replace(/\s*\.{3}$/, '').replace(/\s*\(.*?\)\s*$/, '').trim();
+    return title.replace(/^CE(?:: (?:Delphi|PL\/SQL) -| Delphi:| PL\/SQL:|:)\s*/, '').replace(/\s*\.{3}$/, '').replace(/\s*\(.*?\)\s*$/, '').trim();
 }
 
 /** The extensions a `resourceExtname =~ /…/` clause lets through, or undefined when the clause names none. */

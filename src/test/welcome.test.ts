@@ -59,7 +59,7 @@ test('the commands are named the same way: the CE prefix, a verb first, sentence
     const allowed = new Set(['Delphi', 'Git', 'Markdown', 'TabOrder', 'PLDoc', 'Blueprint', 'PL/SQL', 'SQL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'TABLE', 'F12', 'DFM']);
     const titles = (pkg.contributes.commands as unknown as { command: string; title: string }[]);
     for (const c of titles) {
-        const m = /^CE(?: PL\/SQL| Delphi)?: (.+)$/.exec(c.title);
+        const m = /^CE(?:: PL\/SQL -|: Delphi -|:) (.+)$/.exec(c.title);
         assert.ok(m, c.command + ' starts with CE: ' + c.title);
         const words = m![1].split(' ').slice(1);
         for (const w of words) {

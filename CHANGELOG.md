@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.88 — 2026-11-04
+- **Designer: the fields of a query take the type of their FDATA domain.** *From the SELECT* reads the domain in the column name (`CLI_IDT`, `ART_FLG`, `ART_CMNT`, `SITE_WEB`…) and creates the right field: `TIntegerField` for IDT and FLG, `TWideStringField` for CMNT and the NVARCHAR2 ones, `TStringField` with its size for the short texts, `TFloatField` for the NUMBER(20,8), `TDateField` / `TDateTimeField` / `TTimeField`, `TMemoField`, `TBlobField`… A column with no domain keeps the old guess from its name.
+- **Designer: a component changes parent only with Ctrl.** Dragging a component over another panel no longer reparents it: hold **Ctrl** over the target (it is outlined) and release to drop it there; without Ctrl it just moves inside its own parent, and the label says *Hold Ctrl to drop it into…*.
+
 ## 0.1.87 — 2026-11-03
 - **Structure: click a member again to fold it.** The details under a member (events, where it is used, variables, search) fold when you click the member that is open; they open again with the next click, and stay folded while you stay on that member.
 

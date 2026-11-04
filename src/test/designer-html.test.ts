@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vm from 'vm';
 import { PALETTE, designerHtml } from '../webview/designerHtml';
 import { COMPONENTS, handlerName, resolveComponentDef } from '../services/DelphiForm';
@@ -260,4 +262,11 @@ test('the form scrolls and zooms: visible scroll bars, Ctrl + wheel between 25% 
     assert.match(html, /\.dxvs \{/);
     assert.match(html, /'dxvs'/);
     assert.match(html, /'dxhs'/);
+});
+
+test('a component changes parent only while Ctrl is held during the drop', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'webview', 'designerHtml.ts'), 'utf8');
+    assert.match(html, /drag\.target = drag\.candidate && \(ev\.ctrlKey \|\| ev\.metaKey\) \? drag\.candidate : null;/);
+    assert.match(html, /d\.target = d\.candidate && \(ev\.ctrlKey \|\| ev\.metaKey\) \? d\.candidate : null;/);
+    assert.match(html, /Hold Ctrl to drop it into /);
 });

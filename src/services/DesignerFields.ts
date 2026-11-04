@@ -13,11 +13,14 @@ import { DesignResult, addEdits, renameEdits, setPropertyEdits } from './Designe
 import { columnsToCreate, fieldsToCreate } from './DesignerFieldNames';
 import { isDataset } from './DelphiData';
 import { isGridView } from './DelphiGrid';
+import { fieldOfDomain } from './FdataDomains';
 
 const fail = (error: string): { error: string } => ({ error });
 
-/** What database type a column name suggests: the real one is not known without a connection, so this is a start to correct. */
+/** What database type a column name suggests: an FDATA domain (`CLI_IDT`, `ART_CMNT`) gives its exact field, else a guess from the name to correct. */
 export function guessFieldClass(field: string): { cls: string; size?: number } {
+    const known = fieldOfDomain(field);
+    if (known) { return known; }
     const f = field.toUpperCase();
     if (/DATE|(^|_)DT(_|$)|HEURE|TIMESTAMP/.test(f)) { return { cls: 'TDateTimeField' }; }
     if (/(^|_)(ID|NUM|QTE|QTY|NB|MNT|MONTANT|PRIX|TAUX|POIDS|SOLDE)(_|$)/.test(f)) { return { cls: 'TFloatField' }; }

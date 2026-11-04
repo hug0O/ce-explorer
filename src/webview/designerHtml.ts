@@ -2230,13 +2230,16 @@ ${layoutsScript()}
       var dragged = drag.names.map(function (n) { return els[n]; });
       dragged.forEach(function (e) { e.style.transform = 'translate(' + drag.ddx + 'px,' + drag.ddy + 'px)'; e.style.zIndex = 20; });
       var tgt = dropContainerAt(ev, dragged);
-      if (drag.target && drag.target !== tgt) { drag.target.classList.remove('droptarget'); }
+      if (drag.target) { drag.target.classList.remove('droptarget'); }
       var parentEl = drag.names.length ? (parentOf[drag.names[0]] === state.model.root.name ? $('client') : els[parentOf[drag.names[0]]]) : null;
       var tn = tgt ? nameOfContainer(tgt) : '';
-      drag.target = tgt && tgt !== parentEl && canDropInto(drag.names, tn) ? tgt : null;
+      // another container receives the component only while Ctrl is held: a plain drag never changes the parent
+      drag.candidate = tgt && tgt !== parentEl && canDropInto(drag.names, tn) ? tgt : null;
+      drag.target = drag.candidate && (ev.ctrlKey || ev.metaKey) ? drag.candidate : null;
       if (drag.target) { drag.target.classList.add('droptarget'); }
       var pname = parentOf[drag.names[0]];
-      dropLabel(ev, drag.target ? '↳ Drop into ' + tn + (tn === rootName() ? ' (form)' : ' : ' + byName[tn].cls) : (drag.dockedOnly ? 'Docked: drop it on another container to move it' : 'Stays in ' + pname), !!drag.target);
+      var tname = drag.candidate ? tn + (tn === rootName() ? ' (form)' : ' : ' + byName[tn].cls) : '';
+      dropLabel(ev, drag.target ? '↳ Drop into ' + tname : (drag.candidate ? 'Hold Ctrl to drop it into ' + tname : (drag.dockedOnly ? 'Docked: hold Ctrl over another container to move it' : 'Stays in ' + pname)), !!drag.candidate);
       drawSel();
       if (drag.guides) { showGuides(drag.guides[0], drag.guides[1], drag.guides[2], drag.guides[3], drag.guides[4]); } else { clearGuides(); }
     } else if (drag.kind === 'resize') {
@@ -2275,8 +2278,9 @@ ${layoutsScript()}
     clearGuides();
     var z = state.zoom;
     if (d.kind === 'move') {
+      d.target = d.candidate && (ev.ctrlKey || ev.metaKey) ? d.candidate : null;
       d.names.forEach(function (n) { els[n].style.transform = ''; els[n].style.zIndex = ''; });
-      if (d.target) { d.target.classList.remove('droptarget'); }
+      Array.prototype.forEach.call(document.querySelectorAll('.droptarget'), function (e) { e.classList.remove('droptarget'); });
       dropLabel(ev, '', false);
       if (!d.moved) { return; }
       if (d.dockedOnly && !d.target) { drawSel(); return; }

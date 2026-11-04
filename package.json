@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.91",
+  "version": "0.1.92",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -470,6 +470,14 @@
       {
         "command": "ce.rename",
         "title": "CE: Rename (variable, member or whole project)..."
+      },
+      {
+        "command": "ce.addMember",
+        "title": "CE: Add a member (method, field, property, constructor)..."
+      },
+      {
+        "command": "ce.variableActions",
+        "title": "CE: Variable under the cursor: change type, delete, declare..."
       }
     ],
     "submenus": [
@@ -568,6 +576,62 @@
         {
           "command": "ce.delphi.showInDesigner",
           "when": "false"
+        },
+        {
+          "command": "ce.addMethod",
+          "when": "false"
+        },
+        {
+          "command": "ce.addField",
+          "when": "false"
+        },
+        {
+          "command": "ce.addProperty",
+          "when": "false"
+        },
+        {
+          "command": "ce.addConstructor",
+          "when": "false"
+        },
+        {
+          "command": "ce.renameMember",
+          "when": "false"
+        },
+        {
+          "command": "ce.renameVariable",
+          "when": "false"
+        },
+        {
+          "command": "ce.renameLocalVariable",
+          "when": "false"
+        },
+        {
+          "command": "ce.renamePreview",
+          "when": "false"
+        },
+        {
+          "command": "ce.changeLocalType",
+          "when": "false"
+        },
+        {
+          "command": "ce.changeVariableType",
+          "when": "false"
+        },
+        {
+          "command": "ce.deleteVariable",
+          "when": "false"
+        },
+        {
+          "command": "ce.createLocalVariable",
+          "when": "false"
+        },
+        {
+          "command": "ce.declareLocalVariable",
+          "when": "false"
+        },
+        {
+          "command": "ce.goToMember",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -596,11 +660,6 @@
       ],
       "ce.editorMore": [
         {
-          "command": "ce.goToMember",
-          "when": "editorTextFocus",
-          "group": "1_navigate@2"
-        },
-        {
           "command": "ce.goToWorkspaceMember",
           "when": "editorTextFocus",
           "group": "1_navigate@3"
@@ -609,16 +668,6 @@
           "command": "ce.editMember",
           "when": "editorTextFocus",
           "group": "2_edit@1"
-        },
-        {
-          "command": "ce.changeVariableType",
-          "when": "editorTextFocus",
-          "group": "2_edit@3"
-        },
-        {
-          "command": "ce.deleteVariable",
-          "when": "editorTextFocus",
-          "group": "2_edit@4"
         },
         {
           "command": "ce.extractMethod",
@@ -729,6 +778,16 @@
           "command": "ce.translateForm",
           "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i",
           "group": "3_text@4"
+        },
+        {
+          "command": "ce.variableActions",
+          "when": "editorTextFocus",
+          "group": "2_edit@3"
+        },
+        {
+          "command": "ce.addMember",
+          "when": "editorTextFocus",
+          "group": "2_edit@0"
         }
       ]
     },

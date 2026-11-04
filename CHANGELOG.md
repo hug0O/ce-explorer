@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.92 — 2026-11-05
+- **Structure: one ⋯ button per member.** Edit, Rename, Getter / setter, Move to and Delete are in the list that the ⋯ at the end of the row opens, instead of five small icons: the row is a name and a type. The keys (Enter, F2, E, Delete) are unchanged.
+- **Structure: one Add menu.** *＋ Add ▾* lists Method, Field, Property and Constructor; *Template…* and *Sync* stay beside it, *Templates* and *Refresh* are under ⋯.
+- **Fewer commands that look alike.** *Rename* (member, variable or project), *Add a member* (method, field, property, constructor) and *Variable under the cursor* (change type, delete, create local, declare) replace fourteen commands in the palette, the quick actions and the editor menu: `Add method/field/property/constructor`, `Rename member/variable/local variable/in the project`, `Change variable/local type`, `Delete variable`, `Create / declare local variable` and `Go to member (pick from a list)` (the same as *Go to member (type a few letters)*). They still work for the keys, the sidebar and the code lenses that run them.
+
 ## 0.1.91 — 2026-11-05
 - **Translate the form: the result is a memo.** The translation of a form is written in the memo `translate_<language>.md` (`translate_en.md`, `translate_de.md`…): one section per form with a table *component, property, original, translation*, opened as a Markdown page. A form translated again replaces its own section, another form is added below. The .dfm is not touched unless you press *Also write them in the .dfm*.
 - **Tools tab: the everyday buttons first.** *Project insights*, the Blueprint and the first PL/SQL tools stay in sight; the others (Rename in the project, Translate the form, Feature usage, the other PL/SQL tools) are folded under **More**.

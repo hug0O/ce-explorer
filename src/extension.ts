@@ -460,6 +460,27 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
         }),
 
+        // One entry to add anything to a type: the kind is asked, the command of that kind runs
+        trackedCommand('ce.addMember', async () => {
+            const kinds = [
+                { label: '$(symbol-method) Method', command: 'ce.addMethod' }, { label: '$(symbol-field) Field', command: 'ce.addField' },
+                { label: '$(symbol-property) Property', command: 'ce.addProperty' }, { label: '$(symbol-constructor) Constructor', command: 'ce.addConstructor' },
+            ];
+            const pick = await vscode.window.showQuickPick(kinds, { title: 'CE: Add to the type', placeHolder: 'What do you add?' });
+            if (pick) { await vscode.commands.executeCommand(pick.command); }
+        }),
+
+        // One entry for what is done to a variable: the cursor says which one, the choice says what
+        trackedCommand('ce.variableActions', async () => {
+            const actions = [
+                { label: '$(edit) Rename', command: 'ce.rename' }, { label: '$(symbol-type-parameter) Change its type', command: 'ce.changeVariableType' },
+                { label: '$(trash) Delete', command: 'ce.deleteVariable' }, { label: '$(add) Create a local variable from this field', command: 'ce.createLocalVariable' },
+                { label: '$(lightbulb) Declare this undeclared variable', command: 'ce.declareLocalVariable' },
+            ];
+            const pick = await vscode.window.showQuickPick(actions, { title: 'CE: Variable under the cursor', placeHolder: 'What do you want to do?' });
+            if (pick) { await vscode.commands.executeCommand(pick.command); }
+        }),
+
         // One entry for every rename: what is under the cursor says which one it is (a member, a variable, or a name to rename in the whole project)
         trackedCommand('ce.rename', async () => {
             const editor = vscode.window.activeTextEditor;

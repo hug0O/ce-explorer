@@ -145,6 +145,16 @@ export function manageCss(): string {
 .mdetail .var-row .pname { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
 .mdetail .var-row .ptype { color: var(--vscode-symbolIcon-typeParameterForeground, #4ec9b0); }
 .mdetail .var-actions { margin-left: auto; display: flex; gap: 2px; }
+.rowmenu { position: relative; }
+.rowmenu > summary { list-style: none; cursor: pointer; padding: 0 6px; border-radius: 3px; font-size: 14px; line-height: 16px; color: var(--vscode-descriptionForeground); }
+.rowmenu > summary::-webkit-details-marker { display: none; }
+.rowmenu > summary:hover, .rowmenu[open] > summary { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.25)); color: var(--vscode-foreground); }
+.rowmenu-left { right: auto; left: 0; }
+.madd-box .mbtns { align-items: center; }
+.mbtn-menu > summary { display: block; list-style: none; cursor: pointer; width: auto; padding: 2px 7px; font-size: 11px; line-height: 1.35; }
+.rowmenu-list { position: absolute; right: 0; top: 100%; z-index: 30; min-width: 150px; padding: 3px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.5))); border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; }
+.rowitem { text-align: left; padding: 3px 8px; font-size: 12px; font-family: inherit; background: transparent; color: inherit; border: none; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+.rowitem:hover { background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.25))); color: var(--vscode-menu-selectionForeground, inherit); }
 .mdetail .var-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 1px 3px; line-height: 1; }
 .mdetail .ana { margin-top: 3px; }
 .mdetail .mdet > summary { margin-top: 0; }
@@ -236,16 +246,21 @@ export function manageListHtml(v: ManageView): string {
     if (v.designer) {
         html += `<button class="ana has-kbd mdesigner" data-m-act="designer" data-id="${esc(v.designer.id)}" title="${v.designer.name ? 'Back to the form designer with ' + esc(v.designer.name) + ' selected' : 'Back to the form designer'}">🎨 Show in the designer${v.designer.name ? ' (' + esc(v.designer.name) + ')' : ''}<span class="kbd">Ctrl+K Ctrl+B</span></button>`;
     }
-    html += `<div class="section madd-box"><div class="section-title">Add</div><div class="mbtns">`;
-    if (v.add.field) { html += `<button class="ana" data-m-add="field">📦 Field</button>`; }
-    if (v.add.method) { html += `<button class="ana" data-m-add="method">🔧 Method</button>`; }
-    if (v.add.property) { html += `<button class="ana" data-m-add="property">🔑 Property</button>`; }
-    if (v.add.constructor) { html += `<button class="ana" data-m-add="constructor">🏗️ Constructor</button>`; }
-    html += `</div><div class="mbtns">`
+    // one Add button that lists the kinds, the two everyday actions beside it, the rest in a menu: eight buttons became four
+    const kinds = [
+        v.add.field ? `<button class="rowitem" data-m-add="field">📦 Field</button>` : '',
+        v.add.method ? `<button class="rowitem" data-m-add="method">🔧 Method</button>` : '',
+        v.add.property ? `<button class="rowitem" data-m-add="property">🔑 Property</button>` : '',
+        v.add.constructor ? `<button class="rowitem" data-m-add="constructor">🏗️ Constructor</button>` : '',
+    ].join('');
+    html += `<div class="section madd-box"><div class="mbtns">`
+        + `<details class="rowmenu mbtn-menu"><summary class="ana" title="Add a method, a field, a property or a constructor">＋ Add ▾</summary><div class="rowmenu-list rowmenu-left">${kinds}</div></details>`
         + `<button class="ana" data-m-run="ce.insertTemplate" title="Insert a template at the cursor">🧩 Template…</button>`
         + `<button class="ana" data-m-run="ce.synchronizeDeclImpl" title="Declare / create the missing declarations and implementations">🔄 Sync</button>`
-        + `<button class="ana" data-m-run="ce.manageTemplates" title="Create and edit your templates">📝 Templates</button>`
-        + `<button class="ana" id="mRefresh" title="Parse the file again">♻️ Refresh</button>`
+        + `<details class="rowmenu mbtn-menu"><summary class="ana" title="Templates, refresh">⋯</summary><div class="rowmenu-list">`
+        + `<button class="rowitem" data-m-run="ce.manageTemplates" title="Create and edit your templates">📝 Templates</button>`
+        + `<button class="rowitem" id="mRefresh" title="Parse the file again">♻️ Refresh</button>`
+        + `</div></details>`
         + `</div></div>`;
 
     const total = v.rows.length;
@@ -275,13 +290,14 @@ export function manageListHtml(v: ManageView): string {
                 + `<span>${ICONS[m.kind] ?? '🔧'}</span>`
                 + `<span class="mname" data-m-act="go" data-id="${id}" title="Go to ${esc(m.name)}">${esc(m.name)}${sig}</span>`
                 + (m.type ? `<span class="mtype">: ${esc(m.type)}</span>` : '')
-                + `<span class="var-actions">`
-                + `<button class="var-btn" data-m-act="edit" data-id="${id}" title="Edit">✏️</button>`
-                + `<button class="var-btn" data-m-act="rename" data-id="${id}" title="Rename">🔤</button>`
-                + (m.kind === MemberKind.Field && !v.isFile ? `<button class="var-btn" data-m-act="getset" data-id="${id}" title="Generate getter / setter">🔑</button>` : '')
-                + (v.canMove && !v.isFile ? `<button class="var-btn" data-m-act="move" data-id="${id}" title="Move to another type…">➡️</button>` : '')
-                + `<button class="var-btn" data-m-act="delete" data-id="${id}" title="Delete">🗑️</button>`
-                + `</span></li>`;
+                // one button, the actions in the list it opens: the row stays a name and a type
+                + `<span class="var-actions"><details class="rowmenu"><summary class="var-btn" title="Edit, rename, delete...">⋯</summary><div class="rowmenu-list">`
+                + `<button class="rowitem" data-m-act="edit" data-id="${id}" title="Edit (E)">✏️ Edit</button>`
+                + `<button class="rowitem" data-m-act="rename" data-id="${id}" title="Rename (F2)">🔤 Rename</button>`
+                + (m.kind === MemberKind.Field && !v.isFile ? `<button class="rowitem" data-m-act="getset" data-id="${id}" title="Generate getter / setter">🔑 Getter / setter</button>` : '')
+                + (v.canMove && !v.isFile ? `<button class="rowitem" data-m-act="move" data-id="${id}" title="Move to another type…">➡️ Move to...</button>` : '')
+                + `<button class="rowitem" data-m-act="delete" data-id="${id}" title="Delete (Delete)">🗑️ Delete</button>`
+                + `</div></details></span></li>`;
             if (v.focus && v.focus.id === m.id) { html += `<li class="mdetail">${focusHtml(v.focus)}</li>`; }
             for (const n of m.nested ?? []) {
                 html += `<li class="mnested d${Math.min(3, n.depth)}" data-m-act="goline" data-id="${n.line}" title="${esc(n.name)} is declared inside ${esc(m.name)}: go to line ${n.line + 1}">`

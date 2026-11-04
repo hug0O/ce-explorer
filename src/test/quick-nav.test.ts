@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
-import { GROUPS, NOT_FOR_MENUS, PackageLike, appliesTo, groupOf, quickActions } from '../services/QuickActions';
+import { GROUPS, NOT_FOR_MENUS, PackageLike, REPLACED, appliesTo, groupOf, quickActions } from '../services/QuickActions';
 import { declImplTarget, memberLines, stepMember } from '../services/MemberNav';
 import { describeStatus } from '../services/StatusText';
 
@@ -16,7 +16,7 @@ test('the quick actions are built from the package: every command that can run f
         for (const a of quickActions(pkg, ctx)) { everything.add(a.command); }
     }
     for (const c of pkg.contributes!.commands!) {
-        if (!c.command.startsWith('ce.') || NOT_FOR_MENUS.has(c.command)) { continue; }
+        if (!c.command.startsWith('ce.') || NOT_FOR_MENUS.has(c.command) || REPLACED.has(c.command)) { continue; }
         assert.ok(everything.has(c.command), c.command + ' is offered in some file');
     }
 });
@@ -27,7 +27,7 @@ test('the commands of a language are offered in its files only, and the shortcut
     const sql = quickActions(pkg, { ext: '.pks', languageId: 'plsql' }).map(a => a.command);
     assert.ok(pas.includes('ce.delphi.check') && !pas.includes('ce.plsql.syncPackage'));
     assert.ok(sql.includes('ce.plsql.syncPackage') && !sql.includes('ce.delphi.check'));
-    assert.ok(!ts.includes('ce.delphi.check') && !ts.includes('ce.addComponent') && ts.includes('ce.addMethod'));
+    assert.ok(!ts.includes('ce.delphi.check') && !ts.includes('ce.addComponent') && ts.includes('ce.addMember') && !ts.includes('ce.addMethod'));
     assert.ok(ts.includes('ce.delphi.project'), 'Project insights works anywhere');
     const manage = quickActions(pkg, { ext: '.ts', languageId: 'typescript' }).find(a => a.command === 'ce.manageMembers')!;
     assert.equal(manage.keys, 'Ctrl+K Ctrl+M');
@@ -176,5 +176,20 @@ test('two commands never share a key unless their files differ (Delphi, PL/SQL, 
         for (const k of list) { assert.match(k.when ?? '', /resourceExtname/, key + ': ' + k.command + ' shares its key, so it must name its files'); }
         const sets = list.map(k => /\(([^)]*)\)\$\//.exec(k.when ?? '')?.[1] ?? '');
         assert.equal(new Set(sets).size, sets.length, key + ': two commands for the same files');
+    }
+});
+
+test('what a general command replaces is hidden from the palette, the quick actions and the editor menu, and still runs', () => {
+    const palette = pkg.contributes.menus.commandPalette as unknown as { command: string; when: string }[];
+    const sub = pkg.contributes.menus['ce.editorMore'];
+    for (const c of REPLACED) {
+        assert.ok(palette.some(m => m.command === c && m.when === 'false'), c + ' is not in the palette');
+        assert.ok(pkg.contributes!.commands!.some(x => x.command === c), c + ' is still a command');
+        assert.ok(!sub.some(m => m.command === c), c + ' is not in the editor menu');
+        assert.ok(!quickActions(pkg, { ext: '.pas', languageId: 'pascal' }).some(a => a.command === c), c + ' is not in the quick actions');
+    }
+    for (const g of ['ce.rename', 'ce.addMember', 'ce.variableActions']) {
+        assert.ok(!palette.some(m => m.command === g), g + ' is in the palette');
+        assert.ok(quickActions(pkg, { ext: '.ts', languageId: 'typescript' }).some(a => a.command === g), g + ' is in the quick actions');
     }
 });

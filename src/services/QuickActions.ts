@@ -40,6 +40,7 @@ const WORDS: Record<string, string> = {
     'ce.addProperty': 'ajouter propriete property new create', 'ce.addConstructor': 'ajouter constructeur create new',
     'ce.synchronizeDeclImpl': 'synchroniser declaration implementation interface sync manquant missing stub', 'ce.editMember': 'modifier changer parametres signature params edit',
     'ce.moveMember': 'deplacer autre classe move', 'ce.extractMethod': 'extraire methode procedure selection refactor', 'ce.renameMember': 'renommer rename methode champ',
+    'ce.addMember': 'ajouter membre methode champ propriete constructeur new create', 'ce.variableActions': 'variable type changer supprimer declarer locale',
     'ce.rename': 'renommer rename changer nom variable methode classe projet partout everywhere',
     'ce.renameVariable': 'renommer variable parametre champ rename', 'ce.renameLocalVariable': 'renommer variable locale rename',
     'ce.createLocalVariable': 'variable locale creer var', 'ce.declareLocalVariable': 'declarer variable non declaree undeclared var',
@@ -80,6 +81,15 @@ const idWords = (command: string): string => command.replace(/^ce\./, '').replac
 export const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Commands that need a tree item or another command's arguments: not offered from a menu. */
+/**
+ * Commands that a more general one replaces: Rename, Add a member and Variable... cover them. They still work (a key, the sidebar, a code
+ * lens or an older shortcut may run them) but the palette and the quick actions list the general one only.
+ */
+export const REPLACED = new Set([
+    'ce.addMethod', 'ce.addField', 'ce.addProperty', 'ce.addConstructor', 'ce.renameMember', 'ce.renameVariable', 'ce.renameLocalVariable', 'ce.renamePreview',
+    'ce.changeLocalType', 'ce.changeVariableType', 'ce.deleteVariable', 'ce.createLocalVariable', 'ce.declareLocalVariable', 'ce.goToMember',
+]);
+
 export const NOT_FOR_MENUS = new Set([
     'ce.lensRun', 'ce.openMemberEditor', 'ce.navigateToMember', 'ce.clearFilter', 'ce.deleteMember', 'ce.moveMember', 'ce.batchMove',
     'ce.batchGenerateGettersSetters', 'ce.plsql.alignPreset', 'ce.delphi.designerFullScreen', 'ce.setLanguageTo', 'ce.statusMenu',
@@ -105,7 +115,7 @@ const GROUP_OF: Record<string, string> = {
     'ce.deleteVariable': 'refactor', 'ce.createLocalVariable': 'refactor', 'ce.declareLocalVariable': 'refactor', 'ce.extractMethod': 'refactor', 'ce.alignSelection': 'refactor',
     'ce.codeReview': 'review', 'ce.detectDeadCode': 'review', 'ce.generateDocumentation': 'review', 'ce.exportStructure': 'review', 'ce.insertDocHeader': 'review',
     'ce.addComponent': 'delphi', 'ce.addEventHandler': 'delphi',
-    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.rename': 'refactor', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
+    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.rename': 'refactor', 'ce.addMember': 'members', 'ce.variableActions': 'refactor', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
 };
 
 const DELPHI_EXT = new Set(['.pas', '.dfm', '.dpr', '.dpk']);
@@ -114,7 +124,7 @@ export const groupOf = (command: string): string => GROUP_OF[command] ?? (comman
 
 /** Whether a command is offered for this file. */
 export function appliesTo(command: string, ctx: QuickContext): boolean {
-    if (NOT_FOR_MENUS.has(command)) { return false; }
+    if (NOT_FOR_MENUS.has(command) || REPLACED.has(command)) { return false; }
     if (command === 'ce.delphi.project') { return true; }
     if (command === 'ce.blueprint.project') { return DELPHI_EXT.has(ctx.ext); }
     if (command.startsWith('ce.delphi.') || command === 'ce.addComponent' || command === 'ce.addEventHandler') { return DELPHI_EXT.has(ctx.ext); }

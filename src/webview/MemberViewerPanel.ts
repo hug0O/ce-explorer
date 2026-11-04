@@ -1734,9 +1734,12 @@ ${shortcutsScript()}
     }
     document.querySelectorAll('[data-m-act]').forEach(function(b) {
         b.addEventListener('click', function() {
+            var menu = b.closest('details.rowmenu'); if (menu) { menu.open = false; }
             api.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });
         });
     });
+    document.addEventListener('mousedown', function(e) { document.querySelectorAll('details.rowmenu[open]').forEach(function(d) { if (!d.contains(e.target)) { d.open = false; } }); });
+    document.addEventListener('click', function(e) { var it = e.target.closest ? e.target.closest('.rowitem') : null; var d = it ? it.closest('details.rowmenu') : null; if (d) { d.open = false; } });
     document.querySelectorAll('.ana[data-run]').forEach(function(b) {
         b.addEventListener('click', function() { api.postMessage({ command: 'run', cmd: b.getAttribute('data-run') }); });
     });
@@ -2075,9 +2078,12 @@ ${shortcutsScript()}
     }
     document.querySelectorAll('[data-m-act]').forEach(function(b) {
         b.addEventListener('click', function() {
+            var menu = b.closest('details.rowmenu'); if (menu) { menu.open = false; }
             vscodeApi.postMessage({ command: 'manageAction', act: b.getAttribute('data-m-act'), id: b.getAttribute('data-id') });
         });
     });
+    document.addEventListener('mousedown', function(e) { document.querySelectorAll('details.rowmenu[open]').forEach(function(d) { if (!d.contains(e.target)) { d.open = false; } }); });
+    document.addEventListener('click', function(e) { var it = e.target.closest ? e.target.closest('.rowitem') : null; var d = it ? it.closest('details.rowmenu') : null; if (d) { d.open = false; } });
     document.querySelectorAll('.var-btn[data-edit], .var-btn[data-delete]').forEach(function(b) {
         b.addEventListener('click', function() {
             var editName = b.getAttribute('data-edit');

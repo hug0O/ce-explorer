@@ -8,9 +8,12 @@ import { DfmNode, findNode, parseDfmTree } from './DelphiLayout';
 import { handlerDeclaration, handlerImplementation } from './DelphiSync';
 import { wiredEvents } from './DelphiEvents';
 import { planTabOrder } from './DelphiAlign';
-import { deleteProp } from '../utils/dfmEdit';
+import { deleteProp, lineStartOffsets, setProp } from '../utils/dfmEdit';
+import { isDatasetField } from './DelphiData';
+import { fieldOfDomain } from './FdataDomains';
+import { decodeDelphiString } from './ProjectSql';
 
-export type IssueFix = 'tabOrder' | 'createHandler' | 'removeLink' | 'removeOrphan' | 'removeEmptyHandler';
+export type IssueFix = 'tabOrder' | 'createHandler' | 'removeLink' | 'removeOrphan' | 'removeEmptyHandler' | 'fieldType';
 
 export interface FormIssue {
     severity: 'error' | 'warning' | 'info';
@@ -170,7 +173,54 @@ export function checkForm(pas: string, dfm: string): FormIssue[] {
             }
         }
     }
+
+    // A persistent field whose name carries an FDATA domain must have the class of that domain (CLI_FLG → TIntegerField).
+    for (const n of nodes) {
+        if (!isDatasetField(n.className) || n.props['FieldName'] === undefined) { continue; }
+        const want = domainOf(n);
+        if (!want) { continue; }
+        const field = decodeDelphiString(n.props['FieldName']);
+        if (want.cls.toLowerCase() !== n.className.toLowerCase()) {
+            issues.push({ severity: 'warning', category: 'Domains', message: `${n.name}: ${field} is a ${n.className}, its FDATA domain gives ${want.cls}`, file: 'dfm', line: n.startLine, component: n.name, fixes: ['fieldType'] });
+        } else if (want.size !== undefined && n.props['Size'] !== undefined && Number(n.props['Size']) !== want.size) {
+            issues.push({ severity: 'warning', category: 'Domains', message: `${n.name}: ${field} has Size ${n.props['Size']}, its FDATA domain says ${want.size}`, file: 'dfm', line: n.propLines['Size'] ?? n.startLine, component: n.name, fixes: ['fieldType'] });
+        }
+    }
     return issues;
+}
+
+/** The field a persistent field node should be, from the domain in its FieldName. */
+function domainOf(n: DfmNode): { cls: string; size?: number } | undefined {
+    return fieldOfDomain(decodeDelphiString(n.props['FieldName'] ?? ''));
+}
+
+/** The edits that give a persistent field the class and size of its FDATA domain: the .dfm (class, Size) and the unit's field declaration. */
+function fieldTypeEdits(pas: string, dfm: string, node: DfmNode): FixResult | { error: string } {
+    const want = domainOf(node);
+    if (!want) { return { error: 'This field has no FDATA domain.' }; }
+    const dfmEdits: TextEdit[] = [];
+    const starts = lineStartOffsets(dfm);
+    const head = dfm.slice(starts[node.startLine], starts[node.startLine + 1] ?? dfm.length);
+    const m = /^(\s*(?:object|inherited|inline)\s+\w*\s*:\s*)(\w+)/i.exec(head);
+    if (!m) { return { error: 'The field is not written as expected in the .dfm.' }; }
+    if (m[2].toLowerCase() !== want.cls.toLowerCase()) { dfmEdits.push({ offset: starts[node.startLine] + m[1].length, length: m[2].length, text: want.cls }); }
+    if (want.size !== undefined) {
+        if (node.props['Size'] === undefined || Number(node.props['Size']) !== want.size) { dfmEdits.push(setProp(dfm, node, 'Size', String(want.size))); }
+    } else if (node.props['Size'] !== undefined) {
+        const d = deleteProp(dfm, node, 'Size');
+        if (d) { dfmEdits.push(d); }
+    }
+    const pasEdits: TextEdit[] = [];
+    const root = parseDfmTree(dfm);
+    const unit = root ? readUnit(pas, root.className) : undefined;
+    const decl = unit?.fields.find(f => f.name.toLowerCase() === node.name.toLowerCase());
+    if (decl && decl.type.toLowerCase() !== want.cls.toLowerCase()) {
+        const pStarts = lineStartOffsets(pas);
+        const text = pas.slice(pStarts[decl.line], pStarts[decl.line + 1] ?? pas.length);
+        const t = /^(\s*\w+\s*:\s*)([\w.]+)/.exec(text);
+        if (t && t[2].toLowerCase() === decl.type.toLowerCase()) { pasEdits.push({ offset: pStarts[decl.line] + t[1].length, length: decl.type.length, text: want.cls }); }
+    }
+    return { dfmEdits, pasEdits, message: `${node.name} is now a ${want.cls}${want.size !== undefined ? ` (${want.size})` : ''}` };
 }
 
 export interface FixResult { pasEdits: TextEdit[]; dfmEdits: TextEdit[]; message: string }
@@ -188,6 +238,10 @@ export function fixIssue(pas: string, dfm: string, issue: FormIssue, fix: IssueF
         const plan = planTabOrder(dfm, [container]);
         if ('error' in plan) { return { error: plan.error }; }
         return { ...none, dfmEdits: plan.edits, message: `TabOrder of ${container.name} set by screen position` };
+    }
+    if (fix === 'fieldType') {
+        const node = issue.component ? findNode(root, issue.component) : undefined;
+        return node ? fieldTypeEdits(pas, dfm, node) : { error: 'Field not found.' };
     }
     if (!unit) { return { error: 'The form class was not found in the unit.' }; }
 

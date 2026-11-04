@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.88",
+  "version": "0.1.89",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -458,6 +458,14 @@
       {
         "command": "ce.translateFrom",
         "title": "CE: Translate from a language... (the language of the text)"
+      },
+      {
+        "command": "ce.translateForm",
+        "title": "CE: Translate the captions of this form..."
+      },
+      {
+        "command": "ce.renamePreview",
+        "title": "CE: Rename in the project (with preview)..."
       }
     ],
     "submenus": [

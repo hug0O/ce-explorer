@@ -146,7 +146,7 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.diffForm',
 ];
 /** Commands that work on any language: they are offered on every page of the Tools tab that needs them. */
-export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project'];
+export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm'];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -212,6 +212,8 @@ function analyzeBlock(): string {
 <div class="tools-block">
 <div class="section-title">Project</div>
 <button class="ana has-kbd tool-lead" data-common="ce.delphi.project" title="SQL, dead code, size and hotspots of every language, and the Delphi checks when the project has Delphi forms (read on demand)">🗂️ Project insights${kbdHtml('global', 'ce.delphi.project')}</button>
+<button class="ana" data-common="ce.renamePreview" title="Rename a name everywhere in the project (the .pas, the .dfm, the other files): VS Code lists every place and you untick the ones to keep before anything changes">✏️ Rename in the project</button>
+<button class="ana" data-common="ce.translateForm" title="Translate the captions, hints and titles of the form of this unit with the free translation service: you check each one before it is written in the .dfm">🌐 Translate the form</button>
 <button class="ana" data-common="ce.usage.show" title="Which features you use most, which you use little or never: counted on this machine only, nothing is sent">📊 Feature usage</button>
 </div>`;
 }

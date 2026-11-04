@@ -128,7 +128,7 @@ export async function tabOrderCommand(): Promise<void> {
 const ICON: Record<FormIssue['severity'], string> = { error: '$(error)', warning: '$(warning)', info: '$(info)' };
 const FIX_LABEL: Record<IssueFix, string> = {
     tabOrder: 'Renumber TabOrder by position', createHandler: 'Create the missing handler', removeLink: 'Remove the event link from the .dfm',
-    removeOrphan: 'Delete the unused empty handler', removeEmptyHandler: 'Delete the empty handler and unlink it',
+    fieldType: 'Give it the class and size of its FDATA domain', removeOrphan: 'Delete the unused empty handler', removeEmptyHandler: 'Delete the empty handler and unlink it',
 };
 const SAFE: IssueFix[] = ['tabOrder', 'createHandler', 'removeOrphan'];
 

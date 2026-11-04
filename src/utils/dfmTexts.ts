@@ -97,3 +97,27 @@ export function translationEdits(texts: DfmText[], translations: Map<string, str
     }
     return edits;
 }
+
+/** A cell of a Markdown table: a bar or a line break would cut it. */
+const cell = (t: string): string => t.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim();
+
+export interface TranslatedRow { component: string; prop: string; original: string; translation: string }
+
+/** The section of one form in a translation memo: a heading and a table, each text with the component and the property that holds it. */
+export function formSection(form: string, unit: string, source: string, target: string, rows: TranslatedRow[], date: string): string {
+    const out = [`## ${form}`, '', `_${unit}.dfm, ${source} to ${target}, ${rows.length} text(s), ${date}_`, '', `| Component | Property | ${source} | ${target} |`, '| --- | --- | --- | --- |'];
+    for (const r of rows) { out.push(`| ${cell(r.component)} | ${cell(r.prop)} | ${cell(r.original)} | ${cell(r.translation)} |`); }
+    return out.join('\n') + '\n';
+}
+
+/**
+ * The memo `translate_<language>` with this form's section in it: a form translated again replaces its own section, another form is added
+ * below, so that one memo holds every form translated into that language.
+ */
+export function upsertFormSection(memo: string, title: string, form: string, section: string): string {
+    const text = memo.replace(/\r\n/g, '\n');
+    const head = text.trim() ? text : `# ${title}\n\n`;
+    const re = new RegExp('(^|\\n)## ' + form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[ \\t]*\\n[\\s\\S]*?(?=\\n## |$(?![\\s\\S]))');
+    if (re.test(head)) { return head.replace(re, (_m, lead: string) => lead + section.replace(/\n$/, '')).replace(/\n*$/, '\n'); }
+    return head.replace(/\n*$/, '\n\n') + section;
+}

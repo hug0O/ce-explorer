@@ -110,6 +110,9 @@ export function toolsCss(): string {
 .tool-primary { width: 100%; margin-top: 8px; padding: 5px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-family: inherit; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .tool-primary:hover { background: var(--vscode-button-hoverBackground); }
 .tools-block { margin-bottom: 14px; }
+.more > summary { cursor: pointer; font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0; }
+.more[open] > summary { margin-bottom: 6px; }
+.more .ana { margin-bottom: 4px; }
 .subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .subtab { padding: 2px 11px; border-radius: 12px; border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.45)); background: transparent; color: var(--vscode-foreground); font-size: 11px; cursor: pointer; }
 .subtab:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.2)); }
@@ -160,12 +163,16 @@ ${btn('ce.plsql.syncPackage', '🔄 Sync spec ⇄ body', 'Declare / stub / fix s
 ${btn('ce.plsql.newPackage', '📦 New package…', 'Spec + body skeleton')}
 ${btn('ce.plsql.sqlFromTable', '🧾 SQL from table', 'SELECT / INSERT / UPDATE / DELETE / MERGE, values replaceable by parameters')}
 ${btn('ce.plsql.extractProcedure', '✂️ Extract procedure', 'Selection → procedure with detected IN / OUT parameters')}
+</div>
+<details class="more"><summary>More PL/SQL tools</summary>
+<div class="analyze-grid">
 ${btn('ce.plsql.exceptionBlock', '⚠️ Exception block', 'NO_DATA_FOUND / TOO_MANY_ROWS / OTHERS')}
 ${btn('ce.plsql.docHeader', '📘 PLDoc header', 'Insert or refresh the /** … */ block from the signature')}
 ${btn('ce.plsql.utplsql', '🧪 utPLSQL tests', 'Test package generated from the spec')}
 ${btn('ce.plsql.findCallers', '🔎 Find callers', 'References across the workspace')}
 <button class="ana" data-review="1" title="Oracle review rules">✅ Review (Oracle)</button>
 </div>
+</details>
 <div class="tool-label">Align the selection as…</div>
 <div class="chips">
 ${chip('params', 'Parameters', 'name | IN / OUT | type')}${chip('values', 'Declarations', 'name | type | := value')}${chip('assign', ':=', 'assignments')}${chip('arrow', '=>', 'named arguments')}${chip('comment', '--', 'trailing comments')}${chip('alias', 'AS', 'column aliases')}
@@ -212,9 +219,11 @@ function analyzeBlock(): string {
 <div class="tools-block">
 <div class="section-title">Project</div>
 <button class="ana has-kbd tool-lead" data-common="ce.delphi.project" title="SQL, dead code, size and hotspots of every language, and the Delphi checks when the project has Delphi forms (read on demand)">🗂️ Project insights${kbdHtml('global', 'ce.delphi.project')}</button>
+<details class="more"><summary>More</summary>
 <button class="ana" data-common="ce.renamePreview" title="Rename a name everywhere in the project (the .pas, the .dfm, the other files): VS Code lists every place and you untick the ones to keep before anything changes">✏️ Rename in the project</button>
 <button class="ana" data-common="ce.translateForm" title="Translate the captions, hints and titles of the form of this unit with the free translation service: you check each one before it is written in the .dfm">🌐 Translate the form</button>
 <button class="ana" data-common="ce.usage.show" title="Which features you use most, which you use little or never: counted on this machine only, nothing is sent">📊 Feature usage</button>
+</details>
 </div>`;
 }
 

@@ -25,6 +25,14 @@ export const notify = {
         ]);
     },
 
+    /** The file's language is not one the extension reads: say what to do instead of stopping there. */
+    noProvider(): Promise<void> {
+        return show('warning', 'CE does not read this kind of file yet. If it is a language it knows, tell it which one.', [
+            { label: 'Use a language for this file...', command: 'ce.setLanguage' },
+            { label: 'Show the quick actions', command: 'ce.showActions' },
+        ]);
+    },
+
     /** A command that works on a member, run with the cursor outside any member. */
     noMember(): Promise<void> {
         return show('warning', 'Place the cursor on a class member first.', [
@@ -37,8 +45,8 @@ export const notify = {
      * An edit was made: say it, keep it in the log of the actions, and offer **Undo**. The undo is the one of the editor, on the file that
      * was being edited.
      */
-    async done(message: string): Promise<void> {
-        const uri = vscode.window.activeTextEditor?.document.uri;
+    async done(message: string, target?: vscode.Uri): Promise<void> {
+        const uri = target ?? vscode.window.activeTextEditor?.document.uri;
         actionLog.record(message, uri?.fsPath);
         const pick = await vscode.window.showInformationMessage(message, 'Undo');
         if (pick !== 'Undo') { return; }

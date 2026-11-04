@@ -2,6 +2,16 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.91 — 2026-11-05
+- **Translate the form: the result is a memo.** The translation of a form is written in the memo `translate_<language>.md` (`translate_en.md`, `translate_de.md`…): one section per form with a table *component, property, original, translation*, opened as a Markdown page. A form translated again replaces its own section, another form is added below. The .dfm is not touched unless you press *Also write them in the .dfm*.
+- **Tools tab: the everyday buttons first.** *Project insights*, the Blueprint and the first PL/SQL tools stay in sight; the others (Rename in the project, Translate the form, Feature usage, the other PL/SQL tools) are folded under **More**.
+- **Undo after the form tools and the project rename.** Check form fixes, TabOrder, align, rename in the project and the .dfm translation say what they did with an **Undo** button that undoes it on the right file.
+- **Suggestions from your own use.** The status bar menu offers, once a day, a feature you never ran (*Not tried yet: Check form…*), after ten uses of the extension. Local only.
+- **Clearer messages.** A file the extension cannot read now offers *Use a language for this file* instead of stopping; the empty Blueprint says what to do.
+- **Settings in order.** Translation settings have their own section, the everyday ones come first in each section, the rare ones (host calls, custom components, naming prefixes, formatting, the e-mail of the translation service) are tagged *advanced*.
+- **Blueprint: a simple view** (*More, Simple view*) hides the buttons that edit and the zoom steps for reading; it is remembered.
+- **Editor menu:** the *Rename variable* entry of *More commands* is gone, *Rename* (member, variable or project) at the top replaces it.
+
 ## 0.1.90 — 2026-11-05
 - **Quick actions (Ctrl+K Ctrl+A) find what you mean.** Type a few words in your own language: `traduire fiche`, `renommer`, `code mort`, `vérifier fiche`, `graphe appels` (French or English, accents do not matter) and the right actions come up, best match first, with the group or the explanation under each. Without anything typed, each group lists first what **you** run most (counted on this machine).
 - **One Rename.** New entry **Rename** in the *Code Explorer* menu of the editor (and the palette): on a member it renames the member (unit, form and links), on a variable it renames the variable, anywhere else it renames the name in the whole project with the VS Code preview.

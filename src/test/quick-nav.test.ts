@@ -77,10 +77,13 @@ test('the command palette does not offer the commands that need an element of a 
 test('the settings are in sections with a title, and one command opens them', () => {
     const cfg = (pkg.contributes as unknown as { configuration: { title: string; properties: Record<string, unknown> }[] }).configuration;
     assert.ok(Array.isArray(cfg) && cfg.length >= 3);
-    assert.deepEqual(cfg.map(c => c.title), ['Code Explorer: General', 'Code Explorer: Delphi', 'Code Explorer: PL/SQL', 'Code Explorer: Formatting (advanced)']);
+    assert.deepEqual(cfg.map(c => c.title), ['Code Explorer: General', 'Code Explorer: Translation', 'Code Explorer: Delphi', 'Code Explorer: PL/SQL', 'Code Explorer: Formatting (advanced)']);
     const keys = cfg.flatMap(c => Object.keys(c.properties));
     assert.equal(new Set(keys).size, keys.length, 'a setting is in one section only');
     assert.ok(keys.includes('ce.previewEdits') && keys.includes('ce.cpp.braceStyle'));
+    const tags = (c: { properties: Record<string, unknown> }, k: string): string[] => ((c.properties[k] as { tags?: string[] }).tags ?? []);
+    assert.ok(tags(cfg[4], 'ce.cpp.braceStyle').includes('advanced'), 'the formatting details are marked advanced');
+    assert.ok(Object.values(cfg[0].properties).every((v, i) => (v as { order?: number }).order === i + 1), 'the everyday settings are in a chosen order');
     assert.ok(pkg.contributes.commands!.some(c => c.command === 'ce.openSettings'));
 });
 

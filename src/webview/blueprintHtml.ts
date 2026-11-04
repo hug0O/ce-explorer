@@ -32,6 +32,7 @@ body.flow #addNode, body.flow #undo, body.flow #redo { display: none; }
 .bar button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .bar input[type=text] { background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4)); border-radius: 3px; padding: 3px 6px; width: 150px; font-size: 12px; }
 .bar label { display: flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); cursor: pointer; }
+body.simple #addNode, body.simple #zoomOut, body.simple #zoomIn, body.simple #undo, body.simple #redo, body.simple #details, body.simple #isolateLbl { display: none; }
 .bar .grow { flex: 1; }
 .node .lvl { fill: rgba(255,255,255,0.95); font-size: 10px; font-weight: 700; text-anchor: end; pointer-events: none; }
 body.full .bar { padding: 3px 8px; }
@@ -779,6 +780,11 @@ export function blueprintScript(): string {
   }
   document.getElementById('pins').addEventListener('change', function (ev) { compact = !ev.target.checked; render(); if (fitMode) { fit(); } });
   document.getElementById('details').addEventListener('click', function () { document.body.classList.toggle('noside'); });
+  /* the simple view hides what edits and the zoom steps; it is remembered on this machine (a failure to remember changes nothing) */
+  var simpleBox = document.getElementById('simple');
+  function setSimple(on) { document.body.classList.toggle('simple', on); simpleBox.checked = on; try { localStorage.setItem('ce.blueprint.simple', on ? '1' : '0'); } catch (err) { /* not remembered */ } }
+  simpleBox.addEventListener('change', function () { setSimple(simpleBox.checked); });
+  try { if (localStorage.getItem('ce.blueprint.simple') === '1') { setSimple(true); } } catch (err) { /* nothing remembered */ }
   document.getElementById('alone').addEventListener('change', function (ev) { hideAlone = ev.target.checked; render(); fit(); });
   /* the graph follows the size of its window: in Fit window mode it is fitted again, otherwise the zoom and the point of view stay */
   var lastW = 0, lastH = 0;
@@ -867,12 +873,13 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <button id="zoomOut" title="Zoom out (-)">&minus;</button><button id="zoomIn" title="Zoom in (+)">+</button>
 <button id="undo" disabled title="Nothing to undo">&#x21B6;</button><button id="redo" disabled title="Nothing to redo">&#x21B7;</button>
 <input id="filter" type="text" placeholder="Find a routine (/)" title="Type part of a name: only the routines that match are shown, and the view is centred on them. Enter selects the first, Esc clears" spellcheck="false">
-<label title="Hide every routine that is not linked to the selected one (H). The whole chain of callers and callees of the selected routine is kept"><input id="isolate" type="checkbox"> hide others</label>
+<label id="isolateLbl" title="Hide every routine that is not linked to the selected one (H). The whole chain of callers and callees of the selected routine is kept"><input id="isolate" type="checkbox"> hide others</label>
 <button id="details" title="Show or hide the details panel">Details</button>
 <button id="full" title="Full screen: hide the side bar and the panels (Ctrl+K Ctrl+F; Esc leaves it)">&#x26F6;</button>
 <span class="dd"><button id="more" title="View options, analysis, export">More &#x25BE;</button>
 <div id="moremenu" class="menu" hidden>
 <div class="mh">View</div>
+<label class="mi" title="Only read the graph: the buttons that edit the code and the zoom steps are hidden (the wheel still zooms). Remembered"><input id="simple" type="checkbox"> Simple view (reading)</label>
 <label class="mi fileonly" title="Show the parameters and the return value as pins; off, a node is one line"><input id="pins" type="checkbox" checked> Parameter pins</label>
 <label class="mi" title="Hide the routines that neither call nor are called"><input id="alone" type="checkbox"> Hide isolated routines</label>
 <label class="mi" title="Dashed orange outline: nobody calls it in this file. Red: routines that call each other in a loop"><input id="analysis" type="checkbox" checked> Mark unused routines and loops</label>
@@ -888,7 +895,7 @@ export function blueprintHtml(o: BlueprintPageOptions): string {
 <div id="main">
 <div id="stage">
 <svg id="cv"><g id="grid"></g><g id="world"></g></svg>
-<div class="empty" id="empty">No routine to draw in this file.</div>
+<div class="empty" id="empty">No routine to draw in this file. Open a file with routines (or switch to <b>Project</b> above), then use More, Refresh from the file.</div>
 <div class="legend"><span id="lgWire">Wire colour = the caller</span><i style="background:#4aa3ff"></i><span id="lgIn">calls the selected</span><i style="background:#ffb347"></i><span id="lgOut">called by the selected</span></div>
 <div class="help">Wheel zooms, middle button pans &middot; Drag a node by its title &middot; drag from a white arrow to another node to add a call &middot; click a wire + Delete removes the call &middot; F2 rename &middot; Delete removes the routine &middot; double-click opens the code</div>
 </div>

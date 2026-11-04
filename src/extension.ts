@@ -306,7 +306,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
             if (!provider) {
-                vscode.window.showWarningMessage('No language provider for this file type.');
+                void notify.noProvider();
                 return;
             }
 
@@ -494,7 +494,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             const provider = providerRegistry.getByDocument(editor.document);
             if (!provider) {
-                vscode.window.showWarningMessage('No language provider for this file type.');
+                void notify.noProvider();
                 return;
             }
 
@@ -527,7 +527,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
             const provider = providerRegistry.getByDocument(editor.document);
             if (!provider) {
-                vscode.window.showWarningMessage('No language provider for this file type.');
+                void notify.noProvider();
                 return;
             }
 
@@ -707,7 +707,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 doc = editor.document;
                 prov = providerRegistry.getByDocument(doc);
                 if (!prov) {
-                    vscode.window.showWarningMessage('No language provider for this file type.');
+                    void notify.noProvider();
                     return;
                 }
                 const parsed = prov.parseDocument(doc);
@@ -739,7 +739,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
             if (!provider) {
-                vscode.window.showWarningMessage('No language provider for this file type.');
+                void notify.noProvider();
                 return;
             }
 
@@ -956,7 +956,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
-            if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
+            if (!provider) { void notify.noProvider(); return; }
 
             const parsed = provider.parseDocument(doc);
             interface PickItem extends vscode.QuickPickItem { member: ClassMember; cls: ClassInfo; }
@@ -991,7 +991,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
             if (!editor) { void notify.noEditor(); return; }
             const doc = editor.document;
             const provider = providerRegistry.getByDocument(doc);
-            if (!provider) { vscode.window.showWarningMessage('No provider for this file type.'); return; }
+            if (!provider) { void notify.noProvider(); return; }
 
             const parsed = provider.parseDocument(doc);
             interface PickItem extends vscode.QuickPickItem { member: ClassMember; cls: ClassInfo; }

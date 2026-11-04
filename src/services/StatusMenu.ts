@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { trackedCommand } from './UsageStats';
+import { trackedCommand, usage } from './UsageStats';
 import * as path from 'path';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
 import { analyseEncoding, looksWrong } from '../utils/encodingRepair';
 import { extensionOf, languageOverrides } from './LanguageOverrides';
 import { describeStatus } from './StatusText';
-import { tipOfTheDay } from './Tips';
+import { suggestion, tipOfTheDay } from './Tips';
 
 /**
  * One item in the status bar for the extension, where there used to be three (the language, the encoding, the form designer): it says
@@ -57,6 +57,12 @@ export function registerStatusMenu(context: vscode.ExtensionContext, registry: P
             type Row = vscode.QuickPickItem & { command?: string };
             const rows: Row[] = [
                 { label: '$(lightbulb) ' + tipOfTheDay().text, description: 'tip of the day', command: tipOfTheDay().command },
+                ...(() => {
+                    const counts: Record<string, number> = {};
+                    for (const [k, e] of Object.entries(usage.snapshot().entries)) { counts[k] = e.n; }
+                    const idea = suggestion(counts, delphi);
+                    return idea ? [{ label: '$(rocket) ' + idea.text, description: 'try it', command: idea.command } as Row] : [];
+                })(),
                 { label: '', kind: vscode.QuickPickItemKind.Separator },
                 { label: '$(zap) Quick actions...', description: 'Ctrl+K Ctrl+A', command: 'ce.showActions' },
                 ...(delphi ? [{ label: '$(symbol-misc) Open the form designer', description: 'Ctrl+K D', command: 'ce.delphi.designer' }] : []),

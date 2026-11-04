@@ -6,8 +6,11 @@
 import * as vscode from 'vscode';
 import { trackedCommand } from './UsageStats';
 import { LANGUAGES, TranslationMemory, isLanguageCode, translateAll } from '../utils/translate';
-import { dfmTexts, restoreAccelerator, translationEdits, withoutAccelerator } from '../utils/dfmTexts';
+import * as path from 'path';
+import { dfmTexts, formSection, restoreAccelerator, translationEdits, upsertFormSection, withoutAccelerator } from '../utils/dfmTexts';
+import { MemoStore, memoFolderOf, sanitizeLang } from './MemoStore';
 import { resolveFormPair } from './FormCommands';
+import { notify } from './Notify';
 
 /** The most texts one form translation sends: the free service has a daily quota. */
 const MAX_FORM_TEXTS = 150;
@@ -157,11 +160,25 @@ export function registerTranslateCommands(context: vscode.ExtensionContext): voi
         const chosen = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'CE: ' + items.length + ' translation(s)' + (failure ? ' (stopped: ' + failure + ')' : '') + ' - untick what you do not want', placeHolder: 'The new text, the old one on the right' });
         if (!chosen?.length) { return; }
         const keep = new Map(chosen.map(c => [c.from, c.label]));
-        const edit = new vscode.WorkspaceEdit();
-        // read again: the file may have changed while the service answered
+        // the result is a memo, translate_<language>.md: one section per form, the form translated again replaces its own
         const current = dfmTexts(dfmDoc.getText());
-        for (const e of translationEdits(current, keep)) { edit.replace(pair.dfm, new vscode.Range(dfmDoc.positionAt(e.offset), dfmDoc.positionAt(e.offset + e.length)), e.text); }
-        if (await vscode.workspace.applyEdit(edit)) { void vscode.window.showInformationMessage('CE: ' + chosen.length + ' text(s) of the form translated into ' + nameOf(target) + ' (Undo in the .dfm takes them back).'); }
+        const form = path.basename(pair.dfm.fsPath).replace(/\.dfm$/i, '');
+        const rows = current.filter(t => keep.has(t.value)).map(t => ({ component: t.component, prop: t.prop, original: t.value, translation: keep.get(t.value)! }));
+        const store = new MemoStore(memoFolderOf(vscode.workspace.getConfiguration('ce').get<string>('memo.folder', ''), vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, context.globalStorageUri.fsPath));
+        const memoName = sanitizeLang('translate_' + target);
+        const section = formSection(form, form, nameOf(source), nameOf(target), rows, new Date().toISOString().slice(0, 10));
+        try { await store.write(memoName, upsertFormSection(await store.read(memoName), 'Translations into ' + nameOf(target) + ' (' + target + ')', form, section)); }
+        catch (e) { void vscode.window.showWarningMessage('CE: the memo could not be written (' + (e instanceof Error ? e.message : String(e)) + ').'); return; }
+        const page = async (): Promise<void> => {
+            try { await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(store.fileFor(memoName)), 'ce.markdownEditor'); }
+            catch { await vscode.window.showTextDocument(vscode.Uri.file(store.fileFor(memoName))); }
+        };
+        await page();
+        const next = await vscode.window.showInformationMessage('CE: ' + rows.length + ' text(s) of ' + form + ' translated into ' + nameOf(target) + ', saved in the memo ' + memoName + '.md.', 'Also write them in the .dfm');
+        if (next !== 'Also write them in the .dfm') { return; }
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of translationEdits(dfmTexts(dfmDoc.getText()), keep)) { edit.replace(pair.dfm, new vscode.Range(dfmDoc.positionAt(e.offset), dfmDoc.positionAt(e.offset + e.length)), e.text); }
+        if (await vscode.workspace.applyEdit(edit)) { void notify.done('CE: written in ' + form + '.dfm.', pair.dfm); }
     };
 
     context.subscriptions.push(

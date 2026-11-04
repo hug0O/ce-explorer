@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { trackedCommand } from './UsageStats';
+import { notify } from './Notify';
 import { RenameHit, extensionsLike, familyOfExtension, isCaseFree, isIdentifier, scanRename } from '../utils/renameScan';
 
 const MAX_FILES = 3000;
@@ -94,6 +95,6 @@ export function registerRenamePreview(context: vscode.ExtensionContext): void {
         }
         if (count === 0) { return; }
         const ok = await vscode.workspace.applyEdit(edit);
-        if (ok) { void vscode.window.showInformationMessage(`CE: ${count} place(s) renamed ${oldName} → ${newName}.`); }
+        if (ok) { void notify.done(`CE: ${count} place(s) renamed ${oldName} → ${newName}.`, found.files[0]?.uri); }
     }));
 }

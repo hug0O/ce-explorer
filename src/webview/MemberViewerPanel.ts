@@ -16,7 +16,7 @@ import { collectDeadCode, DeadCodeItem } from '../services/DeadCodeDetector';
 import { unusedInParsed } from '../utils/unusedCode';
 import { deadCodeHtml } from './deadCodeHtml';
 import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
-import { MemoStore, MAIN_MEMO, memoId, sanitizeLang } from '../services/MemoStore';
+import { MemoStore, MAIN_MEMO, memoFolderOf, memoId, sanitizeLang } from '../services/MemoStore';
 import { MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
 import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
@@ -672,13 +672,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** Folder of the memos: the `ce.memo.folder` setting (relative to the workspace), else the extension's own storage. */
     private memoFolder(): string {
-        const configured = (typeof vscode.workspace.getConfiguration === 'function' ? vscode.workspace.getConfiguration('ce').get<string>('memo.folder', '') : '').trim();
-        if (configured) {
-            if (path.isAbsolute(configured)) { return configured; }
-            const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-            if (root) { return path.join(root, configured); }
-        }
-        return path.join(this._extensionContext.globalStorageUri?.fsPath ?? path.join(os.tmpdir(), 'ce-code-explorer'), 'memos');
+        const configured = typeof vscode.workspace.getConfiguration === 'function' ? vscode.workspace.getConfiguration('ce').get<string>('memo.folder', '') : '';
+        return memoFolderOf(configured, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, this._extensionContext.globalStorageUri?.fsPath ?? path.join(os.tmpdir(), 'ce-code-explorer'));
     }
 
     private memoStore(): MemoStore {

@@ -23,6 +23,16 @@ export function memoId(name: string): string {
     return String(name ?? '').trim().toLowerCase().replace(/\.md$/, '').replace(/[\s.]+/g, '-').replace(/[^a-z0-9_-]/g, '').replace(/-{2,}/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0, 40);
 }
 
+/** The folder of the memos: the one of the setting `ce.memo.folder` (relative to the workspace), else the extension's own storage. */
+export function memoFolderOf(configured: string, workspaceRoot: string | undefined, storage: string): string {
+    const c = configured.trim();
+    if (c) {
+        if (path.isAbsolute(c)) { return c; }
+        if (workspaceRoot) { return path.join(workspaceRoot, c); }
+    }
+    return path.join(storage, 'memos');
+}
+
 export class MemoStore {
     constructor(private readonly folder: string) {}
 

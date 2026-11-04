@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.90",
+  "version": "0.1.91",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -611,11 +611,6 @@
           "group": "2_edit@1"
         },
         {
-          "command": "ce.renameVariable",
-          "when": "editorTextFocus",
-          "group": "2_edit@2"
-        },
-        {
           "command": "ce.changeVariableType",
           "when": "editorTextFocus",
           "group": "2_edit@3"
@@ -746,12 +741,20 @@
           "ce.enableCodeLens": {
             "type": "boolean",
             "default": true,
-            "description": "Show Code Lens annotations above classes and methods"
+            "description": "Show Code Lens annotations above classes and methods",
+            "order": 1
           },
           "ce.codeLensMemberActions": {
             "type": "boolean",
             "default": false,
-            "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)"
+            "description": "Show Edit / Delete code lenses above every member (in addition to the class-level Structure lens)",
+            "order": 2
+          },
+          "ce.autoSync": {
+            "type": "boolean",
+            "default": true,
+            "description": "Automatically synchronize declaration/implementation on save",
+            "order": 3
           },
           "ce.sorting.scheme": {
             "type": "string",
@@ -761,44 +764,55 @@
               "visibilityGrouped"
             ],
             "default": "fieldsFirst",
-            "description": "Default sorting scheme for class members"
-          },
-          "ce.autoSync": {
-            "type": "boolean",
-            "default": true,
-            "description": "Automatically synchronize declaration/implementation on save"
+            "description": "Default sorting scheme for class members",
+            "order": 4
           },
           "ce.previewEdits": {
             "type": "boolean",
             "default": false,
-            "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)"
+            "description": "Show a diff preview and ask for confirmation before applying any structural edit (Safe Preview)",
+            "order": 5
           },
           "ce.memo.folder": {
             "type": "string",
             "default": "",
-            "description": "Folder holding the Markdown memos (main.md and the others you create, one file each). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project."
-          },
+            "description": "Folder holding the Markdown memos (main.md and the others you create, one file each). Empty: the extension's own storage. A relative path is taken from the workspace folder, so the memos can be versioned with the project.",
+            "order": 6
+          }
+        }
+      },
+      {
+        "id": "ce.translation",
+        "title": "Code Explorer: Translation",
+        "order": 1,
+        "properties": {
           "ce.translate.target": {
             "type": "string",
             "default": "fr",
-            "description": "The language CE: Translate translates into (a code such as fr, en, de, es, pt-BR), until you pick another one with CE: Translate into another language... (that choice is remembered and wins over this setting)."
+            "description": "The language CE: Translate translates into (a code such as fr, en, de, es, pt-BR), until you pick another one with CE: Translate into another language... (that choice is remembered and wins over this setting).",
+            "order": 1
           },
           "ce.translate.source": {
             "type": "string",
             "default": "auto",
-            "description": "The language of the text to translate: 'auto' to let the service find it, or a code such as en. CE: Translate from a language... picks it from a list; that choice is remembered and wins over this setting."
+            "description": "The language of the text to translate: 'auto' to let the service find it, or a code such as en. CE: Translate from a language... picks it from a list; that choice is remembered and wins over this setting.",
+            "order": 2
           },
           "ce.translate.email": {
             "type": "string",
             "default": "",
-            "description": "Optional e-mail given to the free translation service (MyMemory) to raise its daily quota; it is sent with each request when set."
+            "description": "Optional e-mail given to the free translation service (MyMemory) to raise its daily quota; it is sent with each request when set.",
+            "order": 3,
+            "tags": [
+              "advanced"
+            ]
           }
         }
       },
       {
         "id": "ce.delphi",
         "title": "Code Explorer: Delphi",
-        "order": 1,
+        "order": 2,
         "properties": {
           "ce.delphi.designerColumn": {
             "type": "string",
@@ -807,32 +821,26 @@
               "beside"
             ],
             "default": "active",
-            "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside')."
+            "description": "Where the form designer opens: in the current editor group as another tab of the unit ('active', switch with the tab, the title-bar button or Ctrl+K Ctrl+B) or next to it ('beside').",
+            "order": 1
           },
           "ce.delphi.designerHideSidebars": {
             "type": "boolean",
             "default": true,
-            "description": "Close the side bars (left and right) when the form designer is shown, so that only the centre stays. The Show in Structure key (S) shows the left one again."
+            "description": "Close the side bars (left and right) when the form designer is shown, so that only the centre stays. The Show in Structure key (S) shows the left one again.",
+            "order": 2
           },
           "ce.delphi.designerAutoSave": {
             "type": "boolean",
             "default": false,
-            "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together."
+            "description": "Save the .dfm and the .pas after every change made in the form designer. Off by default: the Save button (Ctrl+S in the designer) saves both files together.",
+            "order": 3
           },
           "ce.delphi.removeEmptyHandlers": {
             "type": "boolean",
             "default": true,
-            "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty."
-          },
-          "ce.delphi.hostCalls": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "default": [
-              "fAddFormInto"
-            ],
-            "description": "Names of the helpers of the project that put a form in a container, called as Helper(Form, Container) (they do Form.Parent := Container). The designer reads them, and `Form.Parent := Container`, to link a panel to the form it hosts."
+            "description": "On a manual save of a Delphi form unit, remove event handlers whose body is empty (method, declaration and the .dfm link), like the Delphi IDE. A body containing a comment is not empty.",
+            "order": 4
           },
           "ce.delphi.customComponents": {
             "type": "array",
@@ -880,7 +888,11 @@
                   "type": "boolean"
                 }
               }
-            }
+            },
+            "order": 5,
+            "tags": [
+              "advanced"
+            ]
           },
           "ce.delphi.namingPrefixes": {
             "type": "object",
@@ -888,14 +900,32 @@
             "additionalProperties": {
               "type": "string"
             },
-            "markdownDescription": "Prefix of the components of a class, for the *Names* tab of the project panel: `{ \"TButton\": \"btn\", \"TcxGridDBTableView\": \"cxgtv\" }`. A class that is not listed follows what the project already does (the prefix most of its components carry)."
+            "markdownDescription": "Prefix of the components of a class, for the *Names* tab of the project panel: `{ \"TButton\": \"btn\", \"TcxGridDBTableView\": \"cxgtv\" }`. A class that is not listed follows what the project already does (the prefix most of its components carry).",
+            "order": 6,
+            "tags": [
+              "advanced"
+            ]
+          },
+          "ce.delphi.hostCalls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "fAddFormInto"
+            ],
+            "description": "Names of the helpers of the project that put a form in a container, called as Helper(Form, Container) (they do Form.Parent := Container). The designer reads them, and `Form.Parent := Container`, to link a panel to the form it hosts.",
+            "order": 7,
+            "tags": [
+              "advanced"
+            ]
           }
         }
       },
       {
         "id": "ce.plsql",
         "title": "Code Explorer: PL/SQL",
-        "order": 2,
+        "order": 3,
         "properties": {
           "ce.plsql.author": {
             "type": "string",
@@ -907,12 +937,15 @@
       {
         "id": "ce.formattingadvanced",
         "title": "Code Explorer: Formatting (advanced)",
-        "order": 3,
+        "order": 4,
         "properties": {
           "ce.pascal.indentSize": {
             "type": "number",
             "default": 2,
-            "description": "Indentation size for generated Pascal code"
+            "description": "Indentation size for generated Pascal code",
+            "tags": [
+              "advanced"
+            ]
           },
           "ce.pascal.defaultVisibility": {
             "type": "string",
@@ -923,12 +956,18 @@
               "published"
             ],
             "default": "private",
-            "description": "Default visibility for new Pascal members"
+            "description": "Default visibility for new Pascal members",
+            "tags": [
+              "advanced"
+            ]
           },
           "ce.cpp.indentSize": {
             "type": "number",
             "default": 4,
-            "description": "Indentation size for generated C++ code"
+            "description": "Indentation size for generated C++ code",
+            "tags": [
+              "advanced"
+            ]
           },
           "ce.cpp.braceStyle": {
             "type": "string",
@@ -937,7 +976,10 @@
               "newLine"
             ],
             "default": "newLine",
-            "description": "Brace placement style for generated C++ code"
+            "description": "Brace placement style for generated C++ code",
+            "tags": [
+              "advanced"
+            ]
           },
           "ce.cpp.defaultVisibility": {
             "type": "string",
@@ -947,7 +989,10 @@
               "public"
             ],
             "default": "private",
-            "description": "Default visibility for new C++ members"
+            "description": "Default visibility for new C++ members",
+            "tags": [
+              "advanced"
+            ]
           }
         }
       }

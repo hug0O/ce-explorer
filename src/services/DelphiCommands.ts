@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { notify } from './Notify';
 import type { ProviderRegistry } from '../providers/ProviderRegistry';
 import { EditPipeline } from './EditPipeline';
 import { TextEdit } from './DelphiForm';
@@ -107,7 +108,7 @@ export async function anchorsCommand(): Promise<void> {
     if (!mode) { return; }
     const r = applyAnchorMode(l.dfm, container, nodes, mode.id);
     if ('error' in r) { vscode.window.showWarningMessage('CE: ' + r.error); return; }
-    if (await apply(l, mode.label, r.edits)) { vscode.window.showInformationMessage(`CE: ${mode.label}: ${r.changed.length} component(s) changed.`); }
+    if (await apply(l, mode.label, r.edits)) { void notify.done(`CE: ${mode.label}: ${r.changed.length} component(s) changed.`, l.dfmDoc.uri); }
 }
 
 export async function tabOrderCommand(): Promise<void> {
@@ -120,7 +121,7 @@ export async function tabOrderCommand(): Promise<void> {
     const r = planTabOrder(l.dfm, containers);
     if ('error' in r) { vscode.window.showWarningMessage('CE: ' + r.error); return; }
     if (r.edits.length === 0) { vscode.window.showInformationMessage('CE: TabOrder already follows the screen.'); return; }
-    if (await apply(l, 'TabOrder by position', r.edits)) { vscode.window.showInformationMessage(`CE: TabOrder renumbered for ${r.changed.length} component(s).`); }
+    if (await apply(l, 'TabOrder by position', r.edits)) { void notify.done(`CE: TabOrder renumbered for ${r.changed.length} component(s).`, l.dfmDoc.uri); }
 }
 
 /* ─────────────── checks ─────────────── */
@@ -158,7 +159,7 @@ export async function checkFormCommand(onlyCategory?: string): Promise<void> {
             if ('error' in r) { continue; }
             dfmEdits.push(...r.dfmEdits); pasEdits.push(...r.pasEdits); applied++;
         }
-        if (await apply(l, 'Fix form issues', dfmEdits, pasEdits)) { vscode.window.showInformationMessage(`CE: ${applied} fix(es) applied.`); }
+        if (await apply(l, 'Fix form issues', dfmEdits, pasEdits)) { void notify.done(`CE: ${applied} fix(es) applied.`, l.dfmDoc.uri); }
         return;
     }
     const issue = pick.issue!;
@@ -176,7 +177,7 @@ export async function checkFormCommand(onlyCategory?: string): Promise<void> {
     }
     const r = fixIssue(l.pas, l.dfm, issue, choice.fix);
     if ('error' in r) { vscode.window.showWarningMessage('CE: ' + r.error); return; }
-    if (await apply(l, r.message, r.dfmEdits, r.pasEdits)) { vscode.window.showInformationMessage('CE: ' + r.message + '.'); }
+    if (await apply(l, r.message, r.dfmEdits, r.pasEdits)) { void notify.done('CE: ' + r.message + '.', l.dfmDoc.uri); }
 }
 
 export async function cleanHandlersCommand(): Promise<void> {

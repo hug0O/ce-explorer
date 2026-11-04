@@ -40,7 +40,7 @@ test('the age of an entry is told in words', () => {
 
 test('an edit says so with an Undo button and writes the log; the Blueprint and the menu use it too', () => {
     const n = read('services/Notify.ts');
-    assert.match(n, /async done\(message: string\)/);
+    assert.match(n, /async done\(message: string, target\?: vscode\.Uri\)/);
     assert.match(n, /showInformationMessage\(message, 'Undo'\)/);
     assert.match(n, /executeCommand\('undo'\)/);
     assert.match(n, /actionLog\.record\(message, uri\?\.fsPath\)/);

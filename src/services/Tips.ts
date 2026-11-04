@@ -22,3 +22,30 @@ export function tipOfTheDay(date: Date = new Date()): Tip {
     const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
     return TIPS[((day % TIPS.length) + TIPS.length) % TIPS.length];
 }
+
+/** Features worth trying once, offered when they were never used: what they do, and the command that runs them. */
+export interface Discovery extends Tip { delphi?: boolean }
+
+export const DISCOVER: Discovery[] = [
+    { text: 'Not tried yet: Rename changes a name in the whole project, after a preview.', command: 'ce.rename' },
+    { text: 'Not tried yet: the Blueprint draws the calls of this file as a graph.', command: 'ce.blueprint.open' },
+    { text: 'Not tried yet: Detect dead code lists what nothing uses.', command: 'ce.detectDeadCode' },
+    { text: 'Not tried yet: Code review checks this file against the rules of its language.', command: 'ce.codeReview' },
+    { text: 'Not tried yet: Check form finds what the .dfm and the .pas disagree on, and fixes it.', command: 'ce.delphi.check', delphi: true },
+    { text: 'Not tried yet: Translate the form puts every caption in a memo, in another language.', command: 'ce.translateForm', delphi: true },
+    { text: 'Not tried yet: the form designer edits the form as the IDE does.', command: 'ce.delphi.designer', delphi: true },
+    { text: 'Not tried yet: the Memo keeps notes per language, as Markdown pages.', command: 'ce.memo.open' },
+];
+
+/**
+ * A feature this person never ran, when they have used the extension enough to be past the first steps (ten uses): one a day among the ones
+ * left, so the menu does not nag with the same one. `counts` is how many times each command ran.
+ */
+export function suggestion(counts: Record<string, number>, delphi: boolean, date: Date = new Date()): Discovery | undefined {
+    const total = Object.values(counts).reduce((n, c) => n + c, 0);
+    if (total < 10) { return undefined; }
+    const left = DISCOVER.filter(d => (delphi || !d.delphi) && !counts[d.command]);
+    if (!left.length) { return undefined; }
+    const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+    return left[((day % left.length) + left.length) % left.length];
+}

@@ -98,3 +98,33 @@ test('a translation is written back as a Delphi string with the accents as #code
     assert.match(out, /Text = 'Garde le texte'/, 'the data is untouched');
     assert.equal(dfmTexts(out).length, 5, 'the file still reads the same way');
 });
+
+import { formSection, upsertFormSection } from '../utils/dfmTexts';
+import { memoFolderOf, sanitizeLang } from '../services/MemoStore';
+
+test('the translation of a form is a memo section: a table, replaced when the form is translated again, added when it is another form', () => {
+    const rows = [{ component: 'btnSave', prop: 'Caption', original: '&Enregistrer', translation: '&Save | store' }, { component: 'Form1', prop: 'Caption', original: 'Clients', translation: 'Customers' }];
+    const a = formSection('Form1', 'Form1', 'French', 'English', rows, '2026-11-05');
+    assert.match(a, /^## Form1\n\n_Form1\.dfm, French to English, 2 text\(s\), 2026-11-05_\n\n\| Component \| Property \| French \| English \|\n\| --- \| --- \| --- \| --- \|\n\| btnSave \| Caption \| &Enregistrer \| &Save \\| store \|\n/);
+    let memo = upsertFormSection('', 'Translations into English (en)', 'Form1', a);
+    assert.match(memo, /^# Translations into English \(en\)\n\n## Form1\n/);
+    const b = formSection('Form2', 'Form2', 'French', 'English', [rows[1]], '2026-11-06');
+    memo = upsertFormSection(memo, 'x', 'Form2', b);
+    assert.equal((memo.match(/^## /gm) ?? []).length, 2, 'another form is added');
+    const again = formSection('Form1', 'Form1', 'French', 'English', [rows[1]], '2026-11-07');
+    memo = upsertFormSection(memo, 'x', 'Form1', again);
+    assert.equal((memo.match(/^## /gm) ?? []).length, 2, 'the same form is replaced, not added');
+    assert.ok(memo.includes('2026-11-07') && !memo.includes('2026-11-05') && memo.includes('## Form2'), 'the new section is there, the old one gone, the other form kept');
+    assert.ok(memo.endsWith('\n') && !memo.endsWith('\n\n'));
+    assert.equal(sanitizeLang('translate_' + 'en'), 'translate_en');
+    assert.equal(sanitizeLang('translate_pt-BR'), 'translate_pt-br');
+    assert.equal(memoFolderOf('', undefined, '/s'), require('path').join('/s', 'memos'));
+    assert.equal(memoFolderOf('notes', '/w', '/s'), require('path').join('/w', 'notes'));
+});
+
+test('the form translation writes the memo and only offers the .dfm afterwards', () => {
+    const src = fs.readFileSync(path.join(root, 'src', 'services', 'TranslateCommands.ts'), 'utf8');
+    assert.match(src, /sanitizeLang\('translate_' \+ target\)/);
+    assert.match(src, /Also write them in the \.dfm/);
+    assert.ok(src.indexOf("'Also write them in the .dfm'") > src.indexOf('store.write(memoName'), 'the memo comes first');
+});

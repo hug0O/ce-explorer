@@ -55,13 +55,14 @@ function makePanel(ctx: any = { subscriptions: [] }, registry: any = { getByDocu
     return panel;
 }
 
-test('Member view shows a tab bar and keeps the Details tab by default', () => {
+test('Member view shows a tab bar and opens on Structure by default: there is no Details tab any more', () => {
     const html = makePanel().getHtml();
-    assert.match(html, /data-tab="detail"/);
+    assert.doesNotMatch(html, /data-tab="detail"/);
+    assert.match(html, /class="tab active" data-tab="manage"/);
     assert.match(html, /data-tab="manage"[^>]*>Structure<\/button>/, 'the tab is called Structure, as in the Delphi IDE');
     assert.doesNotMatch(html, /Add \/ Delete/, 'its old name is gone');
     assert.match(html, /title="Members of the file: add, filter, edit, rename, move, delete - Ctrl\+K Ctrl\+M"/);
-    assert.doesNotMatch(html, /data-m-act="delete"/, 'no manage rows on the Details tab');
+    assert.match(html, /data-m-act="delete"/, 'the members are listed with their menu');
 });
 
 test('Structure tab lists every member (sorted by line) with edit / rename / delete and add buttons', () => {
@@ -606,7 +607,7 @@ test('Structure: the filter is emptied when another file comes to the front', ()
     } finally { w.onDidChangeActiveTextEditor = before; w.activeTextEditor = undefined; }
 });
 
-test('the tab bar shows Structure, Tools and Memo; the details of the member and the shortcuts are in a ... menu that names the open one', () => {
+test('the tab bar shows Structure, Tools and Memo; the shortcuts are in a ... menu that names the open one', () => {
     const panel = makePanel();
     panel._tab = 'manage';
     let html: string = panel.getHtml();
@@ -614,7 +615,7 @@ test('the tab bar shows Structure, Tools and Memo; the details of the member and
     const visible = bar.slice(0, bar.indexOf('<span class="tabdd">'));
     assert.deepEqual([...visible.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]), ['manage', 'tools', 'memo']);
     const menu = bar.slice(bar.indexOf('id="tabMenu"'));
-    assert.deepEqual([...menu.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]), ['detail', 'shortcuts']);
+    assert.deepEqual([...menu.matchAll(/data-tab="(\w+)"/g)].map(m => m[1]), ['shortcuts']);
     assert.match(bar, /<button class="tabmore" id="tabMore"[^>]*>⋯<\/button>/, 'no name while a visible tab is open');
     panel._tab = 'shortcuts';
     html = panel.getHtml();
@@ -625,7 +626,8 @@ test('the tab bar shows Structure, Tools and Memo; the details of the member and
 
 test('the empty page proposes three things and keeps the other actions folded', () => {
     const panel = makePanel();
-    panel._tab = 'detail';
+    panel._state = { member: undefined, classInfo: undefined, provider: undefined };
+    panel._tab = 'manage';
     const html: string = panel.getEmptyHtml();
     const main = html.slice(html.indexOf('qa-main'), html.indexOf('<details'));
     assert.deepEqual([...main.matchAll(/data-cmd="([\w.]+)"/g)].map(m => m[1]), ['ce.manageMembers', 'ce.nav.pickMember', 'ce.showActions']);

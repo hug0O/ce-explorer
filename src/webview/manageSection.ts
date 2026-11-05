@@ -53,6 +53,8 @@ export interface FocusView {
     menuItems?: { name: string; caption: string; depth: number; shortcut: string; event?: string; handler?: string; line?: number }[];
     /** Delphi: the `Component.OnEvent` this routine is the handler of. */
     handlerOf?: string[];
+    /** What the former Details tab said about the member: its kind, its attributes and its parameters. */
+    signature?: { kind: string; props: { label: string; value: string }[]; params: { dir: string; name: string; type: string }[] };
     /** Which blocks are unfolded; the choice is kept by the panel between redraws. */
     open: { used: boolean; vars: boolean; find: boolean; events?: boolean };
 }
@@ -145,6 +147,10 @@ export function manageCss(): string {
 .mdetail .var-row .pname { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
 .mdetail .var-row .ptype { color: var(--vscode-symbolIcon-typeParameterForeground, #4ec9b0); }
 .mdetail .var-actions { margin-left: auto; display: flex; gap: 2px; }
+.msig { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 2px 0 4px; font-size: 11px; }
+.msig .kind-badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); text-transform: uppercase; letter-spacing: 0.5px; }
+.msigl { color: var(--vscode-descriptionForeground); }
+.msigparams { margin: 0 0 4px; }
 .rowmenu { position: relative; }
 .rowmenu > summary { list-style: none; cursor: pointer; padding: 0 6px; border-radius: 3px; font-size: 14px; line-height: 16px; color: var(--vscode-descriptionForeground); }
 .rowmenu > summary::-webkit-details-marker { display: none; }
@@ -191,6 +197,14 @@ function hitRowsHtml(hits: LineHit[], total: number): string {
 export function focusHtml(f: FocusView): string {
     const open = (on: boolean): string => (on ? ' open' : '');
     let html = `<div class="mfocus" id="mFocus">`;
+    if (f.signature) {
+        html += `<div class="msig"><span class="kind-badge">${esc(f.signature.kind)}</span>`
+            + f.signature.props.map(x => `<span class="msigp"><span class="msigl">${esc(x.label)}</span> ${esc(x.value)}</span>`).join('') + `</div>`;
+        if (f.signature.params.length) {
+            html += `<ul class="params-list msigparams">` + f.signature.params.map(q =>
+                `<li class="param-item" data-run="ce.editMember" title="Edit the parameters of ${esc(f.name)}">${q.dir ? `<span class="dir">${esc(q.dir)} </span>` : ''}<span class="pname">${esc(q.name)}</span>: <span class="ptype">${esc(q.type)}</span><span class="param-edit">✏️</span></li>`).join('') + `</ul>`;
+        }
+    }
     if (f.handlerOf?.length) {
         html += `<p class="mnote">⚡ Handler of <b>${f.handlerOf.map(esc).join('</b>, <b>')}</b></p>`;
     }
@@ -294,6 +308,7 @@ export function manageListHtml(v: ManageView): string {
                 + `<span class="var-actions"><details class="rowmenu"><summary class="var-btn" title="Edit, rename, delete...">⋯</summary><div class="rowmenu-list">`
                 + `<button class="rowitem" data-m-act="edit" data-id="${id}" title="Edit (E)">✏️ Edit</button>`
                 + `<button class="rowitem" data-m-act="rename" data-id="${id}" title="Rename (F2)">🔤 Rename</button>`
+                + `<button class="rowitem" data-m-act="docHeader" data-id="${id}" title="Insert or refresh the doc header of the member">📄 Doc header</button>`
                 + (m.kind === MemberKind.Field && !v.isFile ? `<button class="rowitem" data-m-act="getset" data-id="${id}" title="Generate getter / setter">🔑 Getter / setter</button>` : '')
                 + (v.canMove && !v.isFile ? `<button class="rowitem" data-m-act="move" data-id="${id}" title="Move to another type…">➡️ Move to...</button>` : '')
                 + `<button class="rowitem" data-m-act="delete" data-id="${id}" title="Delete (Delete)">🗑️ Delete</button>`

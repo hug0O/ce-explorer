@@ -38,7 +38,7 @@ interface MemberViewerState {
 }
 
 /** Tabs of the Member view. */
-export type SidebarTab = 'detail' | 'manage' | 'tools' | 'memo' | 'shortcuts';
+export type SidebarTab = 'manage' | 'tools' | 'memo' | 'shortcuts';
 
 export type ViewerMode = 'view' | 'edit' | 'add' | 'extract' | 'analytics' | 'variable';
 
@@ -77,7 +77,7 @@ const ALLOWED_RUN_COMMANDS = new Set<string>([
 ]);
 
 /** A small picture in front of the name of each tab, so that the tab bar stays on one line in a narrow sidebar. */
-const TAB_ICONS: Record<string, string> = { detail: '🔍', manage: '☰', tools: '🛠', memo: '📝', shortcuts: '⌨' };
+const TAB_ICONS: Record<string, string> = { manage: '☰', tools: '🛠', memo: '📝', shortcuts: '⌨' };
 
 export class MemberViewerPanel implements vscode.WebviewViewProvider {
     public static readonly viewType = 'ceViewer';
@@ -89,9 +89,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private readonly _scopeAnalyzer = new LocalScopeAnalyzer();
 
     private _mode: ViewerMode = 'view';
-    // Active tab of the member view: 'detail' (selected member) or 'manage'
+    // Active tab of the member view: Structure ('manage') by default
     // (add / edit / rename / delete any member of the current type at any time).
-    private _tab: SidebarTab = 'detail';
+    private _tab: SidebarTab = 'manage';
     /** The tab last chosen for each language: a Delphi unit opens on Structure, a SQL file on Tools, whatever was chosen there last. */
     private _tabByLanguage: Record<string, SidebarTab> = {};
     private _tabLanguage = '';
@@ -153,7 +153,9 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         private readonly _codeGenerator: CodeGeneratorService,
         private readonly _extensionContext: vscode.ExtensionContext
     ) {
-        this._tabByLanguage = _extensionContext.globalState?.get<Record<string, SidebarTab>>('ce.tabByLanguage', {}) ?? {};
+        // the Details tab is part of Structure now: a language that came back to it comes back to Structure
+        const saved = _extensionContext.globalState?.get<Record<string, string>>('ce.tabByLanguage', {}) ?? {};
+        this._tabByLanguage = Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, (v === 'detail' ? 'manage' : v) as SidebarTab]));
         _extensionContext.subscriptions.push(
             vscode.window.onDidChangeTextEditorSelection(e => {
                 this.scheduleCursorUpdate(e.textEditor);
@@ -230,7 +232,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.rememberTab(msg.tab); this.setTab(msg.tab === 'manage' ? 'manage' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'detail'); break;
+                case 'setTab': this.rememberTab(msg.tab); this.setTab(msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'manage'); break;
                 case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
                 case 'openKeybindings': await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', '@ext:' + this.extensionId()); break;
                 case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
@@ -809,7 +811,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** The tab the user picked is the one this language comes back to. */
     private rememberTab(tab: unknown): void {
-        if (!this._tabLanguage || (tab !== 'detail' && tab !== 'manage' && tab !== 'tools' && tab !== 'memo' && tab !== 'shortcuts')) { return; }
+        if (!this._tabLanguage || (tab !== 'manage' && tab !== 'tools' && tab !== 'memo' && tab !== 'shortcuts')) { return; }
         this._tabByLanguage[this._tabLanguage] = tab;
         void this._extensionContext.globalState?.update('ce.tabByLanguage', this._tabByLanguage);
     }
@@ -945,6 +947,22 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         } catch { /* the view is shown already */ }
     }
 
+    /** What the former Details tab said: the kind of the member, its attributes (visibility, type, static, virtual...) and its parameters. */
+    private signatureOf(member: ClassMember): NonNullable<FocusView['signature']> {
+        const props: { label: string; value: string }[] = [{ label: 'Visibility', value: member.visibility }];
+        if (member.returnType) { props.push({ label: 'Returns', value: member.returnType }); }
+        if (member.type) { props.push({ label: 'Type', value: member.type }); }
+        for (const [on, label] of [[member.isStatic, 'Static'], [member.isVirtual, 'Virtual'], [member.isAbstract, 'Abstract'], [member.isOverride, 'Override']] as [boolean | undefined, string][]) {
+            if (on) { props.push({ label, value: 'yes' }); }
+        }
+        if (member.modifiers.length) { props.push({ label: 'Modifiers', value: member.modifiers.join(', ') }); }
+        return {
+            kind: member.kind.charAt(0).toUpperCase() + member.kind.slice(1),
+            props,
+            params: member.parameters.map(p => ({ dir: p.isVar ? 'var' : p.isOut ? 'out' : p.isConst ? 'const' : '', name: p.name, type: p.type })),
+        };
+    }
+
     /** Where the focused member is used in the current file, and the search inside its code. */
     private focusData(withVariables = false): FocusView | undefined {
         const member = this.focusMember();
@@ -958,13 +976,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const searchable = member.kind !== MemberKind.Field && member.kind !== MemberKind.Property;
         const found = searchable && this._memberSearch ? searchLines(lines, memberLineRanges(member), this._memberSearch) : { hits: [] as LineHit[], total: 0 };
         const kindLabel = member.kind.charAt(0).toUpperCase() + member.kind.slice(1);
-        // The variables can be edited only where the cursor is: the actions of the Details tab work on the member under it.
+        // The variables can be edited only where the cursor is: the actions on a variable work on the member under it.
         const editable = !!this._state.member && this._state.member.id === member.id;
         const variables = withVariables && searchable ? this.variablesBody(member, editable) : undefined;
         return {
             id: member.id, name: member.name, kindLabel, usages: use.hits, usageTotal: use.total,
             searchable, search: this._memberSearch, searchHits: found.hits, searchTotal: found.total,
-            variables, open: { ...this._folds }, ...this.formLinks(member),
+            variables, signature: this.signatureOf(member), open: { ...this._folds }, ...this.formLinks(member),
         };
     }
 
@@ -1659,10 +1677,11 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
             `<div class="qa-group"><div class="qa-title">${escapeHtml(g.title)}</div><div class="qa-grid">${g.items.join('')}</div></div>`
         ).join('');
 
-        // Same three tabs as the member view, so the tools are never stacked under the quick actions.
+        // Same tabs as the member view, so the tools are never stacked under the quick actions; with no file open Structure has nothing to list,
+        // so its place is taken by the three things to start with.
         const body = this._tab === 'tools'
             ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab, this.languageInfo())
-            : this._tab === 'manage'
+            : this._tab === 'manage' && (this._state.provider || vscode.window.activeTextEditor)
                 ? this.getManageHtml()
                 : this._tab === 'memo'
                 ? this.getMemoHtml()
@@ -1704,7 +1723,7 @@ ${shortcutsCss()}
 </style>
 </head>
 <body>
-${this.tabsHtml('Actions')}
+${this.tabsHtml()}
 ${body}
 <script nonce="${nonce}">
 ${toolsScript()}
@@ -1752,14 +1771,13 @@ ${shortcutsScript()}
 </html>`;
     }
 
-    private tabsHtml(firstLabel: string): string {
+    private tabsHtml(): string {
         const tab = (id: SidebarTab, label: string, title = '') =>
             `<button class="tab${this._tab === id ? ' active' : ''}" data-tab="${id}"${title ? ` title="${title}"` : ''} data-ico="${TAB_ICONS[id] ?? ''}">${label}</button>`;
-        // Structure, Tools and Memo are always there; the details of the member and the shortcuts are one click away in the "..." menu, which
-        // shows the name of the one that is open
-        const inMenu = this._tab === 'detail' || this._tab === 'shortcuts';
-        const menuLabel = this._tab === 'shortcuts' ? 'Shortcuts' : firstLabel;
-        const more = `<span class="tabdd"><button class="tabmore${inMenu ? ' active' : ''}" id="tabMore" title="The details of the member, the shortcuts">${inMenu ? menuLabel + ' ' : ''}⋯</button><div class="tabmenu" id="tabMenu" hidden>${tab('detail', firstLabel)}${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}</div></span>`;
+        // Structure (which holds what the member under the cursor is: its kind, its parameters, where it is used), Tools and Memo are always
+        // there; the shortcuts are one click away in the "..." menu, which shows the name of the one that is open
+        const inMenu = this._tab === 'shortcuts';
+        const more = `<span class="tabdd"><button class="tabmore${inMenu ? ' active' : ''}" id="tabMore" title="The shortcuts">${inMenu ? 'Shortcuts ' : ''}⋯</button><div class="tabmenu" id="tabMenu" hidden>${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}</div></span>`;
         return `<div class="tabs">\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${more}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
     }
 
@@ -1930,7 +1948,7 @@ ${shortcutsCss()}
 </head>
 <body>`;
 
-        html += this.tabsHtml('Details');
+        html += this.tabsHtml();
 
         if (this._tab === 'memo' || this._tab === 'manage' || this._tab === 'shortcuts') {
             // the memo and the shortcuts are not about the member under the cursor, and the type selector of Structure already names the type
@@ -1954,91 +1972,6 @@ ${shortcutsCss()}
             html += this.getMemoHtml();
         } else if (this._tab === 'shortcuts') {
             html += this.getShortcutsHtml();
-        } else if (member) {
-            const kindLabel = member.kind === MemberKind.Constructor ? 'Constructor'
-                : member.kind === MemberKind.Destructor ? 'Destructor'
-                : member.kind.charAt(0).toUpperCase() + member.kind.slice(1);
-
-            html += `<div class="member-header">
-<span class="name" id="memberName" title="Click to rename">${escapeHtml(member.name)}</span>
-<span class="kind-badge">${kindLabel}</span>
-</div>`;
-
-            html += `<div class="divider"></div>`;
-
-            html += `<div class="prop-row">`;
-            html += `<span class="prop-item"><span class="prop-label">Visibility</span><span class="prop-value">${member.visibility}</span></span>`;
-
-            if (member.returnType) {
-                html += `<span class="prop-item"><span class="prop-label">Return Type</span><span class="prop-value">${escapeHtml(member.returnType)}</span></span>`;
-            }
-            if (member.type) {
-                html += `<span class="prop-item"><span class="prop-label">Type</span><span class="prop-value">${escapeHtml(member.type)}</span></span>`;
-            }
-            if (member.isStatic) {
-                html += `<span class="prop-item"><span class="prop-label">Static</span><span class="prop-value">yes</span></span>`;
-            }
-            if (member.isVirtual) {
-                html += `<span class="prop-item"><span class="prop-label">Virtual</span><span class="prop-value">yes</span></span>`;
-            }
-            if (member.isAbstract) {
-                html += `<span class="prop-item"><span class="prop-label">Abstract</span><span class="prop-value">yes</span></span>`;
-            }
-            if (member.isOverride) {
-                html += `<span class="prop-item"><span class="prop-label">Override</span><span class="prop-value">yes</span></span>`;
-            }
-            if (member.modifiers.length > 0) {
-                html += `<span class="prop-item"><span class="prop-label">Modifiers</span><span class="prop-value">${escapeHtml(member.modifiers.join(', '))}</span></span>`;
-            }
-            html += `</div>`;
-
-            if (member.parameters.length > 0) {
-                html += `<div class="section"><div class="section-title">Parameters <span class="hint">(click to edit)</span></div><ul class="params-list">`;
-                for (const p of member.parameters) {
-                    const dir = p.isVar ? '<span class="dir">var </span>' : p.isOut ? '<span class="dir">out </span>' : p.isConst ? '<span class="dir">const </span>' : '';
-                    html += `<li class="param-item" data-run="ce.editMember" title="Edit parameters of ${escapeHtml(member.name)}">` +
-                        `${dir}<span class="pname">${escapeHtml(p.name)}</span>: <span class="ptype">${escapeHtml(p.type)}</span>` +
-                        `<span class="param-edit">✏️</span></li>`;
-                }
-                html += `</ul></div>`;
-            }
-
-            // Local variables & parameters detected inside the method body.
-            // Each is clickable to open the inline variable editor (rename +
-            // change type in one form), mirroring the member editor.
-            html += this.variablesHtml(member);
-
-            html += `<div class="divider"></div>`;
-            html += `<div class="section"><div class="section-title">Actions</div><div class="analyze-grid">`;
-            html += `<button class="ana" data-act="edit">✏️ Edit (params, type…)</button>`;
-            html += `<button class="ana" data-act="rename">🔤 Rename</button>`;
-            html += `<button class="ana" data-act="docHeader">📄 Doc header</button>`;
-            html += `<button class="ana" data-act="delete">🗑️ Delete</button>`;
-            html += `</div></div>`;
-        } else if (classInfo) {
-            // Cursor is on a class/struct declaration (no member selected).
-            // Offer to add members directly, adapted to the type: structs get
-            // fields only (plus methods for C++ structs which support them).
-            const provider = this._state.provider;
-            const isStruct = classInfo.isRecord || classInfo.classType === 'struct';
-            const isCppStruct = provider?.languageId === 'cpp' && classInfo.classType === 'struct';
-            const canHaveMethods = !isStruct || isCppStruct;
-            const isInterface = classInfo.isInterface;
-
-            html += `<div class="divider"></div>`;
-            html += `<div class="section"><div class="section-title">Add Member</div><div class="analyze-grid">`;
-            html += `<button class="ana" data-run="ce.addField">📦 Add Field</button>`;
-            if (canHaveMethods && !isInterface) {
-                html += `<button class="ana" data-run="ce.addProperty">🔑 Add Property</button>`;
-                html += `<button class="ana" data-run="ce.addMethod">🔧 Add Method</button>`;
-                html += `<button class="ana" data-run="ce.addConstructor">🏗️ Add Constructor</button>`;
-            }
-            if (isInterface) {
-                html += `<button class="ana" data-run="ce.addMethod">🔧 Add Method</button>`;
-            }
-            html += `</div></div>`;
-        } else {
-            html += `<p class="empty-section">No member selected. Place cursor on a method, field, or property.</p>`;
         }
 
         html += `<script nonce="${nonce}">

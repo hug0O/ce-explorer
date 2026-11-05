@@ -14,7 +14,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # 3. install the .vsix (or: Extensions view -> ... -> Install from VSIX)
-code --install-extension ce-code-explorer-0.1.93.vsix
+code --install-extension ce-code-explorer-0.1.94.vsix
 ```
 
 ## Supported Languages
@@ -62,7 +62,7 @@ Nothing is read in the background: the project panel scans only when asked, in s
 ## Features
 
 ### Sidebar: Structure, Tools, Memo
-The **Member** view of the Code Explorer sidebar has five tabs: *Details* (the member under the cursor), **Structure**, **Tools**, **Memo** and **Shortcuts**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file. A **Changelog + Guide** view, folded, sits below it: the changelog of every version and the user guide (pictures and animations of the designer; also **CE: Open the User Guide**). The pictures are made by `npx tsx tools/guide/make.ts` (see tools/guide).
+The **Member** view of the Code Explorer sidebar has four tabs: **Structure** (the members of the file, and what the member you click is: its kind, its parameters, where it is used), **Tools**, **Memo** and **Shortcuts**. The former *Classes* tree is gone: the Structure tab does everything it did, on the types of the active file. A **Changelog + Guide** view, folded, sits below it: the changelog of every version and the user guide (pictures and animations of the designer; also **CE: Open the User Guide**). The pictures are made by `npx tsx tools/guide/make.ts` (see tools/guide).
 
 - **Type selector** (when the file has several types, or standalone routines): manage any of them, not only the one under the cursor.
 - **Add** a field, method, property or constructor to the chosen type (compact buttons that wrap, close together); insert a template; synchronise declarations and implementations; open the templates manager; refresh.
@@ -99,7 +99,7 @@ The **Member** view of the Code Explorer sidebar has five tabs: *Details* (the m
 
 ### Analysis Tools
 - **Code Metrics** — Dashboard with LOC, complexity, and maintainability per class
-- **Code Review** — warnings and advice on the current file, in the *Review* button of the member sidebar (Details tab → Analyze) and in **CE: Code Review**. Every finding has a severity — **error**, **warning** (very likely a bug or a risk) or **advice** (correct, but could be better) —, a message, a **hint on how to fix it**, and its category, member and line.
+- **Code Review** — warnings and advice on the current file, in the *Review* button of the member sidebar (Tools tab → Analyze) and in **CE: Code Review**. Every finding has a severity — **error**, **warning** (very likely a bug or a risk) or **advice** (correct, but could be better) —, a message, a **hint on how to fix it**, and its category, member and line.
   - **Click a finding to go to its line** (the column too, when it is about a name). The findings are also drawn as squiggles in the editor and listed in the **Problems** panel (source *CE Review*) until you close the report; `↻` reviews the file again after you fixed something. Severity buttons hide or show each kind and the list can be ordered in file order, most serious first, or by category.
   - **The rules follow the compiler of each language** and give every finding **the code the compiler or the linter gives the same problem** (`H2164`, `CS0168`, `TS6133`, `F401`, `-Wunused-variable`, `errcheck`…), shown next to it, so it can be looked up or silenced the usual way. They read the text only — comments and the inside of strings are never taken for code — and report what the text alone shows; they do not replace a build.
   - **The real compiler too, when there is one**: what the other extensions' language servers already report for the file (the TypeScript server, Pylance, gopls, rust-analyzer, OmniSharp, a Delphi language server…) is listed in the same report, marked with its name, under the category *Compiler*, and is not repeated when a rule of the review says the same thing on the same line.

@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.94 — 2026-11-05
+- **The Details tab is merged into Structure.** What it said about the member under the cursor is now at the top of the member's block in Structure: its kind, its attributes (visibility, type, static, virtual, override...) and its parameters (click one to edit). Where it is used, its variables, its events and the search in its code were already there. The actions (Edit, Rename, Delete) are in the ⋯ menu of the row, which also has **Doc header** now. The sidebar has four tabs (Structure, Tools, Memo, Shortcuts) and opens on Structure; a language that came back to Details comes back to Structure. With no file open, Structure shows the three things to start with.
+
 ## 0.1.93 — 2026-11-05
 - **Seventeen more look-alike commands became five.** In the palette, the quick actions and the editor menu, one entry opens the list of its siblings (they still run from their keys, the sidebar and the code lenses):
   - **Translate: choose the languages** replaces *Translate into* and *Translate from*;

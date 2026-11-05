@@ -1196,7 +1196,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         }
         for (const d of topLevelDeclarations(text, provider.languageId, true)) { decls.push({ name: d.name, kind: d.kind, line: d.line }); }
         const rows = localUses(text, familyOfExtension(path.extname(doc.uri.fsPath), provider.languageId), decls, this.parentRanges()).map(u => ({
-            label: u.label, kind: u.decl.kind, count: u.count, line: u.line, uses: u.uses, more: u.more, canOpen: false, originFile: '', originLine: u.decl.line,
+            label: u.decl.name, kind: u.decl.kind, count: u.count, line: u.line, uses: u.uses, more: u.more, canOpen: false, originFile: '', originLine: u.decl.line,
+            scope: u.decl.scope ? { name: u.decl.scope.name, line: u.decl.scope.start } : undefined,
             declared: { text: u.decl.scope ? `Declared in ${u.decl.scope.name}, line ${u.decl.line + 1}` : `Declared at line ${u.decl.line + 1}`, line: u.decl.line },
         }));
         this._localCache = { key, rows };

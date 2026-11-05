@@ -96,6 +96,10 @@ export interface OutsideRow {
     originLine: number;
     /** An object of the open file: where it is declared (a line of this file), in place of the origin file. */
     declared?: { text: string; line: number };
+    /** The routine of the open file the object is declared in (a local object), for the list by method. */
+    scope?: { name: string; line: number };
+    /** The place of the object in the list the host keeps (the arrow asks for it by that number): kept when the rows are split by method. */
+    idx?: number;
 }
 
 /** An object of a file the current one uses: how it is written in the list, and what it is. */
@@ -196,6 +200,12 @@ export function manageCss(): string {
 .mhits .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); opacity: 0.75; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mextlist .mln { min-width: 4.5em; text-align: left; }
 .mobjs { list-style: none; }
+.mmeth > details > summary { display: flex; gap: 6px; align-items: baseline; padding: 2px 4px; margin-top: 3px; border-radius: 3px; cursor: pointer; list-style: none; font-size: 11px; font-weight: 600; background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.1)); }
+.mmeth > details > summary::-webkit-details-marker { display: none; }
+.mmeth > details > summary::before { content: '▸'; flex: none; width: 10px; color: var(--vscode-descriptionForeground); }
+.mmeth > details[open] > summary::before { content: '▾'; }
+.mmeth > details > summary .mtx { font-family: var(--vscode-editor-font-family, monospace); }
+.mmeth > details > ul { margin-left: 8px; }
 .mobjs[hidden] { display: none; }
 .mseg { display: flex; gap: 4px; margin-bottom: 6px; }
 .mseg-btn { flex: 1; padding: 2px 6px; font-size: 11px; font-family: inherit; background: transparent; color: var(--vscode-foreground); border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.45)); border-radius: 10px; cursor: pointer; }
@@ -229,16 +239,62 @@ export function manageCss(): string {
  * The rows of the objects used from outside: a row opens to the lines of this file that write the object (a click on a line goes to it in
  * the code), and the arrow opens the object in its own file.
  */
-export function outsideRowsHtml(rows: OutsideRow[]): string { return objectRowsHtml(rows, 'data-out'); }
+export function outsideRowsHtml(rows: OutsideRow[]): string { return methodGroupsHtml(groupByMethod(rows, 'use'), 'data-out'); }
+
+export interface MethodGroup { name: string; line: number; rows: OutsideRow[] }
+
+/**
+ * The rows by the routine of the open file they are about, so that the list is filtered and read by method, not by `method.object`:
+ * `use`: an object of another file is listed under each routine that writes it, with the lines of that routine;
+ * `declared`: a local object is listed under the routine that declares it, an object of the file under *File*.
+ */
+export function groupByMethod(rows: OutsideRow[], by: 'use' | 'declared'): MethodGroup[] {
+    const groups = new Map<string, MethodGroup>();
+    const at = (name: string, line: number): MethodGroup => {
+        let g = groups.get(name);
+        if (!g) { g = { name, line, rows: [] }; groups.set(name, g); }
+        return g;
+    };
+    rows.forEach((r, i) => {
+        const idx = r.idx ?? i;
+        if (by === 'declared') { at(r.scope?.name ?? '', r.scope?.line ?? -1).rows.push({ ...r, idx }); return; }
+        const parts = new Map<string, { line: number; uses: OutsideRow['uses'] }>();
+        for (const u of r.uses) {
+            const p = parts.get(u.parent ?? '') ?? { line: u.parentLine ?? -1, uses: [] };
+            p.uses.push(u);
+            parts.set(u.parent ?? '', p);
+        }
+        // an object nothing writes (it matched by its name) has no routine: it is listed apart
+        if (!parts.size) { at('', -1).rows.push({ ...r, idx }); return; }
+        let n = 0;
+        for (const [name, p] of parts) {
+            n++;
+            at(name, p.line).rows.push({ ...r, idx, uses: p.uses, count: p.uses.length, line: p.uses[0].line, more: n === parts.size ? r.more : 0 });
+        }
+    });
+    // the routines in the order of the source, what belongs to no routine first (the file) or last (what is written outside any routine)
+    return [...groups.values()].sort((a, b) => (by === 'declared' ? (a.name === '' ? -1 : b.name === '' ? 1 : 0) : (a.name === '' ? 1 : b.name === '' ? -1 : 0)) || a.line - b.line);
+}
+
+/** The groups as lists that fold: a header with the routine (an arrow goes to it), the objects under it. */
+function methodGroupsHtml(groups: MethodGroup[], attr: 'data-out' | 'data-ext'): string {
+    return groups.map(g => {
+        const name = g.name || 'File';
+        const go = g.line >= 0 ? `<button class="mopen mgo" data-m-line="${g.line}" title="Go to ${esc(name)}">↗</button>` : '';
+        return `<li class="mmeth" data-method="${esc(g.name.toLowerCase())}"><details open><summary title="${esc(name)}"><span class="mln">${g.name ? 'method' : 'file'}</span><span class="mtx">${esc(name)}</span>`
+            + `<span class="mcount">${g.rows.length}</span>${go}</summary><ul class="mobjs">${objectRowsHtml(g.rows, attr, false)}</ul></details></li>`;
+    }).join('');
+}
 
 /** The objects of the used files that the filter finds: the same rows, with the lines of this file that write each one. */
 export function externalRowsHtml(rows: OutsideRow[]): string { return objectRowsHtml(rows, 'data-ext'); }
 
-function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext'): string {
-    return rows.map((r, i) => {
+function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext', parents = true): string {
+    return rows.map((r, n) => {
+        const i = r.idx ?? n;
         const open = r.canOpen ? `<button class="mopen" ${attr}="${i}" title="Open ${esc(r.label)} in ${esc(r.originFile)}">↗</button>` : '';
         const head = `<span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span>${r.count ? `<span class="mcount">×${r.count}</span>` : ''}${open}`;
-        const text = esc((r.label + ' ' + r.kind + ' ' + r.originFile + ' ' + r.uses.map(u => u.text + ' ' + (u.parent ?? '')).join(' ')).toLowerCase());
+        const text = esc((r.label + ' ' + r.kind + ' ' + r.originFile + ' ' + r.uses.map(u => u.text + (parents ? ' ' + (u.parent ?? '') : '')).join(' ')).toLowerCase());
         // not written in this file (it matched the filter by its name): a plain row, with nothing to unfold
         if (!r.uses.length) { return `<li class="mobj" data-text="${text}"><div class="mflat"${r.declared ? ` data-m-line="${r.declared.line}" title="${esc(r.declared.text)}"` : ''}>${head}</div></li>`; }
         // inside: where it is defined, then the routines of the open file that use it, each with its lines (as the usages of a member in Structure)
@@ -246,7 +302,7 @@ function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext'): stri
         body += r.canOpen ? `<li class="morigin"><button class="mopen mopenwide" ${attr}="${i}" title="Open the definition">↗ Defined in <b>${esc(r.originFile)}</b>, line ${r.originLine + 1}</button></li>` : '';
         let last: string | undefined;
         for (const u of r.uses) {
-            if (u.parent !== undefined && u.parent !== last) { body += `<li class="mparent" data-m-line="${u.parentLine ?? u.line}" title="Go to ${esc(u.parent)}">in ${esc(u.parent)}</li>`; }
+            if (parents && u.parent !== undefined && u.parent !== last) { body += `<li class="mparent" data-m-line="${u.parentLine ?? u.line}" title="Go to ${esc(u.parent)}">in ${esc(u.parent)}</li>`; }
             last = u.parent;
             body += `<li class="mhit" data-m-line="${u.line}" title="Go to line ${u.line + 1}"><span class="mln">${u.line + 1}</span><span class="mtx">${esc(u.text)}</span></li>`;
         }
@@ -265,11 +321,11 @@ export function outsidePageHtml(o: { rows: OutsideRow[]; ready: boolean; file?: 
     return `<div class="section"><div class="mseg" title="${o.file ? esc(o.file) : ''}">`
         + `<button class="mseg-btn${local ? '' : ' on'}" id="mViewOut" title="The objects of the other files that ${o.file ? esc(o.file) : 'this file'} writes">From outside (<span id="mOutCount">${o.ready ? o.rows.length : '...'}</span>)</button>`
         + `<button class="mseg-btn${local ? ' on' : ''}" id="mViewLoc" title="The local variables, the local routines and the objects of the file itself, with the lines that use them">Local (<span id="mLocCount">${(o.local ?? []).length}</span>)</button></div>`
-        + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: file, object, kind, a line... (words, regex ok)" value="${esc(o.filter ?? '')}"${o.focusFilter ? ' data-focus="1"' : ''}>`
+        + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: method, object, file, a line... (words, regex ok)" value="${esc(o.filter ?? '')}"${o.focusFilter ? ' data-focus="1"' : ''}>`
         + `<button class="mclear" id="mOutClear" title="Clear the filter">×</button></div>`
         + `<div class="mnote" id="mOutNote"${local ? ' hidden' : ''}>${esc(note)}</div>`
         + `<ul class="mobjs" id="mOutside"${local ? ' hidden' : ''}>${outsideRowsHtml(o.rows)}</ul>`
-        + `<ul class="mobjs" id="mLocal"${local ? '' : ' hidden'}>${objectRowsHtml(o.local ?? [], 'data-out')}</ul></div>`;
+        + `<ul class="mobjs" id="mLocal"${local ? '' : ' hidden'}>${methodGroupsHtml(groupByMethod(o.local ?? [], 'declared'), 'data-out')}</ul></div>`;
 }
 
 function hitRowsHtml(hits: LineHit[], total: number): string {
@@ -451,7 +507,7 @@ function initManage(api) {
     // Rows of the usage and search lists: go to the line. A delegated listener, since the search list is rebuilt while typing.
     document.addEventListener('click', function (ev) {
         var row = ev.target && ev.target.closest ? ev.target.closest('[data-m-line]') : null;
-        if (row) { api.postMessage({ command: 'manageLine', line: Number(row.getAttribute('data-m-line')) }); }
+        if (row) { if (row.closest('summary')) { ev.preventDefault(); } api.postMessage({ command: 'manageLine', line: Number(row.getAttribute('data-m-line')) }); }
     });
     var ms = $('mSearch');
     if (ms) {
@@ -499,11 +555,15 @@ function initManage(api) {
       function act() { return locUl && !locUl.hidden ? locUl : outUl; }
       function apply() {
         var test = filterTest(box.value), n = 0;
-        Array.prototype.forEach.call(act().children, function (li) {
-          var t = li.getAttribute('data-text') || '';
-          var show = test(t);
-          li.style.display = show ? '' : 'none';
-          if (show) { n++; }
+        /* by method: the words are tried on the routine and on the object together, so a routine shows all its objects and an object shows under its routine */
+        Array.prototype.forEach.call(act().children, function (g) {
+          var method = g.getAttribute('data-method') || '', any = false;
+          Array.prototype.forEach.call(g.querySelectorAll(':scope > details > ul > li'), function (li) {
+            var show = test(method + ' ' + (li.getAttribute('data-text') || ''));
+            li.style.display = show ? '' : 'none';
+            if (show) { any = true; n++; }
+          });
+          g.style.display = any ? '' : 'none';
         });
         $(act() === locUl ? 'mLocCount' : 'mOutCount').textContent = String(n);
         $('mOutClear').classList.toggle('on', !!box.value);
@@ -511,8 +571,8 @@ function initManage(api) {
       function save() { api.postMessage({ command: 'manageFilter', text: box.value }); }
       /* The keyboard, as in the list of members: the arrows move along the objects and the lines, Right and Left unfold and fold, Enter unfolds or goes to the line, O opens the definition */
       function stops() {
-        return Array.prototype.filter.call(act().querySelectorAll('li.mobj > details > summary, li.mobj > .mflat, li.mobj > details[open] .mhit, li.mobj > details[open] .mparent'), function (e) {
-          var li = e.closest('li.mobj'); return li && li.style.display !== 'none';
+        return Array.prototype.filter.call(act().querySelectorAll('li.mmeth > details > summary, li.mmeth > details[open] li.mobj > details > summary, li.mmeth > details[open] li.mobj > .mflat, li.mmeth > details[open] li.mobj > details[open] .mhit, li.mmeth > details[open] li.mobj > details[open] .mparent'), function (e) {
+          var li = e.closest('li.mobj'), g = e.closest('li.mmeth'); return g && g.style.display !== 'none' && (!li || li.style.display !== 'none');
         });
       }
       function mark(e) {
@@ -538,7 +598,7 @@ function initManage(api) {
           ev.preventDefault();
         } else if (ev.key === 'o' || ev.key === 'O') {
           if (tag === 'INPUT') { return; }
-          var b = cur.closest('li.mobj').querySelector('[data-out], [data-ext]'); if (b) { b.click(); ev.preventDefault(); }
+          var row = cur.closest('li.mobj'), b = row ? row.querySelector('[data-out], [data-ext]') : null; if (b) { b.click(); ev.preventDefault(); }
         }
       });
       /* the switch: what is shown is remembered by the panel, so that the page comes back on it */

@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.104 — 2026-11-05
+- **Used: both lists are by method.** *From outside* and *Local* are now grouped by **routine of the open file**, each with an arrow that goes to it and the number of objects it holds. *From outside*: an object of another file is listed under **each routine that writes it**, with the lines of that routine only. *Local*: a variable, a parameter or a local routine is listed under **the routine that declares it**, written by its name (`I`, not `Run.I`); what belongs to the file itself is under **File**.
+- **The filter works by method.** The words are tried on the routine and on the object apart: typing the name of a routine shows **all its objects**, typing the name of an object shows it **under its routine**, both together narrow it down. There is no `routine.object` to type any more. The keyboard goes through the routines, the objects and the lines (Right and Left unfold and fold, Enter goes, O opens the definition of an object of another file).
+
 ## 0.1.103 — 2026-11-05
 - **One filter for Structure, Used from outside and Local.** They share the same rule (words in any order, each one a regular expression or plain text, any case: `udata save` finds `UData.TStore.Save`), the same kind of box (same clear button, **Esc** clears) and the same text: what is typed in one is in the others when you change tab or list, and the kind chosen in Structure is kept.
 - **Alt+M (and Filter Members) go to the filter that is open.** On Structure it filters Structure; on Used it filters the list that is shown, *From outside* or *Local*; from the other tabs it opens Structure. The caret is in the box, the text is the element under the cursor.

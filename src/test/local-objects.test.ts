@@ -51,14 +51,15 @@ test('the Pascal declarations of the implementation count, the ones inside a rou
 });
 
 test('the tab Used has a switch between the objects of other files and the local ones, with the same rows and the same filter', () => {
-    const local = [{ label: 'Run.I', kind: 'variable', count: 2, line: 16, uses: [{ line: 16, text: 'for I := 0 to Limit do', parent: 'Run', parentLine: 8 }], more: 0, canOpen: false, originFile: '', originLine: 10, declared: { text: 'Declared in Run, line 11', line: 10 } },
-        { label: 'Run.Unused', kind: 'variable', count: 0, line: 11, uses: [], more: 0, canOpen: false, originFile: '', originLine: 11, declared: { text: 'Declared in Run, line 12', line: 11 } }];
+    const local = [{ label: 'I', scope: { name: 'Run', line: 8 }, kind: 'variable', count: 2, line: 16, uses: [{ line: 16, text: 'for I := 0 to Limit do', parent: 'Run', parentLine: 8 }], more: 0, canOpen: false, originFile: '', originLine: 10, declared: { text: 'Declared in Run, line 11', line: 10 } },
+        { label: 'Unused', scope: { name: 'Run', line: 8 }, kind: 'variable', count: 0, line: 11, uses: [], more: 0, canOpen: false, originFile: '', originLine: 11, declared: { text: 'Declared in Run, line 12', line: 11 } }];
     const html = outsidePageHtml({ rows: [], ready: true, file: 'U.pas', local, view: 'local' });
     assert.match(html, /<button class="mseg-btn" id="mViewOut"[^>]*>From outside \(<span id="mOutCount">0<\/span>\)<\/button>/);
     assert.match(html, /<button class="mseg-btn on" id="mViewLoc"[^>]*>Local \(<span id="mLocCount">2<\/span>\)<\/button>/);
     assert.match(html, /<ul class="mobjs" id="mOutside" hidden><\/ul><ul class="mobjs" id="mLocal">/, 'the local list is the one shown');
     assert.match(html, /<li class="morigin"><button class="mopen mopenwide" data-m-line="10"[^>]*>↗ Declared in Run, line 11<\/button><\/li>/, 'the declaration, as the origin file is for the objects of other files');
-    assert.match(html, /<li class="mparent" data-m-line="8" title="Go to Run">in Run<\/li><li class="mhit" data-m-line="16"/);
+    assert.match(html, /<li class="mmeth" data-method="run"><details open><summary title="Run"><span class="mln">method<\/span><span class="mtx">Run<\/span><span class="mcount">2<\/span><button class="mopen mgo" data-m-line="8" title="Go to Run">↗<\/button><\/summary>/, 'the local objects are listed under the routine that declares them');
+    assert.ok(!html.includes('Run.I') && !html.includes('class="mparent"'), 'an object is written by its name, not as routine.name');
     assert.match(html, /<div class="mflat" data-m-line="11" title="Declared in Run, line 12">/, 'an object nothing uses is a row that goes to its declaration');
     assert.match(outsidePageHtml({ rows: [], ready: true, local }), /id="mViewOut" title="The objects of the other files that this file writes">/);
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8');

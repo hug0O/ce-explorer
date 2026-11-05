@@ -124,10 +124,12 @@ test('each line of use comes with the routine of the open file that holds it, an
     assert.equal(uses[0].parentLine, 10);
     const row = { label: 'UData.LoadAll', kind: 'function', count: 5, line: 12, uses, more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 };
     const html = outsideRowsHtml([row]);
-    assert.equal((html.match(/class="mparent"/g) ?? []).length, 3, 'one header per run of lines in the same routine');
-    assert.match(html, /<li class="mparent" data-m-line="10" title="Go to TForm1\.Go">in TForm1\.Go<\/li><li class="mhit" data-m-line="12"[^>]*>[^]*<li class="mhit" data-m-line="15"/);
-    assert.match(html, /<li class="mparent" data-m-line="22" title="Go to TForm1\.Stop">in TForm1\.Stop<\/li><li class="mhit" data-m-line="25"/);
-    assert.ok(html.indexOf('morigin') < html.indexOf('class="mparent"'), 'the origin comes first');
+    assert.deepEqual([...html.matchAll(/<li class="mmeth" data-method="([^"]*)"/g)].map(m => m[1]), ['outer', 'tform1.go', 'tform1.stop', ''], 'one group per routine of the open file, in the order of the source, what is outside any routine last');
+    assert.match(html, /<span class="mtx">TForm1\.Go<\/span><span class="mcount">1<\/span><button class="mopen mgo" data-m-line="10" title="Go to TForm1\.Go">↗<\/button><\/summary>/, 'the routine, with an arrow that goes to it');
+    assert.ok(html.includes('data-m-line="12"') && html.includes('data-m-line="15"') && html.includes('data-m-line="25"'), 'the lines of each routine are under it');
+    assert.ok(!html.includes('class="mparent"'), 'no header inside an object: the routine is the group');
+    assert.ok(!html.includes('TForm1.Go.LoadAll'), 'the object is never written with its routine');
+    assert.ok(html.includes('class="morigin"'), 'the origin of the object is inside it');
     assert.match(outsidePageHtml({ rows: [row], ready: true, file: 'Main.pas' }), /title="The objects of the other files that Main\.pas writes"/, 'the open file is named');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8');
     for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', "'Enter'"]) { assert.ok(panel.includes(key), key + ' moves along the list'); }

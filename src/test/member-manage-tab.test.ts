@@ -263,7 +263,8 @@ test('Structure has a live filter, a kind filter and a grouping, like the Classe
     assert.match(html, /data-text="run void method public"/, 'each row carries what the filter matches');
     const page: string = panel.getHtml();
     assert.match(page, /function initManage\(api\)/);
-    assert.match(page, /new RegExp\(v, 'i'\)/, 'a regular expression works, a plain text too');
+    assert.match(page, /new RegExp\(w, 'i'\)/, 'a regular expression works, a plain text too');
+    assert.match(page, /var test = filterTest\(v\);/, 'the filter of Structure follows the rule shared with Used');
     panel._focusFilter = true;
     assert.match(panel.getManageHtml(), /data-focus="1"/, 'the Filter Members command puts the caret in the box');
 });
@@ -633,4 +634,22 @@ test('the empty page proposes three things and keeps the other actions folded', 
     assert.deepEqual([...main.matchAll(/data-cmd="([\w.]+)"/g)].map(m => m[1]), ['ce.manageMembers', 'ce.nav.pickMember', 'ce.showActions']);
     assert.match(html, /<details class="qa-more"><summary>More actions<\/summary>/);
     assert.ok(html.indexOf('ce.addMethod') > html.indexOf('<details'), 'the long list is inside the fold');
+});
+
+test('Alt+M and Filter Members go to the filter of the tab that is open: Structure, Used (from outside or local), and Structure from the others', async () => {
+    const panel = makePanel();
+    panel._tab = 'outside';
+    await panel.filterStructureOn('Save');
+    assert.equal(panel._tab, 'outside', 'Used stays Used');
+    assert.equal(panel._manageFilter, 'Save', 'the text is the one of every list');
+    for (const other of ['tools', 'memo', 'shortcuts', 'manage']) {
+        panel._tab = other;
+        await panel.filterStructureOn('Load');
+        assert.equal(panel._tab, 'manage', other + ' has no filter: Structure opens');
+        assert.equal(panel._manageFilter, 'Load');
+    }
+    panel._tab = 'outside';
+    panel._focusFilter = false;
+    await panel.focusManageFilter();
+    assert.equal(panel._tab, 'outside', 'Filter Members does not leave Used either');
 });

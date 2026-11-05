@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.103 — 2026-11-05
+- **One filter for Structure, Used from outside and Local.** They share the same rule (words in any order, each one a regular expression or plain text, any case: `udata save` finds `UData.TStore.Save`), the same kind of box (same clear button, **Esc** clears) and the same text: what is typed in one is in the others when you change tab or list, and the kind chosen in Structure is kept.
+- **Alt+M (and Filter Members) go to the filter that is open.** On Structure it filters Structure; on Used it filters the list that is shown, *From outside* or *Local*; from the other tabs it opens Structure. The caret is in the box, the text is the element under the cursor.
+- **Fixed: the filter of Used cut the words at every letter s** (a word of a template string lost its backslash), so `save` was read as `ave`. The rule is now tested on the script the page really gets.
+
 ## 0.1.102 — 2026-11-05
 - **Used: the local functions and variables, the same way.** The tab has a switch, **From outside | Local**, with one filter for both. *Local* lists what belongs to the open file: the **local variables and parameters** of each routine, the **routines declared inside another one**, and the **variables, constants, types and routines of the file itself** (for a Pascal unit, what the implementation declares too, not what is inside a routine). Each object opens like the others: **where it is declared** (*↗ Declared in TForm1.Go, line 12*, a click goes there), then **the routines of the file that use it** with their lines. A local object is looked for **inside its own routine only** (`I` of one routine is not `I` of another) and an object that nothing uses is listed with no line, which shows the unused variables. The choice of the list is remembered; the keyboard (arrows, Right / Left, Enter) works on both.
 

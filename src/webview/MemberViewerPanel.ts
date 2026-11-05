@@ -279,7 +279,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
                     void this.postExternal();
                     this._filterFile = currentDocument()?.uri.toString() ?? this._filterFile;
-                    this._manageKind = ['method', 'field', 'property', 'constructor'].includes(msg.kind) ? msg.kind : '';
+                    // the filter of Used sends the text only: the kind chosen in Structure stays
+                    if (msg.kind !== undefined) { this._manageKind = ['method', 'field', 'property', 'constructor'].includes(msg.kind) ? msg.kind : ''; }
                     break;
                 case 'manageGroup': if ((MANAGE_GROUPS as string[]).includes(msg.mode)) { this._manageGroup = msg.mode as ManageGroup; this.setTab('manage'); } break;
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
@@ -1207,13 +1208,15 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const index = ops.getUsedFilesIndex();
         const doc = vscode.window.activeTextEditor?.document;
         const local = this.localRows();
-        const view = this._usedView;
-        if (!doc) { return outsidePageHtml({ rows: [], ready: true, local, view }); }
+        // the filter is the one of Structure: the same text on every list, the caret in it when it was asked for (Alt+M)
+        const common = { local, view: this._usedView, filter: this._manageFilter, focusFilter: this._focusFilter };
+        this._focusFilter = false;
+        if (!doc) { return outsidePageHtml({ rows: [], ready: true, ...common }); }
         const file = path.basename(doc.uri.fsPath);
-        if (!index) { return outsidePageHtml({ rows: [], ready: true, file, local, view }); }
-        if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false, file, local, view }); }
+        if (!index) { return outsidePageHtml({ rows: [], ready: true, file, ...common }); }
+        if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false, file, ...common }); }
         this._outRows = this.outsideList();
-        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true, file, local, view });
+        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true, file, ...common });
     }
 
     /** Sends the page the list of what is used from outside. */
@@ -1231,21 +1234,31 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (row?.symbol.path) { await this.openAt(row.symbol.path, row.symbol.line); }
     }
 
-    /** The Structure tab filtered on a name (the element under the cursor): the objects of the used files that carry it are listed too. */
+    /**
+     * The filter of the tab that is open (Structure, or Used whether it shows the objects of other files or the local ones) set to a name, the
+     * element under the cursor. The other tabs have no filter: Structure opens. The filter is one text for all the lists.
+     */
     public async filterStructureOn(text: string): Promise<void> {
         this._manageFilter = text.slice(0, 200);
         this._manageKind = '';
         this._focusId = '';
-        this._tab = 'manage';
+        if (this._tab !== 'outside') { this._tab = 'manage'; }
+        this._focusFilter = true;
         this._stateKey = '';
         this.updateView();
         try { if (this._view) { this._view.show(true); } else { await vscode.commands.executeCommand('ceViewer.focus'); } } catch { /* the view is not available yet */ }
         void this.postExternal();
     }
 
-    /** Filter box of the Structure tab, from the "Filter Members" command or its shortcut. */
+    /** The caret in the filter of the tab that is open, from the "Filter Members" command or its shortcut. */
     public async focusManageFilter(): Promise<void> {
         this._focusFilter = true;
+        if (this._tab === 'outside') {
+            this._stateKey = '';
+            this.updateView();
+            try { if (this._view) { this._view.show(true); } else { await vscode.commands.executeCommand('ceViewer.focus'); } } catch { /* the view is not available yet */ }
+            return;
+        }
         await this.showManageTab();
     }
 

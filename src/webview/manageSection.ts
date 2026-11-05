@@ -259,13 +259,13 @@ function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext'): stri
  * The page of the tab Used: what the code of the open file uses from the files it points to, and what belongs to the file itself (the local
  * variables and routines, the objects of the file), each with its own list and the same filter.
  */
-export function outsidePageHtml(o: { rows: OutsideRow[]; ready: boolean; file?: string; local?: OutsideRow[]; view?: 'outside' | 'local' }): string {
+export function outsidePageHtml(o: { rows: OutsideRow[]; ready: boolean; file?: string; local?: OutsideRow[]; view?: 'outside' | 'local'; filter?: string; focusFilter?: boolean }): string {
     const local = o.view === 'local';
     const note = !o.ready ? 'Reading the project...' : o.rows.length ? '' : 'The code uses nothing from the files it points to (or they hold nothing that is written here).';
     return `<div class="section"><div class="mseg" title="${o.file ? esc(o.file) : ''}">`
         + `<button class="mseg-btn${local ? '' : ' on'}" id="mViewOut" title="The objects of the other files that ${o.file ? esc(o.file) : 'this file'} writes">From outside (<span id="mOutCount">${o.ready ? o.rows.length : '...'}</span>)</button>`
         + `<button class="mseg-btn${local ? ' on' : ''}" id="mViewLoc" title="The local variables, the local routines and the objects of the file itself, with the lines that use them">Local (<span id="mLocCount">${(o.local ?? []).length}</span>)</button></div>`
-        + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: file, object, kind, a word of the line...">`
+        + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: file, object, kind, a line... (words, regex ok)" value="${esc(o.filter ?? '')}"${o.focusFilter ? ' data-focus="1"' : ''}>`
         + `<button class="mclear" id="mOutClear" title="Clear the filter">×</button></div>`
         + `<div class="mnote" id="mOutNote"${local ? ' hidden' : ''}>${esc(note)}</div>`
         + `<ul class="mobjs" id="mOutside"${local ? ' hidden' : ''}>${outsideRowsHtml(o.rows)}</ul>`
@@ -369,7 +369,7 @@ export function manageListHtml(v: ManageView): string {
 
     const total = v.rows.length;
     html += `<div class="section"><div class="section-title">${v.isFile ? 'Routines' : 'Members'} (<span id="mCount">${total}</span>)</div>`;
-    html += `<div class="mstick"><div class="tool-row mfilter"><input id="mFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: name, type, kind… (regex ok)" value="${esc(v.filter)}"${v.focusFilter ? ' data-focus="1"' : ''}>`
+    html += `<div class="mstick"><div class="tool-row mfilter"><input id="mFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: name, type, kind… (words, regex ok)" value="${esc(v.filter)}"${v.focusFilter ? ' data-focus="1"' : ''}>`
         + `<button class="mclear" id="mClear" title="Clear the filter">×</button></div>`;
     html += `<div class="tool-row"><select id="mKind" class="tool-select" title="Only this kind of member">`
         + `<option value="">All kinds</option>`
@@ -424,6 +424,13 @@ export function manageScript(): string {
     return `
 function initManage(api) {
     function $(id) { return document.getElementById(id); }
+    /* One filter for the three lists (Structure, Used from outside, Local): words in any order, each one a regular expression, read as plain text when it is not one */
+    function filterTest(q) {
+        var tokens = q.trim().split(/\\s+/).filter(Boolean).map(function (w) {
+            try { return new RegExp(w, 'i'); } catch (err) { var l = w.toLowerCase(); return { test: function (t) { return t.toLowerCase().indexOf(l) >= 0; } }; }
+        });
+        return function (text) { return tokens.every(function (r) { return r.test(text); }); };
+    }
     document.querySelectorAll('[data-m-add]').forEach(function (b) {
         b.addEventListener('click', function () { api.postMessage({ command: 'manageAdd', kind: b.getAttribute('data-m-add') }); });
     });
@@ -491,16 +498,17 @@ function initManage(api) {
       /* the list that is shown: from outside or local */
       function act() { return locUl && !locUl.hidden ? locUl : outUl; }
       function apply() {
-        var words = box.value.toLowerCase().split(/\s+/).filter(Boolean), n = 0;
+        var test = filterTest(box.value), n = 0;
         Array.prototype.forEach.call(act().children, function (li) {
           var t = li.getAttribute('data-text') || '';
-          var show = words.every(function (w) { return t.indexOf(w) >= 0; });
+          var show = test(t);
           li.style.display = show ? '' : 'none';
           if (show) { n++; }
         });
         $(act() === locUl ? 'mLocCount' : 'mOutCount').textContent = String(n);
         $('mOutClear').classList.toggle('on', !!box.value);
       }
+      function save() { api.postMessage({ command: 'manageFilter', text: box.value }); }
       /* The keyboard, as in the list of members: the arrows move along the objects and the lines, Right and Left unfold and fold, Enter unfolds or goes to the line, O opens the definition */
       function stops() {
         return Array.prototype.filter.call(act().querySelectorAll('li.mobj > details > summary, li.mobj > .mflat, li.mobj > details[open] .mhit, li.mobj > details[open] .mparent'), function (e) {
@@ -542,9 +550,11 @@ function initManage(api) {
         apply();
       }
       if ($('mViewOut')) { $('mViewOut').addEventListener('click', function () { view(false); }); $('mViewLoc').addEventListener('click', function () { view(true); }); }
-      box.addEventListener('input', apply);
-      box.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { box.value = ''; apply(); } });
-      $('mOutClear').addEventListener('click', function () { box.value = ''; apply(); box.focus(); });
+      box.addEventListener('input', function () { apply(); save(); });
+      box.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { box.value = ''; apply(); save(); } });
+      $('mOutClear').addEventListener('click', function () { box.value = ''; apply(); save(); box.focus(); });
+      apply();
+      if (box.getAttribute('data-focus')) { box.focus(); box.select(); }
       window.addEventListener('message', function (ev) {
         var m = ev.data;
         if (!m || m.command !== 'outsideHits') { return; }
@@ -595,13 +605,12 @@ function initManage(api) {
     function apply(save) {
         var v = f.value.trim();
         var kind = $('mKind').value;
-        var rx = null, lit = '';
-        if (v) { try { rx = new RegExp(v, 'i'); } catch (err) { lit = v.toLowerCase(); } }
+        var test = filterTest(v);
         var rows = document.querySelectorAll('#mList .mrow');
         var shown = 0;
         rows.forEach(function (r) {
             var text = r.getAttribute('data-text') || '';
-            var ok = (!kind || r.getAttribute('data-kind') === kind) && (!v || (rx ? rx.test(text) : text.indexOf(lit) >= 0));
+            var ok = (!kind || r.getAttribute('data-kind') === kind) && (!v || test(text));
             r.style.display = ok ? '' : 'none';
             // what follows the row (its details, the routines declared in it) is shown with it
             var detail = r.nextElementSibling;

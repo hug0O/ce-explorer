@@ -29,7 +29,7 @@ const { UsedFilesIndex } = require('../services/UsedFilesIndex') as typeof impor
 const provider = {
     languageId: 'pascal',
     parseDocument: () => ({
-        classes: [{ name: 'TStore', classType: 'class', range: { start: { line: 2 } }, members: [{ name: 'Save', kind: 'method', range: { start: { line: 3 } } }] }],
+        classes: [{ name: 'TStore', classType: 'class', range: { start: { line: 2 } }, members: [{ name: 'Create', kind: 'constructor', range: { start: { line: 4 } } }, { name: 'Save', kind: 'method', range: { start: { line: 3 } } }, { name: 'Destroy', kind: 'destructor', range: { start: { line: 5 } } }] }],
         standaloneProcedures: [{ name: 'LoadAll', range: { start: { line: 9 } } }],
     }),
 };
@@ -43,6 +43,7 @@ test('only the files a file points to are read, from a listing of names, never o
     assert.deepEqual(calls.read, ['/proj/lib/UData.pas'], 'one file read among 20002, not the project');
     assert.equal(calls.find, 1, 'the names are listed once');
     assert.equal(calls.open, 0, 'no file is opened in the editor');
+    assert.ok(!a.some(s => s.name === 'Create' || s.name === 'Destroy'), 'a constructor and a destructor are not listed');
     assert.equal(a[2].line, 9);
     assert.equal(a[0].path, '/proj/lib/UData.pas');
 

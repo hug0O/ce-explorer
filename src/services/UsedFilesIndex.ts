@@ -88,7 +88,8 @@ export class UsedFilesIndex implements vscode.Disposable {
                 const parsed = provider.parseDocument(shimDocument(uri, provider.languageId, text));
                 for (const cls of parsed.classes) {
                     symbols.push({ name: cls.name, container: '', kind: cls.classType ?? 'class', line: cls.range.start.line });
-                    for (const m of cls.members) { symbols.push({ name: m.name, container: cls.name, kind: m.kind, line: (m.implementationRange ?? m.range).start.line }); }
+                    // a constructor or a destructor is `Create` / `Destroy` in every class: it says nothing about what the file uses, and it would be listed for each class
+                    for (const m of cls.members) { if (m.kind !== 'constructor' && m.kind !== 'destructor') { symbols.push({ name: m.name, container: cls.name, kind: m.kind, line: (m.implementationRange ?? m.range).start.line }); } }
                 }
                 for (const p of parsed.standaloneProcedures) { symbols.push({ name: p.name, container: '', kind: 'function', line: (p.implementationRange ?? p.range).start.line }); }
             } catch { /* a file the parser cannot read still has its constants and types */ }

@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.105 — 2026-11-05
+- **Used: no more constructors and destructors in the list.** `Create` and `Destroy` of every class of a used file are left out of *From outside* (and of the objects that the Structure filter finds in the used files): they are the same name in each class and said nothing about what the file uses.
+
 ## 0.1.104 — 2026-11-05
 - **Used: both lists are by method.** *From outside* and *Local* are now grouped by **routine of the open file**, each with an arrow that goes to it and the number of objects it holds. *From outside*: an object of another file is listed under **each routine that writes it**, with the lines of that routine only. *Local*: a variable, a parameter or a local routine is listed under **the routine that declares it**, written by its name (`I`, not `Run.I`); what belongs to the file itself is under **File**.
 - **The filter works by method.** The words are tried on the routine and on the object apart: typing the name of a routine shows **all its objects**, typing the name of an object shows it **under its routine**, both together narrow it down. There is no `routine.object` to type any more. The keyboard goes through the routines, the objects and the lines (Right and Left unfold and fold, Enter goes, O opens the definition of an object of another file).

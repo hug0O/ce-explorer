@@ -9,7 +9,6 @@ import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
 import { ExternalSymbol, OutsideUse, externalLabel, isUsed, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
-import { standardSymbols } from '../utils/stdlib';
 import { familyOfExtension } from '../utils/renameScan';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
@@ -1076,8 +1075,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const lang = this._state.provider?.languageId ?? doc.languageId;
         const refs = usedRefs(doc.getText(), lang, doc.uri.fsPath);
         const used = new Map<string, boolean>();
-        // the objects of the standard libraries (SysUtils, stdio.h, os...) come first: nobody indexed them, the files that use them have no source here
-        const list: ExternalSymbol[] = standardSymbols(lang, path.extname(doc.uri.fsPath), refs);
+        const list: ExternalSymbol[] = [];
         for (const s of symbols) {
             const id = s.uri.toString();
             if (id === doc.uri.toString()) { continue; }

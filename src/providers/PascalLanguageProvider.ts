@@ -720,9 +720,9 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
         const searchEnd = implementationStart > 0 ? implementationStart : text.length;
         const searchRegion = interfaceStart >= 0 ? text.substring(0, searchEnd) : text;
 
-        const classPattern = /(\w+)\s*=\s*class(?:\s*\(([^)]*)\))?/gi;
-        const interfaceTypePattern = /(\w+)\s*=\s*interface(?:\s*\(([^)]*)\))?/gi;
-        const recordPattern = /(\w+)\s*=\s*record/gi;
+        const classPattern = /(\w+)(?:\s*<[^=;]*>)?\s*=\s*class(?:\s*\(([^)]*)\))?/gi;
+        const interfaceTypePattern = /(\w+)(?:\s*<[^=;]*>)?\s*=\s*interface(?:\s*\(([^)]*)\))?/gi;
+        const recordPattern = /(\w+)(?:\s*<[^=;]*>)?\s*=\s*record/gi;
 
         let match: RegExpExecArray | null;
 
@@ -1099,7 +1099,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             if (!/^(?:class\s+)?(?:constructor|destructor|function|procedure)\b/i.test(trimmed)) { continue; }
             const header = this.routineHeader(lines, i);
             // even the dot can end a line: `procedure TFoo.` / `Bar(...)`
-            const start = header.match(/^(?:class\s+)?(constructor|destructor|function|procedure)\s+(T\w+)\s*\.\s*(\w+)\b/i);
+            const start = header.match(/^(?:class\s+)?(constructor|destructor|function|procedure)\s+(\w+)(?:\s*<[^.;()]*>)?\s*\.\s*(\w+)\b/i);
             if (!start) { continue; }
             const rest = header.slice(start[0].length);
             const kind = start[1].toLowerCase();
@@ -1181,7 +1181,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             if (/^end\.\s*$/i.test(trimmed)) break;
             if (isInsideClassBody(i)) { i++; continue; }
             // Skip class method implementations/declarations (TFoo.Bar)
-            if (/^\s*(?:procedure|function)\s+T\w+\./.test(trimmed)) { i++; continue; }
+            if (/^\s*(?:procedure|function)\s+\w+(?:\s*<[^.;()]*>)?\s*\./.test(trimmed)) { i++; continue; }
 
             const startMatch = trimmed.match(/^(procedure|function)\s+(\w+)\b/i);
             if (!startMatch) { i++; continue; }
@@ -1224,7 +1224,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
             while (i < lines.length) {
                 const trimmed = lines[i].trim();
                 if (/^end\.\s*$/i.test(trimmed)) break;
-                if (/^\s*(?:procedure|function)\s+T\w+\./.test(trimmed)) { i++; continue; }
+                if (/^\s*(?:procedure|function)\s+\w+(?:\s*<[^.;()]*>)?\s*\./.test(trimmed)) { i++; continue; }
                 const startMatch = trimmed.match(/^(procedure|function)\s+(\w+)\b/i);
                 if (!startMatch || known.has(startMatch[2].toLowerCase())) { i++; continue; }
 
@@ -1281,7 +1281,7 @@ export class PascalLanguageProvider extends BaseLanguageProvider {
                 for (let i = implStart; i < lines.length; i++) {
                     const trimmed = lines[i].trim();
                     if (/^end\.\s*$/i.test(trimmed)) break;
-                    if (/^\s*(?:procedure|function)\s+T\w+\./.test(trimmed)) continue;
+                    if (/^\s*(?:procedure|function)\s+\w+(?:\s*<[^.;()]*>)?\s*\./.test(trimmed)) continue;
                     if (pattern.test(trimmed)) {
                         const end = this.findImplementationEnd(lines, i);
                         implRange = new vscode.Range(

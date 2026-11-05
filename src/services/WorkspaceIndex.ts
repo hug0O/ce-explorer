@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ProviderRegistry } from '../providers/ProviderRegistry';
+import { topLevelDeclarations } from '../utils/declarations';
 
 export interface IndexedSymbol {
     name: string;
@@ -109,6 +110,13 @@ export class WorkspaceIndex implements vscode.Disposable {
             }
             for (const p of parsed.standaloneProcedures) {
                 symbols.push({ name: p.name, container: '', kind: 'function', uri, line: (p.implementationRange ?? p.range).start.line });
+            }
+            // constants, variables, types and enumeration values: what a unit exports besides its routines and classes
+            const have = new Set(symbols.map(x => x.name.toLowerCase()));
+            for (const d of topLevelDeclarations(doc.getText(), provider.languageId)) {
+                if (have.has(d.name.toLowerCase())) { continue; }
+                have.add(d.name.toLowerCase());
+                symbols.push({ name: d.name, container: '', kind: d.kind, uri, line: d.line });
             }
             this.files.set(uri.toString(), { uri, symbols });
         } catch {

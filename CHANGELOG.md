@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.101 — 2026-11-05
+- **Used: no more doubles.** An overloaded routine, a declaration written twice, the same unit copied in two folders, the same name in two cases are one object in the list.
+- **Used: the origin file and the method that uses the object, as in Structure.** The title says which file is looked at (*Used from outside Main.pas*). Unfolding an object shows, first, **where it is defined** (*↗ Defined in UData.pas, line 12*, a click opens it there), then **the routines of the open file that use it** (`in TForm1.Go`, a click goes to the routine) with, under each, its lines (a click on a line goes to it). The filter also reads the origin file and the names of those routines.
+- **Used: the keyboard, as in the list of members.** Up and Down move along the objects and the lines, Right and Left unfold and fold, Enter unfolds or goes to the line, **O** opens the definition of the object.
+
 ## 0.1.100 — 2026-11-05
 - **Used and the Structure filter read only the files the open file points to, not the project.** They no longer wait for an index of the whole workspace (which stopped at 3000 files and opened each one in the editor, one after the other). The names of the files are listed once (the search of the editor, a moment even for 20 000 files), the few files the open file uses (its `uses`, its `#include`, its imports: a few dozen) are read **without being opened** and a few at a time, and what was read is kept by the date of each file: the next time, or in the next file that uses the same ones, only what changed is read again. The cost follows the number of files a file uses, not the size of the project.
 - **A warning when *Go to member in the workspace* cuts the project**: it still indexes the first 3000 files only, and now says so.

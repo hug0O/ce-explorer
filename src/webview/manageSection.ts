@@ -82,7 +82,19 @@ export interface ManageView {
 }
 
 /** An object of another file that the code uses: where it is written, how many times, and the first line that uses it. */
-export interface OutsideRow { label: string; kind: string; count: number; line: number; uses: { line: number; text: string }[]; more: number; canOpen: boolean }
+export interface OutsideRow {
+    label: string;
+    kind: string;
+    count: number;
+    line: number;
+    /** The lines of the open file that write the object, each with the routine of the open file that holds it. */
+    uses: { line: number; text: string; parent?: string; parentLine?: number }[];
+    more: number;
+    canOpen: boolean;
+    /** The file the object is defined in and the line of its definition. */
+    originFile: string;
+    originLine: number;
+}
 
 /** An object of a file the current one uses: how it is written in the list, and what it is. */
 export type ExternalRow = OutsideRow;
@@ -191,6 +203,11 @@ export function manageCss(): string {
 .mcount { flex: none; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
 .mopen { flex: none; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 0 3px; font-size: 12px; }
 .mopen:hover { color: var(--vscode-foreground); }
+.muses .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muses .mparent:hover { text-decoration: underline; }
+.morigin { list-style: none; margin: 1px 0 2px; }
+.mopenwide { font-size: 11px; padding: 0 4px; }
+.kcur { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: -1px; }
 .muses { list-style: none; margin: 0 0 4px 16px; padding-left: 6px; border-left: 2px solid var(--vscode-focusBorder, #007fd4); }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
@@ -213,21 +230,28 @@ export function externalRowsHtml(rows: OutsideRow[]): string { return objectRows
 
 function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext'): string {
     return rows.map((r, i) => {
-        const open = r.canOpen ? `<button class="mopen" ${attr}="${i}" title="Open ${esc(r.label)} in its file">↗</button>` : '';
+        const open = r.canOpen ? `<button class="mopen" ${attr}="${i}" title="Open ${esc(r.label)} in ${esc(r.originFile)}">↗</button>` : '';
         const head = `<span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span>${r.count ? `<span class="mcount">×${r.count}</span>` : ''}${open}`;
-        const text = esc((r.label + ' ' + r.kind + ' ' + r.uses.map(u => u.text).join(' ')).toLowerCase());
+        const text = esc((r.label + ' ' + r.kind + ' ' + r.originFile + ' ' + r.uses.map(u => u.text + ' ' + (u.parent ?? '')).join(' ')).toLowerCase());
         // not written in this file (it matched the filter by its name): a plain row, with nothing to unfold
         if (!r.uses.length) { return `<li class="mobj" data-text="${text}"><div class="mflat">${head}</div></li>`; }
-        return `<li class="mobj" data-text="${text}"><details><summary title="Show the ${r.count} place(s) that write it">${head}</summary>`
-            + `<ul class="muses">${r.uses.map(u => `<li class="mhit" data-m-line="${u.line}" title="Go to line ${u.line + 1}"><span class="mln">${u.line + 1}</span><span class="mtx">${esc(u.text)}</span></li>`).join('')}`
-            + (r.more ? `<li class="mmore">… ${r.more} more line(s) not listed</li>` : '') + `</ul></details></li>`;
+        // inside: where it is defined, then the routines of the open file that use it, each with its lines (as the usages of a member in Structure)
+        let body = r.canOpen ? `<li class="morigin"><button class="mopen mopenwide" ${attr}="${i}" title="Open the definition">↗ Defined in <b>${esc(r.originFile)}</b>, line ${r.originLine + 1}</button></li>` : '';
+        let last: string | undefined;
+        for (const u of r.uses) {
+            if (u.parent !== undefined && u.parent !== last) { body += `<li class="mparent" data-m-line="${u.parentLine ?? u.line}" title="Go to ${esc(u.parent)}">in ${esc(u.parent)}</li>`; }
+            last = u.parent;
+            body += `<li class="mhit" data-m-line="${u.line}" title="Go to line ${u.line + 1}"><span class="mln">${u.line + 1}</span><span class="mtx">${esc(u.text)}</span></li>`;
+        }
+        if (r.more) { body += `<li class="mmore">… ${r.more} more line(s) not listed</li>`; }
+        return `<li class="mobj" data-text="${text}"><details><summary title="Show the ${r.count} place(s) that write it">${head}</summary><ul class="muses">${body}</ul></details></li>`;
     }).join('');
 }
 
 /** The page of the tab Used: what the code of the open file uses from other files, with its own filter. */
-export function outsidePageHtml(o: { rows: OutsideRow[]; ready: boolean }): string {
+export function outsidePageHtml(o: { rows: OutsideRow[]; ready: boolean; file?: string }): string {
     const note = !o.ready ? 'Reading the project...' : o.rows.length ? '' : 'The code uses nothing from the files it points to (or they hold nothing that is written here).';
-    return `<div class="section"><div class="section-title">Used from outside this file (<span id="mOutCount">${o.ready ? o.rows.length : '...'}</span>)</div>`
+    return `<div class="section"><div class="section-title" title="The objects of other files that the code of this file writes">Used from outside ${o.file ? esc(o.file) : 'this file'} (<span id="mOutCount">${o.ready ? o.rows.length : '...'}</span>)</div>`
         + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: file, object, kind, a word of the line...">`
         + `<button class="mclear" id="mOutClear" title="Clear the filter">×</button></div>`
         + `<div class="mnote" id="mOutNote">${esc(note)}</div>`
@@ -461,6 +485,38 @@ function initManage(api) {
         $('mOutCount').textContent = String(n);
         $('mOutClear').classList.toggle('on', !!box.value);
       }
+      /* The keyboard, as in the list of members: the arrows move along the objects and the lines, Right and Left unfold and fold, Enter unfolds or goes to the line, O opens the definition */
+      function stops() {
+        return Array.prototype.filter.call(ul.querySelectorAll('li.mobj > details > summary, li.mobj > .mflat, li.mobj > details[open] .mhit, li.mobj > details[open] .mparent'), function (e) {
+          var li = e.closest('li.mobj'); return li && li.style.display !== 'none';
+        });
+      }
+      function mark(e) {
+        ul.querySelectorAll('.kcur').forEach(function (x) { x.classList.remove('kcur'); });
+        if (e) { e.classList.add('kcur'); if (e.scrollIntoView) { e.scrollIntoView({ block: 'nearest' }); } }
+      }
+      document.addEventListener('keydown', function (ev) {
+        var t = ev.target, tag = t && t.tagName;
+        if ((tag === 'INPUT' && t.id !== 'mOutFilter') || tag === 'SELECT' || tag === 'TEXTAREA' || ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
+        var list = stops(), at = list.indexOf(ul.querySelector('.kcur'));
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          if (!list.length) { return; }
+          at = ev.key === 'ArrowDown' ? Math.min(list.length - 1, at + 1) : Math.max(0, at < 0 ? 0 : at - 1);
+          mark(list[at]); ev.preventDefault(); return;
+        }
+        var cur = list[at];
+        if (!cur) { return; }
+        var det = cur.tagName === 'SUMMARY' ? cur.parentNode : null;
+        if (ev.key === 'ArrowRight' && det) { det.open = true; ev.preventDefault(); }
+        else if (ev.key === 'ArrowLeft') { var d = cur.closest('details'); if (d) { d.open = false; mark(d.querySelector('summary')); ev.preventDefault(); } }
+        else if (ev.key === 'Enter') {
+          if (det) { det.open = !det.open; } else if (cur.getAttribute('data-m-line') !== null) { api.postMessage({ command: 'manageLine', line: Number(cur.getAttribute('data-m-line')) }); }
+          ev.preventDefault();
+        } else if (ev.key === 'o' || ev.key === 'O') {
+          if (tag === 'INPUT') { return; }
+          var b = cur.closest('li.mobj').querySelector('[data-out], [data-ext]'); if (b) { b.click(); ev.preventDefault(); }
+        }
+      });
       box.addEventListener('input', apply);
       box.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { box.value = ''; apply(); } });
       $('mOutClear').addEventListener('click', function () { box.value = ''; apply(); box.focus(); });

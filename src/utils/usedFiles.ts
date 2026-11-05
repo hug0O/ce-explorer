@@ -89,7 +89,7 @@ export interface OutsideUse {
     count: number;
     line: number;
     /** The lines that write it (the first ones), with their text, to show where the object is used. */
-    uses: { line: number; text: string }[];
+    uses: { line: number; text: string; parent?: string; parentLine?: number }[];
     /** How many more lines than the ones in `uses`. */
     more: number;
 }
@@ -124,12 +124,25 @@ export function usedFromOutside(text: string, family: CodeFamily | undefined, li
     const out: OutsideUse[] = [];
     const seen = new Set<string>();
     for (const s of list) {
-        if (s.name.length < 2 || seen.has(s.label)) { continue; }
+        if (s.name.length < 2 || seen.has(s.label.toLowerCase())) { continue; }
         const e = (s.container ? dotted : plain).get(s.name.toLowerCase());
         if (e) {
-            seen.add(s.label);
+            seen.add(s.label.toLowerCase());
             out.push({ symbol: s, count: e.count, line: e.line, uses: e.lines.slice(0, MAX_USE_LINES).map(l => ({ line: l, text: (src[l] ?? '').trim().slice(0, 200) })), more: Math.max(0, e.lines.length - MAX_USE_LINES) });
         }
     }
     return out.sort((a, b) => a.symbol.label.localeCompare(b.symbol.label)).slice(0, max);
+}
+
+export interface RoutineRange { name: string; start: number; end: number }
+
+/** The lines of use with the routine that holds each one (the smallest that contains it) and where that routine starts: `T.Go`, line 12. */
+export function attachParents<U extends { line: number }>(uses: U[], ranges: readonly RoutineRange[]): (U & { parent?: string; parentLine?: number })[] {
+    return uses.map(u => {
+        let best: RoutineRange | undefined;
+        for (const r of ranges) {
+            if (u.line >= r.start && u.line <= r.end && (!best || r.end - r.start < best.end - best.start)) { best = r; }
+        }
+        return best ? { ...u, parent: best.name, parentLine: best.start } : { ...u };
+    });
 }

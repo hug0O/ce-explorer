@@ -41,9 +41,9 @@ const base = { typeOptions: [{ id: 'c', label: 'T' }], selectedType: 'c', isFile
 
 test('Structure lists what the filter finds in the used files, each object opens to the lines of this file that write it', () => {
     const rows = [
-        { label: 'UData.TStore.Save', kind: 'method', count: 2, line: 4, uses: [{ line: 4, text: 'Store.Save;' }, { line: 9, text: 'Store.Save;' }], more: 0, canOpen: true },
-        { label: 'UData.SaveAll', kind: 'function', count: 0, line: 0, uses: [], more: 0, canOpen: true },
-        { label: 'System.SysUtils.Format', kind: 'function', count: 1, line: 1, uses: [{ line: 1, text: "s := Format('%d', [n]);" }], more: 0, canOpen: false },
+        { label: 'UData.TStore.Save', kind: 'method', count: 2, line: 4, uses: [{ line: 4, text: 'Store.Save;' }, { line: 9, text: 'Store.Save;' }], more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 },
+        { label: 'UData.SaveAll', kind: 'function', count: 0, line: 0, uses: [], more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 },
+        { label: 'System.SysUtils.Format', kind: 'function', count: 1, line: 1, uses: [{ line: 1, text: "s := Format('%d', [n]);" }], more: 0, canOpen: false, originFile: '', originLine: 0 },
     ];
     const html = manageListHtml({ ...base, external: rows });
     assert.match(html, /<div id="mExtBox"><div class="mgroup" id="mExtTitle"[^>]*>From the files it uses \(3\)<\/div>/);
@@ -52,7 +52,7 @@ test('Structure lists what the filter finds in the used files, each object opens
     assert.match(html, /<div class="mflat"><span class="mln">function<\/span><span class="mtx">UData\.SaveAll<\/span><button class="mopen" data-ext="1"/, 'one that is not written here is a plain row');
     assert.ok(!html.includes('data-ext="2"'), 'a standard library has no file to open');
     assert.match(manageListHtml(base), /<div id="mExtBox" hidden>/, 'nothing typed or found: the block is hidden');
-    assert.equal(externalRowsHtml([{ label: '<b>', kind: 'x', count: 0, line: 0, uses: [], more: 0, canOpen: true }]).includes('<b>'), false, 'what is written is escaped');
+    assert.equal(externalRowsHtml([{ label: '<b>', kind: 'x', count: 0, line: 0, uses: [], more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 }]).includes('<b>'), false, 'what is written is escaped');
 });
 
 test('the shortcut and the command that open Structure filtered on the element under the cursor', () => {
@@ -94,22 +94,51 @@ test('what the code uses from the other files: the objects whose name it writes,
 });
 
 test('the tab Used lists the objects with their own filter, a row opens to the lines that write it and the arrow opens the definition', () => {
-    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3, canOpen: true }];
+    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3, canOpen: true, originFile: 'UData.pas', originLine: 11 }];
     const html = outsidePageHtml({ rows, ready: true });
     assert.match(html, /Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
     assert.match(html, /<input id="mOutFilter" class="inp"/);
-    assert.match(html, /<li class="mobj" data-text="udata\.loadall function loadall; loadall;"><details>/, 'the filter reads the file, the object, the kind and the lines');
+    assert.match(html, /<li class="mobj" data-text="udata\.loadall function udata\.pas [^"]*loadall;[^"]*"><details>/, 'the filter reads the object, the kind, the origin file and the lines');
+    assert.match(html, /<li class="morigin"><button class="mopen mopenwide" data-out="0"[^>]*>↗ Defined in <b>UData\.pas<\/b>, line 12<\/button><\/li>/, 'the origin file, as a way to open the definition');
     assert.match(html, /<span class="mcount">×2<\/span><button class="mopen" data-out="0"/);
     assert.match(html, /<li class="mhit" data-m-line="2" title="Go to line 3"><span class="mln">3<\/span><span class="mtx">LoadAll;<\/span><\/li>/, 'a line of use goes to that line of the code');
     assert.match(html, /<li class="mhit" data-m-line="7"/);
     assert.match(html, /… 3 more line\(s\) not listed/);
     assert.match(outsidePageHtml({ rows: [], ready: false }), /Reading the project\.\.\./);
-    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0, canOpen: true }]).includes('<'), true);
-    assert.equal(/<i>|<b>/.test(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0, canOpen: true }])), false, 'what is written is escaped');
+    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<s>' }], more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 }]).includes('<'), true);
+    assert.equal(/<i>|<s>/.test(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<s>' }], more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 }])), false, 'what is written is escaped');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8');
     assert.match(panel, /export type SidebarTab = 'manage' \| 'outside'/);
     assert.match(panel, /case 'openOutside'/);
     assert.match(panel, /tab\('outside', 'Used'/, 'a tab of the header, not a block under the list');
     assert.ok(!/outsideNow/.test(panel), 'the block under the member list is gone');
     assert.match(fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8'), /m\.command !== 'outsideHits'/);
+});
+
+import { attachParents } from '../utils/usedFiles';
+
+test('each line of use comes with the routine of the open file that holds it, and the lines are grouped under it as in Structure', () => {
+    const ranges = [{ name: 'TForm1.Go', start: 10, end: 20 }, { name: 'TForm1.Stop', start: 22, end: 30 }, { name: 'Outer', start: 0, end: 40 }];
+    const uses = attachParents([{ line: 12, text: 'LoadAll;' }, { line: 15, text: 'LoadAll(1);' }, { line: 25, text: 'LoadAll;' }, { line: 35, text: 'LoadAll;' }, { line: 90, text: 'LoadAll;' }], ranges);
+    assert.deepEqual(uses.map(u => u.parent), ['TForm1.Go', 'TForm1.Go', 'TForm1.Stop', 'Outer', undefined], 'the smallest routine that holds the line');
+    assert.equal(uses[0].parentLine, 10);
+    const row = { label: 'UData.LoadAll', kind: 'function', count: 5, line: 12, uses, more: 0, canOpen: true, originFile: 'UData.pas', originLine: 11 };
+    const html = outsideRowsHtml([row]);
+    assert.equal((html.match(/class="mparent"/g) ?? []).length, 3, 'one header per run of lines in the same routine');
+    assert.match(html, /<li class="mparent" data-m-line="10" title="Go to TForm1\.Go">in TForm1\.Go<\/li><li class="mhit" data-m-line="12"[^>]*>[^]*<li class="mhit" data-m-line="15"/);
+    assert.match(html, /<li class="mparent" data-m-line="22" title="Go to TForm1\.Stop">in TForm1\.Stop<\/li><li class="mhit" data-m-line="25"/);
+    assert.ok(html.indexOf('morigin') < html.indexOf('class="mparent"'), 'the origin comes first');
+    assert.match(outsidePageHtml({ rows: [row], ready: true, file: 'Main.pas' }), /Used from outside Main\.pas \(/, 'the open file is named');
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8');
+    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', "'Enter'"]) { assert.ok(panel.includes(key), key + ' moves along the list'); }
+});
+
+test('the same object is listed once: overloads, a declaration written twice, a copy of the unit, any case', () => {
+    const list = [
+        { label: 'UData.Log', name: 'Log', container: '', kind: 'function', path: '/a/UData.pas', line: 3 },
+        { label: 'udata.LOG', name: 'LOG', container: '', kind: 'function', path: '/b/udata.pas', line: 9 },
+    ];
+    const r = usedFromOutside('Log(1); log(2);', familyOf('pascal'), list);
+    assert.equal(r.length, 1);
+    assert.equal(r[0].count, 2);
 });

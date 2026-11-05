@@ -8,7 +8,7 @@ import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
-import { ExternalSymbol, OutsideUse, UsedRefs, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
+import { ExternalSymbol, OutsideUse, UsedRefs, attachParents, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
 import { familyOfExtension } from '../utils/renameScan';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
@@ -1112,7 +1112,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const uses = new Map(doc ? usedFromOutside(doc.getText(), familyOfExtension(path.extname(doc.uri.fsPath), lang), symbols).map(u => [u.symbol.label, u] as const) : []);
         return symbols.map(s => {
             const u = uses.get(s.label);
-            return { label: s.label, kind: s.kind, count: u?.count ?? 0, line: u?.line ?? 0, uses: u?.uses ?? [], more: u?.more ?? 0, canOpen: !!s.path };
+            return { label: s.label, kind: s.kind, count: u?.count ?? 0, line: u?.line ?? 0, uses: attachParents(u?.uses ?? [], this.parentRanges()), more: u?.more ?? 0, canOpen: !!s.path, originFile: path.basename(s.path), originLine: s.line };
         });
     }
 
@@ -1156,7 +1156,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** One row of the page Used, from what the code writes. */
     private outsideRow(r: OutsideUse): OutsideRow {
-        return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: r.uses, more: r.more, canOpen: !!r.symbol.path };
+        return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: attachParents(r.uses, this.parentRanges()), more: r.more, canOpen: !!r.symbol.path, originFile: path.basename(r.symbol.path), originLine: r.symbol.line };
     }
 
     /** The page of the tab Used: what the code uses from the files it points to. Those files are read the first time (the page says so and fills itself). */
@@ -1165,7 +1165,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (!index || !vscode.window.activeTextEditor) { return outsidePageHtml({ rows: [], ready: !!index }); }
         if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false }); }
         this._outRows = this.outsideList();
-        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true });
+        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true, file: path.basename(vscode.window.activeTextEditor.document.uri.fsPath) });
     }
 
     /** Sends the page the list of what is used from outside. */

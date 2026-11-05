@@ -92,6 +92,11 @@ export class UsedFilesIndex implements vscode.Disposable {
                 }
                 for (const p of parsed.standaloneProcedures) { symbols.push({ name: p.name, container: '', kind: 'function', line: (p.implementationRange ?? p.range).start.line }); }
             } catch { /* a file the parser cannot read still has its constants and types */ }
+            // overloads and a declaration written twice are one object
+            const once = new Set<string>();
+            const unique = symbols.filter(x => { const k = (x.container + '.' + x.name).toLowerCase(); if (once.has(k)) { return false; } once.add(k); return true; });
+            symbols.length = 0;
+            symbols.push(...unique);
             const have = new Set(symbols.map(s => s.name.toLowerCase()));
             for (const d of topLevelDeclarations(text, provider.languageId)) {
                 if (!have.has(d.name.toLowerCase())) { have.add(d.name.toLowerCase()); symbols.push({ name: d.name, container: '', kind: d.kind, line: d.line }); }
@@ -113,7 +118,14 @@ export class UsedFilesIndex implements vscode.Disposable {
             perFile.set(uri.fsPath, list);
         });
         // the files in the order they were listed, whatever the order they were read in
-        for (const uri of used) { out.push(...(perFile.get(uri.fsPath) ?? [])); }
+        // the same unit twice in the project (a copy) is listed once
+        const seen = new Set<string>();
+        for (const uri of used) {
+            for (const sym of perFile.get(uri.fsPath) ?? []) {
+                const key = sym.label.toLowerCase();
+                if (!seen.has(key)) { seen.add(key); out.push(sym); }
+            }
+        }
         return out;
     }
 }

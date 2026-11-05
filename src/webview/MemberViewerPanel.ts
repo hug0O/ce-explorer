@@ -10,6 +10,8 @@ import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
 import { ExternalSymbol, OutsideUse, UsedRefs, attachParents, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
 import { familyOfExtension } from '../utils/renameScan';
+import { topLevelDeclarations } from '../utils/declarations';
+import { LocalDecl, localUses } from '../utils/localObjects';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
 import { buildExportData, ExportData } from '../services/ExportService';
@@ -272,6 +274,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'openExternal': await this.openExternal(Number(msg.index)); break;
                 case 'openOutside': await this.openOutside(Number(msg.index)); break;
+                case 'usedView': this._usedView = msg.view === 'local' ? 'local' : 'outside'; break;
                 case 'manageFilter':
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
                     void this.postExternal();
@@ -1159,13 +1162,58 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: attachParents(r.uses, this.parentRanges()), more: r.more, canOpen: !!r.symbol.path, originFile: path.basename(r.symbol.path), originLine: r.symbol.line };
     }
 
-    /** The page of the tab Used: what the code uses from the files it points to. Those files are read the first time (the page says so and fills itself). */
+    /** What the tab Used shows: the objects of the other files, or the ones of the open file. */
+    private _usedView: 'outside' | 'local' = 'outside';
+    private _localCache: { key: string; rows: OutsideRow[] } | undefined;
+
+    /**
+     * What belongs to the open file, with the lines that use it: the local variables and parameters of each routine, the routines declared inside
+     * another one, the variables, constants, types and routines of the file itself. Read from the parser of the language and the scope of each routine.
+     */
+    private localRows(): OutsideRow[] {
+        const doc = vscode.window.activeTextEditor?.document;
+        const provider = this._state.provider;
+        if (!doc || !provider || typeof doc.getText !== 'function') { return []; }
+        const key = doc.uri.toString() + '|' + doc.version;
+        if (this._localCache?.key === key) { return this._localCache.rows; }
+        const text = doc.getText();
+        const ctx = this.manageContext();
+        const decls: LocalDecl[] = [];
+        const routine = (m: ClassMember, owner?: string): void => {
+            if (m.kind === MemberKind.Field || m.kind === MemberKind.Property) { return; }
+            const body = m.implementationRange ?? m.range;
+            const scope = { name: owner ? owner + '.' + m.name : m.name, start: body.start.line, end: body.end.line };
+            let locals: { name: string; isParam?: boolean; declarationRange: { start: { line: number } } }[] = [];
+            try { locals = this._scopeAnalyzer.getScope(doc, provider, m)?.locals ?? []; } catch { locals = []; }
+            for (const l of locals) { decls.push({ name: l.name, kind: l.isParam ? 'parameter' : 'variable', line: l.declarationRange.start.line, scope }); }
+            for (const n of m.nested ?? []) { decls.push({ name: n.name, kind: n.kind, line: n.line, scope }); }
+        };
+        for (const c of ctx.classes) { for (const m of c.members) { routine(m, c.name && !c.isSynthetic ? c.name : undefined); } }
+        for (const m of ctx.standalone) {
+            routine(m);
+            decls.push({ name: m.name, kind: 'function', line: (m.implementationRange ?? m.range).start.line, skipLines: [m.range.start.line] });
+        }
+        for (const d of topLevelDeclarations(text, provider.languageId, true)) { decls.push({ name: d.name, kind: d.kind, line: d.line }); }
+        const rows = localUses(text, familyOfExtension(path.extname(doc.uri.fsPath), provider.languageId), decls, this.parentRanges()).map(u => ({
+            label: u.label, kind: u.decl.kind, count: u.count, line: u.line, uses: u.uses, more: u.more, canOpen: false, originFile: '', originLine: u.decl.line,
+            declared: { text: u.decl.scope ? `Declared in ${u.decl.scope.name}, line ${u.decl.line + 1}` : `Declared at line ${u.decl.line + 1}`, line: u.decl.line },
+        }));
+        this._localCache = { key, rows };
+        return rows;
+    }
+
+    /** The page of the tab Used: what the code uses from the files it points to (read the first time: the page says so and fills itself), and what belongs to the file. */
     private getOutsideHtml(): string {
         const index = ops.getUsedFilesIndex();
-        if (!index || !vscode.window.activeTextEditor) { return outsidePageHtml({ rows: [], ready: !!index }); }
-        if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false }); }
+        const doc = vscode.window.activeTextEditor?.document;
+        const local = this.localRows();
+        const view = this._usedView;
+        if (!doc) { return outsidePageHtml({ rows: [], ready: true, local, view }); }
+        const file = path.basename(doc.uri.fsPath);
+        if (!index) { return outsidePageHtml({ rows: [], ready: true, file, local, view }); }
+        if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false, file, local, view }); }
         this._outRows = this.outsideList();
-        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true, file: path.basename(vscode.window.activeTextEditor.document.uri.fsPath) });
+        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true, file, local, view });
     }
 
     /** Sends the page the list of what is used from outside. */

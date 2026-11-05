@@ -96,7 +96,7 @@ test('what the code uses from the other files: the objects whose name it writes,
 test('the tab Used lists the objects with their own filter, a row opens to the lines that write it and the arrow opens the definition', () => {
     const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3, canOpen: true, originFile: 'UData.pas', originLine: 11 }];
     const html = outsidePageHtml({ rows, ready: true });
-    assert.match(html, /Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
+    assert.match(html, /From outside \(<span id="mOutCount">1<\/span>\)/);
     assert.match(html, /<input id="mOutFilter" class="inp"/);
     assert.match(html, /<li class="mobj" data-text="udata\.loadall function udata\.pas [^"]*loadall;[^"]*"><details>/, 'the filter reads the object, the kind, the origin file and the lines');
     assert.match(html, /<li class="morigin"><button class="mopen mopenwide" data-out="0"[^>]*>↗ Defined in <b>UData\.pas<\/b>, line 12<\/button><\/li>/, 'the origin file, as a way to open the definition');
@@ -128,7 +128,7 @@ test('each line of use comes with the routine of the open file that holds it, an
     assert.match(html, /<li class="mparent" data-m-line="10" title="Go to TForm1\.Go">in TForm1\.Go<\/li><li class="mhit" data-m-line="12"[^>]*>[^]*<li class="mhit" data-m-line="15"/);
     assert.match(html, /<li class="mparent" data-m-line="22" title="Go to TForm1\.Stop">in TForm1\.Stop<\/li><li class="mhit" data-m-line="25"/);
     assert.ok(html.indexOf('morigin') < html.indexOf('class="mparent"'), 'the origin comes first');
-    assert.match(outsidePageHtml({ rows: [row], ready: true, file: 'Main.pas' }), /Used from outside Main\.pas \(/, 'the open file is named');
+    assert.match(outsidePageHtml({ rows: [row], ready: true, file: 'Main.pas' }), /title="The objects of the other files that Main\.pas writes"/, 'the open file is named');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8');
     for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', "'Enter'"]) { assert.ok(panel.includes(key), key + ' moves along the list'); }
 });

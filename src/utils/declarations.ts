@@ -13,19 +13,27 @@ export interface Declaration { name: string; kind: string; line: number }
 const SECTION = /^(type|const|var|threadvar|resourcestring)\b/i;
 
 /** The constants, variables, types and enumeration values of the interface of a Pascal unit (and of a program). */
-function pascalDeclarations(text: string): Declaration[] {
+function pascalDeclarations(text: string, all: boolean): Declaration[] {
     const code = maskCode(text, familyOf('pascal')!);
     const lines = code.split(/\r?\n/);
     const impl = lines.findIndex(l => /^\s*implementation\b/i.test(l));
-    const end = impl >= 0 ? impl : lines.length;
+    // `all`: the implementation too (what the unit keeps for itself), without the bodies of its routines
+    const end = impl >= 0 && !all ? impl : lines.length;
     const start = Math.max(0, lines.findIndex(l => /^\s*interface\b/i.test(l)));
     const out: Declaration[] = [];
     let section = '';
     let depth = 0;
+    let inRoutine = false;
     for (let i = start; i < end; i++) {
         const l = lines[i];
         const t = l.trim();
         if (!t) { continue; }
+        if (all && impl >= 0 && i > impl) {
+            if (/^end\.\s*$/i.test(t)) { break; }
+            // a routine of the unit starts and ends at the first column: what is declared inside it belongs to it
+            if (inRoutine) { if (/^end;\s*$/.test(l)) { inRoutine = false; } continue; }
+            if (/^(?:class\s+)?(?:procedure|function|constructor|destructor)\b/i.test(l)) { inRoutine = true; section = ''; continue; }
+        }
         const sec = SECTION.exec(t);
         if (depth === 0 && sec) { section = sec[1].toLowerCase(); }
         else if (depth === 0 && /^(procedure|function|constructor|destructor|class\s+(procedure|function)|uses|initialization|finalization|implementation|interface)\b/i.test(t)) { section = ''; continue; }
@@ -119,7 +127,7 @@ function otherDeclarations(text: string, languageId: string): Declaration[] {
     return out;
 }
 
-/** The constants, variables, types and enumeration values at the top level of a file. */
-export function topLevelDeclarations(text: string, languageId: string): Declaration[] {
-    return languageId === 'pascal' ? pascalDeclarations(text) : otherDeclarations(text, languageId);
+/** The constants, variables, types and enumeration values at the top level of a file; `all`: for Pascal, what the implementation declares too. */
+export function topLevelDeclarations(text: string, languageId: string, all = false): Declaration[] {
+    return languageId === 'pascal' ? pascalDeclarations(text, all) : otherDeclarations(text, languageId);
 }

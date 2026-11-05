@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.102 — 2026-11-05
+- **Used: the local functions and variables, the same way.** The tab has a switch, **From outside | Local**, with one filter for both. *Local* lists what belongs to the open file: the **local variables and parameters** of each routine, the **routines declared inside another one**, and the **variables, constants, types and routines of the file itself** (for a Pascal unit, what the implementation declares too, not what is inside a routine). Each object opens like the others: **where it is declared** (*↗ Declared in TForm1.Go, line 12*, a click goes there), then **the routines of the file that use it** with their lines. A local object is looked for **inside its own routine only** (`I` of one routine is not `I` of another) and an object that nothing uses is listed with no line, which shows the unused variables. The choice of the list is remembered; the keyboard (arrows, Right / Left, Enter) works on both.
+
 ## 0.1.101 — 2026-11-05
 - **Used: no more doubles.** An overloaded routine, a declaration written twice, the same unit copied in two folders, the same name in two cases are one object in the list.
 - **Used: the origin file and the method that uses the object, as in Structure.** The title says which file is looked at (*Used from outside Main.pas*). Unfolding an object shows, first, **where it is defined** (*↗ Defined in UData.pas, line 12*, a click opens it there), then **the routines of the open file that use it** (`in TForm1.Go`, a click goes to the routine) with, under each, its lines (a click on a line goes to it). The filter also reads the origin file and the names of those routines.

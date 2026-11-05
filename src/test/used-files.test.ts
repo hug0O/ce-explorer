@@ -23,7 +23,7 @@ test('the files a source points to are read in every language: units, includes, 
     assert.ok(isUsed(go, '/p/store/db.go') && !isUsed(go, '/p/other/db.go'));
 });
 
-const sym = (file: string, container: string, name: string, kind = 'method'): ExternalSymbol => ({ label: externalLabel(file, container, name), name, kind, path: file, line: 3 });
+const sym = (file: string, container: string, name: string, kind = 'method'): ExternalSymbol => ({ label: externalLabel(file, container, name), name, container, kind, path: file, line: 3 });
 
 test('an object of a used file is written <file>.<object> and found by the filter, the exact name first', () => {
     const list = [sym('C:/p/UData.pas', 'TStore', 'Save'), sym('C:/p/UData.pas', '', 'SaveAll', 'function'), sym('C:/p/UTools.pas', '', 'Format', 'function'), sym('/p/lib/store.ts', 'Store', 'save')];
@@ -59,4 +59,43 @@ test('the shortcut and the command that open Structure filtered on the element u
     assert.match(panel, /case 'openExternal'/);
     assert.match(panel, /void this\.postExternal\(\);/);
     assert.match(fs.readFileSync(path.join(root, 'src', 'services', 'WorkspaceIndex.ts'), 'utf8'), /get ready\(\): boolean/);
+});
+
+import { usedFromOutside } from '../utils/usedFiles';
+import { outsideRowsHtml } from '../webview/manageSection';
+import { familyOf } from '../utils/callGraph';
+
+test('what the code uses from the other files: the objects whose name it writes, a member only after a dot, comments and strings left out', () => {
+    const list = [
+        sym('C:/p/UData.pas', '', 'LoadAll', 'function'), sym('C:/p/UData.pas', 'TStore', 'Save'), sym('C:/p/UData.pas', 'TStore', 'Text'),
+        sym('C:/p/UTools.pas', '', 'Format', 'function'), sym('C:/p/UTools.pas', '', 'Unused', 'function'), sym('C:/p/UTools.pas', '', 'Commented', 'function'),
+        sym('C:/p/UTools.pas', '', 'InString', 'function'),
+    ];
+    const code = [
+        'procedure T.Go;', 'begin', "  LoadAll;", "  Store.Save;", "  Text := 'x';", "  s := Format('%d', [1]); // Commented here", "  Log('InString');", "  loadall;", 'end;',
+    ].join('\n');
+    const r = usedFromOutside(code, familyOf('pascal'), list);
+    assert.deepEqual(r.map(u => u.symbol.label), ['UData.LoadAll', 'UData.TStore.Save', 'UTools.Format']);
+    const load = r.find(u => u.symbol.name === 'LoadAll')!;
+    assert.equal(load.count, 2, 'written twice, in any case');
+    assert.equal(load.line, 2, 'the first one is on the third line');
+    assert.ok(!r.some(u => u.symbol.name === 'Text'), 'a member whose name is written alone is not a use');
+    assert.deepEqual(usedFromOutside('x', undefined, []), []);
+    assert.equal(usedFromOutside('a->Save(); b::Save();', familyOf('cpp'), [sym('/p/s.h', 'Store', 'Save')])[0].count, 2, 'a member after -> or ::');
+});
+
+test('the block of what is used from outside has its own filter, its rows go to the definition and the count to the first use, and it opens on demand', () => {
+    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2 }];
+    const html = manageListHtml({ ...base, outside: { rows, open: true, ready: true } });
+    assert.match(html, /<details class="mdet mout" data-fold="outside" open><summary[^>]*>Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
+    assert.match(html, /<input id="mOutFilter" class="inp"/);
+    assert.match(html, /data-out="0" data-text="udata\.loadall function"/);
+    assert.match(html, /<span class="mcount" data-m-line="2"[^>]*>×2<\/span>/);
+    const closed = manageListHtml({ ...base, outside: { rows: [], open: false, ready: false } });
+    assert.match(closed, /data-fold="outside"><summary[^>]*>Used from outside this file \(<span id="mOutCount">\.\.\.<\/span>\)/);
+    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0 }]).includes('<i>'), false);
+    const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8');
+    assert.match(panel, /case 'openOutside'/);
+    assert.match(panel, /msg\.key === 'outside' && msg\.open === true\) \{ void this\.postOutside\(\);/, 'the list is read when the block is opened');
+    assert.match(fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8'), /m\.command !== 'outsideHits'/);
 });

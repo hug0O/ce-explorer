@@ -8,7 +8,8 @@ import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
-import { ExternalSymbol, externalLabel, isUsed, matchExternal, usedRefs } from '../utils/usedFiles';
+import { ExternalSymbol, OutsideUse, externalLabel, isUsed, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
+import { familyOfExtension } from '../utils/renameScan';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
 import { buildExportData, ExportData } from '../services/ExportService';
@@ -117,7 +118,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _shortcutFilter = '';
     private _delphiSeen = false;
     // Blocks under the selected member that are unfolded (kept between redraws).
-    private _folds = { used: true, vars: true, find: true, events: true };
+    private _folds = { used: true, vars: true, find: true, events: true, outside: false };
     private _dfmCache: { path: string; mtime: number; text: string } | undefined;
     private _hiLine?: vscode.TextEditorDecorationType;
     private _hiUse?: vscode.TextEditorDecorationType;
@@ -270,6 +271,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
                 case 'openExternal': await this.openExternal(Number(msg.index)); break;
+                case 'openOutside': await this.openOutside(Number(msg.index)); break;
                 case 'manageFilter':
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
                     void this.postExternal();
@@ -280,7 +282,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
                 case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
                 case 'manageLine': this.handleManageLine(Number(msg.line)); break;
-                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find' || msg.key === 'events') { this._folds[msg.key as 'used' | 'vars' | 'find' | 'events'] = msg.open === true; } break;
+                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find' || msg.key === 'events' || msg.key === 'outside') { this._folds[msg.key as 'used' | 'vars' | 'find' | 'events' | 'outside'] = msg.open === true; if (msg.key === 'outside' && msg.open === true) { void this.postOutside(); } } break;
                 case 'manageSearch': this.handleMemberSearch(String(msg.text ?? '')); break;
                 case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
@@ -1071,7 +1073,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
             if (id === doc.uri.toString()) { continue; }
             let ok = used.get(id);
             if (ok === undefined) { ok = isUsed(refs, s.uri.fsPath); used.set(id, ok); }
-            if (ok) { list.push({ label: externalLabel(s.uri.fsPath, s.container, s.name), name: s.name, kind: s.kind, path: s.uri.fsPath, line: s.line }); }
+            if (ok) { list.push({ label: externalLabel(s.uri.fsPath, s.container, s.name), name: s.name, container: s.container, kind: s.kind, path: s.uri.fsPath, line: s.line }); }
         }
         this._extCache = { key, list };
         return list;
@@ -1095,13 +1097,57 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         void this._view?.webview.postMessage({ command: 'externalHits', hits: this._extHits.map(h => ({ label: h.label, kind: h.kind })) });
     }
 
+    private async openAt(file: string, line: number): Promise<void> {
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+        const pos = new vscode.Position(Math.min(line, Math.max(0, doc.lineCount - 1)), 0);
+        await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
+    }
+
     /** A click on an object of a used file: its file opens at the object. */
     private async openExternal(i: number): Promise<void> {
         const hit = Number.isInteger(i) ? this._extHits[i] : undefined;
-        if (!hit) { return; }
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(hit.path));
-        const pos = new vscode.Position(Math.min(hit.line, Math.max(0, doc.lineCount - 1)), 0);
-        await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
+        if (hit) { await this.openAt(hit.path, hit.line); }
+    }
+
+    /** What the code of the open file writes that comes from the other files, once per version of the text and of the index. */
+    private _outRows: OutsideUse[] = [];
+    private _outCache: { key: string; rows: OutsideUse[] } | undefined;
+
+    private outsideList(): OutsideUse[] {
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!doc) { return []; }
+        const list = this.externalList();
+        const key = doc.uri.toString() + '|' + doc.version + '|' + list.length;
+        if (this._outCache?.key === key) { return this._outCache.rows; }
+        const lang = this._state.provider?.languageId ?? doc.languageId;
+        const rows = usedFromOutside(doc.getText(), familyOfExtension(path.extname(doc.uri.fsPath), lang), list);
+        this._outCache = { key, rows };
+        return rows;
+    }
+
+    /** The block of the page: the list when it is open and the project is indexed; otherwise it is read when the block is opened. */
+    private outsideNow(): { rows: { label: string; kind: string; count: number; line: number }[]; open: boolean; ready: boolean } {
+        const open = this._folds.outside;
+        const index = ops.getWorkspaceIndex();
+        if (!open || !index) { return { rows: [], open, ready: false }; }
+        if (!index.ready) { setTimeout(() => { void this.postOutside(); }, 400); return { rows: [], open, ready: false }; }
+        this._outRows = this.outsideList();
+        return { rows: this._outRows.map(r => ({ label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line })), open, ready: true };
+    }
+
+    /** Sends the page the list of what is used from outside (the workspace is indexed on the first time). */
+    private async postOutside(): Promise<void> {
+        const index = ops.getWorkspaceIndex();
+        if (!index || this._tab !== 'manage' || !this._folds.outside) { return; }
+        await index.ensureBuilt();
+        this._outRows = this.outsideList();
+        void this._view?.webview.postMessage({ command: 'outsideHits', rows: this._outRows.map(r => ({ label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line })) });
+    }
+
+    /** A click on an object used from outside: its file opens at its definition. */
+    private async openOutside(i: number): Promise<void> {
+        const row = Number.isInteger(i) ? this._outRows[i] : undefined;
+        if (row) { await this.openAt(row.symbol.path, row.symbol.line); }
     }
 
     /** The Structure tab filtered on a name (the element under the cursor): the objects of the used files that carry it are listed too. */
@@ -1919,6 +1965,7 @@ ${shortcutsScript()}
             focus: this.focusData(true),
             designer: this.designerButton(member),
             external: this.externalNow(),
+            outside: this.outsideNow(),
         };
         this._focusFilter = false;
         return manageListHtml(view);

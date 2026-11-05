@@ -79,7 +79,12 @@ export interface ManageView {
     focus?: FocusView;
     /** What the filter finds in the files this file uses (`unit.name`), when something is typed. */
     external?: ExternalRow[];
+    /** Everything the code uses from other files, in a list of its own with its own filter (folded until it is opened). */
+    outside?: { rows: OutsideRow[]; open: boolean; ready: boolean };
 }
+
+/** An object of another file that the code uses: where it is written, how many times, and the first line that uses it. */
+export interface OutsideRow { label: string; kind: string; count: number; line: number }
 
 /** An object of a file the current one uses: how it is written in the list, and what it is. */
 export interface ExternalRow { label: string; kind: string }
@@ -178,6 +183,9 @@ export function manageCss(): string {
 .mhits .mkey { color: var(--vscode-descriptionForeground); font-size: 10px; }
 .mhits .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); opacity: 0.75; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mextlist .mln { min-width: 4.5em; text-align: left; }
+.mcount { flex: none; margin-left: auto; padding: 0 4px; color: var(--vscode-descriptionForeground); font-size: 10px; cursor: pointer; }
+.mcount:hover { text-decoration: underline; }
+.mout { margin-top: 8px; }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
@@ -191,6 +199,23 @@ export function manageCss(): string {
 /** The rows of the objects found in the used files: a click opens the file at the object. */
 export function externalRowsHtml(rows: ExternalRow[]): string {
     return rows.map((r, i) => `<li class="mhit mext" data-ext="${i}" title="Open ${esc(r.label)}"><span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span></li>`).join('');
+}
+
+/** The rows of the objects used from outside: a click opens the object in its file, the line number goes to the first use in this file. */
+export function outsideRowsHtml(rows: OutsideRow[]): string {
+    return rows.map((r, i) => `<li class="mhit mext" data-out="${i}" data-text="${esc((r.label + ' ' + r.kind).toLowerCase())}" title="Open ${esc(r.label)} in its file">`
+        + `<span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span>`
+        + `<span class="mcount" data-m-line="${r.line}" title="Written ${r.count} time(s) here: go to the first, line ${r.line + 1}">×${r.count}</span></li>`).join('');
+}
+
+/** The block of what is used from outside the open file: its own filter, its own list. */
+function outsideHtml(o: NonNullable<ManageView['outside']>): string {
+    const note = !o.ready ? (o.open ? 'Reading the project...' : '') : o.rows.length ? '' : 'The code uses nothing from the files it points to (or they hold nothing that is written here).';
+    return `<details class="mdet mout" data-fold="outside"${o.open ? ' open' : ''}><summary title="The objects of other files that the code of this file writes: units, headers, modules">Used from outside this file (<span id="mOutCount">${o.ready ? o.rows.length : '...'}</span>)</summary>`
+        + `<div class="tool-row mfilter"><input id="mOutFilter" class="inp" type="text" spellcheck="false" placeholder="Filter: file, object, kind...">`
+        + `<button class="mclear" id="mOutClear" title="Clear the filter">×</button></div>`
+        + `<div class="mnote" id="mOutNote">${esc(note)}</div>`
+        + `<ul class="mhits mextlist" id="mOutside">${outsideRowsHtml(o.rows)}</ul></details>`;
 }
 
 function hitRowsHtml(hits: LineHit[], total: number): string {
@@ -336,6 +361,7 @@ export function manageListHtml(v: ManageView): string {
     const ext = v.external ?? [];
     html += `<div id="mExtBox"${ext.length ? '' : ' hidden'}><div class="mgroup" id="mExtTitle" title="Objects of the files this file uses, found by the filter">From the files it uses (${ext.length})</div>`
         + `<ul class="mhits mextlist" id="mExternal">${externalRowsHtml(ext)}</ul></div>`;
+    if (v.outside) { html += outsideHtml(v.outside); }
     html += `</div>`;
     return html;
 }
@@ -406,9 +432,47 @@ function initManage(api) {
         box.hidden = !(m.hits || []).length;
     });
     document.addEventListener('click', function (ev) {
+        if (ev.target && ev.target.closest && ev.target.closest('[data-m-line]')) { return; }
         var row = ev.target && ev.target.closest ? ev.target.closest('[data-ext]') : null;
-        if (row) { api.postMessage({ command: 'openExternal', index: Number(row.getAttribute('data-ext')) }); }
+        if (row) { api.postMessage({ command: 'openExternal', index: Number(row.getAttribute('data-ext')) }); return; }
+        var out = ev.target && ev.target.closest ? ev.target.closest('[data-out]') : null;
+        if (out) { api.postMessage({ command: 'openOutside', index: Number(out.getAttribute('data-out')) }); }
     });
+    /* What the code uses from outside: its own filter, applied here on every word typed (the list is already in the page); the host sends the list when it is read */
+    (function () {
+      var box = $('mOutFilter'), ul = $('mOutside');
+      if (!box || !ul) { return; }
+      function apply() {
+        var words = box.value.toLowerCase().split(/\s+/).filter(Boolean), n = 0;
+        Array.prototype.forEach.call(ul.children, function (li) {
+          var t = li.getAttribute('data-text') || '';
+          var show = words.every(function (w) { return t.indexOf(w) >= 0; });
+          li.style.display = show ? '' : 'none';
+          if (show) { n++; }
+        });
+        $('mOutCount').textContent = String(n);
+        $('mOutClear').classList.toggle('on', !!box.value);
+      }
+      box.addEventListener('input', apply);
+      box.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { box.value = ''; apply(); } });
+      $('mOutClear').addEventListener('click', function () { box.value = ''; apply(); box.focus(); });
+      window.addEventListener('message', function (ev) {
+        var m = ev.data;
+        if (!m || m.command !== 'outsideHits') { return; }
+        while (ul.firstChild) { ul.removeChild(ul.firstChild); }
+        (m.rows || []).forEach(function (r, i) {
+          var li = document.createElement('li'); li.className = 'mhit mext'; li.setAttribute('data-out', String(i));
+          li.setAttribute('data-text', (r.label + ' ' + r.kind).toLowerCase()); li.title = 'Open ' + r.label + ' in its file';
+          var a = document.createElement('span'); a.className = 'mln'; a.textContent = r.kind;
+          var b = document.createElement('span'); b.className = 'mtx'; b.textContent = r.label;
+          var c = document.createElement('span'); c.className = 'mcount'; c.setAttribute('data-m-line', String(r.line)); c.textContent = '×' + r.count;
+          c.title = 'Written ' + r.count + ' time(s) here: go to the first, line ' + (r.line + 1);
+          li.appendChild(a); li.appendChild(b); li.appendChild(c); ul.appendChild(li);
+        });
+        $('mOutNote').textContent = (m.rows || []).length ? '' : 'The code uses nothing from the files it points to (or they hold nothing that is written here).';
+        apply();
+      });
+    })();
     if ($('mRefresh')) { $('mRefresh').addEventListener('click', function () { api.postMessage({ command: 'manageRefresh' }); }); }
     if ($('mType')) { $('mType').addEventListener('change', function () { api.postMessage({ command: 'manageClass', id: $('mType').value }); }); }
     if ($('mGroup')) { $('mGroup').addEventListener('change', function () { api.postMessage({ command: 'manageGroup', mode: $('mGroup').value }); }); }

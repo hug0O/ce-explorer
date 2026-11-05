@@ -7,6 +7,7 @@
  */
 import { readUnit } from './unitGraph';
 import { groupOfLanguage, groupOfPath, readImports } from './moduleGraph';
+import { CodeFamily, maskCode } from './callGraph';
 
 export interface UsedRefs {
     /** File names without their extension, lower case: a unit, a header, a module. */
@@ -55,6 +56,8 @@ export interface ExternalSymbol {
     /** `unit.name` or `unit.Class.member`: how it is written in the list and what the filter looks in. */
     label: string;
     name: string;
+    /** The type or package the object is a member of ('' for a type or a routine of the file). */
+    container: string;
     kind: string;
     path: string;
     line: number;
@@ -78,4 +81,44 @@ export function matchExternal(list: ExternalSymbol[], query: string, max = 60): 
         found.push({ s, rank: name === low || label === low ? 0 : name.startsWith(low) ? 1 : label.startsWith(low) ? 2 : 3 });
     }
     return found.sort((a, b) => a.rank - b.rank || a.s.label.localeCompare(b.s.label)).slice(0, max).map(f => f.s);
+}
+
+export interface OutsideUse {
+    symbol: ExternalSymbol;
+    /** How many times the file writes the name, and the line (from 0) of the first one. */
+    count: number;
+    line: number;
+}
+
+/**
+ * What the code of a file really uses from the other files: the objects of the used files whose name the code writes (comments and strings
+ * left out). A routine or a type is found by its name; a member of a type, whose name is often an everyday word, only where it is written after
+ * a dot (`store.Save`, `Store->Save`, `Store::Save`), so that `Free` or `Text` are not reported for every file. It is a reading of the names,
+ * not of the types: two objects of the used files with the same name are both listed.
+ */
+export function usedFromOutside(text: string, family: CodeFamily | undefined, list: ExternalSymbol[], max = 400): OutsideUse[] {
+    const code = family ? maskCode(text, family) : text;
+    const plain = new Map<string, { count: number; line: number }>();
+    const dotted = new Map<string, { count: number; line: number }>();
+    let line = 0;
+    let at = 0;
+    for (const m of code.matchAll(/[A-Za-z_][\w$]*/g)) {
+        const i = m.index ?? 0;
+        for (let k = at; k < i; k++) { if (code.charCodeAt(k) === 10) { line++; } }
+        at = i;
+        const name = m[0].toLowerCase();
+        const after = /(?:\.|->|::)\s*$/.test(code.slice(Math.max(0, i - 3), i));
+        for (const map of after ? [plain, dotted] : [plain]) {
+            const e = map.get(name);
+            if (e) { e.count++; } else { map.set(name, { count: 1, line }); }
+        }
+    }
+    const out: OutsideUse[] = [];
+    const seen = new Set<string>();
+    for (const s of list) {
+        if (s.name.length < 2 || seen.has(s.label)) { continue; }
+        const e = (s.container ? dotted : plain).get(s.name.toLowerCase());
+        if (e) { seen.add(s.label); out.push({ symbol: s, count: e.count, line: e.line }); }
+    }
+    return out.sort((a, b) => a.symbol.label.localeCompare(b.symbol.label)).slice(0, max);
 }

@@ -485,6 +485,17 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 { label: '$(symbol-class) From a class', command: 'ce.delphi.formFromClass' },
             ]),
 
+        // The element under the cursor (or the selection) typed in the filter of the Structure tab, which lists the objects of the used files too
+        trackedCommand('ce.structure.filterOnCursor', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { void notify.noEditor(); return; }
+            const sel = editor.selection;
+            const range = sel.isEmpty ? editor.document.getWordRangeAtPosition(sel.active, /[A-Za-z_][\w$]*/) : sel;
+            const word = range ? editor.document.getText(range).trim() : '';
+            if (!word) { await memberViewer.focusManageFilter(); return; }
+            await memberViewer.filterStructureOn(word);
+        }),
+
         // One entry to add anything to a type: the kind is asked, the command of that kind runs
         trackedCommand('ce.addMember', async () => {
             const kinds = [

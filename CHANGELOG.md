@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.95 — 2026-11-05
+- **Structure also finds what the file uses but does not show.** Type in the filter and, under the members of the file, a block **From the files it uses** lists the objects of the units, headers and modules the file points to, written `<file>.<object>` (`UData.TStore.Save`, `store.Store.save`). A click opens that file at the object. It works in every language the extension reads: the `uses` of Delphi, the `#include` of C and C++, the imports of TypeScript / JavaScript, Python, Java, C#, Go and Rust (a Go, Java, Python or Rust package is matched by its folder). The workspace is indexed the first time (the same index as *Go to member in the workspace*).
+- **Alt+M: Structure filtered on the element under the cursor.** With the cursor on a name (or a selection), **Alt+M** (*CE: Structure filtered on the element under the cursor*, also in the *More commands* menu) opens the Structure tab with that name in the filter: the members of the file that match, and the objects of the used files.
+
 ## 0.1.94 — 2026-11-05
 - **The Details tab is merged into Structure.** What it said about the member under the cursor is now at the top of the member's block in Structure: its kind, its attributes (visibility, type, static, virtual, override...) and its parameters (click one to edit). Where it is used, its variables, its events and the search in its code were already there. The actions (Edit, Rename, Delete) are in the ⋯ menu of the row, which also has **Doc header** now. The sidebar has four tabs (Structure, Tools, Memo, Shortcuts) and opens on Structure; a language that came back to Details comes back to Structure. With no file open, Structure shows the three things to start with.
 

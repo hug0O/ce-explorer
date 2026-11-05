@@ -8,6 +8,7 @@ import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
+import { ExternalSymbol, externalLabel, isUsed, matchExternal, usedRefs } from '../utils/usedFiles';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
 import { buildExportData, ExportData } from '../services/ExportService';
@@ -268,8 +269,10 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                     break;
                 case 'toolsTab': if (typeof msg.tab === 'string' && (TOOLS_SUBS as string[]).includes(msg.tab)) { this._toolsTab = msg.tab; } break;
                 case 'manageAction': await this.handleManageAction(String(msg.act), String(msg.id)); break;
+                case 'openExternal': await this.openExternal(Number(msg.index)); break;
                 case 'manageFilter':
                     this._manageFilter = typeof msg.text === 'string' ? msg.text.slice(0, 200) : '';
+                    void this.postExternal();
                     this._filterFile = currentDocument()?.uri.toString() ?? this._filterFile;
                     this._manageKind = ['method', 'field', 'property', 'constructor'].includes(msg.kind) ? msg.kind : '';
                     break;
@@ -1046,6 +1049,71 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (!command) { return; }
         const { current } = this.manageContext();
         await vscode.commands.executeCommand(command, current ? { itemData: current, parentClass: current } : undefined);
+    }
+
+    /** The objects of the files the open file uses, found by the filter: what the page shows now, and what a click opens. */
+    private _extHits: ExternalSymbol[] = [];
+    private _extCache: { key: string; list: ExternalSymbol[] } | undefined;
+
+    /** Every object of the files the open file uses (units, headers, modules), once per version of the text and of the index. */
+    private externalList(): ExternalSymbol[] {
+        const index = ops.getWorkspaceIndex();
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!index || !doc) { return []; }
+        const symbols = index.allSymbols();
+        const key = doc.uri.toString() + '|' + doc.version + '|' + symbols.length;
+        if (this._extCache?.key === key) { return this._extCache.list; }
+        const refs = usedRefs(doc.getText(), this._state.provider?.languageId ?? doc.languageId, doc.uri.fsPath);
+        const used = new Map<string, boolean>();
+        const list: ExternalSymbol[] = [];
+        for (const s of symbols) {
+            const id = s.uri.toString();
+            if (id === doc.uri.toString()) { continue; }
+            let ok = used.get(id);
+            if (ok === undefined) { ok = isUsed(refs, s.uri.fsPath); used.set(id, ok); }
+            if (ok) { list.push({ label: externalLabel(s.uri.fsPath, s.container, s.name), name: s.name, kind: s.kind, path: s.uri.fsPath, line: s.line }); }
+        }
+        this._extCache = { key, list };
+        return list;
+    }
+
+    /** What the filter finds in the used files, with what is indexed so far (the page asks again when the index is complete). */
+    private externalNow(): { label: string; kind: string }[] {
+        const q = this._manageFilter.trim();
+        this._extHits = q ? matchExternal(this.externalList(), q) : [];
+        if (q && !ops.getWorkspaceIndex()?.ready) { setTimeout(() => { void this.postExternal(); }, 400); }
+        return this._extHits.map(h => ({ label: h.label, kind: h.kind }));
+    }
+
+    /** Sends the page the objects of the used files that the filter finds (the workspace is indexed on the first use). */
+    private async postExternal(): Promise<void> {
+        const index = ops.getWorkspaceIndex();
+        if (!index || this._tab !== 'manage') { return; }
+        await index.ensureBuilt();
+        const q = this._manageFilter.trim();
+        this._extHits = q ? matchExternal(this.externalList(), q) : [];
+        void this._view?.webview.postMessage({ command: 'externalHits', hits: this._extHits.map(h => ({ label: h.label, kind: h.kind })) });
+    }
+
+    /** A click on an object of a used file: its file opens at the object. */
+    private async openExternal(i: number): Promise<void> {
+        const hit = Number.isInteger(i) ? this._extHits[i] : undefined;
+        if (!hit) { return; }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(hit.path));
+        const pos = new vscode.Position(Math.min(hit.line, Math.max(0, doc.lineCount - 1)), 0);
+        await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
+    }
+
+    /** The Structure tab filtered on a name (the element under the cursor): the objects of the used files that carry it are listed too. */
+    public async filterStructureOn(text: string): Promise<void> {
+        this._manageFilter = text.slice(0, 200);
+        this._manageKind = '';
+        this._focusId = '';
+        this._tab = 'manage';
+        this._stateKey = '';
+        this.updateView();
+        try { if (this._view) { this._view.show(true); } else { await vscode.commands.executeCommand('ceViewer.focus'); } } catch { /* the view is not available yet */ }
+        void this.postExternal();
     }
 
     /** Filter box of the Structure tab, from the "Filter Members" command or its shortcut. */
@@ -1850,6 +1918,7 @@ ${shortcutsScript()}
             filter: this._manageFilter, kindFilter: this._manageKind, group: this._manageGroup, focusFilter: this._focusFilter,
             focus: this.focusData(true),
             designer: this.designerButton(member),
+            external: this.externalNow(),
         };
         this._focusFilter = false;
         return manageListHtml(view);

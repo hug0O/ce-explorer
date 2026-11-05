@@ -6,6 +6,7 @@ export interface Tip { text: string; command: string }
 
 export const TIPS: Tip[] = [
     { text: 'Alt+G picks a member by typing a few letters.', command: 'ce.nav.pickMember' },
+    { text: 'Alt+M filters Structure on the element under the cursor, used files included.', command: 'ce.structure.filterOnCursor' },
     { text: 'Ctrl+Shift+Down / Up jump to the next / previous member or heading.', command: 'ce.nav.nextMember' },
     { text: 'Alt+Enter goes from a declaration to its implementation and back.', command: 'ce.nav.toggleDeclImpl' },
     { text: 'Ctrl+K Ctrl+A lists every command that suits this file.', command: 'ce.showActions' },

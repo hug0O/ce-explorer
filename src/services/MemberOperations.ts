@@ -17,6 +17,9 @@ let _workspaceIndex: WorkspaceIndex | undefined;
 export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
     _workspaceIndex = index;
 }
+export function getWorkspaceIndex(): WorkspaceIndex | undefined {
+    return _workspaceIndex;
+}
 
 let _log: vscode.OutputChannel | undefined;
 function getLog(): vscode.OutputChannel {

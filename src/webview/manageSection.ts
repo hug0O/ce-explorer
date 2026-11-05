@@ -77,7 +77,12 @@ export interface ManageView {
     /** Put the caret in the filter box once the tab is shown ("Filter Members" command / shortcut). */
     focusFilter?: boolean;
     focus?: FocusView;
+    /** What the filter finds in the files this file uses (`unit.name`), when something is typed. */
+    external?: ExternalRow[];
 }
+
+/** An object of a file the current one uses: how it is written in the list, and what it is. */
+export interface ExternalRow { label: string; kind: string }
 
 function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -172,6 +177,7 @@ export function manageCss(): string {
 .mdesigner { margin: 0 0 8px; }
 .mhits .mkey { color: var(--vscode-descriptionForeground); font-size: 10px; }
 .mhits .mparent { list-style: none; margin: 4px 0 1px; padding: 0 4px; font-size: 10px; font-style: italic; color: var(--vscode-descriptionForeground); opacity: 0.75; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mextlist .mln { min-width: 4.5em; text-align: left; }
 .mnote { font-size: 11px; color: var(--vscode-descriptionForeground); margin: 2px 0 6px; }
 .mhit.off { opacity: 0.6; cursor: default; }
 .mhit .mln { flex: none; min-width: 3em; text-align: right; color: var(--vscode-descriptionForeground); }
@@ -180,6 +186,11 @@ export function manageCss(): string {
 .mmore { font-size: 10px; color: var(--vscode-descriptionForeground); padding: 1px 4px; }
 .msearchinfo { font-size: 10px; color: var(--vscode-descriptionForeground); min-height: 13px; }
 `;
+}
+
+/** The rows of the objects found in the used files: a click opens the file at the object. */
+export function externalRowsHtml(rows: ExternalRow[]): string {
+    return rows.map((r, i) => `<li class="mhit mext" data-ext="${i}" title="Open ${esc(r.label)}"><span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span></li>`).join('');
 }
 
 function hitRowsHtml(hits: LineHit[], total: number): string {
@@ -321,6 +332,10 @@ export function manageListHtml(v: ManageView): string {
         }
         html += `</ul><p class="empty-section" id="mNone" hidden>No member matches the filter.</p>`;
     }
+    // what is written in the files this file uses (units, headers, modules) and is not in it: found with the same filter, as <file>.<object>
+    const ext = v.external ?? [];
+    html += `<div id="mExtBox"${ext.length ? '' : ' hidden'}><div class="mgroup" id="mExtTitle" title="Objects of the files this file uses, found by the filter">From the files it uses (${ext.length})</div>`
+        + `<ul class="mhits mextlist" id="mExternal">${externalRowsHtml(ext)}</ul></div>`;
     html += `</div>`;
     return html;
 }
@@ -374,6 +389,26 @@ function initManage(api) {
             $('mSearchInfo').textContent = !m.query ? '' : (m.total ? m.total + ' line(s) match' : 'No line matches');
         });
     }
+    // the objects of the used files: the host sends them when the filter changes; a click asks the host to open one (it knows where it is)
+    window.addEventListener('message', function (ev) {
+        var m = ev.data;
+        if (!m || m.command !== 'externalHits') { return; }
+        var ul = $('mExternal'), box = $('mExtBox');
+        if (!ul || !box) { return; }
+        while (ul.firstChild) { ul.removeChild(ul.firstChild); }
+        (m.hits || []).forEach(function (h, i) {
+            var li = document.createElement('li'); li.className = 'mhit mext'; li.setAttribute('data-ext', String(i)); li.title = 'Open ' + h.label;
+            var a = document.createElement('span'); a.className = 'mln'; a.textContent = h.kind;
+            var b = document.createElement('span'); b.className = 'mtx'; b.textContent = h.label;
+            li.appendChild(a); li.appendChild(b); ul.appendChild(li);
+        });
+        $('mExtTitle').textContent = 'From the files it uses (' + (m.hits || []).length + ')';
+        box.hidden = !(m.hits || []).length;
+    });
+    document.addEventListener('click', function (ev) {
+        var row = ev.target && ev.target.closest ? ev.target.closest('[data-ext]') : null;
+        if (row) { api.postMessage({ command: 'openExternal', index: Number(row.getAttribute('data-ext')) }); }
+    });
     if ($('mRefresh')) { $('mRefresh').addEventListener('click', function () { api.postMessage({ command: 'manageRefresh' }); }); }
     if ($('mType')) { $('mType').addEventListener('change', function () { api.postMessage({ command: 'manageClass', id: $('mType').value }); }); }
     if ($('mGroup')) { $('mGroup').addEventListener('change', function () { api.postMessage({ command: 'manageGroup', mode: $('mGroup').value }); }); }

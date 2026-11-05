@@ -58,6 +58,9 @@ export class WorkspaceIndex implements vscode.Disposable {
         }, 400));
     }
 
+    /** The index is built: `allSymbols` is complete (before that it holds what was read so far). */
+    get ready(): boolean { return this.built; }
+
     async ensureBuilt(): Promise<void> {
         if (this.built) { return; }
         if (!this.building) {

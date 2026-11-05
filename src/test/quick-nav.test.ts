@@ -188,8 +188,10 @@ test('what a general command replaces is hidden from the palette, the quick acti
         assert.ok(!sub.some(m => m.command === c), c + ' is not in the editor menu');
         assert.ok(!quickActions(pkg, { ext: '.pas', languageId: 'pascal' }).some(a => a.command === c), c + ' is not in the quick actions');
     }
-    for (const g of ['ce.rename', 'ce.addMember', 'ce.variableActions']) {
+    const general = ['ce.rename', 'ce.addMember', 'ce.variableActions', 'ce.translateLanguages', 'ce.documentActions', 'ce.help'];
+    for (const g of [...general, 'ce.delphi.layout', 'ce.delphi.generateForm']) {
+        const here = quickActions(pkg, general.includes(g) ? { ext: '.ts', languageId: 'typescript' } : { ext: '.pas', languageId: 'pascal' });
         assert.ok(!palette.some(m => m.command === g), g + ' is in the palette');
-        assert.ok(quickActions(pkg, { ext: '.ts', languageId: 'typescript' }).some(a => a.command === g), g + ' is in the quick actions');
+        assert.ok(here.some(a => a.command === g), g + ' is in the quick actions');
     }
 });

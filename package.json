@@ -3,7 +3,7 @@
   "displayName": "Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.92",
+  "version": "0.1.93",
   "publisher": "ce",
   "license": "MIT",
   "engines": {
@@ -478,6 +478,26 @@
       {
         "command": "ce.variableActions",
         "title": "CE: Variable under the cursor: change type, delete, declare..."
+      },
+      {
+        "command": "ce.translateLanguages",
+        "title": "CE: Translate: choose the languages..."
+      },
+      {
+        "command": "ce.documentActions",
+        "title": "CE: Document: header, documentation, export..."
+      },
+      {
+        "command": "ce.help",
+        "title": "CE: Help: guide, quick start, settings, log, usage..."
+      },
+      {
+        "command": "ce.delphi.layout",
+        "title": "CE: Delphi - Layout: align, anchors, tab order..."
+      },
+      {
+        "command": "ce.delphi.generateForm",
+        "title": "CE: Delphi - Generate a form from fields or from a class..."
       }
     ],
     "submenus": [
@@ -632,6 +652,74 @@
         {
           "command": "ce.goToMember",
           "when": "false"
+        },
+        {
+          "command": "ce.translateTo",
+          "when": "false"
+        },
+        {
+          "command": "ce.translateFrom",
+          "when": "false"
+        },
+        {
+          "command": "ce.insertDocHeader",
+          "when": "false"
+        },
+        {
+          "command": "ce.generateDocumentation",
+          "when": "false"
+        },
+        {
+          "command": "ce.exportStructure",
+          "when": "false"
+        },
+        {
+          "command": "ce.openWalkthrough",
+          "when": "false"
+        },
+        {
+          "command": "ce.openGuide",
+          "when": "false"
+        },
+        {
+          "command": "ce.openSettings",
+          "when": "false"
+        },
+        {
+          "command": "ce.showLog",
+          "when": "false"
+        },
+        {
+          "command": "ce.showActionLog",
+          "when": "false"
+        },
+        {
+          "command": "ce.usage.show",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.align",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.anchors",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.tabOrder",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.formFromFields",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.formFromClass",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.cleanHandlers",
+          "when": "false"
         }
       ],
       "editor/title": [
@@ -710,11 +798,6 @@
           "group": "4_delphi@2"
         },
         {
-          "command": "ce.delphi.cleanHandlers",
-          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
-          "group": "4_delphi@3"
-        },
-        {
           "command": "ce.delphi.diffForm",
           "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
           "group": "4_delphi@4"
@@ -765,16 +848,6 @@
           "group": "3_text@1"
         },
         {
-          "command": "ce.translateFrom",
-          "when": "editorTextFocus",
-          "group": "3_text@2"
-        },
-        {
-          "command": "ce.translateTo",
-          "when": "editorTextFocus",
-          "group": "3_text@3"
-        },
-        {
           "command": "ce.translateForm",
           "when": "editorTextFocus && resourceExtname =~ /^\\.(pas|dfm)$/i",
           "group": "3_text@4"
@@ -788,6 +861,16 @@
           "command": "ce.addMember",
           "when": "editorTextFocus",
           "group": "2_edit@0"
+        },
+        {
+          "command": "ce.translateLanguages",
+          "when": "editorTextFocus",
+          "group": "3_text@2"
+        },
+        {
+          "command": "ce.delphi.layout",
+          "when": "resourceExtname =~ /^\\.(pas|dfm|dpr)$/i",
+          "group": "4_delphi@3"
         }
       ]
     },

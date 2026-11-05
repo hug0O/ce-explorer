@@ -24,9 +24,9 @@ test('what a person types in their own words finds the action, in French or Engl
 
 test('a label that starts with the word comes before one that only has it among its words, and what is used most comes first among equals', () => {
     const r = searchActions(delphi, 'translate');
-    assert.ok(r.length >= 4 && r.slice(0, 4).every(x => /translate/i.test(x.label)));
-    const counts = { 'ce.translateTo': 9 };
-    assert.equal(searchActions(delphi, 'translate', counts)[0].command, 'ce.translateTo');
+    assert.ok(r.length >= 3 && r.slice(0, 3).every(x => /translate/i.test(x.label)));
+    const counts = { 'ce.translateForm': 9 };
+    assert.equal(searchActions(delphi, 'translate', counts)[0].command, 'ce.translateForm');
     const byUse = quickActions(pkg, { ext: '.pas', languageId: 'pascal' }, { 'ce.fixEncoding': 50 }).filter(x => x.group === 'tools');
     assert.equal(byUse[0].command, 'ce.fixEncoding', 'in its group the most used command is first');
 });

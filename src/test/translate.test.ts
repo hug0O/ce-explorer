@@ -54,7 +54,8 @@ test('the command is in the palette and the "More commands" menu, with its setti
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     for (const c of ['ce.translate', 'ce.translateTo']) {
         assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === c), c);
-        assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === c), c + ' in the menu');
+        // the language choice is one entry of the menu (translateLanguages); the selection translation has its own
+        assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === (c === 'ce.translateTo' ? 'ce.translateLanguages' : c)), c + ' in the menu');
     }
     const props = Object.assign({}, ...pkg.contributes.configuration.map((c: { properties: object }) => c.properties));
     assert.equal(props['ce.translate.target'].default, 'fr');
@@ -73,7 +74,7 @@ test('the command is in the palette and the "More commands" menu, with its setti
     assert.match(cmd, /nameOf\(source\) \+ ' → ' \+ nameOf\(target\)/, 'the result says from which language to which');
     assert.match(cmd, /source\.toLowerCase\(\) === target\.toLowerCase\(\)/, 'the same language on both sides is refused before the request');
     assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === 'ce.translateFrom'));
-    assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === 'ce.translateFrom'));
+    assert.ok(pkg.contributes.menus['ce.editorMore'].some((x: { command: string }) => x.command === 'ce.translateLanguages'), 'the two language choices are one entry of the menu');
     assert.match(fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8'), /registerTranslateCommands\(context\)/);
 });
 

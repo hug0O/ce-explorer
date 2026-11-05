@@ -460,6 +460,31 @@ function registerCommands(context: vscode.ExtensionContext): void {
             await variableRefactor.rename(ref, provider, newName, editor?.selection.active);
         }),
 
+        // One entry each for what used to be two to six look-alike commands: the choice is a list, the command of the choice runs
+        menuOf('ce.translateLanguages', 'CE: Translate', [
+                { label: '$(globe) Translate into... (the language you want)', command: 'ce.translateTo' },
+                { label: '$(search) Translate from... (the language of the text)', command: 'ce.translateFrom' },
+            ]),
+            menuOf('ce.documentActions', 'CE: Document', [
+                { label: '$(comment) Insert a doc header on the member', command: 'ce.insertDocHeader' },
+                { label: '$(book) Generate the documentation of this file', command: 'ce.generateDocumentation' },
+                { label: '$(export) Export the structure of this file', command: 'ce.exportStructure' },
+            ]),
+            menuOf('ce.help', 'CE: Help', [
+                { label: '$(rocket) Quick start', command: 'ce.openWalkthrough' }, { label: '$(book) User guide', command: 'ce.openGuide' },
+                { label: '$(gear) Settings', command: 'ce.openSettings' }, { label: '$(history) What was changed (log of the actions)', command: 'ce.showActionLog' },
+                { label: '$(output) Show the log', command: 'ce.showLog' }, { label: '$(graph) Feature usage (ranking, least used)', command: 'ce.usage.show' },
+            ]),
+            menuOf('ce.delphi.layout', 'CE: Delphi - Layout', [
+                { label: '$(layout) Align / size / space components', command: 'ce.delphi.align' },
+                { label: '$(pin) Anchors / docking', command: 'ce.delphi.anchors' },
+                { label: '$(list-ordered) TabOrder by screen position', command: 'ce.delphi.tabOrder' },
+            ]),
+            menuOf('ce.delphi.generateForm', 'CE: Delphi - Generate a form', [
+                { label: '$(symbol-field) From fields', command: 'ce.delphi.formFromFields' },
+                { label: '$(symbol-class) From a class', command: 'ce.delphi.formFromClass' },
+            ]),
+
         // One entry to add anything to a type: the kind is asked, the command of that kind runs
         trackedCommand('ce.addMember', async () => {
             const kinds = [
@@ -1423,6 +1448,14 @@ function findEnclosingLocalMember(parsed: { classes: ClassInfo[]; standaloneProc
  * the active cursor, for the unified refactoring commands. Returns undefined
  * when the cursor is not on a refactorable variable.
  */
+/** A command that is a list of other commands: what used to be two to six look-alike entries is one, and the choice runs the one picked. */
+function menuOf(id: string, title: string, items: { label: string; command: string }[]): vscode.Disposable {
+    return trackedCommand(id, async () => {
+        const pick = await vscode.window.showQuickPick(items, { title, placeHolder: 'What do you want to do?' });
+        if (pick) { await vscode.commands.executeCommand(pick.command); }
+    });
+}
+
 function resolveVariableFromCursor(): import('./models/types').VariableRef | undefined {
     const editor = vscode.window.activeTextEditor;
     if (!editor) { return undefined; }

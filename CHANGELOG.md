@@ -2,6 +2,15 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.93 — 2026-11-05
+- **Seventeen more look-alike commands became five.** In the palette, the quick actions and the editor menu, one entry opens the list of its siblings (they still run from their keys, the sidebar and the code lenses):
+  - **Translate: choose the languages** replaces *Translate into* and *Translate from*;
+  - **Document** replaces *Insert doc header*, *Generate documentation* and *Export structure*;
+  - **Help** replaces *Quick start*, *User guide*, *Settings*, *What was changed*, *Show the log* and *Feature usage*;
+  - **Delphi - Layout** replaces *Align / size / space*, *Anchors* and *TabOrder* (their `Ctrl+K` letters are unchanged);
+  - **Delphi - Generate a form** replaces *Form from fields* and *Form from a class*;
+  - *Clean event handlers* is part of *Check form* (it is the *Handlers* category) and is no longer a command of its own in the lists.
+
 ## 0.1.92 — 2026-11-05
 - **Structure: one ⋯ button per member.** Edit, Rename, Getter / setter, Move to and Delete are in the list that the ⋯ at the end of the row opens, instead of five small icons: the row is a name and a type. The keys (Enter, F2, E, Delete) are unchanged.
 - **Structure: one Add menu.** *＋ Add ▾* lists Method, Field, Property and Constructor; *Template…* and *Sync* stay beside it, *Templates* and *Refresh* are under ⋯.

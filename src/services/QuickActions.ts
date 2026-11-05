@@ -40,6 +40,9 @@ const WORDS: Record<string, string> = {
     'ce.addProperty': 'ajouter propriete property new create', 'ce.addConstructor': 'ajouter constructeur create new',
     'ce.synchronizeDeclImpl': 'synchroniser declaration implementation interface sync manquant missing stub', 'ce.editMember': 'modifier changer parametres signature params edit',
     'ce.moveMember': 'deplacer autre classe move', 'ce.extractMethod': 'extraire methode procedure selection refactor', 'ce.renameMember': 'renommer rename methode champ',
+    'ce.translateLanguages': 'traduire langue source cible choisir langues', 'ce.documentActions': 'documentation entete header exporter structure generer doc',
+    'ce.help': 'aide guide demarrage reglages parametres journal log historique statistiques usage',
+    'ce.delphi.layout': 'aligner ancrage anchors ordre tabulation composants disposition', 'ce.delphi.generateForm': 'creer fiche formulaire champs classe generer',
     'ce.addMember': 'ajouter membre methode champ propriete constructeur new create', 'ce.variableActions': 'variable type changer supprimer declarer locale',
     'ce.rename': 'renommer rename changer nom variable methode classe projet partout everywhere',
     'ce.renameVariable': 'renommer variable parametre champ rename', 'ce.renameLocalVariable': 'renommer variable locale rename',
@@ -88,6 +91,9 @@ export const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g
 export const REPLACED = new Set([
     'ce.addMethod', 'ce.addField', 'ce.addProperty', 'ce.addConstructor', 'ce.renameMember', 'ce.renameVariable', 'ce.renameLocalVariable', 'ce.renamePreview',
     'ce.changeLocalType', 'ce.changeVariableType', 'ce.deleteVariable', 'ce.createLocalVariable', 'ce.declareLocalVariable', 'ce.goToMember',
+    'ce.translateTo', 'ce.translateFrom', 'ce.insertDocHeader', 'ce.generateDocumentation', 'ce.exportStructure',
+    'ce.openWalkthrough', 'ce.openGuide', 'ce.openSettings', 'ce.showLog', 'ce.showActionLog', 'ce.usage.show',
+    'ce.delphi.align', 'ce.delphi.anchors', 'ce.delphi.tabOrder', 'ce.delphi.formFromFields', 'ce.delphi.formFromClass', 'ce.delphi.cleanHandlers',
 ]);
 
 export const NOT_FOR_MENUS = new Set([
@@ -115,7 +121,7 @@ const GROUP_OF: Record<string, string> = {
     'ce.deleteVariable': 'refactor', 'ce.createLocalVariable': 'refactor', 'ce.declareLocalVariable': 'refactor', 'ce.extractMethod': 'refactor', 'ce.alignSelection': 'refactor',
     'ce.codeReview': 'review', 'ce.detectDeadCode': 'review', 'ce.generateDocumentation': 'review', 'ce.exportStructure': 'review', 'ce.insertDocHeader': 'review',
     'ce.addComponent': 'delphi', 'ce.addEventHandler': 'delphi',
-    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.rename': 'refactor', 'ce.addMember': 'members', 'ce.variableActions': 'refactor', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
+    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.rename': 'refactor', 'ce.addMember': 'members', 'ce.variableActions': 'refactor', 'ce.translateLanguages': 'tools', 'ce.documentActions': 'review', 'ce.help': 'tools', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
 };
 
 const DELPHI_EXT = new Set(['.pas', '.dfm', '.dpr', '.dpk']);

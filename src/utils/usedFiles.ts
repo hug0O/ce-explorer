@@ -88,7 +88,14 @@ export interface OutsideUse {
     /** How many times the file writes the name, and the line (from 0) of the first one. */
     count: number;
     line: number;
+    /** The lines that write it (the first ones), with their text, to show where the object is used. */
+    uses: { line: number; text: string }[];
+    /** How many more lines than the ones in `uses`. */
+    more: number;
 }
+
+/** The lines kept for an object: enough to see where it is used, not the whole file. */
+export const MAX_USE_LINES = 40;
 
 /**
  * What the code of a file really uses from the other files: the objects of the used files whose name the code writes (comments and strings
@@ -98,8 +105,9 @@ export interface OutsideUse {
  */
 export function usedFromOutside(text: string, family: CodeFamily | undefined, list: ExternalSymbol[], max = 400): OutsideUse[] {
     const code = family ? maskCode(text, family) : text;
-    const plain = new Map<string, { count: number; line: number }>();
-    const dotted = new Map<string, { count: number; line: number }>();
+    const src = text.split(/\r?\n/);
+    const plain = new Map<string, { count: number; line: number; lines: number[] }>();
+    const dotted = new Map<string, { count: number; line: number; lines: number[] }>();
     let line = 0;
     let at = 0;
     for (const m of code.matchAll(/[A-Za-z_][\w$]*/g)) {
@@ -110,7 +118,7 @@ export function usedFromOutside(text: string, family: CodeFamily | undefined, li
         const after = /(?:\.|->|::)\s*$/.test(code.slice(Math.max(0, i - 3), i));
         for (const map of after ? [plain, dotted] : [plain]) {
             const e = map.get(name);
-            if (e) { e.count++; } else { map.set(name, { count: 1, line }); }
+            if (e) { e.count++; if (e.lines[e.lines.length - 1] !== line) { e.lines.push(line); } } else { map.set(name, { count: 1, line, lines: [line] }); }
         }
     }
     const out: OutsideUse[] = [];
@@ -118,7 +126,10 @@ export function usedFromOutside(text: string, family: CodeFamily | undefined, li
     for (const s of list) {
         if (s.name.length < 2 || seen.has(s.label)) { continue; }
         const e = (s.container ? dotted : plain).get(s.name.toLowerCase());
-        if (e) { seen.add(s.label); out.push({ symbol: s, count: e.count, line: e.line }); }
+        if (e) {
+            seen.add(s.label);
+            out.push({ symbol: s, count: e.count, line: e.line, uses: e.lines.slice(0, MAX_USE_LINES).map(l => ({ line: l, text: (src[l] ?? '').trim().slice(0, 200) })), more: Math.max(0, e.lines.length - MAX_USE_LINES) });
+        }
     }
     return out.sort((a, b) => a.symbol.label.localeCompare(b.symbol.label)).slice(0, max);
 }

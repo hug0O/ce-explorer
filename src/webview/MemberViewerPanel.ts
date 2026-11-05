@@ -21,7 +21,7 @@ import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
 import { MemoStore, MAIN_MEMO, memoFolderOf, memoId, sanitizeLang } from '../services/MemoStore';
 import { MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
-import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, manageCss, manageListHtml, manageScript } from './manageSection';
+import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, OutsideRow, manageCss, manageListHtml, manageScript, outsidePageHtml, outsideRowsHtml } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines, ParentRange, withParents } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
@@ -40,7 +40,7 @@ interface MemberViewerState {
 }
 
 /** Tabs of the Member view. */
-export type SidebarTab = 'manage' | 'tools' | 'memo' | 'shortcuts';
+export type SidebarTab = 'manage' | 'outside' | 'tools' | 'memo' | 'shortcuts';
 
 export type ViewerMode = 'view' | 'edit' | 'add' | 'extract' | 'analytics' | 'variable';
 
@@ -79,7 +79,7 @@ const ALLOWED_RUN_COMMANDS = new Set<string>([
 ]);
 
 /** A small picture in front of the name of each tab, so that the tab bar stays on one line in a narrow sidebar. */
-const TAB_ICONS: Record<string, string> = { manage: '☰', tools: '🛠', memo: '📝', shortcuts: '⌨' };
+const TAB_ICONS: Record<string, string> = { manage: '☰', outside: '🔗', tools: '🛠', memo: '📝', shortcuts: '⌨' };
 
 export class MemberViewerPanel implements vscode.WebviewViewProvider {
     public static readonly viewType = 'ceViewer';
@@ -118,7 +118,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _shortcutFilter = '';
     private _delphiSeen = false;
     // Blocks under the selected member that are unfolded (kept between redraws).
-    private _folds = { used: true, vars: true, find: true, events: true, outside: false };
+    private _folds = { used: true, vars: true, find: true, events: true };
     private _dfmCache: { path: string; mtime: number; text: string } | undefined;
     private _hiLine?: vscode.TextEditorDecorationType;
     private _hiUse?: vscode.TextEditorDecorationType;
@@ -234,7 +234,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'extractSubmit': this.endSession(msg.data as ExtractSpec); break;
                 case 'run': if (typeof msg.cmd === 'string' && ALLOWED_RUN_COMMANDS.has(msg.cmd)) { await vscode.commands.executeCommand(msg.cmd); } break;
                 case 'editVariable': await this.handleEditVariable(msg.name as string); break;
-                case 'setTab': this.rememberTab(msg.tab); this.setTab(msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'manage'); break;
+                case 'setTab': this.rememberTab(msg.tab); this.setTab(msg.tab === 'outside' ? 'outside' : msg.tab === 'tools' ? 'tools' : msg.tab === 'memo' ? 'memo' : msg.tab === 'shortcuts' ? 'shortcuts' : 'manage'); break;
                 case 'shortcutFilter': this._shortcutFilter = typeof msg.text === 'string' ? msg.text.slice(0, 100) : ''; break;
                 case 'openKeybindings': await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', '@ext:' + this.extensionId()); break;
                 case 'memoSave': this.handleMemoSave(String(msg.lang), String(msg.text ?? '')); break;
@@ -282,7 +282,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
                 case 'manageClass': this._manageClassId = typeof msg.id === 'string' ? msg.id : ''; this.setTab('manage'); break;
                 case 'manageAdd': await this.handleManageAdd(String(msg.kind)); break;
                 case 'manageLine': this.handleManageLine(Number(msg.line)); break;
-                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find' || msg.key === 'events' || msg.key === 'outside') { this._folds[msg.key as 'used' | 'vars' | 'find' | 'events' | 'outside'] = msg.open === true; if (msg.key === 'outside' && msg.open === true) { void this.postOutside(); } } break;
+                case 'manageFold': if (msg.key === 'used' || msg.key === 'vars' || msg.key === 'find' || msg.key === 'events') { this._folds[msg.key as 'used' | 'vars' | 'find' | 'events'] = msg.open === true; } break;
                 case 'manageSearch': this.handleMemberSearch(String(msg.text ?? '')); break;
                 case 'manageRefresh': this._codeExplorer.refresh(); this.setTab('manage'); break;
                 case 'renameMember': await this.handleInlineRename(msg.name as string); break;
@@ -385,6 +385,13 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         if (this._focusId && !ownJump && (foundMember?.id ?? '') !== this._focusId) {
             this._focusId = '';
             this._stateKey = '';
+        } else if (ownJump && this._tab === 'outside') {
+            // a jump to a line that uses an object: the page of the tab keeps what is open and typed in it
+            this._stateKey = newKey;
+            this._state.member = foundMember;
+            this._state.classInfo = foundCls;
+            this._state.provider = provider;
+            return;
         } else if (this._focusId && ownJump && (foundMember?.id ?? '') !== this._focusId && this._tab === 'manage') {
             this._stateKey = newKey;
             this._state.member = foundMember;
@@ -816,7 +823,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** The tab the user picked is the one this language comes back to. */
     private rememberTab(tab: unknown): void {
-        if (!this._tabLanguage || (tab !== 'manage' && tab !== 'tools' && tab !== 'memo' && tab !== 'shortcuts')) { return; }
+        if (!this._tabLanguage || (tab !== 'manage' && tab !== 'outside' && tab !== 'tools' && tab !== 'memo' && tab !== 'shortcuts')) { return; }
         this._tabByLanguage[this._tabLanguage] = tab;
         void this._extensionContext.globalState?.update('ce.tabByLanguage', this._tabByLanguage);
     }
@@ -1125,23 +1132,28 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return rows;
     }
 
-    /** The block of the page: the list when it is open and the project is indexed; otherwise it is read when the block is opened. */
-    private outsideNow(): { rows: { label: string; kind: string; count: number; line: number }[]; open: boolean; ready: boolean } {
-        const open = this._folds.outside;
+    /** One row of the page Used, from what the code writes. */
+    private outsideRow(r: OutsideUse): OutsideRow {
+        return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: r.uses, more: r.more };
+    }
+
+    /** The page of the tab Used: what the code uses from other files. The project is read the first time (the page says so and fills itself). */
+    private getOutsideHtml(): string {
         const index = ops.getWorkspaceIndex();
-        if (!open || !index) { return { rows: [], open, ready: false }; }
-        if (!index.ready) { setTimeout(() => { void this.postOutside(); }, 400); return { rows: [], open, ready: false }; }
+        if (!index || !vscode.window.activeTextEditor) { return outsidePageHtml({ rows: [], ready: !!index }); }
+        if (!index.ready) { setTimeout(() => { void this.postOutside(); }, 300); return outsidePageHtml({ rows: [], ready: false }); }
         this._outRows = this.outsideList();
-        return { rows: this._outRows.map(r => ({ label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line })), open, ready: true };
+        return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true });
     }
 
     /** Sends the page the list of what is used from outside (the workspace is indexed on the first time). */
     private async postOutside(): Promise<void> {
         const index = ops.getWorkspaceIndex();
-        if (!index || this._tab !== 'manage' || !this._folds.outside) { return; }
+        if (!index || this._tab !== 'outside') { return; }
         await index.ensureBuilt();
         this._outRows = this.outsideList();
-        void this._view?.webview.postMessage({ command: 'outsideHits', rows: this._outRows.map(r => ({ label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line })) });
+        const rows = this._outRows.map(r => this.outsideRow(r));
+        void this._view?.webview.postMessage({ command: 'outsideHits', html: outsideRowsHtml(rows), count: rows.length });
     }
 
     /** A click on an object used from outside: its file opens at its definition. */
@@ -1797,6 +1809,8 @@ ${visOptions.map(v => `<option value="${v}">${v}</option>`).join('')}
             ? toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab, this.languageInfo())
             : this._tab === 'manage' && (this._state.provider || vscode.window.activeTextEditor)
                 ? this.getManageHtml()
+                : this._tab === 'outside'
+                ? this.getOutsideHtml()
                 : this._tab === 'memo'
                 ? this.getMemoHtml()
                 : this._tab === 'shortcuts'
@@ -1892,7 +1906,7 @@ ${shortcutsScript()}
         // there; the shortcuts are one click away in the "..." menu, which shows the name of the one that is open
         const inMenu = this._tab === 'shortcuts';
         const more = `<span class="tabdd"><button class="tabmore${inMenu ? ' active' : ''}" id="tabMore" title="The shortcuts">${inMenu ? 'Shortcuts ' : ''}⋯</button><div class="tabmenu" id="tabMenu" hidden>${tab('shortcuts', 'Shortcuts', 'Every keyboard shortcut, by mode')}</div></span>`;
-        return `<div class="tabs">\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${more}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
+        return `<div class="tabs">\n${tab('manage', 'Structure', 'Members of the file: add, filter, edit, rename, move, delete - ' + shortcutOf('global', 'ce.manageMembers'))}\n${tab('outside', 'Used', 'What the code uses from other files: the objects, and the lines that write them')}\n${tab('tools', 'Tools')}\n${tab('memo', 'Memo', shortcutOf('global', 'ce.memo.open'))}\n${more}\n${this.isDelphi() ? `<button class="tabdes" data-dl="ce.delphi.designer" title="Open the form designer of this unit (or come back to it) - ${shortcutOf('delphi', 'ce.delphi.designer')}">🎨 Designer</button>` : ''}\n</div>`;
     }
 
     /** Rows of the local variables and parameters of a member; the buttons only where they can act on it. */
@@ -1965,7 +1979,6 @@ ${shortcutsScript()}
             focus: this.focusData(true),
             designer: this.designerButton(member),
             external: this.externalNow(),
-            outside: this.outsideNow(),
         };
         this._focusFilter = false;
         return manageListHtml(view);
@@ -2066,7 +2079,7 @@ ${shortcutsCss()}
 
         html += this.tabsHtml();
 
-        if (this._tab === 'memo' || this._tab === 'manage' || this._tab === 'shortcuts') {
+        if (this._tab === 'memo' || this._tab === 'manage' || this._tab === 'outside' || this._tab === 'shortcuts') {
             // the memo and the shortcuts are not about the member under the cursor, and the type selector of Structure already names the type
         } else if (classInfo) {
             html += `<div class="class-header">
@@ -2084,6 +2097,8 @@ ${shortcutsCss()}
             html += toolsHtml(getLastAlignToken(), this.alignChips(), this.isPlSql(), this.isDelphi(), this._toolsTab, this.languageInfo());
         } else if (this._tab === 'manage') {
             html += this.getManageHtml();
+        } else if (this._tab === 'outside') {
+            html += this.getOutsideHtml();
         } else if (this._tab === 'memo') {
             html += this.getMemoHtml();
         } else if (this._tab === 'shortcuts') {

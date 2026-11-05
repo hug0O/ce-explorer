@@ -62,7 +62,7 @@ test('the shortcut and the command that open Structure filtered on the element u
 });
 
 import { usedFromOutside } from '../utils/usedFiles';
-import { outsideRowsHtml } from '../webview/manageSection';
+import { outsidePageHtml, outsideRowsHtml } from '../webview/manageSection';
 import { familyOf } from '../utils/callGraph';
 
 test('what the code uses from the other files: the objects whose name it writes, a member only after a dot, comments and strings left out', () => {
@@ -79,23 +79,29 @@ test('what the code uses from the other files: the objects whose name it writes,
     const load = r.find(u => u.symbol.name === 'LoadAll')!;
     assert.equal(load.count, 2, 'written twice, in any case');
     assert.equal(load.line, 2, 'the first one is on the third line');
+    assert.deepEqual(load.uses, [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], 'each line that writes it, with its text');
     assert.ok(!r.some(u => u.symbol.name === 'Text'), 'a member whose name is written alone is not a use');
     assert.deepEqual(usedFromOutside('x', undefined, []), []);
     assert.equal(usedFromOutside('a->Save(); b::Save();', familyOf('cpp'), [sym('/p/s.h', 'Store', 'Save')])[0].count, 2, 'a member after -> or ::');
 });
 
-test('the block of what is used from outside has its own filter, its rows go to the definition and the count to the first use, and it opens on demand', () => {
-    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2 }];
-    const html = manageListHtml({ ...base, outside: { rows, open: true, ready: true } });
-    assert.match(html, /<details class="mdet mout" data-fold="outside" open><summary[^>]*>Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
+test('the tab Used lists the objects with their own filter, a row opens to the lines that write it and the arrow opens the definition', () => {
+    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3 }];
+    const html = outsidePageHtml({ rows, ready: true });
+    assert.match(html, /Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
     assert.match(html, /<input id="mOutFilter" class="inp"/);
-    assert.match(html, /data-out="0" data-text="udata\.loadall function"/);
-    assert.match(html, /<span class="mcount" data-m-line="2"[^>]*>×2<\/span>/);
-    const closed = manageListHtml({ ...base, outside: { rows: [], open: false, ready: false } });
-    assert.match(closed, /data-fold="outside"><summary[^>]*>Used from outside this file \(<span id="mOutCount">\.\.\.<\/span>\)/);
-    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0 }]).includes('<i>'), false);
+    assert.match(html, /<li class="mobj" data-text="udata\.loadall function loadall; loadall;"><details>/, 'the filter reads the file, the object, the kind and the lines');
+    assert.match(html, /<span class="mcount">×2<\/span><button class="mopen" data-out="0"/);
+    assert.match(html, /<li class="mhit" data-m-line="2" title="Go to line 3"><span class="mln">3<\/span><span class="mtx">LoadAll;<\/span><\/li>/, 'a line of use goes to that line of the code');
+    assert.match(html, /<li class="mhit" data-m-line="7"/);
+    assert.match(html, /… 3 more line\(s\) not listed/);
+    assert.match(outsidePageHtml({ rows: [], ready: false }), /Reading the project\.\.\./);
+    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0 }]).includes('<'), true);
+    assert.equal(/<i>|<b>/.test(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0 }])), false, 'what is written is escaped');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8');
+    assert.match(panel, /export type SidebarTab = 'manage' \| 'outside'/);
     assert.match(panel, /case 'openOutside'/);
-    assert.match(panel, /msg\.key === 'outside' && msg\.open === true\) \{ void this\.postOutside\(\);/, 'the list is read when the block is opened');
+    assert.match(panel, /tab\('outside', 'Used'/, 'a tab of the header, not a block under the list');
+    assert.ok(!/outsideNow/.test(panel), 'the block under the member list is gone');
     assert.match(fs.readFileSync(path.join(root, 'src', 'webview', 'manageSection.ts'), 'utf8'), /m\.command !== 'outsideHits'/);
 });

@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.97 — 2026-11-05
+- **The objects used from outside have a tab of their own: Used.** It sits in the header, next to Structure, instead of under the list of members. It lists, with its own filter, the objects of the files the code points to that the code really writes (`UData.LoadAll ×2`).
+- **A click on an object opens it to the lines that write it.** Each line shows its number and its text; a click on a line goes to that line of the code, and the page keeps what is open and typed in the filter. The arrow ↗ at the end of the row opens the object in its own file. The filter also reads the text of those lines.
+
 ## 0.1.96 — 2026-11-05
 - **Structure: everything the code uses from outside the open file, in a list of its own.** Under the members, the block **Used from outside this file (N)** (folded; the project is read the first time it is opened) lists the objects of the units, headers and modules that the code of the file really writes, as `<file>.<object>`, with how many times (`×3`). It has **its own filter** (words in any order: file, object, kind). Click an object to open it in its file; click the `×3` to go to the first line that uses it here. Comments and strings are not read; a member of a type is counted only where it is written after a dot (`store.Save`, `Store->Save`, `Store::Save`), so that everyday names (`Text`, `Free`) are not listed for every file. It reads names, not types: two objects of the used files with the same name are both listed.
 

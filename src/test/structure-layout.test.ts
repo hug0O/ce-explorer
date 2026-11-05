@@ -51,7 +51,7 @@ test('what the Details tab said is in the block of the member in Structure, and 
     assert.match(manage, /class="msig"/);
     assert.match(manage, /data-m-act="docHeader"/, 'the doc header is in the menu of the row');
     const panel = fs.readFileSync(path.join(__dirname, '..', 'webview', 'MemberViewerPanel.ts'), 'utf8');
-    assert.match(panel, /export type SidebarTab = 'manage' \| 'tools' \| 'memo' \| 'shortcuts';/);
+    assert.match(panel, /export type SidebarTab = 'manage' \| 'outside' \| 'tools' \| 'memo' \| 'shortcuts';/);
     assert.match(panel, /v === 'detail' \? 'manage' : v/, 'a saved Details tab becomes Structure');
     assert.ok(!panel.includes("tab('detail'"));
 });

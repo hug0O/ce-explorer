@@ -31,7 +31,7 @@ export function usedRefs(text: string, languageId: string, fileName: string): Us
         const group = groupOfLanguage(languageId) ?? groupOfPath(fileName);
         if (group) {
             for (const imp of readImports(text, group)) {
-                const spec = imp.spec.replace(/^[./\\]+/, '').replace(/\.(m|c)?[jt]sx?$/i, '');
+                const spec = imp.spec.replace(/^node:/, '').replace(/^[./\\]+/, '').replace(/\.(m|c)?[jt]sx?$/i, '');
                 const parts = spec.split(/[\\/]|::|\./).filter(Boolean);
                 const last = parts[parts.length - 1];
                 if (!last || last === '*') { continue; }

@@ -39,12 +39,20 @@ test('an object of a used file is written <file>.<object> and found by the filte
 
 const base = { typeOptions: [{ id: 'c', label: 'T' }], selectedType: 'c', isFile: false, add: { field: true, method: true, property: true, constructor: true }, canMove: false, rows: [], filter: 'save', kindFilter: '', group: 'source' } as unknown as Parameters<typeof manageListHtml>[0];
 
-test('Structure lists what the filter finds in the used files below its own members, and a click on one is sent to the panel', () => {
-    const html = manageListHtml({ ...base, external: [{ label: 'UData.TStore.Save', kind: 'method' }, { label: 'UData.SaveAll', kind: 'function' }] });
-    assert.match(html, /<div id="mExtBox"><div class="mgroup" id="mExtTitle"[^>]*>From the files it uses \(2\)<\/div>/);
-    assert.match(html, /<li class="mhit mext" data-ext="0"[^>]*><span class="mln">method<\/span><span class="mtx">UData\.TStore\.Save<\/span><\/li>/);
+test('Structure lists what the filter finds in the used files, each object opens to the lines of this file that write it', () => {
+    const rows = [
+        { label: 'UData.TStore.Save', kind: 'method', count: 2, line: 4, uses: [{ line: 4, text: 'Store.Save;' }, { line: 9, text: 'Store.Save;' }], more: 0, canOpen: true },
+        { label: 'UData.SaveAll', kind: 'function', count: 0, line: 0, uses: [], more: 0, canOpen: true },
+        { label: 'System.SysUtils.Format', kind: 'function', count: 1, line: 1, uses: [{ line: 1, text: "s := Format('%d', [n]);" }], more: 0, canOpen: false },
+    ];
+    const html = manageListHtml({ ...base, external: rows });
+    assert.match(html, /<div id="mExtBox"><div class="mgroup" id="mExtTitle"[^>]*>From the files it uses \(3\)<\/div>/);
+    assert.match(html, /<details><summary[^>]*><span class="mln">method<\/span><span class="mtx">UData\.TStore\.Save<\/span><span class="mcount">×2<\/span><button class="mopen" data-ext="0"/, 'an object that is written here unfolds');
+    assert.match(html, /<li class="mhit" data-m-line="9" title="Go to line 10">/, 'its lines go to the code');
+    assert.match(html, /<div class="mflat"><span class="mln">function<\/span><span class="mtx">UData\.SaveAll<\/span><button class="mopen" data-ext="1"/, 'one that is not written here is a plain row');
+    assert.ok(!html.includes('data-ext="2"'), 'a standard library has no file to open');
     assert.match(manageListHtml(base), /<div id="mExtBox" hidden>/, 'nothing typed or found: the block is hidden');
-    assert.equal(externalRowsHtml([{ label: '<b>', kind: 'x' }]).includes('<b>'), false, 'what is written is escaped');
+    assert.equal(externalRowsHtml([{ label: '<b>', kind: 'x', count: 0, line: 0, uses: [], more: 0, canOpen: true }]).includes('<b>'), false, 'what is written is escaped');
 });
 
 test('the shortcut and the command that open Structure filtered on the element under the cursor', () => {
@@ -86,7 +94,7 @@ test('what the code uses from the other files: the objects whose name it writes,
 });
 
 test('the tab Used lists the objects with their own filter, a row opens to the lines that write it and the arrow opens the definition', () => {
-    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3 }];
+    const rows = [{ label: 'UData.LoadAll', kind: 'function', count: 2, line: 2, uses: [{ line: 2, text: 'LoadAll;' }, { line: 7, text: 'loadall;' }], more: 3, canOpen: true }];
     const html = outsidePageHtml({ rows, ready: true });
     assert.match(html, /Used from outside this file \(<span id="mOutCount">1<\/span>\)/);
     assert.match(html, /<input id="mOutFilter" class="inp"/);
@@ -96,8 +104,8 @@ test('the tab Used lists the objects with their own filter, a row opens to the l
     assert.match(html, /<li class="mhit" data-m-line="7"/);
     assert.match(html, /… 3 more line\(s\) not listed/);
     assert.match(outsidePageHtml({ rows: [], ready: false }), /Reading the project\.\.\./);
-    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0 }]).includes('<'), true);
-    assert.equal(/<i>|<b>/.test(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0 }])), false, 'what is written is escaped');
+    assert.equal(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0, canOpen: true }]).includes('<'), true);
+    assert.equal(/<i>|<b>/.test(outsideRowsHtml([{ label: '<i>', kind: 'k', count: 1, line: 0, uses: [{ line: 0, text: '<b>' }], more: 0, canOpen: true }])), false, 'what is written is escaped');
     const panel = fs.readFileSync(path.join(root, 'src', 'webview', 'MemberViewerPanel.ts'), 'utf8');
     assert.match(panel, /export type SidebarTab = 'manage' \| 'outside'/);
     assert.match(panel, /case 'openOutside'/);

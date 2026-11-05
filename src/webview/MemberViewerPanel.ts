@@ -9,6 +9,7 @@ import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
 import { ExternalSymbol, OutsideUse, externalLabel, isUsed, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
+import { standardSymbols } from '../utils/stdlib';
 import { familyOfExtension } from '../utils/renameScan';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
@@ -21,7 +22,7 @@ import { LocalScopeAnalyzer } from '../services/LocalScopeAnalyzer';
 import { MemoStore, MAIN_MEMO, memoFolderOf, memoId, sanitizeLang } from '../services/MemoStore';
 import { MemoMode, memoCss, memoHtml, memoScript } from './memoSection';
 import { codeBlocks, toggleTask } from '../utils/memoMarkdown';
-import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, OutsideRow, manageCss, manageListHtml, manageScript, outsidePageHtml, outsideRowsHtml } from './manageSection';
+import { FILE_LEVEL_ID, FocusView, MANAGE_GROUPS, ManageGroup, ManageRow, ManageView, OutsideRow, externalRowsHtml, manageCss, manageListHtml, manageScript, outsidePageHtml, outsideRowsHtml } from './manageSection';
 import { LineHit, memberLineRanges, searchLines, usageLines, ParentRange, withParents } from '../utils/memberSearch';
 import { ReviewSeverity } from '../utils/reviewTypes';
 import { PackageShortcuts, buildShortcutGroups, shortcutsCss, shortcutsHtml, shortcutsScript } from './shortcutsSection';
@@ -1072,9 +1073,11 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         const symbols = index.allSymbols();
         const key = doc.uri.toString() + '|' + doc.version + '|' + symbols.length;
         if (this._extCache?.key === key) { return this._extCache.list; }
-        const refs = usedRefs(doc.getText(), this._state.provider?.languageId ?? doc.languageId, doc.uri.fsPath);
+        const lang = this._state.provider?.languageId ?? doc.languageId;
+        const refs = usedRefs(doc.getText(), lang, doc.uri.fsPath);
         const used = new Map<string, boolean>();
-        const list: ExternalSymbol[] = [];
+        // the objects of the standard libraries (SysUtils, stdio.h, os...) come first: nobody indexed them, the files that use them have no source here
+        const list: ExternalSymbol[] = standardSymbols(lang, path.extname(doc.uri.fsPath), refs);
         for (const s of symbols) {
             const id = s.uri.toString();
             if (id === doc.uri.toString()) { continue; }
@@ -1087,11 +1090,23 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     }
 
     /** What the filter finds in the used files, with what is indexed so far (the page asks again when the index is complete). */
-    private externalNow(): { label: string; kind: string }[] {
+    private externalNow(): OutsideRow[] {
         const q = this._manageFilter.trim();
         this._extHits = q ? matchExternal(this.externalList(), q) : [];
         if (q && !ops.getWorkspaceIndex()?.ready) { setTimeout(() => { void this.postExternal(); }, 400); }
-        return this._extHits.map(h => ({ label: h.label, kind: h.kind }));
+        return this.rowsOf(this._extHits);
+    }
+
+    /** The rows of a list of objects of other files, each with the lines of the open file that write it. */
+    private rowsOf(symbols: ExternalSymbol[]): OutsideRow[] {
+        if (!symbols.length) { return []; }
+        const doc = vscode.window.activeTextEditor?.document;
+        const lang = this._state.provider?.languageId ?? doc?.languageId ?? '';
+        const uses = new Map(doc ? usedFromOutside(doc.getText(), familyOfExtension(path.extname(doc.uri.fsPath), lang), symbols).map(u => [u.symbol.label, u] as const) : []);
+        return symbols.map(s => {
+            const u = uses.get(s.label);
+            return { label: s.label, kind: s.kind, count: u?.count ?? 0, line: u?.line ?? 0, uses: u?.uses ?? [], more: u?.more ?? 0, canOpen: !!s.path };
+        });
     }
 
     /** Sends the page the objects of the used files that the filter finds (the workspace is indexed on the first use). */
@@ -1101,7 +1116,8 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         await index.ensureBuilt();
         const q = this._manageFilter.trim();
         this._extHits = q ? matchExternal(this.externalList(), q) : [];
-        void this._view?.webview.postMessage({ command: 'externalHits', hits: this._extHits.map(h => ({ label: h.label, kind: h.kind })) });
+        const rows = this.rowsOf(this._extHits);
+        void this._view?.webview.postMessage({ command: 'externalHits', html: externalRowsHtml(rows), count: rows.length });
     }
 
     private async openAt(file: string, line: number): Promise<void> {
@@ -1113,7 +1129,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     /** A click on an object of a used file: its file opens at the object. */
     private async openExternal(i: number): Promise<void> {
         const hit = Number.isInteger(i) ? this._extHits[i] : undefined;
-        if (hit) { await this.openAt(hit.path, hit.line); }
+        if (hit?.path) { await this.openAt(hit.path, hit.line); }
     }
 
     /** What the code of the open file writes that comes from the other files, once per version of the text and of the index. */
@@ -1134,7 +1150,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
 
     /** One row of the page Used, from what the code writes. */
     private outsideRow(r: OutsideUse): OutsideRow {
-        return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: r.uses, more: r.more };
+        return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: r.uses, more: r.more, canOpen: !!r.symbol.path };
     }
 
     /** The page of the tab Used: what the code uses from other files. The project is read the first time (the page says so and fills itself). */
@@ -1159,7 +1175,7 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     /** A click on an object used from outside: its file opens at its definition. */
     private async openOutside(i: number): Promise<void> {
         const row = Number.isInteger(i) ? this._outRows[i] : undefined;
-        if (row) { await this.openAt(row.symbol.path, row.symbol.line); }
+        if (row?.symbol.path) { await this.openAt(row.symbol.path, row.symbol.line); }
     }
 
     /** The Structure tab filtered on a name (the element under the cursor): the objects of the used files that carry it are listed too. */

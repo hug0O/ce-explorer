@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.98 — 2026-11-05
+- **Used: the standard and generic objects of the units are listed too.** A file that `uses` SysUtils, Classes, Math, StrUtils, DateUtils, Generics.Collections, Vcl.Dialogs, Forms, Winapi.Windows… (and `System`, which every Delphi unit uses without writing it), includes `<stdio.h>`, `<vector>`, `<algorithm>`…, or imports `os`, `json`, `re`, `fs`, `path`… points to objects whose source is not in the project, so nothing indexed them. They now come from a catalog of the objects used every day, listed as `System.SysUtils.Format`, `System.Generics.Collections.TList`, `stdio.h.printf`, `os.getcwd` (a module member only when it is written after a dot). The catalog lists the everyday objects, not every object of every library: what is missing is not shown. Such an object has no file to open (no ↗), but its lines are there.
+- **The filter of Structure also shows the lines.** The objects it finds in the used files unfold like those of the tab Used: a click shows the lines of the open file that write the object, a click on a line goes to it; an object that is not written here is a plain row with the arrow to its file.
+
 ## 0.1.97 — 2026-11-05
 - **The objects used from outside have a tab of their own: Used.** It sits in the header, next to Structure, instead of under the list of members. It lists, with its own filter, the objects of the files the code points to that the code really writes (`UData.LoadAll ×2`).
 - **A click on an object opens it to the lines that write it.** Each line shows its number and its text; a click on a line goes to that line of the code, and the page keeps what is open and typed in the filter. The arrow ↗ at the end of the row opens the object in its own file. The filter also reads the text of those lines.

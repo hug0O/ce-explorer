@@ -82,10 +82,10 @@ export interface ManageView {
 }
 
 /** An object of another file that the code uses: where it is written, how many times, and the first line that uses it. */
-export interface OutsideRow { label: string; kind: string; count: number; line: number; uses: { line: number; text: string }[]; more: number }
+export interface OutsideRow { label: string; kind: string; count: number; line: number; uses: { line: number; text: string }[]; more: number; canOpen: boolean }
 
 /** An object of a file the current one uses: how it is written in the list, and what it is. */
-export interface ExternalRow { label: string; kind: string }
+export type ExternalRow = OutsideRow;
 
 function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -186,6 +186,7 @@ export function manageCss(): string {
 .mobj > details > summary::-webkit-details-marker { display: none; }
 .mobj > details > summary::before { content: '▸'; flex: none; width: 10px; color: var(--vscode-descriptionForeground); }
 .mobj > details[open] > summary::before { content: '▾'; }
+.mflat { display: flex; gap: 6px; align-items: baseline; padding: 1px 4px 1px 14px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .mobj > details > summary:hover { background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15)); }
 .mcount { flex: none; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
 .mopen { flex: none; background: transparent; border: none; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 0 3px; font-size: 12px; }
@@ -201,21 +202,26 @@ export function manageCss(): string {
 `;
 }
 
-/** The rows of the objects found in the used files: a click opens the file at the object. */
-export function externalRowsHtml(rows: ExternalRow[]): string {
-    return rows.map((r, i) => `<li class="mhit mext" data-ext="${i}" title="Open ${esc(r.label)}"><span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span></li>`).join('');
-}
-
 /**
  * The rows of the objects used from outside: a row opens to the lines of this file that write the object (a click on a line goes to it in
  * the code), and the arrow opens the object in its own file.
  */
-export function outsideRowsHtml(rows: OutsideRow[]): string {
-    return rows.map((r, i) => `<li class="mobj" data-text="${esc((r.label + ' ' + r.kind + ' ' + r.uses.map(u => u.text).join(' ')).toLowerCase())}"><details>`
-        + `<summary title="Show the ${r.count} place(s) that write it"><span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span>`
-        + `<span class="mcount">×${r.count}</span><button class="mopen" data-out="${i}" title="Open ${esc(r.label)} in its file">↗</button></summary>`
-        + `<ul class="muses">${r.uses.map(u => `<li class="mhit" data-m-line="${u.line}" title="Go to line ${u.line + 1}"><span class="mln">${u.line + 1}</span><span class="mtx">${esc(u.text)}</span></li>`).join('')}`
-        + (r.more ? `<li class="mmore">… ${r.more} more line(s) not listed</li>` : '') + `</ul></details></li>`).join('');
+export function outsideRowsHtml(rows: OutsideRow[]): string { return objectRowsHtml(rows, 'data-out'); }
+
+/** The objects of the used files that the filter finds: the same rows, with the lines of this file that write each one. */
+export function externalRowsHtml(rows: OutsideRow[]): string { return objectRowsHtml(rows, 'data-ext'); }
+
+function objectRowsHtml(rows: OutsideRow[], attr: 'data-out' | 'data-ext'): string {
+    return rows.map((r, i) => {
+        const open = r.canOpen ? `<button class="mopen" ${attr}="${i}" title="Open ${esc(r.label)} in its file">↗</button>` : '';
+        const head = `<span class="mln">${esc(r.kind)}</span><span class="mtx">${esc(r.label)}</span>${r.count ? `<span class="mcount">×${r.count}</span>` : ''}${open}`;
+        const text = esc((r.label + ' ' + r.kind + ' ' + r.uses.map(u => u.text).join(' ')).toLowerCase());
+        // not written in this file (it matched the filter by its name): a plain row, with nothing to unfold
+        if (!r.uses.length) { return `<li class="mobj" data-text="${text}"><div class="mflat">${head}</div></li>`; }
+        return `<li class="mobj" data-text="${text}"><details><summary title="Show the ${r.count} place(s) that write it">${head}</summary>`
+            + `<ul class="muses">${r.uses.map(u => `<li class="mhit" data-m-line="${u.line}" title="Go to line ${u.line + 1}"><span class="mln">${u.line + 1}</span><span class="mtx">${esc(u.text)}</span></li>`).join('')}`
+            + (r.more ? `<li class="mmore">… ${r.more} more line(s) not listed</li>` : '') + `</ul></details></li>`;
+    }).join('');
 }
 
 /** The page of the tab Used: what the code of the open file uses from other files, with its own filter. */
@@ -370,7 +376,7 @@ export function manageListHtml(v: ManageView): string {
     // what is written in the files this file uses (units, headers, modules) and is not in it: found with the same filter, as <file>.<object>
     const ext = v.external ?? [];
     html += `<div id="mExtBox"${ext.length ? '' : ' hidden'}><div class="mgroup" id="mExtTitle" title="Objects of the files this file uses, found by the filter">From the files it uses (${ext.length})</div>`
-        + `<ul class="mhits mextlist" id="mExternal">${externalRowsHtml(ext)}</ul></div>`;
+        + `<ul class="mobjs" id="mExternal">${externalRowsHtml(ext)}</ul></div>`;
     html += `</div>`;
     return html;
 }
@@ -430,19 +436,13 @@ function initManage(api) {
         if (!m || m.command !== 'externalHits') { return; }
         var ul = $('mExternal'), box = $('mExtBox');
         if (!ul || !box) { return; }
-        while (ul.firstChild) { ul.removeChild(ul.firstChild); }
-        (m.hits || []).forEach(function (h, i) {
-            var li = document.createElement('li'); li.className = 'mhit mext'; li.setAttribute('data-ext', String(i)); li.title = 'Open ' + h.label;
-            var a = document.createElement('span'); a.className = 'mln'; a.textContent = h.kind;
-            var b = document.createElement('span'); b.className = 'mtx'; b.textContent = h.label;
-            li.appendChild(a); li.appendChild(b); ul.appendChild(li);
-        });
-        $('mExtTitle').textContent = 'From the files it uses (' + (m.hits || []).length + ')';
-        box.hidden = !(m.hits || []).length;
+        ul.innerHTML = m.html || '';
+        $('mExtTitle').textContent = 'From the files it uses (' + (m.count || 0) + ')';
+        box.hidden = !m.count;
     });
     document.addEventListener('click', function (ev) {
         var row = ev.target && ev.target.closest ? ev.target.closest('[data-ext]') : null;
-        if (row) { api.postMessage({ command: 'openExternal', index: Number(row.getAttribute('data-ext')) }); return; }
+        if (row) { ev.preventDefault(); api.postMessage({ command: 'openExternal', index: Number(row.getAttribute('data-ext')) }); return; }
         var out = ev.target && ev.target.closest ? ev.target.closest('[data-out]') : null;
         if (out) { ev.preventDefault(); api.postMessage({ command: 'openOutside', index: Number(out.getAttribute('data-out')) }); }
     });

@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.100 — 2026-11-05
+- **Used and the Structure filter read only the files the open file points to, not the project.** They no longer wait for an index of the whole workspace (which stopped at 3000 files and opened each one in the editor, one after the other). The names of the files are listed once (the search of the editor, a moment even for 20 000 files), the few files the open file uses (its `uses`, its `#include`, its imports: a few dozen) are read **without being opened** and a few at a time, and what was read is kept by the date of each file: the next time, or in the next file that uses the same ones, only what changed is read again. The cost follows the number of files a file uses, not the size of the project.
+- **A warning when *Go to member in the workspace* cuts the project**: it still indexes the first 3000 files only, and now says so.
+
 ## 0.1.99 — 2026-11-05
 - **Custom libraries, not the standard one.** The catalog of the standard libraries added in 0.1.98 is removed: what is looked for is what **your own units** export. Two things were missing, both fixed:
   - **Generic types of a Pascal unit were not read at all.** `TBox<T> = class`, `TPair<K, V> = record`, `IFoo<T> = interface` were not classes (their methods showed as routines of the unit, called `TBox`, `Put`, `Get`), so nothing of them could be found from other units. They are now classes with their members; `procedure TBox<T>.Put` is the implementation of `Put`. A class whose name does not start with `T` (`Registry.Add`) is read too. This also fixes the Structure list of a unit that holds generics. A generic routine (`function Max<T>`) was already read.

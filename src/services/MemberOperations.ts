@@ -7,6 +7,7 @@ import { EditPipeline } from './EditPipeline';
 import { memberFormToSpec, generateFromSpec } from './memberForm';
 import { LocalScopeAnalyzer } from './LocalScopeAnalyzer';
 import type { WorkspaceIndex } from './WorkspaceIndex';
+import type { UsedFilesIndex } from './UsedFilesIndex';
 import { queueDfmRename, syncFormAfterDelete } from './FormSync';
 import { insertPlDocHeader } from './PlSqlCommands';
 import { notify } from './Notify';
@@ -19,6 +20,14 @@ export function setWorkspaceIndex(index: WorkspaceIndex | undefined): void {
 }
 export function getWorkspaceIndex(): WorkspaceIndex | undefined {
     return _workspaceIndex;
+}
+
+let _usedFilesIndex: UsedFilesIndex | undefined;
+export function setUsedFilesIndex(index: UsedFilesIndex | undefined): void {
+    _usedFilesIndex = index;
+}
+export function getUsedFilesIndex(): UsedFilesIndex | undefined {
+    return _usedFilesIndex;
 }
 
 let _log: vscode.OutputChannel | undefined;

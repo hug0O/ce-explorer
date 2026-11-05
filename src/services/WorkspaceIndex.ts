@@ -74,6 +74,9 @@ export class WorkspaceIndex implements vscode.Disposable {
         const exts = this.registry.getSupportedExtensions().map(e => e.replace(/^\./, ''));
         if (exts.length === 0) { return; }
         const uris = await vscode.workspace.findFiles(`**/*.{${exts.join(',')}}`, EXCLUDE_GLOB, MAX_FILES);
+        if (uris.length >= MAX_FILES) {
+            void vscode.window.showWarningMessage(`CE: the project has more than ${MAX_FILES} files: only the first ${MAX_FILES} are searched by Go to member in the workspace. (The tab Used reads only the files the open file points to, whatever the size of the project.)`);
+        }
         await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Window, title: 'CE: Indexing workspace…' },
             async () => {

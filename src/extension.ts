@@ -27,6 +27,7 @@ import { QuickFixProvider } from './providers/QuickFixProvider';
 import { resolveVariableAt } from './services/VariableResolver';
 import { VariableRefactorService } from './services/VariableRefactorService';
 import { WorkspaceIndex } from './services/WorkspaceIndex';
+import { UsedFilesIndex } from './services/UsedFilesIndex';
 import { setFormStorage } from './services/FormLibrary';
 import * as plsql from './services/PlSqlCommands';
 import * as delphi from './services/DelphiCommands';
@@ -84,6 +85,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         workspaceIndex = new WorkspaceIndex(providerRegistry);
         context.subscriptions.push(workspaceIndex);
         ops.setWorkspaceIndex(workspaceIndex);
+        // the files a file points to are read when they are asked for, never the whole project
+        const usedFiles = new UsedFilesIndex(providerRegistry);
+        context.subscriptions.push(usedFiles);
+        ops.setUsedFilesIndex(usedFiles);
         usage.attach(context.globalState);
         context.subscriptions.push(vscode.commands.registerCommand('ce.usage.show', () => UsagePanel.show(context)));
         context.subscriptions.push({ dispose: () => { void usage.flush(); } });

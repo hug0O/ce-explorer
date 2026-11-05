@@ -8,7 +8,7 @@ import { ILanguageProvider } from '../providers/ILanguageProvider';
 import { CodeGeneratorService } from '../services/CodeGeneratorService';
 import { CodeExplorerService } from '../services/CodeExplorerService';
 import * as ops from '../services/MemberOperations';
-import { ExternalSymbol, OutsideUse, externalLabel, isUsed, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
+import { ExternalSymbol, OutsideUse, UsedRefs, matchExternal, usedFromOutside, usedRefs } from '../utils/usedFiles';
 import { familyOfExtension } from '../utils/renameScan';
 import { memberFormToSpec, generateFromSpec } from '../services/memberForm';
 import { reviewDocument, ReviewFinding } from '../services/CodeReviewService';
@@ -1064,34 +1064,43 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
     private _extHits: ExternalSymbol[] = [];
     private _extCache: { key: string; list: ExternalSymbol[] } | undefined;
 
-    /** Every object of the files the open file uses (units, headers, modules), once per version of the text and of the index. */
+    /**
+     * The objects of the files the open file points to (its `uses`, its `#include`, its imports): only those files are read, never the project.
+     * What was read is kept for as long as the file points to the same files, whatever is typed elsewhere in it.
+     */
     private externalList(): ExternalSymbol[] {
-        const index = ops.getWorkspaceIndex();
-        const doc = vscode.window.activeTextEditor?.document;
-        if (!index || !doc) { return []; }
-        const symbols = index.allSymbols();
-        const key = doc.uri.toString() + '|' + doc.version + '|' + symbols.length;
-        if (this._extCache?.key === key) { return this._extCache.list; }
-        const lang = this._state.provider?.languageId ?? doc.languageId;
-        const refs = usedRefs(doc.getText(), lang, doc.uri.fsPath);
-        const used = new Map<string, boolean>();
-        const list: ExternalSymbol[] = [];
-        for (const s of symbols) {
-            const id = s.uri.toString();
-            if (id === doc.uri.toString()) { continue; }
-            let ok = used.get(id);
-            if (ok === undefined) { ok = isUsed(refs, s.uri.fsPath); used.set(id, ok); }
-            if (ok) { list.push({ label: externalLabel(s.uri.fsPath, s.container, s.name), name: s.name, container: s.container, kind: s.kind, path: s.uri.fsPath, line: s.line }); }
-        }
-        this._extCache = { key, list };
-        return list;
+        const k = this.refsKey();
+        return k && this._extCache?.key === k.key ? this._extCache.list : [];
     }
 
-    /** What the filter finds in the used files, with what is indexed so far (the page asks again when the index is complete). */
+    private externalReady(): boolean {
+        const k = this.refsKey();
+        return !!k && this._extCache?.key === k.key;
+    }
+
+    /** The files the open file points to, and a key that says when they change. */
+    private refsKey(): { key: string; refs: UsedRefs } | undefined {
+        const doc = vscode.window.activeTextEditor?.document;
+        if (!doc || typeof doc.getText !== 'function') { return undefined; }
+        const refs = usedRefs(doc.getText(), this._state.provider?.languageId ?? doc.languageId, doc.uri.fsPath);
+        return { key: doc.uri.toString() + '|' + [...refs.bases].sort().join(',') + '|' + [...refs.dirs].sort().join(','), refs };
+    }
+
+    /** Reads the files the open file points to (the first time, or when its `uses` changed). */
+    private async loadExternal(): Promise<void> {
+        const index = ops.getUsedFilesIndex();
+        const doc = vscode.window.activeTextEditor?.document;
+        const k = this.refsKey();
+        if (!index || !doc || !k || this._extCache?.key === k.key) { return; }
+        const list = await index.externalFor(k.refs, doc.uri.fsPath);
+        this._extCache = { key: k.key, list };
+    }
+
+    /** What the filter finds in the used files, with what was read so far (the page is filled when the files are read). */
     private externalNow(): OutsideRow[] {
         const q = this._manageFilter.trim();
         this._extHits = q ? matchExternal(this.externalList(), q) : [];
-        if (q && !ops.getWorkspaceIndex()?.ready) { setTimeout(() => { void this.postExternal(); }, 400); }
+        if (q && ops.getUsedFilesIndex() && !this.externalReady()) { setTimeout(() => { void this.postExternal(); }, 150); }
         return this.rowsOf(this._extHits);
     }
 
@@ -1107,11 +1116,10 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         });
     }
 
-    /** Sends the page the objects of the used files that the filter finds (the workspace is indexed on the first use). */
+    /** Sends the page the objects of the used files that the filter finds. */
     private async postExternal(): Promise<void> {
-        const index = ops.getWorkspaceIndex();
-        if (!index || this._tab !== 'manage') { return; }
-        await index.ensureBuilt();
+        if (!ops.getUsedFilesIndex() || this._tab !== 'manage') { return; }
+        await this.loadExternal();
         const q = this._manageFilter.trim();
         this._extHits = q ? matchExternal(this.externalList(), q) : [];
         const rows = this.rowsOf(this._extHits);
@@ -1151,20 +1159,19 @@ export class MemberViewerPanel implements vscode.WebviewViewProvider {
         return { label: r.symbol.label, kind: r.symbol.kind, count: r.count, line: r.line, uses: r.uses, more: r.more, canOpen: !!r.symbol.path };
     }
 
-    /** The page of the tab Used: what the code uses from other files. The project is read the first time (the page says so and fills itself). */
+    /** The page of the tab Used: what the code uses from the files it points to. Those files are read the first time (the page says so and fills itself). */
     private getOutsideHtml(): string {
-        const index = ops.getWorkspaceIndex();
+        const index = ops.getUsedFilesIndex();
         if (!index || !vscode.window.activeTextEditor) { return outsidePageHtml({ rows: [], ready: !!index }); }
-        if (!index.ready) { setTimeout(() => { void this.postOutside(); }, 300); return outsidePageHtml({ rows: [], ready: false }); }
+        if (!this.externalReady()) { setTimeout(() => { void this.postOutside(); }, 100); return outsidePageHtml({ rows: [], ready: false }); }
         this._outRows = this.outsideList();
         return outsidePageHtml({ rows: this._outRows.map(r => this.outsideRow(r)), ready: true });
     }
 
-    /** Sends the page the list of what is used from outside (the workspace is indexed on the first time). */
+    /** Sends the page the list of what is used from outside. */
     private async postOutside(): Promise<void> {
-        const index = ops.getWorkspaceIndex();
-        if (!index || this._tab !== 'outside') { return; }
-        await index.ensureBuilt();
+        if (!ops.getUsedFilesIndex() || this._tab !== 'outside') { return; }
+        await this.loadExternal();
         this._outRows = this.outsideList();
         const rows = this._outRows.map(r => this.outsideRow(r));
         void this._view?.webview.postMessage({ command: 'outsideHits', html: outsideRowsHtml(rows), count: rows.length });

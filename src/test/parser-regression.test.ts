@@ -57,6 +57,8 @@ const { RustLanguageProvider } = require('../providers/RustLanguageProvider') as
 const { JavaLanguageProvider } = require('../providers/JavaLanguageProvider') as typeof import('../providers/JavaLanguageProvider');
 
 const fixturesDir = path.join(__dirname, '..', '..', 'test-fixtures');
+/** The large real-world Delphi unit is not part of the public repository: the tests that read it are skipped when it is absent. */
+const HAS_OFFRE = fs.existsSync(path.join(fixturesDir, 'offre_unit.pas'));
 
 type ParsedDocumentLike = {
     classes: Array<{
@@ -237,7 +239,7 @@ test('Java parser extracts class, interface, abstract class, and members', () =>
     assert.ok(mammal?.members.some(member => member.name === 'getHabitat' && member.isAbstract));
 });
 
-test('Pascal parser extracts standalone functions (single + multiline) alongside records', () => {
+test('Pascal parser extracts standalone functions (single + multiline) alongside records', { skip: !HAS_OFFRE }, () => {
     const provider = new PascalLanguageProvider();
     const doc = fixtureDocument('offre_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);
@@ -252,7 +254,7 @@ test('Pascal parser extracts standalone functions (single + multiline) alongside
     assert.ok(parsed.classes.some(c => c.name === 'TOFFPR_Infos'));
 });
 
-test('Pascal implementation range spans nested try/finally to the routine end', () => {
+test('Pascal implementation range spans nested try/finally to the routine end', { skip: !HAS_OFFRE }, () => {
     const provider = new PascalLanguageProvider();
     const doc = fixtureDocument('offre_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);
@@ -396,7 +398,7 @@ test('Standalone function rewrite preserves the body and updates the signature',
     assert.equal(pasDeclMods, 'procedure DoOther(b: Integer); overload;', `pascal declaration should keep trailing modifiers: ${pasDeclMods}`);
 });
 
-test('Pascal standalone edit syncs interface declaration and implementation header', () => {
+test('Pascal standalone edit syncs interface declaration and implementation header', { skip: !HAS_OFFRE }, () => {
     const provider = new PascalLanguageProvider();
     const doc = fixtureDocument('offre_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);

@@ -66,7 +66,9 @@ function makeDoc(text: string, fsPath: string): any {
 }
 
 const FIXTURE = path.join(__dirname, '..', '..', 'test-fixtures', 'offre_unit.pas');
-const UNIT_TEXT = fs.readFileSync(FIXTURE, 'utf8');
+// the large real-world Delphi unit is not part of the public repository: these tests are skipped when it is absent
+const HAS_FIXTURE = fs.existsSync(FIXTURE);
+const UNIT_TEXT = HAS_FIXTURE ? fs.readFileSync(FIXTURE, 'utf8') : '';
 const UNIT_LINES = UNIT_TEXT.split(/\r?\n/);
 
 async function renameAndCollect(member: any, cls: any): Promise<any[]> {
@@ -84,7 +86,7 @@ async function renameAndCollect(member: any, cls: any): Promise<any[]> {
     return applied[0]?.edits ?? [];
 }
 
-test('real Delphi unit: renaming a standalone procedure covers declaration AND implementation', async () => {
+test('real Delphi unit: renaming a standalone procedure covers declaration AND implementation', { skip: !HAS_FIXTURE }, async () => {
     const provider = new PascalLanguageProvider();
     const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/offre_unit.pas'));
     const member = parsed.standaloneProcedures.find((p: any) => p.name === 'fMaj_OFFPR');
@@ -99,7 +101,7 @@ test('real Delphi unit: renaming a standalone procedure covers declaration AND i
     assert.ok(editLines.has(member.implementationRange!.start.line), 'implementation line renamed');
 });
 
-test('real Delphi unit: renaming a routine covers declaration, implementation AND call sites', async () => {
+test('real Delphi unit: renaming a routine covers declaration, implementation AND call sites', { skip: !HAS_FIXTURE }, async () => {
     const provider = new PascalLanguageProvider();
     const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/offre_unit.pas'));
 

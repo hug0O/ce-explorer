@@ -1,6 +1,6 @@
-<p align="center"><img src="media/icon.png" alt="Code Explorer" width="96"></p>
+<p align="center"><img src="media/icon.png" alt="CE Code Explorer" width="96"></p>
 
-# Code Explorer
+# CE Code Explorer
 
 **A structure view, a refactoring toolbox and a Delphi form designer for VS Code.**
 

@@ -6,6 +6,14 @@
   "version": "0.1.105",
   "publisher": "hugo0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hug0O/ce-explorer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hug0O/ce-explorer/issues"
+  },
+  "homepage": "https://github.com/hug0O/ce-explorer#readme",
   "engines": {
     "vscode": "^1.85.0"
   },

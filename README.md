@@ -1,4 +1,4 @@
-<p align="center"><img src="media/logo.svg" alt="Code Explorer" width="96"></p>
+<p align="center"><img src="media/icon.png" alt="Code Explorer" width="96"></p>
 
 # Code Explorer
 

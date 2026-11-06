@@ -4,7 +4,7 @@
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
   "version": "0.1.105",
-  "publisher": "ce",
+  "publisher": "hugo0",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"

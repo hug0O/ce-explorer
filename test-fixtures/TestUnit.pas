@@ -11,7 +11,7 @@ type
     FBaseField: Integer;
   public
     procedure BaseMethod;
-  end;
+  end; 
 
   TDemoClass = class(TBaseClass)
   private

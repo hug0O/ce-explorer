@@ -27,7 +27,7 @@ Requires VS Code 1.85 or later.
 **From a `.vsix`** (Extensions view → `…` → *Install from VSIX…*, or the command line):
 
 ```bash
-code --install-extension ce-code-explorer-0.1.106.vsix
+code --install-extension ce-code-explorer-0.1.107.vsix
 ```
 
 **From source:**
@@ -135,7 +135,7 @@ The **Used** tab answers "where does this come from, and where is it used?" with
 
 ## Debugging
 
-**CE: Debug this file** (the 🐞 *Debug* button of the Tools tab, the *More commands* menu, or `F5` in a Pascal file) starts the debugger that fits the language of the file, with the breakpoints you set in the gutter (`F9`).
+**CE: Debug this file** (the 🐞 *Debug* button of the Tools tab, the *More commands* menu, or `F5` in a Pascal file) starts the debugger that fits the language of the file, with the breakpoints you set in the gutter (`F9`). The extension allows breakpoints in Pascal, PL/SQL, Batch and every language that has a debugger, so the red dot is there even before the debug extension is installed; **CE: Toggle breakpoint on this line** does the same from the keyboard or the menu, and `debug.allowBreakpointsEverywhere` in the VS Code settings allows them in any file.
 
 **Delphi / Pascal: a debugger of its own.** It debugs the program a Delphi project builds, Win32 or Win64, on Windows, with nothing to install: the debug engine is compiled by PowerShell the first time.
 

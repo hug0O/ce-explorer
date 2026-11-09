@@ -76,6 +76,16 @@ export function registerDebug(context: vscode.ExtensionContext): void {
                 return delphiConfiguration({ ...config, type: DELPHI_TYPE, request: 'launch', name: config.name || 'Delphi: debug the program' }, doc && /\.(pas|dpr|dpk|inc)$/i.test(doc.uri.fsPath) ? doc.uri.fsPath : undefined);
             },
         }),
+        // a breakpoint on the line of the cursor, put by the API, so that it does not depend on the language the file is read as
+        trackedCommand('ce.debug.toggleBreakpoint', () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { void vscode.window.showWarningMessage('CE: open the file to put a breakpoint in first.'); return; }
+            const uri = editor.document.uri;
+            const line = editor.selection.active.line;
+            const here = vscode.debug.breakpoints.filter(b => b instanceof vscode.SourceBreakpoint && b.location.uri.toString() === uri.toString() && b.location.range.start.line === line);
+            if (here.length) { vscode.debug.removeBreakpoints(here); return; }
+            vscode.debug.addBreakpoints([new vscode.SourceBreakpoint(new vscode.Location(uri, new vscode.Position(line, 0)))]);
+        }),
         trackedCommand('ce.debug.start', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { void vscode.window.showWarningMessage('CE: open the file to debug first.'); return; }

@@ -3,7 +3,7 @@
   "displayName": "CE Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.106",
+  "version": "0.1.107",
   "publisher": "hugo0",
   "license": "MIT",
   "repository": {
@@ -514,6 +514,10 @@
       {
         "command": "ce.debug.start",
         "title": "CE: Debug this file (breakpoints, step, stack)"
+      },
+      {
+        "command": "ce.debug.toggleBreakpoint",
+        "title": "CE: Toggle breakpoint on this line"
       }
     ],
     "submenus": [
@@ -897,6 +901,11 @@
           "command": "ce.debug.start",
           "when": "editorTextFocus",
           "group": "3_review@3"
+        },
+        {
+          "command": "ce.debug.toggleBreakpoint",
+          "when": "editorTextFocus",
+          "group": "3_review@2"
         }
       ]
     },
@@ -1422,6 +1431,57 @@
     "breakpoints": [
       {
         "language": "pascal"
+      },
+      {
+        "language": "delphi"
+      },
+      {
+        "language": "objectpascal"
+      },
+      {
+        "language": "plsql"
+      },
+      {
+        "language": "bat"
+      },
+      {
+        "language": "python"
+      },
+      {
+        "language": "java"
+      },
+      {
+        "language": "csharp"
+      },
+      {
+        "language": "go"
+      },
+      {
+        "language": "rust"
+      },
+      {
+        "language": "cpp"
+      },
+      {
+        "language": "c"
+      },
+      {
+        "language": "typescript"
+      },
+      {
+        "language": "typescriptreact"
+      },
+      {
+        "language": "javascript"
+      },
+      {
+        "language": "javascriptreact"
+      },
+      {
+        "language": "powershell"
+      },
+      {
+        "language": "shellscript"
       }
     ],
     "debuggers": [
@@ -1493,6 +1553,40 @@
               "program": "${1}"
             }
           }
+        ]
+      }
+    ],
+    "languages": [
+      {
+        "id": "pascal",
+        "aliases": [
+          "Pascal",
+          "Delphi",
+          "Object Pascal"
+        ],
+        "extensions": [
+          ".pas",
+          ".dpr",
+          ".dpk",
+          ".pp",
+          ".lpr"
+        ]
+      },
+      {
+        "id": "plsql",
+        "aliases": [
+          "PL/SQL",
+          "Oracle PL/SQL"
+        ],
+        "extensions": [
+          ".pks",
+          ".pkb",
+          ".pck",
+          ".pls",
+          ".plb",
+          ".prc",
+          ".fnc",
+          ".trg"
         ]
       }
     ]

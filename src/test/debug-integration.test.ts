@@ -104,6 +104,13 @@ test('the Delphi debugger is declared, breakpoints can be set in Pascal files, t
     assert.deepEqual(Object.keys(d.configurationAttributes.launch.properties).sort(), ['args', 'breakOnAccessViolation', 'cwd', 'mapFile', 'program', 'sourcePaths']);
     assert.ok(d.initialConfigurations[0].type === 'ce-delphi');
     assert.deepEqual(pkg.contributes.breakpoints.map((b: { language: string }) => b.language), BREAKPOINT_LANGUAGES);
+    for (const l of ['pascal', 'delphi', 'objectpascal', 'plsql', 'python', 'typescript']) { assert.ok(BREAKPOINT_LANGUAGES.includes(l), l + ' has breakpoints'); }
+    // with no extension for Pascal, VS Code leaves a .pas as plain text, where a breakpoint cannot be set: the extension says what the files are
+    const langs = pkg.contributes.languages as { id: string; extensions: string[] }[];
+    assert.ok(['.pas', '.dpr', '.dpk'].every(e => langs.find(l => l.id === 'pascal')!.extensions.includes(e)));
+    assert.ok(['.pks', '.pkb'].every(e => langs.find(l => l.id === 'plsql')!.extensions.includes(e)));
+    assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'ce.debug.toggleBreakpoint'));
+    assert.match(fs.readFileSync(path.join(root, 'src', 'services', 'DebugCommands.ts'), 'utf8'), /trackedCommand\('ce\.debug\.toggleBreakpoint'[\s\S]*vscode\.debug\.addBreakpoints/);
     assert.ok(pkg.contributes.commands.some((c: { command: string }) => c.command === 'ce.debug.start'));
     const ext = fs.readFileSync(path.join(root, 'src', 'extension.ts'), 'utf8');
     assert.match(ext, /registerDebug\(context\)/);

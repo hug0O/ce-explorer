@@ -57,5 +57,11 @@ export function debugConfigFor(languageId: string, file: string, text = ''): Deb
     }
 }
 
-/** The languages the extension lets breakpoints be set in (the other languages' own extensions do it for theirs). */
-export const BREAKPOINT_LANGUAGES = ['pascal'];
+/**
+ * The languages the extension lets breakpoints be set in: VS Code puts the red dot in the gutter of a language only when an extension says
+ * breakpoints make sense there, and the debug extension of a language may not be installed yet (the command offers to install it).
+ */
+export const BREAKPOINT_LANGUAGES = [
+    'pascal', 'delphi', 'objectpascal', 'plsql', 'bat', 'python', 'java', 'csharp', 'go', 'rust', 'cpp', 'c',
+    'typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'powershell', 'shellscript',
+];

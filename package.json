@@ -3,7 +3,7 @@
   "displayName": "CE Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.105",
+  "version": "0.1.106",
   "publisher": "hugo0",
   "license": "MIT",
   "repository": {
@@ -510,6 +510,10 @@
       {
         "command": "ce.structure.filterOnCursor",
         "title": "CE: Structure filtered on the element under the cursor"
+      },
+      {
+        "command": "ce.debug.start",
+        "title": "CE: Debug this file (breakpoints, step, stack)"
       }
     ],
     "submenus": [
@@ -888,6 +892,11 @@
           "command": "ce.structure.filterOnCursor",
           "when": "editorTextFocus",
           "group": "1_navigate@4"
+        },
+        {
+          "command": "ce.debug.start",
+          "when": "editorTextFocus",
+          "group": "3_review@3"
         }
       ]
     },
@@ -1406,6 +1415,83 @@
           },
           {
             "filenamePattern": "*.markdown"
+          }
+        ]
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "pascal"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "ce-delphi",
+        "label": "Delphi (CE Code Explorer)",
+        "languages": [
+          "pascal"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "The executable the project builds. Empty: found from the open unit (Win32\\Debug, Win64\\Debug, next to the project).",
+                "default": ""
+              },
+              "mapFile": {
+                "type": "string",
+                "description": "The detailed map file of the program. Default: the program with the extension .map."
+              },
+              "args": {
+                "type": [
+                  "array",
+                  "string"
+                ],
+                "description": "Arguments of the program.",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working folder of the program. Default: the folder of the program."
+              },
+              "breakOnAccessViolation": {
+                "type": "boolean",
+                "description": "Stop on an access violation before the program handles it.",
+                "default": false
+              },
+              "sourcePaths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Folders to look for the source files in, when the map file names them without a path. The workspace is searched too."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "ce-delphi",
+            "request": "launch",
+            "name": "Delphi: debug the program",
+            "program": ""
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Delphi: debug the program",
+            "description": "Debug the program a Delphi project builds, with breakpoints on the lines of its units (needs the detailed map file).",
+            "body": {
+              "type": "ce-delphi",
+              "request": "launch",
+              "name": "Delphi: debug the program",
+              "program": "${1}"
+            }
           }
         ]
       }

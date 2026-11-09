@@ -149,7 +149,7 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.diffForm',
 ];
 /** Commands that work on any language: they are offered on every page of the Tools tab that needs them. */
-export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm'];
+export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm', 'ce.debug.start'];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -206,6 +206,7 @@ function analyzeBlock(): string {
 <div class="analyze-grid">
 <button class="ana" data-ak="review">✅ Review</button>
 <button class="ana" data-ak="documentation">📖 Doc</button>
+<button class="ana" data-common="ce.debug.start" title="Start the debugger of this file with its breakpoints: the Delphi debugger of this extension for a unit (needs the detailed map file), the debugger of the language for the others">🐞 Debug</button>
 <button class="ana" data-ak="deadcode" title="What the compiler or linter of the language says is unused in this file (imports, locals, private members, unreachable code), and what nothing in the project refers to">💀 Dead Code</button>
 </div>
 </div>

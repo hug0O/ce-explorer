@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.106 — 2026-11-09
+- **A debugger for Delphi / Pascal, with breakpoints.** New debug type *Delphi (CE Code Explorer)*: set breakpoints in the gutter of a Pascal unit and press F5. It debugs the program a Delphi project builds, **Win32 and Win64**, on Windows, and needs nothing installed (its debug engine is a few hundred lines of C# that PowerShell compiles the first time). It reads the **detailed map file** (*Project Options > Linking > Map file: Detailed*) to turn lines into addresses: breakpoints (a line without code moves to the next one), run, pause, **step over / into / out by source line**, the **call stack** with routines and lines, the **registers**, the `OutputDebugString` text, a stop on exceptions (and optionally on access violations before the program handles them). The program and its map file are found from the open unit. **Not yet:** the values of variables and expressions (the types of Delphi are not in the map file), conditional breakpoints, attaching to a process.
+- **One command to debug in any language: `CE: Debug this file`** (the 🐞 button of the Tools tab, the *More commands* menu). It starts the debugger of the language of the file with a launch configuration it builds: Node.js and TypeScript (through `tsx`), Python, Java, C#, Go, Rust (CodeLLDB), C / C++, PowerShell and Shell, and offers to install the extension that brings the debugger when it is missing. Breakpoints are the usual ones of VS Code.
+
 ## 0.1.105 — 2026-11-05
 - **Used: no more constructors and destructors in the list.** `Create` and `Destroy` of every class of a used file are left out of *From outside* (and of the objects that the Structure filter finds in the used files): they are the same name in each class and said nothing about what the file uses.
 

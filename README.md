@@ -27,7 +27,7 @@ Requires VS Code 1.85 or later.
 **From a `.vsix`** (Extensions view → `…` → *Install from VSIX…*, or the command line):
 
 ```bash
-code --install-extension ce-code-explorer-0.1.105.vsix
+code --install-extension ce-code-explorer-0.1.106.vsix
 ```
 
 **From source:**
@@ -132,6 +132,32 @@ The **Used** tab answers "where does this come from, and where is it used?" with
 - Rules per language: Delphi / Pascal (the compiler's warnings and hints, objects never freed, `except` that swallows, SQL built by concatenation…), TypeScript / JavaScript, Java, C#, C++, Go, Rust, Python, PL/SQL, and rules common to all (CWE-89 / 327 / 295, passwords in the source, long methods, notes).
 - **Dead code** lists what the compiler or linter of the language says is unused (imports, locals, private members, unreachable code) and, in the project panel, units and components that nothing uses. Findings are also shown dimmed in the editor.
 - **Documentation**: Markdown API docs from the structure of a file; *Export structure*.
+
+## Debugging
+
+**CE: Debug this file** (the 🐞 *Debug* button of the Tools tab, the *More commands* menu, or `F5` in a Pascal file) starts the debugger that fits the language of the file, with the breakpoints you set in the gutter (`F9`).
+
+**Delphi / Pascal: a debugger of its own.** It debugs the program a Delphi project builds, Win32 or Win64, on Windows, with nothing to install: the debug engine is compiled by PowerShell the first time.
+
+- **Prepare the project once**: *Project > Options > Building > Delphi Compiler > Linking > Map file: **Detailed***, then build in Debug. The map file is what tells the debugger which line is at which address.
+- **What it does**: breakpoints on the lines of your units (a line without code moves to the next one that has some), run, **pause**, **step over / step into / step out** by source line, **call stack** with routines and lines, the **registers** of the stopped frame, the program's `OutputDebugString` text in the debug console, and a stop on an exception or (option `breakOnAccessViolation`) on an access violation. The program and its map file are found from the open unit (`Win32\Debug`, `Win64\Debug`, the project folder) or set with `program` and `mapFile` in `launch.json`.
+- **What it does not do yet**: show the values of variables, evaluate expressions or watches (Delphi's types are not in the map file), conditional breakpoints, and attach to a running process.
+
+**Other languages: one command, the debugger each language already has.** It builds the launch configuration for the file, and offers to install the extension that brings the debugger when it is missing.
+
+| Language | Debugger started |
+|---|---|
+| JavaScript, TypeScript | Node.js (built into VS Code; TypeScript through `tsx`) |
+| Python | Python Debugger (`ms-python.debugpy`) |
+| Java | Debugger for Java (`vscjava.vscode-java-debug`) |
+| C# | .NET (`coreclr`, the C# extension) |
+| Go | Go (`golang.go`) |
+| Rust | CodeLLDB (`vadimcn.vscode-lldb`) |
+| C / C++ | C/C++ (`cppvsdbg` on Windows) |
+| PowerShell | PowerShell extension |
+| Shell | Bash Debug |
+
+Batch, PL/SQL and Markdown have no debugger.
 
 ## Delphi
 

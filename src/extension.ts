@@ -48,6 +48,7 @@ import { setDesignerStores } from './services/DesignerStore';
 import { registerEncodingCommands } from './services/EncodingCommands';
 import { registerTranslateCommands } from './services/TranslateCommands';
 import { registerRenamePreview } from './services/RenamePreview';
+import { registerDebug } from './services/DebugCommands';
 
 /** Reads the Delphi files of the workspace for the project panel: only when it is asked to. */
 const projectScanner = new ProjectScanner(() => providerRegistry);
@@ -152,6 +153,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         registerEncodingCommands(context);
         registerTranslateCommands(context);
         registerRenamePreview(context);
+        registerDebug(context);
         registerLanguageCommands(context, providerRegistry, () => codeExplorer.refresh());
         registerNavCommands(context, codeExplorer);
         actionLog.init(context.workspaceState);

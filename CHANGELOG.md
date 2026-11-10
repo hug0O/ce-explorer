@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.108 — 2026-11-10
+- **Compile a Delphi project from VS Code.** `Ctrl+Shift+B` (the build task *ce-delphi*), **CE: Delphi - Build the project** / **Rebuild**, or the 🔨 *Build* button of the Tools tab compile the `.dproj` of the open unit with the Delphi compiler of the RAD Studio installed (found by the registry, `BDS`, the usual folders or the setting `ce.delphi.rsvars`): MSBuild with the environment of `rsvars.bat`, the **detailed map file forced on**, and the compiler's errors and warnings in the **Problems panel**, on their file and line (a problem matcher reads them). Settings: `ce.delphi.buildConfig` (Debug), `ce.delphi.platform` (Win32 / Win64), `ce.delphi.project`.
+- **F5 builds, then debugs.** The Delphi debugger builds the project first and stops on a build error (see Problems); otherwise it starts the program under the debugger with the breakpoints of your units, finding it in the folder of the platform and configuration that was built. `"build": false` in the launch configuration debugs the program as it is.
+
 ## 0.1.107 — 2026-11-09
 - **Breakpoints can be set in VS Code.** VS Code puts the red dot in the gutter of a language only when an extension says breakpoints make sense in it, and it leaves a `.pas` as *plain text* when no extension of Pascal is installed. The extension now declares the files it works on — **`pascal`** (`.pas .dpr .dpk .pp .lpr`) and **`plsql`** (`.pks .pkb .pck .pls .plb .prc .fnc .trg`) — and says that **breakpoints are allowed** in Pascal (also read as `delphi` or `objectpascal`), PL/SQL, Batch, Python, Java, C#, Go, Rust, C / C++, TypeScript, JavaScript, PowerShell and Shell, even before the debug extension of a language is installed (*CE: Debug this file* offers to install it).
 - **`CE: Toggle breakpoint on this line`** puts or takes a breakpoint on the line of the cursor through the API (in the *More commands* menu and the quick actions), whatever the language the file is read as.

@@ -11,6 +11,7 @@ import { DapMessage, DelphiDebugSession } from '../debug/session';
 import { delphiProgramFor } from '../debug/program';
 import { baseName } from '../debug/mapFile';
 import { debugConfigFor } from '../utils/debugConfig';
+import { runBuild } from './DelphiBuild';
 
 const DELPHI_TYPE = 'ce-delphi';
 
@@ -58,8 +59,9 @@ async function resolveSource(file: string, sourcePaths: string[], cache: Map<str
 /** What `F5` needs of a Delphi file: the program that was built, and where its map file is. */
 function delphiConfiguration(config: vscode.DebugConfiguration, file: string | undefined): vscode.DebugConfiguration | undefined {
     if (config.program) { return config; }
+    const s = vscode.workspace.getConfiguration('ce.delphi');
     if (!file) { void vscode.window.showErrorMessage('CE: open a unit of the project to debug, or set "program" in the launch configuration.'); return undefined; }
-    const found = delphiProgramFor(file, { exists: p => fs.existsSync(p), list: d => { try { return fs.readdirSync(d); } catch { return []; } } });
+    const found = delphiProgramFor(file, { exists: p => fs.existsSync(p), list: d => { try { return fs.readdirSync(d); } catch { return []; } } }, { config: String(config.buildConfig ?? s.get('buildConfig', 'Debug')), platform: String(config.platform ?? s.get('platform', 'Win32')) });
     if ('missing' in found) { void vscode.window.showErrorMessage('CE: ' + found.missing); return undefined; }
     return { ...config, program: found.program, mapFile: config.mapFile ?? found.map };
 }
@@ -70,9 +72,14 @@ export function registerDebug(context: vscode.ExtensionContext): void {
             createDebugAdapterDescriptor: session => new vscode.DebugAdapterInlineImplementation(new InlineAdapter(context, (session.configuration.sourcePaths as string[] | undefined) ?? [])),
         }),
         vscode.debug.registerDebugConfigurationProvider(DELPHI_TYPE, {
-            resolveDebugConfiguration(_folder, config) {
+            async resolveDebugConfiguration(_folder, config) {
                 if (process.platform !== 'win32') { void vscode.window.showErrorMessage('CE: the Delphi debugger works on Windows.'); return undefined; }
                 const doc = vscode.window.activeTextEditor?.document;
+                // the program is built first (the detailed map file is forced), as the IDE does on F9: an error stops here, and is in the Problems panel
+                if (config.build !== false) {
+                    const built = await runBuild({ type: 'ce-delphi', task: 'build', project: config.project as string | undefined, config: config.buildConfig as string | undefined, platform: config.platform as string | undefined });
+                    if (!built) { void vscode.window.showErrorMessage('CE: the build failed: see the Problems panel. The program is not started.'); return undefined; }
+                }
                 return delphiConfiguration({ ...config, type: DELPHI_TYPE, request: 'launch', name: config.name || 'Delphi: debug the program' }, doc && /\.(pas|dpr|dpk|inc)$/i.test(doc.uri.fsPath) ? doc.uri.fsPath : undefined);
             },
         }),

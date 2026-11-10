@@ -149,7 +149,7 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.diffForm',
 ];
 /** Commands that work on any language: they are offered on every page of the Tools tab that needs them. */
-export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm', 'ce.debug.start'];
+export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm', 'ce.debug.start', 'ce.delphi.build'];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -188,6 +188,8 @@ function delphiBlock(): string {
 <div class="section-title">Delphi form</div>
 <div class="analyze-grid">
 ${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, units and components nothing uses, the checks of every form (read on demand)')}
+<button class="ana" data-common="ce.delphi.build" title="Compile the project of this unit with the Delphi compiler (MSBuild, the detailed map file): the errors and warnings are in the Problems panel. Ctrl+Shift+B does the same; F5 builds, then debugs">🔨 Build</button>
+<button class="ana" data-common="ce.debug.start" title="Build, then run under the debugger with the breakpoints of the units">🐞 Debug</button>
 </div>
 <div class="tool-note">Anchors, duplicate, form check, handler cleanup, class change and form generation are in the designer's 🛠 Tools menu, with adding components and events.</div>
 </div>

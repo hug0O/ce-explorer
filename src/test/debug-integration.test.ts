@@ -101,7 +101,7 @@ test('the Delphi debugger is declared, breakpoints can be set in Pascal files, t
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     const d = pkg.contributes.debuggers.find((x: { type: string }) => x.type === 'ce-delphi');
     assert.ok(d && d.languages.includes('pascal'));
-    assert.deepEqual(Object.keys(d.configurationAttributes.launch.properties).sort(), ['args', 'breakOnAccessViolation', 'cwd', 'mapFile', 'program', 'sourcePaths']);
+    assert.deepEqual(Object.keys(d.configurationAttributes.launch.properties).sort(), ['args', 'breakOnAccessViolation', 'build', 'buildConfig', 'cwd', 'mapFile', 'platform', 'program', 'project', 'sourcePaths']);
     assert.ok(d.initialConfigurations[0].type === 'ce-delphi');
     assert.deepEqual(pkg.contributes.breakpoints.map((b: { language: string }) => b.language), BREAKPOINT_LANGUAGES);
     for (const l of ['pascal', 'delphi', 'objectpascal', 'plsql', 'python', 'typescript']) { assert.ok(BREAKPOINT_LANGUAGES.includes(l), l + ' has breakpoints'); }

@@ -29,11 +29,13 @@ export function projectOf(file: string, fs: FileSystem): { name: string; dir: st
 }
 
 /** The program to debug and its map file, or what is missing. */
-export function delphiProgramFor(file: string, fs: FileSystem): { program: string; map?: string } | { missing: string } {
+export function delphiProgramFor(file: string, fs: FileSystem, built?: { config: string; platform: string }): { program: string; map?: string } | { missing: string } {
     const project = projectOf(file, fs);
     if (!project) { return { missing: 'No Delphi project (.dpr or .dproj) found next to this file or above it.' }; }
     let exeOnly: string | undefined;
-    for (const folder of BUILD_FOLDERS) {
+    // the folder of what was just built first, then the usual ones
+    const folders = built ? [built.platform + '\\' + built.config, ...BUILD_FOLDERS] : BUILD_FOLDERS;
+    for (const folder of folders) {
         const exe = path.join(project.dir, ...folder.split('\\'), project.name + '.exe');
         if (!fs.exists(exe)) { continue; }
         const map = exe.replace(/\.exe$/i, '.map');

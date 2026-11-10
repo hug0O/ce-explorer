@@ -3,7 +3,7 @@
   "displayName": "CE Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.107",
+  "version": "0.1.108",
   "publisher": "hugo0",
   "license": "MIT",
   "repository": {
@@ -518,6 +518,14 @@
       {
         "command": "ce.debug.toggleBreakpoint",
         "title": "CE: Toggle breakpoint on this line"
+      },
+      {
+        "command": "ce.delphi.build",
+        "title": "CE: Delphi - Build the project (errors in the problems panel)"
+      },
+      {
+        "command": "ce.delphi.rebuild",
+        "title": "CE: Delphi - Rebuild the project"
       }
     ],
     "submenus": [
@@ -1096,6 +1104,40 @@
             "tags": [
               "advanced"
             ]
+          },
+          "ce.delphi.rsvars": {
+            "type": "string",
+            "default": "",
+            "description": "Path of rsvars.bat of the RAD Studio to build with, when it is not found by itself (for example C:\\Program Files (x86)\\Embarcadero\\Studio\\23.0\\bin\\rsvars.bat).",
+            "tags": [
+              "advanced"
+            ],
+            "order": 8
+          },
+          "ce.delphi.buildConfig": {
+            "type": "string",
+            "default": "Debug",
+            "description": "Build configuration used by the build task and the debugger (Debug, Release...).",
+            "order": 9
+          },
+          "ce.delphi.platform": {
+            "type": "string",
+            "enum": [
+              "Win32",
+              "Win64"
+            ],
+            "default": "Win32",
+            "description": "Platform used by the build task and the debugger.",
+            "order": 10
+          },
+          "ce.delphi.project": {
+            "type": "string",
+            "default": "",
+            "description": "The .dproj to build. Empty: the project of the open unit.",
+            "tags": [
+              "advanced"
+            ],
+            "order": 11
           }
         }
       },
@@ -1530,6 +1572,27 @@
                   "type": "string"
                 },
                 "description": "Folders to look for the source files in, when the map file names them without a path. The workspace is searched too."
+              },
+              "build": {
+                "type": "boolean",
+                "description": "Build the project before starting (MSBuild with the detailed map file). Set false to debug the program as it is.",
+                "default": true
+              },
+              "buildConfig": {
+                "type": "string",
+                "description": "Build configuration. Default: the setting ce.delphi.buildConfig (Debug)."
+              },
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "Win32",
+                  "Win64"
+                ],
+                "description": "Platform to build and debug. Default: the setting ce.delphi.platform (Win32)."
+              },
+              "project": {
+                "type": "string",
+                "description": "The .dproj to build. Default: the one of the open unit."
               }
             }
           }
@@ -1588,6 +1651,57 @@
           ".fnc",
           ".trg"
         ]
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "ce-delphi",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "enum": [
+              "build",
+              "rebuild",
+              "clean"
+            ],
+            "description": "What to do with the project."
+          },
+          "project": {
+            "type": "string",
+            "description": "The .dproj to build. Default: the one of the open unit."
+          },
+          "config": {
+            "type": "string",
+            "description": "Build configuration (Debug, Release...). Default: the setting ce.delphi.buildConfig."
+          },
+          "platform": {
+            "type": "string",
+            "description": "Win32 or Win64. Default: the setting ce.delphi.platform."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "delphi",
+        "owner": "delphi",
+        "severity": "error",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^\\s*(.+?)\\((\\d+)(?:,(\\d+))?\\)\\s*:\\s*(error|warning)\\s+([EFW]\\d{4})\\s*:\\s*(.*?)(?:\\s+\\[[^\\]]+\\.dproj\\])?\\s*$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        }
       }
     ]
   },

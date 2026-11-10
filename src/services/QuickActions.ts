@@ -124,7 +124,7 @@ const GROUP_OF: Record<string, string> = {
     'ce.deleteVariable': 'refactor', 'ce.createLocalVariable': 'refactor', 'ce.declareLocalVariable': 'refactor', 'ce.extractMethod': 'refactor', 'ce.alignSelection': 'refactor',
     'ce.codeReview': 'review', 'ce.detectDeadCode': 'review', 'ce.generateDocumentation': 'review', 'ce.exportStructure': 'review', 'ce.insertDocHeader': 'review',
     'ce.addComponent': 'delphi', 'ce.addEventHandler': 'delphi',
-    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.structure.filterOnCursor': 'navigate', 'ce.debug.start': 'tools', 'ce.debug.toggleBreakpoint': 'tools', 'ce.rename': 'refactor', 'ce.addMember': 'members', 'ce.variableActions': 'refactor', 'ce.translateLanguages': 'tools', 'ce.documentActions': 'review', 'ce.help': 'tools', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
+    'ce.setLanguage': 'tools', 'ce.fixEncoding': 'tools', 'ce.translate': 'tools', 'ce.usage.show': 'tools', 'ce.translateTo': 'tools', 'ce.translateFrom': 'tools', 'ce.translateForm': 'delphi', 'ce.renamePreview': 'refactor', 'ce.structure.filterOnCursor': 'navigate', 'ce.debug.start': 'tools', 'ce.debug.toggleBreakpoint': 'tools', 'ce.delphi.build': 'delphi', 'ce.delphi.rebuild': 'delphi', 'ce.rename': 'refactor', 'ce.addMember': 'members', 'ce.variableActions': 'refactor', 'ce.translateLanguages': 'tools', 'ce.documentActions': 'review', 'ce.help': 'tools', 'ce.memo.open': 'tools', 'ce.openGuide': 'tools', 'ce.delphi.project': 'tools',
 };
 
 const DELPHI_EXT = new Set(['.pas', '.dfm', '.dpr', '.dpk']);

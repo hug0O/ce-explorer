@@ -5,19 +5,39 @@
  * Pure: the registry output, the file system and the environment are given, so all of it is tested without a Delphi.
  */
 import * as path from 'path';
+import { delphiInstallCommand } from './projectBuild';
 
 export interface BuildOptions {
     /** `rsvars.bat` of the RAD Studio. */
     rsvars: string;
     dproj: string;
     config: string;
+    /** `Win32`, `Win64`, or `Both` (the two, one after the other). */
     platform: string;
     target: 'Build' | 'Rebuild' | 'Clean';
+    /** After the build: the folder the program is copied to (the Install of the menu). */
+    install?: { dir: string };
 }
 
-/** The command that builds the project, for `cmd.exe /d /c`: the environment of Delphi, then MSBuild with the detailed map file. */
+/** The platforms a `platform` stands for. */
+export function platformsOf(platform: string): string[] {
+    return /^both$/i.test(platform) ? ['Win32', 'Win64'] : [platform];
+}
+
+/** Where Delphi writes the program of a project: next to the project, in `<platform>\<config>`. */
+export function exePath(dproj: string, platform: string, config: string): string {
+    const dir = path.win32.dirname(dproj);
+    return `${dir}\\${platform}\\${config}\\${path.win32.basename(dproj).replace(/\.dproj$/i, '')}.exe`;
+}
+
+/** The command that builds the project, for `cmd.exe /d /c`: the environment of Delphi, then MSBuild with the detailed map file, once per platform. */
 export function buildCommandLine(o: BuildOptions): string {
-    return `call "${o.rsvars}" && msbuild "${o.dproj}" /t:${o.target} /p:Config=${o.config} /p:Platform=${o.platform} /p:DCC_MapFile=3 /nologo /v:minimal /clp:NoSummary`;
+    const platforms = platformsOf(o.platform);
+    const parts = platforms.map(p => `msbuild "${o.dproj}" /t:${o.target} /p:Config=${o.config} /p:Platform=${p} /p:DCC_MapFile=3 /nologo /v:minimal /clp:NoSummary`);
+    if (o.install && o.target !== 'Clean') {
+        for (const p of platforms) { parts.push(delphiInstallCommand(exePath(o.dproj, p, o.config), o.install.dir, p, platforms.length > 1)); }
+    }
+    return `call "${o.rsvars}" && ${parts.join(' && ')}`;
 }
 
 /** The versions of RAD Studio and their folders from `reg query HKCU\Software\Embarcadero\BDS /s /v RootDir`, newest first. */

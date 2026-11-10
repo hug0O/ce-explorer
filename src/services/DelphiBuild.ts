@@ -50,7 +50,7 @@ async function projectFile(explicit?: string): Promise<string | undefined> {
     return (await vscode.workspace.findFiles('**/*.dproj', '**/node_modules/**', 1))[0]?.fsPath;
 }
 
-export interface BuildDefinition extends vscode.TaskDefinition { task?: string; project?: string; config?: string; platform?: string }
+export interface BuildDefinition extends vscode.TaskDefinition { task?: string; project?: string; config?: string; platform?: string; installDir?: string }
 
 /** The task that builds the project; undefined (with the reason shown) when there is no Delphi or no project. */
 export async function buildTask(def: BuildDefinition, quiet = false): Promise<vscode.Task | undefined> {
@@ -66,16 +66,22 @@ export async function buildTask(def: BuildDefinition, quiet = false): Promise<vs
         return undefined;
     }
     const target: Target = def.task === 'rebuild' ? 'Rebuild' : def.task === 'clean' ? 'Clean' : 'Build';
-    const line = buildCommandLine({ rsvars, dproj, config: def.config || s.config, platform: def.platform || s.platform, target });
+    let install: { dir: string } | undefined;
+    if (def.task === 'install') {
+        const dir = def.installDir || vscode.workspace.getConfiguration('ce.delphi').get<string>('installDir', '').trim();
+        if (!dir) { return fail('set the folder to install the program to: the setting ce.delphi.installDir.'); }
+        install = { dir: path.isAbsolute(dir) ? dir : path.join(path.dirname(dproj), dir) };
+    }
+    const line = buildCommandLine({ rsvars, dproj, config: def.config || s.config, platform: def.platform || s.platform, target, install });
     const task = new vscode.Task(
         { ...def, type: BUILD_TYPE, task: def.task ?? 'build' },
         vscode.workspace.getWorkspaceFolder(vscode.Uri.file(dproj)) ?? vscode.TaskScope.Workspace,
-        `${target} ${path.basename(dproj)} (${def.config || s.config}, ${def.platform || s.platform})`,
+        `${install ? 'Install' : target} ${path.basename(dproj)} (${def.config || s.config}, ${def.platform || s.platform})`,
         'CE Delphi',
         new vscode.ShellExecution(line, { executable: 'cmd.exe', shellArgs: ['/d', '/c'] }),
         '$delphi',
     );
-    task.group = def.task === 'clean' ? undefined : vscode.TaskGroup.Build;
+    task.group = def.task === 'clean' || def.task === 'install' ? undefined : vscode.TaskGroup.Build;
     task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true, panel: vscode.TaskPanelKind.Shared };
     return task;
 }
@@ -92,25 +98,30 @@ export async function runBuild(def: BuildDefinition): Promise<boolean> {
     });
 }
 
+/** 32 bit, 64 bit or both, the way the Platforms of the IDE are chosen: the one of the setting is first. */
+export async function pickPlatform(): Promise<string | undefined> {
+    const first = settings().platform;
+    const items = ['Win32', 'Win64', 'Both'].sort((a, b) => (a === first ? -1 : b === first ? 1 : 0)).map(p => ({ label: p === 'Both' ? 'Win32 and Win64' : p === 'Win32' ? 'Win32 (32 bit)' : 'Win64 (64 bit)', platform: p }));
+    return (await vscode.window.showQuickPick(items, { title: 'CE: Delphi - platform' }))?.platform;
+}
+
 export function registerDelphiBuild(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.tasks.registerTaskProvider(BUILD_TYPE, {
             provideTasks: async () => {
                 if (process.platform !== 'win32') { return []; }
-                const t = await buildTask({ type: BUILD_TYPE, task: 'build' }, true);
-                return t ? [t] : [];
+                // Clean / Build / Rebuild in 32 and 64 bit, in Terminal > Run Task (Ctrl+Shift+B runs the default build)
+                const all = await Promise.all((['build', 'rebuild', 'clean'] as const).flatMap(task => ['Win32', 'Win64'].map(platform => buildTask({ type: BUILD_TYPE, task, platform }, true))));
+                return all.filter((t): t is vscode.Task => !!t);
             },
             resolveTask: task => (process.platform === 'win32' ? buildTask(task.definition as BuildDefinition, true) : undefined),
         }),
-        trackedCommand('ce.delphi.build', async () => {
+        ...(['build', 'rebuild', 'clean', 'install'] as const).map(what => trackedCommand('ce.delphi.' + what, async () => {
             if (process.platform !== 'win32') { void vscode.window.showErrorMessage('CE: building a Delphi project works on Windows.'); return; }
-            const task = await buildTask({ type: BUILD_TYPE, task: 'build' });
+            const platform = await pickPlatform();
+            if (!platform) { return; }
+            const task = await buildTask({ type: BUILD_TYPE, task: what, platform });
             if (task) { await vscode.tasks.executeTask(task); }
-        }),
-        trackedCommand('ce.delphi.rebuild', async () => {
-            if (process.platform !== 'win32') { void vscode.window.showErrorMessage('CE: building a Delphi project works on Windows.'); return; }
-            const task = await buildTask({ type: BUILD_TYPE, task: 'rebuild' });
-            if (task) { await vscode.tasks.executeTask(task); }
-        }),
+        })),
     );
 }

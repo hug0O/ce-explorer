@@ -27,7 +27,7 @@ Requires VS Code 1.85 or later.
 **From a `.vsix`** (Extensions view → `…` → *Install from VSIX…*, or the command line):
 
 ```bash
-code --install-extension ce-code-explorer-0.1.108.vsix
+code --install-extension ce-code-explorer-0.1.109.vsix
 ```
 
 **From source:**

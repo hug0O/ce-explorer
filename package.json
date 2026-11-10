@@ -3,7 +3,7 @@
   "displayName": "CE Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.108",
+  "version": "0.1.109",
   "publisher": "hugo0",
   "license": "MIT",
   "repository": {
@@ -526,6 +526,26 @@
       {
         "command": "ce.delphi.rebuild",
         "title": "CE: Delphi - Rebuild the project"
+      },
+      {
+        "command": "ce.delphi.clean",
+        "title": "CE: Delphi - Clean the project (32 and 64 bit)"
+      },
+      {
+        "command": "ce.delphi.install",
+        "title": "CE: Delphi - Build and install the program (32 and 64 bit)"
+      },
+      {
+        "command": "ce.project.clean",
+        "title": "CE: Clean the project (any language)"
+      },
+      {
+        "command": "ce.project.build",
+        "title": "CE: Build the project (any language, 32 or 64 bit)"
+      },
+      {
+        "command": "ce.project.install",
+        "title": "CE: Install the project (any language)"
       }
     ],
     "submenus": [
@@ -1138,6 +1158,12 @@
               "advanced"
             ],
             "order": 11
+          },
+          "ce.delphi.installDir": {
+            "type": "string",
+            "default": "",
+            "description": "Folder the Install command copies the built program to (Win32 and Win64 go in sub-folders when both are built). A relative path is from the project folder.",
+            "order": 12
           }
         }
       },
@@ -1665,7 +1691,8 @@
             "enum": [
               "build",
               "rebuild",
-              "clean"
+              "clean",
+              "install"
             ],
             "description": "What to do with the project."
           },
@@ -1679,7 +1706,11 @@
           },
           "platform": {
             "type": "string",
-            "description": "Win32 or Win64. Default: the setting ce.delphi.platform."
+            "description": "Win32, Win64 or Both. Default: the setting ce.delphi.platform."
+          },
+          "installDir": {
+            "type": "string",
+            "description": "Install: the folder the program is copied to. Default: the setting ce.delphi.installDir."
           }
         }
       }

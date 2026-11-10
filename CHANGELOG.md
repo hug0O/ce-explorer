@@ -2,6 +2,10 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.109 — 2026-11-10
+- **Clean, Build, Rebuild and Install in 32 and 64 bit, like the Delphi menu.** **CE: Delphi - Clean / Build / Rebuild / Build and install** ask for the platform (*Win32*, *Win64* or *both*, one MSBuild after the other) and the tasks *ce-delphi* are all in Terminal > Run Task. *Install* copies the program built to `ce.delphi.installDir` (sub-folders Win32 / Win64 when both are built).
+- **The same for the other languages.** **CE: Clean / Build / Install the project** (and the 🧹 🔨 📦 buttons of the Tools tab) read the project from its files and run its tool: cargo, go, dotnet, Maven, Gradle, CMake, make, npm (its own `build` / `clean` scripts), pip; 32 or 64 bit where the tool has both (cargo `--target`, `GOARCH`, dotnet `-r win-x86/x64`, CMake `-A Win32/x64`).
+
 ## 0.1.108 — 2026-11-10
 - **Compile a Delphi project from VS Code.** `Ctrl+Shift+B` (the build task *ce-delphi*), **CE: Delphi - Build the project** / **Rebuild**, or the 🔨 *Build* button of the Tools tab compile the `.dproj` of the open unit with the Delphi compiler of the RAD Studio installed (found by the registry, `BDS`, the usual folders or the setting `ce.delphi.rsvars`): MSBuild with the environment of `rsvars.bat`, the **detailed map file forced on**, and the compiler's errors and warnings in the **Problems panel**, on their file and line (a problem matcher reads them). Settings: `ce.delphi.buildConfig` (Debug), `ce.delphi.platform` (Win32 / Win64), `ce.delphi.project`.
 - **F5 builds, then debugs.** The Delphi debugger builds the project first and stops on a build error (see Problems); otherwise it starts the program under the debugger with the breakpoints of your units, finding it in the folder of the platform and configuration that was built. `"build": false` in the launch configuration debugs the program as it is.

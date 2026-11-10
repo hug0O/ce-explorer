@@ -73,10 +73,10 @@ test('the debugger looks for the program in the folder of what was built first',
 test('the build is a task (Ctrl+Shift+B) with a problem matcher, two commands, the settings, and the debugger builds before it starts', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     const def = pkg.contributes.taskDefinitions.find((d: { type: string }) => d.type === 'ce-delphi');
-    assert.deepEqual(def.properties.task.enum, ['build', 'rebuild', 'clean']);
-    for (const c of ['ce.delphi.build', 'ce.delphi.rebuild']) { assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === c), c); }
+    assert.deepEqual(def.properties.task.enum, ['build', 'rebuild', 'clean', 'install']);
+    for (const c of ['ce.delphi.build', 'ce.delphi.rebuild', 'ce.delphi.clean', 'ce.delphi.install', 'ce.project.clean', 'ce.project.build', 'ce.project.install']) { assert.ok(pkg.contributes.commands.some((x: { command: string }) => x.command === c), c); }
     const props = pkg.contributes.configuration.find((g: { id: string }) => g.id === 'ce.delphi').properties;
-    for (const k of ['ce.delphi.rsvars', 'ce.delphi.buildConfig', 'ce.delphi.platform', 'ce.delphi.project']) { assert.ok(props[k], k); }
+    for (const k of ['ce.delphi.rsvars', 'ce.delphi.buildConfig', 'ce.delphi.platform', 'ce.delphi.project', 'ce.delphi.installDir']) { assert.ok(props[k], k); }
     assert.equal(props['ce.delphi.buildConfig'].default, 'Debug');
     const launch = pkg.contributes.debuggers[0].configurationAttributes.launch.properties;
     assert.equal(launch.build.default, true);

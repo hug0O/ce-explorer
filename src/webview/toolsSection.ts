@@ -149,7 +149,7 @@ export const DELPHI_COMMANDS = [
     'ce.delphi.diffForm',
 ];
 /** Commands that work on any language: they are offered on every page of the Tools tab that needs them. */
-export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm', 'ce.debug.start', 'ce.delphi.build'];
+export const COMMON_COMMANDS = ['ce.delphi.project', 'ce.blueprint.open', 'ce.blueprint.project', 'ce.usage.show', 'ce.renamePreview', 'ce.translateForm', 'ce.debug.start', 'ce.delphi.build', 'ce.project.clean', 'ce.project.build', 'ce.project.install'];
 export const PLSQL_ALIGN_IDS = ['params', 'assign', 'arrow', 'comment', 'alias', 'values'];
 
 function plsqlBlock(): string {
@@ -188,7 +188,9 @@ function delphiBlock(): string {
 <div class="section-title">Delphi form</div>
 <div class="analyze-grid">
 ${btn('ce.delphi.project', '🗂️ Project insights', 'The SQL of the project, units and components nothing uses, the checks of every form (read on demand)')}
-<button class="ana" data-common="ce.delphi.build" title="Compile the project of this unit with the Delphi compiler (MSBuild, the detailed map file): the errors and warnings are in the Problems panel. Ctrl+Shift+B does the same; F5 builds, then debugs">🔨 Build</button>
+<button class="ana" data-common="ce.project.clean" title="Clean the project of this unit (MSBuild Clean): Win32, Win64 or both">🧹 Clean</button>
+<button class="ana" data-common="ce.project.build" title="Compile the project of this unit with the Delphi compiler in Win32, Win64 or both (MSBuild, the detailed map file): the errors and warnings are in the Problems panel. Ctrl+Shift+B does the same; F5 builds, then debugs">🔨 Build</button>
+<button class="ana" data-common="ce.project.install" title="Build, then copy the program to ce.delphi.installDir (Win32 / Win64)">📦 Install</button>
 <button class="ana" data-common="ce.debug.start" title="Build, then run under the debugger with the breakpoints of the units">🐞 Debug</button>
 </div>
 <div class="tool-note">Anchors, duplicate, form check, handler cleanup, class change and form generation are in the designer's 🛠 Tools menu, with adding components and events.</div>
@@ -209,6 +211,9 @@ function analyzeBlock(): string {
 <button class="ana" data-ak="review">✅ Review</button>
 <button class="ana" data-ak="documentation">📖 Doc</button>
 <button class="ana" data-common="ce.debug.start" title="Start the debugger of this file with its breakpoints: the Delphi debugger of this extension for a unit (needs the detailed map file), the debugger of the language for the others">🐞 Debug</button>
+<button class="ana" data-common="ce.project.clean" title="Clean the build of the project: cargo, go, dotnet, Maven, Gradle, CMake, make, npm, pip">🧹 Clean</button>
+<button class="ana" data-common="ce.project.build" title="Build the project (32 or 64 bit where the tool has both)">🔨 Build</button>
+<button class="ana" data-common="ce.project.install" title="Install the project: cargo install, go install, dotnet publish, mvn install, cmake --install, make install, npm install, pip install">📦 Install</button>
 <button class="ana" data-ak="deadcode" title="What the compiler or linter of the language says is unused in this file (imports, locals, private members, unreachable code), and what nothing in the project refers to">💀 Dead Code</button>
 </div>
 </div>

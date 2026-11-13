@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.111 — 2026-11-13
+- **Publishing on the Marketplace from GitHub, without a token.** `.github/workflows/publish.yml` tests the extension and publishes it with Trusted Publishing (`vsce publish --oidc`) when a tag `v<version>` is pushed; it refuses a tag that is not the version of `package.json`.
+
 ## 0.1.110 — 2026-11-13
 - **Fewer look-alike commands.** *CE: Clean / Build / Install the project* do the Delphi build on a Delphi file, so the three Delphi commands that did the same left the command palette (*CE: Delphi - Rebuild the project* stays).
 - **The README shows the sidebar**: pictures of the Structure and Used tabs, one more animation of the designer.

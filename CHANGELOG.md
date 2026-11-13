@@ -2,6 +2,9 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.112 — 2026-11-13
+- The files are checked out with LF line endings (`.gitattributes`): the tests of the publishing workflow failed on the Windows runner of GitHub, where git turns them into CRLF. The version 0.1.111 was never published; this one is the first to go out by the workflow.
+
 ## 0.1.111 — 2026-11-13
 - **Publishing on the Marketplace from GitHub, without a token.** `.github/workflows/publish.yml` tests the extension and publishes it with Trusted Publishing (`vsce publish --oidc`) when a tag `v<version>` is pushed; it refuses a tag that is not the version of `package.json`.
 

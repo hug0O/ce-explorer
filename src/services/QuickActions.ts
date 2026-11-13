@@ -97,6 +97,8 @@ export const REPLACED = new Set([
     'ce.translateTo', 'ce.translateFrom', 'ce.insertDocHeader', 'ce.generateDocumentation', 'ce.exportStructure',
     'ce.openWalkthrough', 'ce.openGuide', 'ce.openSettings', 'ce.showLog', 'ce.showActionLog', 'ce.usage.show',
     'ce.delphi.align', 'ce.delphi.anchors', 'ce.delphi.tabOrder', 'ce.delphi.formFromFields', 'ce.delphi.formFromClass', 'ce.delphi.cleanHandlers',
+    // the build of any language does the Delphi one on a Delphi file
+    'ce.delphi.build', 'ce.delphi.clean', 'ce.delphi.install',
 ]);
 
 export const NOT_FOR_MENUS = new Set([

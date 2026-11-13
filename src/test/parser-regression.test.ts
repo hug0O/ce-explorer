@@ -58,7 +58,7 @@ const { JavaLanguageProvider } = require('../providers/JavaLanguageProvider') as
 
 const fixturesDir = path.join(__dirname, '..', '..', 'test-fixtures');
 /** The large real-world Delphi unit is not part of the public repository: the tests that read it are skipped when it is absent. */
-const HAS_OFFRE = fs.existsSync(path.join(fixturesDir, 'offre_unit.pas'));
+const HAS_OFFRE = fs.existsSync(path.join(fixturesDir, 'large_unit.pas'));
 
 type ParsedDocumentLike = {
     classes: Array<{
@@ -239,32 +239,32 @@ test('Java parser extracts class, interface, abstract class, and members', () =>
     assert.ok(mammal?.members.some(member => member.name === 'getHabitat' && member.isAbstract));
 });
 
-test('Pascal parser extracts standalone functions (single + multiline) alongside records', { skip: !HAS_OFFRE }, () => {
+test('Pascal parser extracts standalone functions (single + multiline) alongside records', () => {
     const provider = new PascalLanguageProvider();
-    const doc = fixtureDocument('offre_unit.pas', 'pascal');
+    const doc = fixtureDocument('large_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);
 
     assert.ok(parsed.standaloneProcedures.length > 40, `expected many standalone functions, got ${parsed.standaloneProcedures.length}`);
     // single-line declaration
-    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'fGet_DATAS_OFFPR_COLLA'));
+    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'fGet_Order_Label'));
     // multi-line declaration
-    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'pHistoriser_ST_VERSI'));
-    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'fModificationOFFPR'));
+    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'pArchive_Stock'));
+    assert.ok(parsed.standaloneProcedures.some(p => p.name === 'fUpdate_Order'));
     // records are still parsed alongside
-    assert.ok(parsed.classes.some(c => c.name === 'TOFFPR_Infos'));
+    assert.ok(parsed.classes.some(c => c.name === 'TOrderInfos'));
 });
 
-test('Pascal implementation range spans nested try/finally to the routine end', { skip: !HAS_OFFRE }, () => {
+test('Pascal implementation range spans nested try/finally to the routine end', () => {
     const provider = new PascalLanguageProvider();
-    const doc = fixtureDocument('offre_unit.pas', 'pascal');
+    const doc = fixtureDocument('large_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);
 
     type ProcWithRange = { name: string; implementationRange?: { start: { line: number }; end: { line: number } } };
-    const fn = (parsed.standaloneProcedures as ProcWithRange[]).find(p => p.name === 'fCalculPRIX_VENTE');
-    assert.ok(fn, 'fCalculPRIX_VENTE should be parsed as standalone');
-    assert.ok(fn!.implementationRange, 'fCalculPRIX_VENTE should have an implementation range');
+    const fn = (parsed.standaloneProcedures as ProcWithRange[]).find(p => p.name === 'fComputeSalePrice');
+    assert.ok(fn, 'fComputeSalePrice should be parsed as standalone');
+    assert.ok(fn!.implementationRange, 'fComputeSalePrice should have an implementation range');
 
-    const lines = fs.readFileSync(path.join(fixturesDir, 'offre_unit.pas'), 'utf8').split(/\r?\n/);
+    const lines = fs.readFileSync(path.join(fixturesDir, 'large_unit.pas'), 'utf8').split(/\r?\n/);
     const start = fn!.implementationRange!.start.line;
     const end = fn!.implementationRange!.end.line;
     const body = lines.slice(start, end + 1).join('\n');
@@ -375,20 +375,20 @@ test('Standalone function rewrite preserves the body and updates the signature',
     assert.ok(go && go.startsWith('func BuildServer(c Config) *Server {'), `go header wrong: ${go}`);
 
     const pas = new PascalLanguageProvider().rewriteStandaloneFunction(
-        'function fCalculPRIX_VENTE(iOFFRE_ID: Integer): String;\nvar\n  oQuery: TUniQuery;\nbegin\n  Result := \'0\';\n  oQuery := TUniQuery.Create(nil);\n  try\n    try\n      if fQueryRQSQL(oQuery, 47012) then\n      begin\n        fQueryOpen(oQuery);\n      end;\n    except\n      on E: Exception do\n        raise;\n    end;\n  finally\n    FreeAndNil(oQuery);\n  end;\nend;',
-        spec('fCalculPRIX_VENTE_BIS', [{ name: 'o', type: 'Integer' }], 'String'),
+        'function fComputeSalePrice(iOFFRE_ID: Integer): String;\nvar\n  oQuery: TUniQuery;\nbegin\n  Result := \'0\';\n  oQuery := TUniQuery.Create(nil);\n  try\n    try\n      if fQueryRQSQL(oQuery, 47012) then\n      begin\n        fQueryOpen(oQuery);\n      end;\n    except\n      on E: Exception do\n        raise;\n    end;\n  finally\n    FreeAndNil(oQuery);\n  end;\nend;',
+        spec('fComputeSalePrice_BIS', [{ name: 'o', type: 'Integer' }], 'String'),
     );
-    assert.ok(pas && pas.startsWith('function fCalculPRIX_VENTE_BIS(o: Integer): String;'), `pascal header wrong: ${pas}`);
+    assert.ok(pas && pas.startsWith('function fComputeSalePrice_BIS(o: Integer): String;'), `pascal header wrong: ${pas}`);
     assert.ok(pas!.includes('var\n  oQuery: TUniQuery;'), 'pascal local var section should be preserved');
     assert.ok(pas!.includes('finally'), 'pascal try/finally block should be preserved');
     assert.ok(pas!.includes('FreeAndNil(oQuery);'), 'pascal finally body should be preserved');
     assert.ok(pas!.endsWith('end;'), 'pascal rewrite should keep the routine closing end;');
 
     const pasDecl = new PascalLanguageProvider().rewriteStandaloneDeclaration(
-        'function fCalculPRIX_VENTE(iOFFRE_ID: Integer): String;',
-        spec('fCalculPRIX_VENTE_BIS', [{ name: 'o', type: 'Integer' }], 'String'),
+        'function fComputeSalePrice(iOFFRE_ID: Integer): String;',
+        spec('fComputeSalePrice_BIS', [{ name: 'o', type: 'Integer' }], 'String'),
     );
-    assert.equal(pasDecl, 'function fCalculPRIX_VENTE_BIS(o: Integer): String;', `pascal declaration should be rewritten: ${pasDecl}`);
+    assert.equal(pasDecl, 'function fComputeSalePrice_BIS(o: Integer): String;', `pascal declaration should be rewritten: ${pasDecl}`);
 
     // Trailing modifiers after the header ';' must be preserved.
     const pasDeclMods = new PascalLanguageProvider().rewriteStandaloneDeclaration(
@@ -398,9 +398,9 @@ test('Standalone function rewrite preserves the body and updates the signature',
     assert.equal(pasDeclMods, 'procedure DoOther(b: Integer); overload;', `pascal declaration should keep trailing modifiers: ${pasDeclMods}`);
 });
 
-test('Pascal standalone edit syncs interface declaration and implementation header', { skip: !HAS_OFFRE }, () => {
+test('Pascal standalone edit syncs interface declaration and implementation header', () => {
     const provider = new PascalLanguageProvider();
-    const doc = fixtureDocument('offre_unit.pas', 'pascal');
+    const doc = fixtureDocument('large_unit.pas', 'pascal');
     const parsed = provider.parseDocument(doc);
 
     type ProcWithRange = {
@@ -408,16 +408,16 @@ test('Pascal standalone edit syncs interface declaration and implementation head
         range?: { start: { line: number }; end: { line: number } };
         implementationRange?: { start: { line: number }; end: { line: number } };
     };
-    const fn = (parsed.standaloneProcedures as ProcWithRange[]).find(p => p.name === 'fCalculPRIX_VENTE');
-    assert.ok(fn && fn.range && fn.implementationRange, 'fCalculPRIX_VENTE should have both decl and impl ranges');
+    const fn = (parsed.standaloneProcedures as ProcWithRange[]).find(p => p.name === 'fComputeSalePrice');
+    assert.ok(fn && fn.range && fn.implementationRange, 'fComputeSalePrice should have both decl and impl ranges');
 
-    const lines = fs.readFileSync(path.join(fixturesDir, 'offre_unit.pas'), 'utf8').split(/\r?\n/);
+    const lines = fs.readFileSync(path.join(fixturesDir, 'large_unit.pas'), 'utf8').split(/\r?\n/);
     const declText = lines.slice(fn!.range!.start.line, fn!.range!.end.line + 1).join('\n');
     const implText = lines.slice(fn!.implementationRange!.start.line, fn!.implementationRange!.end.line + 1).join('\n');
 
     const { MemberKind, Visibility } = require('../models/types') as { MemberKind: typeof import('../models/types').MemberKind; Visibility: typeof import('../models/types').Visibility };
     const spec = {
-        kind: MemberKind.Method, name: 'fCalculPRIX_VENTE_BIS', returnType: 'String', visibility: Visibility.Public,
+        kind: MemberKind.Method, name: 'fComputeSalePrice_BIS', returnType: 'String', visibility: Visibility.Public,
         parameters: [{ name: 'o', type: 'Integer' }], modifiers: [], isStatic: false, isVirtual: false,
         isAbstract: false, isOverride: false, isFinal: false,
     };
@@ -425,7 +425,7 @@ test('Pascal standalone edit syncs interface declaration and implementation head
     const newDecl = provider.rewriteStandaloneDeclaration(declText, spec as any);
     const newImpl = provider.rewriteStandaloneFunction(implText, spec as any);
 
-    assert.equal(newDecl, 'function fCalculPRIX_VENTE_BIS(o: Integer): String;', `declaration synced: ${newDecl}`);
-    assert.ok(newImpl && newImpl.startsWith('function fCalculPRIX_VENTE_BIS(o: Integer): String;'), `implementation header synced: ${newImpl}`);
+    assert.equal(newDecl, 'function fComputeSalePrice_BIS(o: Integer): String;', `declaration synced: ${newDecl}`);
+    assert.ok(newImpl && newImpl.startsWith('function fComputeSalePrice_BIS(o: Integer): String;'), `implementation header synced: ${newImpl}`);
     assert.ok(newImpl!.includes('finally'), 'implementation body (finally) preserved during sync');
 });

@@ -27,7 +27,7 @@ Requires VS Code 1.85 or later.
 **From a `.vsix`** (Extensions view → `…` → *Install from VSIX…*, or the command line):
 
 ```bash
-code --install-extension ce-code-explorer-0.1.109.vsix
+code --install-extension ce-code-explorer-0.1.110.vsix
 ```
 
 **From source:**
@@ -73,6 +73,8 @@ A file the extension does not recognise can be given a language by hand: **CE: U
 
 ## The sidebar
 
+<p align="center"><img src="media/readme/structure.png" alt="The Structure tab: the members of a class, and where the selected one is used" width="380"></p>
+
 The **Member** view has four tabs, plus a folded **Changelog + Guide** view below it.
 
 | Tab | What it is for |
@@ -109,6 +111,8 @@ The **Member** view has four tabs, plus a folded **Changelog + Guide** view belo
 
 ## Used: what a file uses
 
+<p align="center"><img src="media/readme/used.png" alt="The Used tab: what the file uses from other files, under the routine that uses it" width="380"></p>
+
 The **Used** tab answers "where does this come from, and where is it used?" without indexing the project.
 
 - **From outside**: the objects of the files the open file points to (the units of a `uses` clause, the `#include`s, the imports of TypeScript / JavaScript, Python, Java, C#, Go and Rust). Only those files are read: the names of the project's files are listed once and the few that are used (a few dozen, never the whole project, so it works on a project of 20 000 files) are read without being opened, and kept by the date of each file. Objects are written `<file>.<object>`: classes, members, routines, constants, variables, types and enumeration values, generic types included. Constructors and destructors are left out.
@@ -139,7 +143,8 @@ The **Used** tab answers "where does this come from, and where is it used?" with
 
 **Delphi / Pascal: a debugger of its own.** It debugs the program a Delphi project builds, Win32 or Win64, on Windows, with nothing to install: the debug engine is compiled by PowerShell the first time.
 
-- **Build from VS Code.** `Ctrl+Shift+B` (or **CE: Delphi - Build the project**, the 🔨 *Build* button of the Tools tab) compiles the `.dproj` of the open unit with the Delphi compiler: it finds the RAD Studio installed (registry, `BDS`, the usual folders, or `ce.delphi.rsvars`), runs MSBuild with its environment, and puts the compiler's **errors and warnings in the Problems panel**, each on its file and line. *Rebuild* is there too. The configuration and platform are `ce.delphi.buildConfig` (`Debug`) and `ce.delphi.platform` (`Win32` or `Win64`).
+- **Build from VS Code.** `Ctrl+Shift+B` (or **CE: Build the project**, the 🔨 *Build* button of the Tools tab) compiles the `.dproj` of the open unit with the Delphi compiler: it finds the RAD Studio installed (registry, `BDS`, the usual folders, or `ce.delphi.rsvars`), runs MSBuild with its environment, and puts the compiler's **errors and warnings in the Problems panel**, each on its file and line. *Rebuild* is there too. The configuration and platform are `ce.delphi.buildConfig` (`Debug`) and `ce.delphi.platform` (`Win32` or `Win64`).
+- **Clean, Build, Rebuild, Install, in 32 and 64 bit.** **CE: Clean / Build / Install the project** (the 🧹 🔨 📦 buttons of the Tools tab) ask for the platform: *Win32*, *Win64* or both, one after the other. *Install* copies the program built to `ce.delphi.installDir`. **CE: Delphi - Rebuild the project** rebuilds everything. In the other languages the same three commands run the tool of the project found in the folder (cargo, go, dotnet, Maven, Gradle, CMake, make, npm, pip), in 32 or 64 bit where the tool has both.
 - **F5 builds first.** Debugging builds the project (with the **detailed map file forced on**, whatever the project options say), stops with the errors if there are any, and otherwise starts the program under the debugger: edit, F5, breakpoint. Set `"build": false` in `launch.json` to debug the program as it is.
 - **What it does**: breakpoints on the lines of your units (a line without code moves to the next one that has some), run, **pause**, **step over / step into / step out** by source line, **call stack** with routines and lines, the **registers** of the stopped frame, the program's `OutputDebugString` text in the debug console, and a stop on an exception or (option `breakOnAccessViolation`) on an access violation. The program and its map file are found from the open unit (`Win32\Debug`, `Win64\Debug`, the project folder) or set with `program` and `mapFile` in `launch.json`.
 - **What it does not do yet**: show the values of variables, evaluate expressions or watches (Delphi's types are not in the map file), conditional breakpoints, and attach to a running process.
@@ -163,6 +168,7 @@ Batch, PL/SQL and Markdown have no debugger.
 ## Delphi
 
 <p align="center"><img src="media/guide/add-component.gif" alt="Adding a component in the designer" width="640"></p>
+<p align="center"><img src="media/guide/magnetism.gif" alt="Dragging a component: it catches the edges of its neighbours" width="640"></p>
 
 - **Visual form designer** (`Ctrl+K D`, the title bar of a `.pas` / `.dfm`, the status bar). Select, drag, resize, align and distribute (with magnetism and guide lines), add components from a palette, copy / paste (as name and caption, or as a whole), undo. VCL, **DevExpress**, **TMS**, UniDAC and TeeChart components are drawn; queries show their fields, grids their columns; bars, tiles, menus and popup menus are edited in place. Events are created and opened from the inspector, and the unit and the `.dfm` stay in step. A component changes parent only while **Ctrl** is held during the drop.
 - **Checks between `.pas` and `.dfm`**: *Check form* (`Ctrl+K C`) finds missing and orphan handlers, a field declared with another class, duplicate TabOrder, controls outside their container, persistent fields whose class is not the one of their column's domain, and fixes what is safe. Handlers are renamed and removed with their component.
@@ -254,7 +260,7 @@ They avoid the letters VS Code already uses after `Ctrl+K`, and can be rebound l
 
 ```bash
 npm ci
-npm run build       # esbuild bundle -> dist/extension.js
+npm run build       # esbuild bundle -> dist/extension.js (not in the repository)
 npm run watch       # rebuild on change
 npm run compile     # tsc --noEmit
 npm run lint        # eslint
@@ -263,7 +269,7 @@ npx @vscode/vsce package --no-dependencies
 ```
 
 - `src/extension.ts` registers the commands; `src/providers/` has one parser per language, `src/services/` the operations and Delphi tools, `src/webview/` the sidebar, designer, Blueprint and panels (webview pages are generated from template strings, with a content-security policy and no inline styles), and `src/utils/` the pure logic that the tests exercise directly.
-- `test-fixtures/` has sample files, including Delphi forms (`test-fixtures/delphi/`). The pictures and animations of the guide are produced by `npx tsx tools/guide/make.ts` (see `tools/guide`).
+- `test-fixtures/` has sample files, including Delphi forms (`test-fixtures/delphi/`). The pictures and animations of the guide are produced by `npx tsx tools/guide/make.ts`, those of the sidebar in this page by `npx tsx tools/guide/sidebar.ts` (see `tools/guide`); `test-fixtures/large_unit.pas` is written by `node tools/make-large-unit.js`.
 - A change comes with a test, passes `npm run compile`, `npm run lint` and `npm test`, and adds an entry to [CHANGELOG.md](CHANGELOG.md).
 
 ## License

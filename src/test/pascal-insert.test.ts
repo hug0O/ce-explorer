@@ -121,12 +121,12 @@ test('Pascal: adding a method keeps the class end; below the declaration', () =>
 });
 
 /** The large real-world Delphi unit is not part of the public repository: this test is skipped when it is absent. */
-const HAS_OFFRE = fs.existsSync(path.join(__dirname, '..', '..', 'test-fixtures', 'offre_unit.pas'));
+const HAS_OFFRE = fs.existsSync(path.join(__dirname, '..', '..', 'test-fixtures', 'large_unit.pas'));
 
-test('Pascal: real 3000-line Delphi unit — every class x visibility inserts inside the class', { skip: !HAS_OFFRE }, () => {
-    const fixture = path.join(__dirname, '..', '..', 'test-fixtures', 'offre_unit.pas');
+test('Pascal: large Delphi unit — every class x visibility inserts inside the class', () => {
+    const fixture = path.join(__dirname, '..', '..', 'test-fixtures', 'large_unit.pas');
     const text = fs.readFileSync(fixture, 'utf8');
-    const realDoc = makeDoc(text, '/proj/offre_unit.pas');
+    const realDoc = makeDoc(text, '/proj/large_unit.pas');
     (vscodeMock.workspace as any).textDocuments = [realDoc];
     const provider = new PascalLanguageProvider();
     const parsed = provider.parseDocument(realDoc);

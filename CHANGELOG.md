@@ -2,6 +2,11 @@
 
 Every release of Code Explorer, newest first. The sidebar shows the same list, folded, at the bottom of each tab.
 
+## 0.1.110 — 2026-11-13
+- **Fewer look-alike commands.** *CE: Clean / Build / Install the project* do the Delphi build on a Delphi file, so the three Delphi commands that did the same left the command palette (*CE: Delphi - Rebuild the project* stays).
+- **The README shows the sidebar**: pictures of the Structure and Used tabs, one more animation of the designer.
+- Inside: the bundle `dist/extension.js` is no longer in the repository (it is built when packaging), and the six tests that needed a private Delphi unit run on a made-up one (`test-fixtures/large_unit.pas`).
+
 ## 0.1.109 — 2026-11-10
 - **Clean, Build, Rebuild and Install in 32 and 64 bit, like the Delphi menu.** **CE: Delphi - Clean / Build / Rebuild / Build and install** ask for the platform (*Win32*, *Win64* or *both*, one MSBuild after the other) and the tasks *ce-delphi* are all in Terminal > Run Task. *Install* copies the program built to `ce.delphi.installDir` (sub-folders Win32 / Win64 when both are built).
 - **The same for the other languages.** **CE: Clean / Build / Install the project** (and the 🧹 🔨 📦 buttons of the Tools tab) read the project from its files and run its tool: cargo, go, dotnet, Maven, Gradle, CMake, make, npm (its own `build` / `clean` scripts), pip; 32 or 64 bit where the tool has both (cargo `--target`, `GOARCH`, dotnet `-r win-x86/x64`, CMake `-A Win32/x64`).

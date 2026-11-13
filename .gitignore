@@ -7,3 +7,4 @@ docs/plans/**
 tmp_*
 .commandcode
 *.vsix
+dist/

@@ -3,7 +3,7 @@
   "displayName": "CE Code Explorer",
   "icon": "media/icon.png",
   "description": "Multi-language Class Explorer with visual member creation, refactoring, and header/source management",
-  "version": "0.1.109",
+  "version": "0.1.110",
   "publisher": "hugo0",
   "license": "MIT",
   "repository": {
@@ -541,7 +541,7 @@
       },
       {
         "command": "ce.project.build",
-        "title": "CE: Build the project (any language, 32 or 64 bit)"
+        "title": "CE: Build the project (any language, 32 or 64 bit; errors in the problems panel for Delphi)"
       },
       {
         "command": "ce.project.install",
@@ -767,6 +767,18 @@
         },
         {
           "command": "ce.delphi.cleanHandlers",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.build",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.clean",
+          "when": "false"
+        },
+        {
+          "command": "ce.delphi.install",
           "when": "false"
         }
       ],

@@ -65,14 +65,14 @@ function makeDoc(text: string, fsPath: string): any {
     };
 }
 
-const FIXTURE = path.join(__dirname, '..', '..', 'test-fixtures', 'offre_unit.pas');
+const FIXTURE = path.join(__dirname, '..', '..', 'test-fixtures', 'large_unit.pas');
 // the large real-world Delphi unit is not part of the public repository: these tests are skipped when it is absent
 const HAS_FIXTURE = fs.existsSync(FIXTURE);
 const UNIT_TEXT = HAS_FIXTURE ? fs.readFileSync(FIXTURE, 'utf8') : '';
 const UNIT_LINES = UNIT_TEXT.split(/\r?\n/);
 
 async function renameAndCollect(member: any, cls: any): Promise<any[]> {
-    const doc = makeDoc(UNIT_TEXT, '/proj/offre_unit.pas');
+    const doc = makeDoc(UNIT_TEXT, '/proj/large_unit.pas');
     const provider = new PascalLanguageProvider();
     const synthCls = cls ?? {
         id: 'standalone_' + member.id, name: '', fullName: '', classType: 'standalone',
@@ -86,14 +86,14 @@ async function renameAndCollect(member: any, cls: any): Promise<any[]> {
     return applied[0]?.edits ?? [];
 }
 
-test('real Delphi unit: renaming a standalone procedure covers declaration AND implementation', { skip: !HAS_FIXTURE }, async () => {
+test('real Delphi unit: renaming a standalone procedure covers declaration AND implementation', async () => {
     const provider = new PascalLanguageProvider();
-    const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/offre_unit.pas'));
-    const member = parsed.standaloneProcedures.find((p: any) => p.name === 'fMaj_OFFPR');
-    assert.ok(member, 'fMaj_OFFPR must be parsed as a standalone procedure');
+    const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/large_unit.pas'));
+    const member = parsed.standaloneProcedures.find((p: any) => p.name === 'fSaveOrder');
+    assert.ok(member, 'fSaveOrder must be parsed as a standalone procedure');
 
     const edits = await renameAndCollect(member, undefined);
-    const realCount = (UNIT_TEXT.match(/\bfMaj_OFFPR\b/g) || []).length;
+    const realCount = (UNIT_TEXT.match(/\bfSaveOrder\b/g) || []).length;
     assert.ok(realCount >= 2, 'fixture must contain the declaration and the implementation');
     assert.equal(edits.length, realCount, 'every occurrence in the file must be renamed');
     const editLines = new Set(edits.map((e: any) => e.range.start.line));
@@ -101,9 +101,9 @@ test('real Delphi unit: renaming a standalone procedure covers declaration AND i
     assert.ok(editLines.has(member.implementationRange!.start.line), 'implementation line renamed');
 });
 
-test('real Delphi unit: renaming a routine covers declaration, implementation AND call sites', { skip: !HAS_FIXTURE }, async () => {
+test('real Delphi unit: renaming a routine covers declaration, implementation AND call sites', async () => {
     const provider = new PascalLanguageProvider();
-    const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/offre_unit.pas'));
+    const parsed = provider.parseDocument(makeDoc(UNIT_TEXT, '/proj/large_unit.pas'));
 
     // In this unit the routines are file-level (standalone). Pick one with
     // several occurrences — it necessarily spans declaration + implementation
